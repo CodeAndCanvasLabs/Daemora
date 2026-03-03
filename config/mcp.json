@@ -1,0 +1,145 @@
+{
+  "_comment": "MCP Server Configuration - add servers here to connect your agent to external tools.",
+  "_auth_stdio": "stdio servers: use 'env' - key/value pairs injected into the subprocess environment.",
+  "_auth_http": "http servers:  use 'headers' - sent as HTTP request headers. Support ${VAR} expansion from process.env.",
+  "_auth_sse": "sse servers:   use 'headers' - same as http, applied to both GET stream and POST calls.",
+  "_example_http": {
+    "url": "https://api.example.com/mcp",
+    "headers": {
+      "Authorization": "Bearer ${MY_TOKEN}",
+      "X-API-Key": "${MY_KEY}"
+    },
+    "enabled": false
+  },
+  "_example_sse": {
+    "url": "https://api.example.com/sse",
+    "transport": "sse",
+    "headers": {
+      "Authorization": "Bearer ${MY_TOKEN}"
+    },
+    "enabled": false
+  },
+  "_setup": "Use 'daemora mcp add' (interactive) or 'daemora setup' to add servers. Restart agent or run 'daemora mcp reload <name>' after changes.",
+  "mcpServers": {
+    "_comment_memory": "Persistent memory via knowledge graph (no API key needed)",
+    "memory": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ],
+      "enabled": false
+    },
+    "_comment_filesystem": "Secure file access (CHANGE the path to your workspace!)",
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/you/Projects"
+      ],
+      "enabled": false
+    },
+    "_comment_github": "GitHub integration - repos, PRs, issues, commits",
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_TOKEN"
+      },
+      "enabled": false
+    },
+    "_comment_brave": "Brave Search - web, news, image search",
+    "brave-search": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@anthropic-ai/brave-search-mcp-server"
+      ],
+      "env": {
+        "BRAVE_API_KEY": "YOUR_BRAVE_API_KEY"
+      },
+      "enabled": false
+    },
+    "_comment_git": "Git operations - read, search, manipulate repos",
+    "git": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-git"
+      ],
+      "enabled": false
+    },
+    "_comment_fetch": "Web fetching - convert web pages to LLM-friendly text",
+    "fetch": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-fetch"
+      ],
+      "enabled": false
+    },
+    "_comment_slack": "Slack workspace integration",
+    "slack": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-slack"
+      ],
+      "env": {
+        "SLACK_BOT_TOKEN": "",
+        "SLACK_TEAM_ID": ""
+      },
+      "enabled": false
+    },
+    "_comment_postgres": "PostgreSQL database access",
+    "postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://user:pass@localhost:5432/mydb"
+      ],
+      "enabled": false
+    },
+    "_comment_puppeteer": "Browser automation via Puppeteer",
+    "puppeteer": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-puppeteer"
+      ],
+      "enabled": false
+    },
+    "_comment_sentry": "Sentry error tracking integration",
+    "sentry": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@sentry/mcp-server@latest"
+      ],
+      "env": {
+        "SENTRY_AUTH_TOKEN": "YOUR_SENTRY_AUTH_TOKEN"
+      },
+      "enabled": false
+    },
+    "_comment_sequential": "Sequential thinking - structured problem solving",
+    "sequential-thinking": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequentialthinking"
+      ],
+      "enabled": false
+    },
+    "Umar": {
+      "enabled": false,
+      "url": "https://api.example.com/sse",
+      "transport": "sse",
+      "description": "kajshdkjahskdhaskdh"
+    }
+  }
+}

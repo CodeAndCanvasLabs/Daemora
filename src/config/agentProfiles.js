@@ -1,0 +1,120 @@
+/**
+ * Agent Profiles - tool presets for common sub-agent roles.
+ *
+ * Rather than giving every sub-agent all 33 tools, profiles provide
+ * focused tool sets matched to the task type. Inspired by the research
+ * finding that specialized context windows outperform bloated ones.
+ *
+ * Usage in spawnAgent / parallelAgents:
+ *   { profile: "coder" }                        - preset tool list
+ *   { profile: "researcher", extraTools: ["writeFile"] }  - preset + additions
+ *   { tools: ["readFile", "webSearch"] }         - explicit list (overrides profile)
+ *
+ * spawnAgent and parallelAgents are injected dynamically based on depth - not in profiles.
+ */
+
+export const agentProfiles = {
+
+  /**
+   * researcher - gather, analyze, summarize, produce findings.
+   * Reads files, searches web, fetches URLs, analyzes images. Saves findings to files.
+   * Does NOT ask the user what to look for - searches until it has enough to answer fully.
+   * Produces structured output: facts, sources, analysis, recommendations.
+   */
+  researcher: [
+    "readFile", "listDirectory", "searchFiles", "searchContent",
+    "glob", "grep",
+    "webFetch", "webSearch",
+    "writeFile",        // save research notes and findings to workspace
+    "createDocument",   // produce reports
+    "readMemory", "writeMemory", "searchMemory",
+    "imageAnalysis",    // analyze charts, diagrams, screenshots, visual data
+    "useMCP",           // query external sources (GitHub, Notion, Linear, etc.)
+  ],
+
+  /**
+   * coder - build, fix, test, verify.
+   * Full ownership: writes code, runs builds, starts dev servers, tests UI visually,
+   * writes test cases, runs them, fixes failures. Does everything without asking the user.
+   */
+  coder: [
+    "readFile", "writeFile", "editFile", "listDirectory",
+    "searchFiles", "searchContent", "glob", "grep", "applyPatch",
+    "executeCommand",
+    "webFetch", "webSearch",
+    "browserAction",    // test web UIs, click, fill forms, navigate
+    "imageAnalysis",    // analyze screenshots for visual bugs, verify UI looks correct
+    "screenCapture",    // capture screen when browser isn't sufficient
+    "readMemory", "writeMemory", "searchMemory",  // learn and apply project conventions
+    "projectTracker",   // track sub-tasks within complex coding work
+    "useMCP",
+  ],
+
+  /**
+   * writer - produce polished documents, reports, content.
+   * Reads existing content for context, researches via web, produces clean output.
+   * Does NOT ask what tone/format to use unless genuinely ambiguous - infers from context.
+   * Delivers the final document, not a draft asking for feedback.
+   */
+  writer: [
+    "readFile", "writeFile", "editFile", "listDirectory",
+    "searchFiles", "searchContent", "glob", "grep",
+    "webFetch", "webSearch",
+    "createDocument",
+    "readMemory", "writeMemory", "searchMemory",
+  ],
+
+  /**
+   * analyst - process data, run scripts, extract insights, produce output.
+   * Shell execution for data processing + web + vision for charts/visuals.
+   * Runs scripts, parses output, draws conclusions. Delivers findings, not raw data.
+   */
+  analyst: [
+    "readFile", "writeFile", "listDirectory", "searchFiles", "searchContent",
+    "glob", "grep",
+    "webFetch", "webSearch",
+    "executeCommand",   // run data processing scripts, query CLIs
+    "imageAnalysis",    // analyze charts, graphs, visual data
+    "createDocument",   // produce analysis reports
+    "readMemory", "writeMemory", "searchMemory",
+  ],
+
+};
+
+/**
+ * Default tool set for sub-agents spawned without a profile.
+ *
+ * Covers the majority of tasks while excluding high-blast-radius tools
+ * that sub-agents rarely need and that carry side effects beyond task scope:
+ *   - cron          - schedules recurring tasks that outlive the sub-agent
+ *   - sendEmail     - sub-agents shouldn't initiate email
+ *   - messageChannel - sub-agents shouldn't send messages
+ *   - screenCapture - sub-agents don't need screen access
+ *   - manageAgents  - sub-agents shouldn't kill/steer other agents
+ *   - delegateToAgent - A2A from sub-agents is unpredictable
+ *
+ * spawnAgent and parallelAgents are NOT listed here - they are injected
+ * dynamically into sub-agents by SubAgentManager based on recursion depth.
+ */
+export const defaultSubAgentTools = [
+  // File
+  "readFile", "writeFile", "editFile", "listDirectory",
+  "searchFiles", "searchContent", "glob", "grep", "applyPatch",
+  // System
+  "executeCommand",
+  // Web
+  "webFetch", "webSearch",
+  // Browser
+  "browserAction",
+  // Documents + Vision
+  "createDocument",
+  "imageAnalysis",
+  // Memory
+  "readMemory", "writeMemory", "readDailyLog", "writeDailyLog",
+  "searchMemory", "pruneMemory", "listMemoryCategories",
+  // Project tracking
+  "projectTracker",
+  // MCP (via specialist agent - no direct mcp__ tools)
+  "manageMCP",
+  "useMCP",
+];

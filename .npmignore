@@ -1,0 +1,34 @@
+# Runtime data - never shipped
+data/
+MEMORY.md
+HEARTBEAT.md
+
+# Reference codebases (dev only)
+agents/
+components/
+aegis-ui/
+
+# Tests
+tests/
+playwright.config.ts
+test-results/
+playwright-report/
+.playwright/
+
+# Development files
+.env
+.env.*
+.env.example
+pnpm-lock.yaml
+
+# Research / internal docs
+DEEP_RESEARCH_REPORT.md
+PHASES.md
+STATUS.md
+docs/
+
+# Editor & OS
+.vscode/
+.idea/
+.DS_Store
+*.log

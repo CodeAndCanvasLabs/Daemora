@@ -1,0 +1,52 @@
+# ── Dependencies ─────────────────────────────────────────────────────────────
+node_modules/
+pnpm-lock.yaml       # use package-lock.json (npm) or yarn.lock (yarn) instead
+
+# ── Environment - NEVER commit secrets ───────────────────────────────────────
+.env
+.env.*
+!.env.example        # keep the template
+
+# ── Runtime data - generated at runtime, user-specific ───────────────────────
+data/
+MEMORY.md
+HEARTBEAT.md
+
+# ── Skill embedding cache - auto-regenerated on startup ──────────────────────
+# (included under data/ above, but listed explicitly for clarity)
+# data/skill-embeddings.json
+
+# ── Development / work-in-progress dirs not part of the package ──────────────
+agents/              # reference agents (OpenClaw, Gemini CLI, Claude Code)
+aegis-ui/            # web dashboard (separate project, in-progress)
+components/          # scratch UI components from dev
+daemoreDir/          # empty scratch directory
+docs/                # internal planning docs (not needed by end users)
+PHASES.md            # detailed internal phase planning
+DEEP_RESEARCH_REPORT.md
+
+# ── Claude Code project context ───────────────────────────────────────────────
+.claude/
+
+# ── Test artifacts ────────────────────────────────────────────────────────────
+tests/
+playwright.config.ts
+pnpm-lock.yaml
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+
+# ── Build artifacts ────────────────────────────────────────────────────────────
+dist/
+build/
+*.log
+
+# ── OS & editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+.idea/
+*.swp
+*.swo

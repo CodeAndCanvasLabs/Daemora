@@ -1,0 +1,14 @@
+{
+  "PreToolUse": [
+    {
+      "matcher": "executeCommand",
+      "type": "js",
+      "code": "const input = context.toolInput; const cmd = Array.isArray(input) ? input[0] : String(input); const blocked = ['rm -rf /', 'sudo rm', 'mkfs.', 'dd if=', '> /dev/sda', 'chmod 777 /']; for (const pattern of blocked) { if (cmd.includes(pattern)) return { decision: 'block', reason: `Dangerous command blocked: ${pattern}` }; } return { decision: 'allow' };",
+      "timeout": 1000
+    }
+  ],
+  "PostToolUse": [],
+  "TaskStart": [],
+  "TaskEnd": [],
+  "MemoryWrite": []
+}
