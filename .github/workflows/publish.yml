@@ -1,12 +1,5 @@
 name: Publish to npm
 
-# Triggers:
-#   main branch push  → publish as "latest" (only if version not already on npm)
-#   beta branch push  → publish as "beta"   (auto-versioned: 1.0.2-beta.20260304.abc1234)
-#   next branch push  → publish as "next"   (auto-versioned: 1.0.2-next.20260304.abc1234)
-#   v*.*.* tag push   → publish as "latest" (explicit release)
-#   workflow_dispatch → manual trigger with dry-run option
-
 on:
   workflow_dispatch:
     inputs:
