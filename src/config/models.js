@@ -34,6 +34,16 @@ export const models = {
     capabilities: ["text", "tools", "reasoning"],
     tier: "standard",
   },
+  "openai:o4-mini": {
+    provider: "openai",
+    model: "o4-mini",
+    contextWindow: 200_000,
+    compactAt: 140_000,
+    costPer1kInput: 0.0011,
+    costPer1kOutput: 0.0044,
+    capabilities: ["text", "tools", "reasoning"],
+    tier: "standard",
+  },
 
   // Anthropic
   "anthropic:claude-sonnet-4-6": {
