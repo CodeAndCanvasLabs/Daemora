@@ -80,19 +80,28 @@ export async function runMCPAgent(serverName, taskDescription, options = {}) {
     return `MCP server "${serverName}" not found or has no tools. Available servers: ${available.join(", ")}`;
   }
 
-  // Build tool docs for this server's system prompt
+  // Build tool docs for this server's system prompt (include nested schemas)
   const toolDocs = Object.keys(serverTools)
     .map((fullName) => {
       const entry = mcpManager.toolMap.get(fullName);
       if (!entry) return `### ${fullName}(argsJson: string)`;
-      const schema = entry.inputSchema?.properties || {};
-      const required = entry.inputSchema?.required || [];
-      const params = Object.entries(schema)
-        .map(([k, v]) => `${k}${required.includes(k) ? "" : "?"}: ${v.type || "any"}`)
-        .join(", ");
       const desc = entry.description || entry.toolName;
-      const paramLine = params ? `\n- argsJson: \`{${params}}\`` : "";
-      return `### ${fullName}(argsJson: string)\n${desc}${paramLine}`;
+      const schema = entry.inputSchema;
+      // Show full JSON schema so the sub-agent knows exact field names
+      let schemaDoc = "";
+      if (schema) {
+        try {
+          schemaDoc = "\n- Schema:\n```json\n" + JSON.stringify(schema, null, 2) + "\n```";
+        } catch {
+          const props = schema.properties || {};
+          const required = schema.required || [];
+          const params = Object.entries(props)
+            .map(([k, v]) => `${k}${required.includes(k) ? "" : "?"}: ${v.type || "any"}`)
+            .join(", ");
+          schemaDoc = params ? `\n- argsJson: \`{${params}}\`` : "";
+        }
+      }
+      return `### ${fullName}(argsJson: string)\n${desc}${schemaDoc}`;
     })
     .join("\n\n");
 
