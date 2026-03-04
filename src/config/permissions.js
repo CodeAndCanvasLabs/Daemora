@@ -58,6 +58,7 @@ export const permissionTiers = {
       "pruneMemory",
       // Screen
       "screenCapture",
+      "replyWithFile",
       // Project tracking
       "projectTracker",
       // MCP inspection (read-only - no side effects)
@@ -92,6 +93,7 @@ export const permissionTiers = {
       "writeDailyLog",
       "pruneMemory",
       "screenCapture",
+      "replyWithFile",
       // Full-only: communication
       "sendEmail",
       "messageChannel",

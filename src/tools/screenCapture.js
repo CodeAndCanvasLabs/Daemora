@@ -12,7 +12,7 @@
  * or sendFile to deliver the result to the user.
  */
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, statSync } from "node:fs";
 import { platform } from "node:os";
 import { join } from "node:path";
 
@@ -61,8 +61,19 @@ export function screenCapture(optionsJson) {
       }
 
       if (!existsSync(outputPath)) {
+        if (os === "darwin") {
+          return "Error: Screenshot failed. The terminal app likely needs Screen Recording permission. Go to: System Settings → Privacy & Security → Screen Recording → enable your terminal app, then restart it.";
+        }
         return "Error: Screenshot command ran but no file was created.";
       }
+
+      if (os === "darwin") {
+        const fileSize = statSync(outputPath).size;
+        if (fileSize < 500) {
+          return `Error: Screenshot captured but appears empty (${fileSize} bytes). The terminal app likely needs Screen Recording permission. Go to: System Settings → Privacy & Security → Screen Recording → enable your terminal app, then restart it.`;
+        }
+      }
+
       return `Screenshot saved to: ${outputPath}`;
     }
 

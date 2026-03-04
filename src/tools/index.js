@@ -26,6 +26,7 @@ import { delegateToAgent, delegateToAgentDescription } from "../a2a/A2AClient.js
 // ─── Media tools ───────────────────────────────────────────────────────────────
 import { transcribeAudio, transcribeAudioDescription } from "./transcribeAudio.js";
 import { sendFile, sendFileDescription } from "./sendFile.js";
+import { replyWithFile, replyWithFileDescription } from "./replyWithFile.js";
 import { textToSpeech, textToSpeechDescription } from "./textToSpeech.js";
 
 // ─── Search & code tools ───────────────────────────────────────────────────────
@@ -105,6 +106,7 @@ export const toolFunctions = {
   sendEmail,
   messageChannel,
   sendFile,
+  replyWithFile,
   transcribeAudio,
   textToSpeech,
   // Documents
@@ -178,6 +180,7 @@ export const toolDescriptions = [
   sendEmailDescription,
   messageChannelDescription,
   sendFileDescription,
+  replyWithFileDescription,
   transcribeAudioDescription,
   textToSpeechDescription,
   // Documents

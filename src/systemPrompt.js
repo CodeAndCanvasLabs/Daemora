@@ -198,7 +198,8 @@ Analyze an image using a vision model. imagePath can be a local file path or URL
 Take a screenshot or record a screen video. optionsJson: {"mode":"screenshot"|"video","outputDir":"/tmp","duration":10,"region":{"x":0,"y":0,"width":800,"height":600}}.
 - mode defaults to "screenshot". duration (seconds, 1-300) only applies to video mode.
 - macOS: screencapture. Linux: ImageMagick/ffmpeg. Returns the file path.
-- Chain with imageAnalysis to analyze screenshots, or sendFile to deliver to user.
+- You ARE running on a real machine with display access. Always try this tool — never assume it won't work.
+- Chain: screenCapture → replyWithFile (send to user) or screenCapture → imageAnalysis (analyze content).
 
 ### transcribeAudio(audioPath, prompt?)
 Transcribe a voice or audio file to text using OpenAI Whisper.
@@ -209,14 +210,20 @@ Transcribe a voice or audio file to text using OpenAI Whisper.
 Convert text to speech and save as an MP3 audio file.
 - Uses OpenAI TTS (tts-1-hd, no extra setup) or ElevenLabs (set ELEVENLABS_API_KEY).
 - optionsJson: {"voice":"nova|alloy|echo|fable|onyx|shimmer","speed":1.0,"provider":"openai|elevenlabs","voiceId":"<elevenlabs-id>"}.
-- Splits long text automatically. Returns the saved file path. Chain with sendFile() to deliver audio to the user.
+- Splits long text automatically. Returns the saved file path. Chain with replyWithFile() to deliver audio to the user.
+
+### replyWithFile(filePath, caption?)
+Send a file (image, video, document, audio) back to the current user. Automatically routes to their channel — no need to specify channel or chat ID.
+- filePath: absolute path to the local file.
+- caption: optional text alongside the file.
+- **Use this whenever you produce a file the user should see** — screenshots, generated images, documents, audio, video recordings.
+- Chain: screenCapture → replyWithFile, generateImage → replyWithFile, createDocument → replyWithFile.
 
 ### sendFile(channel, target, filePath, caption?)
-Send a local file (image, video, document) to a user on any channel.
+Send a file to a SPECIFIC user on a SPECIFIC channel. Only use when sending to someone OTHER than the current user.
 - channel: "telegram" | "discord" | "slack" | "whatsapp" | "email"
 - target: chat ID (Telegram), user/channel ID (Discord/Slack), phone (WhatsApp), or email.
-- filePath: absolute path to the local file. caption: optional text alongside the file.
-- Use after screenCapture, imageAnalysis, or createDocument to deliver results to the user.
+- For sending files to the current user, prefer replyWithFile instead.
 
 ## Memory
 
