@@ -118,6 +118,10 @@ async function main() {
       await handleDoctor();
       break;
 
+    case "cleanup":
+      await handleCleanup(subcommand, rest);
+      break;
+
     case "channels":
       await handleChannels(subcommand);
       break;
@@ -1281,6 +1285,71 @@ async function handleDoctor() {
   }
 }
 
+// ─── Cleanup ──────────────────────────────────────────────────────────────────
+
+async function handleCleanup(subcommand, rest) {
+  const { runCleanup, getStorageStats } = await import("./services/cleanup.js");
+  const { readFileSync: rfs, writeFileSync: wfs, existsSync: exs } = await import("fs");
+  const { join: pjoin } = await import("path");
+
+  if (subcommand === "stats") {
+    const stats = getStorageStats();
+    console.log(`\n  ${t.h("Storage Stats")}\n`);
+    console.log(`  Tasks:    ${t.bold(stats.tasks.files)} files  (${stats.tasks.sizeKB} KB)`);
+    console.log(`  Audit:    ${t.bold(stats.audit.files)} files  (${stats.audit.sizeKB} KB)`);
+    console.log(`  Costs:    ${t.bold(stats.costs.files)} files  (${stats.costs.sizeKB} KB)`);
+    console.log(`  Sessions: ${t.bold(stats.sessions.files)} files  (${stats.sessions.sizeKB} KB)`);
+    console.log(`\n  Retention: ${stats.retentionDays === "never" ? t.dim("never delete") : t.bold(stats.retentionDays + " days")}`);
+    console.log(`  ${t.dim("Set with: daemora cleanup set <days>  (0 = never)")}\n`);
+    return;
+  }
+
+  if (subcommand === "set") {
+    const days = parseInt(rest[0], 10);
+    if (isNaN(days) || days < 0) {
+      console.log(`\n  ${S.cross}  Usage: daemora cleanup set <days>  (0 = never delete)\n`);
+      return;
+    }
+
+    // Update .env file
+    const envPath = pjoin(config.rootDir, ".env");
+    if (exs(envPath)) {
+      let env = rfs(envPath, "utf-8");
+      if (env.includes("CLEANUP_AFTER_DAYS=")) {
+        env = env.replace(/CLEANUP_AFTER_DAYS=\d*/, `CLEANUP_AFTER_DAYS=${days}`);
+      } else {
+        env = env.trimEnd() + `\n\n# === Cleanup ===\nCLEANUP_AFTER_DAYS=${days}\n`;
+      }
+      wfs(envPath, env);
+    } else {
+      wfs(envPath, `CLEANUP_AFTER_DAYS=${days}\n`);
+    }
+
+    if (days === 0) {
+      console.log(`\n  ${t.success("✔")}  Auto-cleanup ${t.bold("disabled")}. Data will be kept forever.\n`);
+    } else {
+      console.log(`\n  ${t.success("✔")}  Auto-cleanup set to ${t.bold(days + " days")}. Old data deleted on each startup.\n`);
+    }
+    return;
+  }
+
+  // Default: run cleanup now
+  const days = config.cleanupAfterDays || 30;
+  console.log(`\n  ${t.h("Cleanup")}  ${t.muted(`Deleting data older than ${days} days`)}\n`);
+
+  const result = runCleanup(days);
+
+  if (result.total === 0) {
+    console.log(`  ${t.success("✔")}  Nothing to clean up.\n`);
+  } else {
+    if (result.tasks > 0)    console.log(`  ${t.success("✔")}  Tasks:    ${result.tasks} deleted`);
+    if (result.audit > 0)    console.log(`  ${t.success("✔")}  Audit:    ${result.audit} deleted`);
+    if (result.costs > 0)    console.log(`  ${t.success("✔")}  Costs:    ${result.costs} deleted`);
+    if (result.sessions > 0) console.log(`  ${t.success("✔")}  Sessions: ${result.sessions} deleted`);
+    console.log(`\n  Total: ${t.bold(result.total)} file(s) deleted.\n`);
+  }
+}
+
 // ─── Channels ─────────────────────────────────────────────────────────────────
 
 const CHANNEL_DEFS = [
@@ -2036,6 +2105,9 @@ ${line}
   ${t.cmd("tools")} ${t.dim("[filter]")}                    List all 50 built-in tools (filter by name/category)
 
   ${t.cmd("doctor")}                           Security audit - check for misconfigurations
+  ${t.cmd("cleanup")}                          Delete old tasks, logs, and sessions
+  ${t.cmd("cleanup set")} ${t.dim("<days>")}             Set auto-cleanup retention (0 = never)
+  ${t.cmd("cleanup stats")}                    Show storage usage per directory
 
   ${t.cmd("help")}                             Show this help
 

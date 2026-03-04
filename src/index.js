@@ -22,6 +22,7 @@ import voiceWebhook from "./voice/VoiceWebhook.js";
 import daemonManager from "./daemon/DaemonManager.js";
 import secretVault from "./safety/SecretVault.js";
 import tenantManager from "./tenants/TenantManager.js";
+import { runCleanup } from "./services/cleanup.js";
 
 // Ensure all data directories exist
 const dirs = [
@@ -35,6 +36,14 @@ const dirs = [
 ];
 for (const dir of dirs) {
   mkdirSync(dir, { recursive: true });
+}
+
+// Auto-cleanup old data on startup
+if (config.cleanupAfterDays > 0) {
+  const cleaned = runCleanup(config.cleanupAfterDays);
+  if (cleaned.total > 0) {
+    console.log(`[Cleanup] Deleted ${cleaned.total} file(s) older than ${config.cleanupAfterDays} days (tasks: ${cleaned.tasks}, audit: ${cleaned.audit}, costs: ${cleaned.costs}, sessions: ${cleaned.sessions})`);
+  }
 }
 
 // Initialize task system

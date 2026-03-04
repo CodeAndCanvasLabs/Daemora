@@ -41,6 +41,9 @@ export const config = {
   maxCostPerTask: parseFloat(process.env.MAX_COST_PER_TASK || "0.50"),
   maxDailyCost: parseFloat(process.env.MAX_DAILY_COST || "10.00"),
 
+  // Cleanup
+  cleanupAfterDays: parseInt(process.env.CLEANUP_AFTER_DAYS || "30", 10), // 0 = never
+
   // Daemon
   daemonMode: process.env.DAEMON_MODE === "true",
   heartbeatIntervalMinutes: parseInt(process.env.HEARTBEAT_INTERVAL_MINUTES || "30", 10),
