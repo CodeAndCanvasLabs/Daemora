@@ -63,7 +63,6 @@ export async function runAgentLoop({
 
   let messages = [systemPrompt, ...msgs];
   let stepCount = 0;
-  let writeToolUsed = false;  // Track if model actually modified anything
   let loopCount = 0;
   let lastToolCall = null;
   let repeatCount = 0;
@@ -73,7 +72,6 @@ export async function runAgentLoop({
 
   const WRITE_TOOLS = new Set(["writeFile", "editFile", "applyPatch", "executeCommand", "sendEmail", "createDocument", "browserAction", "messageChannel"]);
   let gitSnapshotDone = false; // Only snapshot once per task
-  const ACTION_WORDS = /\b(fixed|updated|created|added|modified|changed|removed|deleted|wrote|edited|replaced|refactored|implemented|styled|applied)\b/i;
 
   console.log(`\n--- AGENT LOOP STARTED ---`);
   console.log(`Model: ${resolvedModelId}`);
@@ -274,11 +272,6 @@ export async function runAgentLoop({
             const outputStr = typeof toolOutput === "string" ? toolOutput : JSON.stringify(toolOutput);
             const preview = outputStr.slice(0, 300) + (outputStr.length > 300 ? "..." : "");
 
-            // Track if a write tool was successfully used
-            if (WRITE_TOOLS.has(tool_name)) {
-              writeToolUsed = true;
-            }
-
             console.log(`[Step ${stepCount}] Done in ${toolElapsed}ms`);
             console.log(`[Step ${stepCount}] Output: ${preview}`);
 
@@ -352,30 +345,6 @@ export async function runAgentLoop({
             role: "user",
             content:
               "Provide a text summary of what you did. Set type to 'text', finalResponse to true, and text_content to your summary.",
-          });
-          continue;
-        }
-
-        // --- Lazy model safeguard ---
-        // SAFEGUARD 1: Model claimed it DID something but used ZERO tools.
-        // Only triggers when the response contains action words (fixed, created, etc.)
-        // Conversational replies (greetings, questions, clarifications) are fine without tools.
-        if (stepCount === 0 && loopCount <= 2 && ACTION_WORDS.test(parsedOutput.text_content || "")) {
-          console.log(`[Loop ${loopCount}] LAZY MODEL DETECTED - claims "${(parsedOutput.text_content || "").slice(0, 80)}..." but used 0 tools. Forcing tool use.`);
-          messages.push({
-            role: "user",
-            content: `You claimed to have done something but used zero tools. You MUST actually use tools to complete the task. Do NOT claim you fixed or changed something without actually doing it. Use your tools NOW.`,
-          });
-          continue;
-        }
-
-        // SAFEGUARD 2: Model used only READ tools but claims it modified/fixed something
-        // If the response contains action words but no write tool was ever called, push back.
-        if (!writeToolUsed && stepCount > 0 && loopCount <= 4 && ACTION_WORDS.test(parsedOutput.text_content)) {
-          console.log(`[Loop ${loopCount}] PHANTOM WRITE DETECTED - model claims "${parsedOutput.text_content.slice(0, 80)}..." but only used read tools. Forcing actual writes.`);
-          messages.push({
-            role: "user",
-            content: `You claim to have made changes but you only used read tools - you never called writeFile or editFile to actually modify any file. The files are UNCHANGED. You must use writeFile or editFile to actually make the changes. Do it now.`,
           });
           continue;
         }
