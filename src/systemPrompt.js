@@ -263,8 +263,14 @@ List, kill, or steer running sub-agents. action: "list"|"kill"|"steer". paramsJs
 ### useMCP(serverName, taskDescription)
 Delegate a task to a specialist agent for the named MCP server.
 - serverName: the MCP server to use - check "Connected MCP Servers" section for available servers
-- taskDescription: full task spec - the specialist has zero other context, include all details
-- The specialist gets ONLY that server's tools: lean context, no noise from built-in tools
+- taskDescription: The specialist has ZERO context beyond what you write here. You MUST include:
+  1. **Exact action** — which tool to use (e.g. "Use gmail_send_mail")
+  2. **All parameters** — every field value spelled out explicitly (to, from, subject, content/body, etc.)
+  3. **Full content** — write out the complete email body, message text, or document content in the description. Do NOT summarize or abbreviate.
+  4. **Expected outcome** — what success looks like
+- Example for email: "Use gmail_send_mail to send an email. Parameters: to=bilal@fastn.ai, from=umar@fastn.ai, subject=Meeting Tomorrow, content=Hi Bilal,\n\nJust confirming our meeting tomorrow at 3 PM.\n\nBest,\nUmar"
+- BAD: "Send an email to bilal asking about the meeting" (too vague, missing fields)
+- GOOD: Full parameters + full content written out
 
 ### manageMCP(action, paramsJson?)
 Inspect connected MCP servers and their available tools at runtime.
