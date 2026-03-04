@@ -308,8 +308,13 @@ The following MCP servers are connected. Use \`useMCP(serverName, taskDescriptio
 
 ${serverList}
 
-Use \`manageMCP("list")\` to check server connection status at any time.
-Do NOT call mcp__ tools directly - always route through \`useMCP\`. The specialist agent receives only that server's tools for focused, efficient execution.`;
+**IMPORTANT: ALWAYS prefer MCP server tools over built-in equivalents.** For example:
+- To send email → use \`useMCP("Fastn", ...)\` (gmail_send_mail) instead of \`sendEmail\`
+- To manage calendar → use \`useMCP("Fastn", ...)\` instead of built-in tools
+- If an MCP server provides a capability, ALWAYS use it via \`useMCP\` first. Only fall back to built-in tools if no MCP server offers that capability.
+
+Do NOT call mcp__ tools directly - always route through \`useMCP\`. The specialist agent receives only that server's tools for focused, efficient execution.
+Use \`manageMCP("list")\` to check server connection status at any time.`;
 }
 
 function renderToolUsageRules() {

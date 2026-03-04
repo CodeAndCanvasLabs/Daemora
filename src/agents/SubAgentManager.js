@@ -114,17 +114,18 @@ export async function spawnSubAgent(taskDescription, options = {}) {
   const agentId = uuidv4().slice(0, 8);
   const taskId  = `subagent-${agentId}`;
 
-  const profileLabel = profile ? ` [${profile}]` : "";
-  const modelLabel   = resolvedModel ? ` ${C.dim}(${resolvedModel})${C.reset}` : "";
-  _agentLog(C.cyan + C.bold, "🤖 SPAWN", agentId, depth,
-    `${C.cyan}${C.bold}${profileLabel}${C.reset}${modelLabel} "${taskDescription.slice(0, 80)}${taskDescription.length > 80 ? "…" : ""}"`);
-
   // ── Model resolution - priority: explicit > profile routing > parent > global default ───────
   const store = tenantContext.getStore();
   const resolvedModel = model
     || resolveModelForProfile(profile, store?.resolvedConfig || {}, null)
     || store?.resolvedModel
     || config.defaultModel;
+
+  const profileLabel = profile ? ` [${profile}]` : "";
+  const modelLabel   = resolvedModel ? ` ${C.dim}(${resolvedModel})${C.reset}` : "";
+  _agentLog(C.cyan + C.bold, "🤖 SPAWN", agentId, depth,
+    `${C.cyan}${C.bold}${profileLabel}${C.reset}${modelLabel} "${taskDescription.slice(0, 80)}${taskDescription.length > 80 ? "…" : ""}"`);
+
 
   const apiKeys = store?.apiKeys || {};
 
