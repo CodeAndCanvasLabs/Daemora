@@ -357,19 +357,16 @@ export async function runAgentLoop({
         }
 
         // --- Lazy model safeguard ---
-        // SAFEGUARD 1: Model claimed done but used ZERO tools
-        // If the user's message is a real request (not just "ok"/"yes"), force tool use.
-        if (stepCount === 0 && loopCount <= 2) {
-          const lastUserMsg = msgs[msgs.length - 1]?.content?.toLowerCase() || "";
-          const isAck = /^(ok|okay|yes|yeah|sure|thanks|thank you|no|nah|k|yep|yup|got it|cool|nice|great|good|alright|hey|hello|hi|hola|sup|yo|what'?s up|howdy|greetings|gm|good morning|good evening|good night|👍|👋|😌|🙏|✌️)[\s.!?😌👋🙏]*$/i.test(lastUserMsg.trim());
-          if (!isAck && lastUserMsg.length > 5) {
-            console.log(`[Loop ${loopCount}] LAZY MODEL DETECTED - claimed done but used 0 tools. Forcing tool use.`);
-            messages.push({
-              role: "user",
-              content: `You responded without using any tools. You MUST actually use tools (readFile, editFile, writeFile, executeCommand, etc.) to complete the task. Do NOT claim you fixed or changed something without actually doing it. Use your tools NOW to fulfill the request.`,
-            });
-            continue;
-          }
+        // SAFEGUARD 1: Model claimed it DID something but used ZERO tools.
+        // Only triggers when the response contains action words (fixed, created, etc.)
+        // Conversational replies (greetings, questions, clarifications) are fine without tools.
+        if (stepCount === 0 && loopCount <= 2 && ACTION_WORDS.test(parsedOutput.text_content || "")) {
+          console.log(`[Loop ${loopCount}] LAZY MODEL DETECTED - claims "${(parsedOutput.text_content || "").slice(0, 80)}..." but used 0 tools. Forcing tool use.`);
+          messages.push({
+            role: "user",
+            content: `You claimed to have done something but used zero tools. You MUST actually use tools to complete the task. Do NOT claim you fixed or changed something without actually doing it. Use your tools NOW.`,
+          });
+          continue;
         }
 
         // SAFEGUARD 2: Model used only READ tools but claims it modified/fixed something
