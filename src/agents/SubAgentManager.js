@@ -269,7 +269,8 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     ]);
 
     const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
-    const costStr = result.cost ? ` $${result.cost.toFixed(4)}` : "";
+    const costVal = typeof result.cost === "number" ? result.cost : result.cost?.estimatedCost;
+    const costStr = costVal ? ` $${costVal.toFixed(4)}` : "";
     _agentLog(C.green + C.bold, "✅ DONE ", agentId, depth,
       `${C.green}${C.bold}completed in ${elapsed}s${costStr}${C.reset}`);
     eventBus.emitEvent("agent:finished", { agentId, taskId, parentTaskId, cost: result.cost });
