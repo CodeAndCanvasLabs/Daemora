@@ -361,7 +361,7 @@ export async function runAgentLoop({
         // If the user's message is a real request (not just "ok"/"yes"), force tool use.
         if (stepCount === 0 && loopCount <= 2) {
           const lastUserMsg = msgs[msgs.length - 1]?.content?.toLowerCase() || "";
-          const isAck = /^(ok|okay|yes|yeah|sure|thanks|thank you|no|nah|k|yep|yup|got it|cool|nice|great|good|alright|👍)\.?$/i.test(lastUserMsg.trim());
+          const isAck = /^(ok|okay|yes|yeah|sure|thanks|thank you|no|nah|k|yep|yup|got it|cool|nice|great|good|alright|hey|hello|hi|hola|sup|yo|what'?s up|howdy|greetings|gm|good morning|good evening|good night|👍|👋|😌|🙏|✌️)[\s.!?😌👋🙏]*$/i.test(lastUserMsg.trim());
           if (!isAck && lastUserMsg.length > 5) {
             console.log(`[Loop ${loopCount}] LAZY MODEL DETECTED - claimed done but used 0 tools. Forcing tool use.`);
             messages.push({
