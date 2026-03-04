@@ -31,42 +31,113 @@ export async function runSetupWizard() {
   const provider = guard(await p.select({
     message: "Which AI provider?",
     options: [
-      { value: "openai",    label: "OpenAI",    hint: "GPT-4.1 \u2014 best all-rounder" },
-      { value: "anthropic", label: "Anthropic",  hint: "Claude \u2014 great for coding & reasoning" },
-      { value: "google",    label: "Google AI",  hint: "Gemini \u2014 fast & capable" },
-      { value: "ollama",    label: "Ollama",     hint: "Local models \u2014 free, private" },
+      { value: "openai",    label: "OpenAI",    hint: "GPT-5 / GPT-4.1 \u2014 best all-rounder" },
+      { value: "anthropic", label: "Anthropic",  hint: "Claude 4 \u2014 great for coding & reasoning" },
+      { value: "google",    label: "Google AI",  hint: "Gemini 3.1 / 2.5 \u2014 fast & capable" },
+      { value: "xai",       label: "xAI",        hint: "Grok 4 \u2014 conversational & capable" },
+      { value: "deepseek",  label: "DeepSeek",   hint: "DeepSeek V3 / R1 \u2014 excellent coder, cheap" },
+      { value: "mistral",   label: "Mistral",    hint: "Mistral Large \u2014 European AI, GDPR-friendly" },
+      { value: "ollama",    label: "Ollama",     hint: "Local models \u2014 free, private, offline" },
     ],
   }));
 
   if (provider === "openai") {
-    const key = guard(await p.password({ message: "OpenAI API key", validate: (v) => !v ? "Required" : undefined }));
+    const key = guard(await p.password({ message: "OpenAI API key (sk-...)", validate: (v) => !v ? "Required" : undefined }));
     envConfig.OPENAI_API_KEY = key;
     envConfig.DEFAULT_MODEL = guard(await p.select({
       message: "OpenAI model",
       options: [
-        { value: "openai:gpt-4.1-mini", label: "gpt-4.1-mini", hint: "Fast & cheap (recommended)" },
-        { value: "openai:gpt-4.1",      label: "gpt-4.1",      hint: "Most capable" },
-        { value: "openai:gpt-4o-mini",   label: "gpt-4o-mini",  hint: "Balanced" },
+        { value: "openai:gpt-4.1-mini",  label: "gpt-4.1-mini",  hint: "1M ctx \u2014 fast & affordable (recommended)" },
+        { value: "openai:gpt-5.2-pro",   label: "gpt-5.2-pro",   hint: "GPT-5.2 Pro \u2014 highest capability [NEW]" },
+        { value: "openai:gpt-5.2",       label: "gpt-5.2",       hint: "GPT-5.2 flagship (Dec 2025) [NEW]" },
+        { value: "openai:gpt-5",         label: "gpt-5",         hint: "GPT-5 flagship (Aug 2025)" },
+        { value: "openai:gpt-5-mini",    label: "gpt-5-mini",    hint: "GPT-5 Mini \u2014 fast & cheap" },
+        { value: "openai:gpt-4.1",       label: "gpt-4.1",       hint: "1M ctx, best instruction following" },
+        { value: "openai:gpt-4.1-nano",  label: "gpt-4.1-nano",  hint: "1M ctx, cheapest" },
+        { value: "openai:o3-pro",        label: "o3-pro",        hint: "Best reasoning \u2014 most thorough" },
+        { value: "openai:o4-mini",       label: "o4-mini",       hint: "Fast reasoning (Apr 2025)" },
+        { value: "openai:gpt-4o",        label: "gpt-4o",        hint: "Vision + text (128K ctx)" },
+        { value: "openai:gpt-4o-mini",   label: "gpt-4o-mini",   hint: "GPT-4o Mini \u2014 balanced" },
       ],
     }));
   } else if (provider === "anthropic") {
-    const key = guard(await p.password({ message: "Anthropic API key", validate: (v) => !v ? "Required" : undefined }));
+    const key = guard(await p.password({ message: "Anthropic API key (sk-ant-...)", validate: (v) => !v ? "Required" : undefined }));
     envConfig.ANTHROPIC_API_KEY = key;
     envConfig.DEFAULT_MODEL = guard(await p.select({
       message: "Claude model",
       options: [
-        { value: "anthropic:claude-sonnet-4-6",            label: "claude-sonnet-4-6",  hint: "Fast & smart (recommended)" },
-        { value: "anthropic:claude-opus-4-6",              label: "claude-opus-4-6",    hint: "Most capable" },
-        { value: "anthropic:claude-haiku-4-5-20251001",    label: "claude-haiku-4-5",   hint: "Fastest & cheapest" },
+        { value: "anthropic:claude-sonnet-4-6",          label: "claude-sonnet-4-6",          hint: "Best speed/intelligence \u2014 coding & agents [NEW]" },
+        { value: "anthropic:claude-opus-4-6",            label: "claude-opus-4-6",            hint: "Most intelligent \u2014 extended thinking [NEW]" },
+        { value: "anthropic:claude-haiku-4-5",           label: "claude-haiku-4-5",           hint: "Fastest \u2014 high-volume tasks" },
+        { value: "anthropic:claude-sonnet-4-5-20250929", label: "claude-sonnet-4-5-20250929", hint: "Sonnet 4.5 \u2014 coding & agentic (200K ctx)" },
+        { value: "anthropic:claude-3-5-sonnet-latest",   label: "claude-3-5-sonnet-latest",   hint: "3.5 Sonnet \u2014 widely used previous gen" },
       ],
     }));
   } else if (provider === "google") {
     const key = guard(await p.password({ message: "Google AI API key", validate: (v) => !v ? "Required" : undefined }));
     envConfig.GOOGLE_AI_API_KEY = key;
-    envConfig.DEFAULT_MODEL = "google:gemini-2.0-flash";
+    envConfig.DEFAULT_MODEL = guard(await p.select({
+      message: "Gemini model",
+      options: [
+        { value: "google:gemini-2.5-flash",               label: "gemini-2.5-flash",               hint: "Fast & cost-effective \u2014 recommended" },
+        { value: "google:gemini-3.1-pro-preview",         label: "gemini-3.1-pro-preview",         hint: "Latest \u2014 complex tasks [NEW]" },
+        { value: "google:gemini-3.1-flash-lite-preview",  label: "gemini-3.1-flash-lite-preview",  hint: "Latest lite \u2014 cost-efficient [NEW]" },
+        { value: "google:gemini-2.5-pro",                 label: "gemini-2.5-pro",                 hint: "Complex reasoning & coding (1M ctx)" },
+        { value: "google:gemini-2.5-flash-lite",          label: "gemini-2.5-flash-lite",          hint: "Speed-optimised high-throughput" },
+        { value: "google:gemini-2.0-flash",               label: "gemini-2.0-flash",               hint: "Previous gen flash" },
+      ],
+    }));
+  } else if (provider === "xai") {
+    const key = guard(await p.password({ message: "xAI API key", validate: (v) => !v ? "Required" : undefined }));
+    envConfig.XAI_API_KEY = key;
+    envConfig.DEFAULT_MODEL = guard(await p.select({
+      message: "Grok model",
+      options: [
+        { value: "xai:grok-4",           label: "grok-4",           hint: "Latest & most capable (Jul 2025) [NEW]" },
+        { value: "xai:grok-3-beta",      label: "grok-3-beta",      hint: "Grok 3 Beta \u2014 131K ctx" },
+        { value: "xai:grok-3-mini-beta", label: "grok-3-mini-beta", hint: "Grok 3 Mini \u2014 fast, 131K ctx" },
+      ],
+    }));
+  } else if (provider === "deepseek") {
+    const key = guard(await p.password({ message: "DeepSeek API key (sk-...)", validate: (v) => !v ? "Required" : undefined }));
+    envConfig.DEEPSEEK_API_KEY = key;
+    envConfig.DEFAULT_MODEL = guard(await p.select({
+      message: "DeepSeek model",
+      options: [
+        { value: "deepseek:deepseek-chat",     label: "deepseek-chat",     hint: "V3 \u2014 excellent coder (128K ctx, recommended)" },
+        { value: "deepseek:deepseek-reasoner", label: "deepseek-reasoner", hint: "R1 \u2014 chain-of-thought reasoning" },
+      ],
+    }));
+  } else if (provider === "mistral") {
+    const key = guard(await p.password({ message: "Mistral API key", validate: (v) => !v ? "Required" : undefined }));
+    envConfig.MISTRAL_API_KEY = key;
+    envConfig.DEFAULT_MODEL = guard(await p.select({
+      message: "Mistral model",
+      options: [
+        { value: "mistral:mistral-large-2512",    label: "mistral-large-2512",    hint: "Flagship \u2014 best quality (Dec 2025) [NEW]" },
+        { value: "mistral:mistral-medium-3",      label: "mistral-medium-3",      hint: "Balanced capability & speed" },
+        { value: "mistral:codestral-2508",        label: "codestral-2508",        hint: "Code specialist (Aug 2025)" },
+        { value: "mistral:mistral-small-3.2-24b", label: "mistral-small-3.2-24b", hint: "Lightweight, runs locally (24B)" },
+      ],
+    }));
   } else if (provider === "ollama") {
-    p.note("Make sure Ollama is running: ollama serve", "Ollama");
-    const model = guard(await p.text({ message: "Ollama model name", initialValue: "llama3" }));
+    p.note(
+      [
+        "Make sure Ollama is running:  ollama serve",
+        "Pull a model first:           ollama pull llama4-maverick",
+        "Recommended models:",
+        "  llama4-maverick  \u2014 Llama 4, 17B MoE, multimodal, 1M ctx",
+        "  llama4-scout     \u2014 Llama 4, 17B MoE, 10M ctx",
+        "  llama3.3         \u2014 best 70B open model",
+        "  qwen2.5          \u2014 strong coder",
+      ].join("\n"),
+      "Ollama (local models)",
+    );
+    const model = guard(await p.text({
+      message: "Ollama model name",
+      initialValue: "llama4-maverick",
+      placeholder: "e.g. llama4-maverick, llama3.3, qwen2.5",
+    }));
     envConfig.DEFAULT_MODEL = `ollama:${model}`;
   }
 
@@ -182,24 +253,59 @@ export async function runSetupWizard() {
   p.log.info(`HTTP API is always enabled on port ${t.bold(port)}`);
   p.log.info(`Press ${t.bold("space")} to select, ${t.bold("enter")} to confirm`);
 
+  p.note(
+    [
+      "Select every channel you want to activate.",
+      "Each selected channel will ask for its credentials.",
+      "You can add more channels later by editing your .env file.",
+      "",
+      "Tip: each channel supports an optional allowlist (restrict",
+      "     who can message the agent) and a model override.",
+      "     Configure those later with:  daemora tenant set",
+    ].join("\n"),
+    "Channels"
+  );
+
   const channels = guard(await p.multiselect({
-    message: "Enable additional channels",
+    message: "Enable channels  (space = toggle, enter = confirm)",
     options: [
-      { value: "telegram",  label: "Telegram",  hint: "Bot via @BotFather" },
-      { value: "whatsapp",  label: "WhatsApp",   hint: "Via Twilio" },
-      { value: "email",     label: "Email",       hint: "IMAP + SMTP" },
+      { value: "telegram",    label: "Telegram",       hint: "Bot via @BotFather — easiest to set up" },
+      { value: "whatsapp",    label: "WhatsApp",        hint: "Via Twilio sandbox" },
+      { value: "discord",     label: "Discord",         hint: "Bot via Discord Developer Portal" },
+      { value: "slack",       label: "Slack",           hint: "Socket Mode bot" },
+      { value: "email",       label: "Email",           hint: "Gmail IMAP/SMTP or any provider" },
+      { value: "line",        label: "LINE",            hint: "LINE Messaging API" },
+      { value: "signal",      label: "Signal",          hint: "Requires signal-cli daemon" },
+      { value: "teams",       label: "Microsoft Teams", hint: "Azure Bot Framework" },
+      { value: "googlechat",  label: "Google Chat",     hint: "Service account" },
+      { value: "matrix",      label: "Matrix",          hint: "Element / matrix.org" },
+      { value: "mattermost",  label: "Mattermost",      hint: "Self-hosted or cloud" },
+      { value: "twitch",      label: "Twitch",          hint: "Chat commands with !ask prefix" },
+      { value: "irc",         label: "IRC",             hint: "Any IRC network (Libera, Freenode, ...)" },
+      { value: "imessage",    label: "iMessage",        hint: "macOS only — AppleScript polling" },
+      { value: "feishu",      label: "Feishu / Lark",   hint: "Bytedance enterprise messaging" },
+      { value: "zalo",        label: "Zalo",            hint: "Vietnam — 75M+ users" },
+      { value: "nextcloud",   label: "Nextcloud Talk",  hint: "Self-hosted collaboration" },
+      { value: "bluebubbles", label: "BlueBubbles",     hint: "iMessage relay server on a Mac" },
+      { value: "nostr",       label: "Nostr",           hint: "Decentralized protocol — NIP-04 DMs" },
     ],
     required: false,
   }));
 
+  // ── Per-channel credential collection ─────────────────────────────────────
+
   if (channels.includes("telegram")) {
     p.note(
       [
-        "1. Open Telegram, search for @BotFather",
-        "2. Send /newbot and follow the prompts",
-        "3. Copy the bot token it gives you",
+        "1. Open Telegram → search @BotFather",
+        "2. Send /newbot, follow the prompts",
+        "3. Copy the bot token  (format: 123456789:ABCdef...)",
+        "",
+        "Optional later — add to .env:",
+        "  TELEGRAM_ALLOWLIST=123456,987654   (comma-separated chat IDs)",
+        "  TELEGRAM_MODEL=anthropic:claude-sonnet-4-6",
       ].join("\n"),
-      "Get Telegram Token"
+      "Telegram Setup"
     );
     const token = guard(await p.password({ message: "Telegram bot token" }));
     if (token) envConfig.TELEGRAM_BOT_TOKEN = token;
@@ -208,39 +314,307 @@ export async function runSetupWizard() {
   if (channels.includes("whatsapp")) {
     p.note(
       [
-        "1. Go to https://console.twilio.com",
-        "2. Copy Account SID and Auth Token from dashboard",
-        "3. Go to Messaging > Try it out > WhatsApp",
-        "4. Follow sandbox setup instructions",
+        "1. Sign up at https://console.twilio.com",
+        "2. Copy Account SID + Auth Token from the dashboard",
+        "3. Messaging › Try it out › WhatsApp → join sandbox",
+        "4. Sandbox number is pre-filled below (change if you have a dedicated number)",
+        "",
+        "Optional: WHATSAPP_ALLOWLIST=+1234567890,+9876543210",
       ].join("\n"),
-      "Get Twilio Credentials"
+      "WhatsApp / Twilio Setup"
     );
-    envConfig.TWILIO_ACCOUNT_SID = guard(await p.password({ message: "Twilio Account SID" }));
-    envConfig.TWILIO_AUTH_TOKEN = guard(await p.password({ message: "Twilio Auth Token" }));
-    envConfig.TWILIO_WHATSAPP_FROM = guard(await p.text({
-      message: "Twilio WhatsApp From number",
-      initialValue: "whatsapp:+14155238886",
-    }));
+    envConfig.TWILIO_ACCOUNT_SID    = guard(await p.password({ message: "Twilio Account SID" }));
+    envConfig.TWILIO_AUTH_TOKEN     = guard(await p.password({ message: "Twilio Auth Token" }));
+    envConfig.TWILIO_WHATSAPP_FROM  = guard(await p.text({ message: "WhatsApp From number", initialValue: "whatsapp:+14155238886" }));
+  }
+
+  if (channels.includes("discord")) {
+    p.note(
+      [
+        "1. Go to https://discord.com/developers/applications",
+        "2. New Application → Bot → Add Bot → Reset Token → copy token",
+        "3. Enable 'Message Content Intent' under Privileged Gateway Intents",
+        "4. OAuth2 › URL Generator → bot scope → Send Messages, Read Message History",
+        "5. Invite bot to your server with the generated URL",
+        "",
+        "Optional: DISCORD_ALLOWLIST=123456789,987654321  (Discord user snowflake IDs)",
+      ].join("\n"),
+      "Discord Bot Setup"
+    );
+    const token = guard(await p.password({ message: "Discord bot token" }));
+    if (token) envConfig.DISCORD_BOT_TOKEN = token;
+  }
+
+  if (channels.includes("slack")) {
+    p.note(
+      [
+        "1. Go to https://api.slack.com/apps → Create New App → From scratch",
+        "2. Socket Mode → Enable → create App-Level Token (xapp-...) → copy as App Token",
+        "3. OAuth & Permissions → Bot Token Scopes: chat:write, im:history, app_mentions:read",
+        "4. Install to workspace → copy Bot Token (xoxb-...)",
+        "",
+        "Optional: SLACK_ALLOWLIST=U01234567,U09876543  (Slack user IDs)",
+      ].join("\n"),
+      "Slack Setup"
+    );
+    envConfig.SLACK_BOT_TOKEN = guard(await p.password({ message: "Slack Bot Token (xoxb-...)" }));
+    envConfig.SLACK_APP_TOKEN = guard(await p.password({ message: "Slack App Token (xapp-...)" }));
   }
 
   if (channels.includes("email")) {
     p.note(
       [
-        "For Gmail:",
-        "1. Enable 2-Factor Authentication on your Google account",
-        "2. Go to https://myaccount.google.com/apppasswords",
-        "3. Create an app password for \"Mail\"",
-        "4. Use that 16-char password below (not your Gmail password)",
+        "Gmail setup:",
+        "1. Google Account › Security › 2-Step Verification → enable",
+        "2. Google Account › Security › App Passwords → Mail → create",
+        "3. Use the 16-char app password below (NOT your Gmail password)",
+        "",
+        "For other providers: change IMAP/SMTP hosts below.",
+        "Optional: EMAIL_ALLOWLIST=alice@example.com,bob@example.com",
       ].join("\n"),
       "Email Setup"
     );
-    envConfig.EMAIL_USER = guard(await p.text({ message: "Email address" }));
-    envConfig.EMAIL_PASSWORD = guard(await p.password({ message: "Email app password" }));
+    envConfig.EMAIL_USER      = guard(await p.text({ message: "Email address" }));
+    envConfig.EMAIL_PASSWORD  = guard(await p.password({ message: "App password" }));
     envConfig.EMAIL_IMAP_HOST = guard(await p.text({ message: "IMAP host", initialValue: "imap.gmail.com" }));
     envConfig.EMAIL_SMTP_HOST = guard(await p.text({ message: "SMTP host", initialValue: "smtp.gmail.com" }));
   }
 
-  const activeChannels = ["HTTP", ...channels.map((c) => c.charAt(0).toUpperCase() + c.slice(1))];
+  if (channels.includes("line")) {
+    p.note(
+      [
+        "1. Go to https://developers.line.biz → Create a Provider",
+        "2. Create a Messaging API channel",
+        "3. Basic settings → Channel Secret",
+        "4. Messaging API → Channel Access Token (long-lived) → Issue",
+        "5. Set webhook URL to: https://your-server/webhooks/line",
+      ].join("\n"),
+      "LINE Setup"
+    );
+    envConfig.LINE_CHANNEL_ACCESS_TOKEN = guard(await p.password({ message: "LINE Channel Access Token" }));
+    envConfig.LINE_CHANNEL_SECRET       = guard(await p.password({ message: "LINE Channel Secret" }));
+  }
+
+  if (channels.includes("signal")) {
+    p.note(
+      [
+        "Requires signal-cli running as a REST daemon:",
+        "  npm install -g signal-cli  (or download from GitHub)",
+        "  signal-cli -u +1234567890 register",
+        "  signal-cli -u +1234567890 verify <code>",
+        "  signal-cli -u +1234567890 daemon --http 127.0.0.1:8080",
+        "",
+        "Optional: SIGNAL_ALLOWLIST=+1234567890,+0987654321",
+      ].join("\n"),
+      "Signal Setup"
+    );
+    envConfig.SIGNAL_CLI_URL     = guard(await p.text({ message: "signal-cli REST URL", initialValue: "http://127.0.0.1:8080" }));
+    envConfig.SIGNAL_PHONE_NUMBER = guard(await p.text({ message: "Your Signal phone number (+1234567890)" }));
+  }
+
+  if (channels.includes("teams")) {
+    p.note(
+      [
+        "1. Go to https://portal.azure.com → Create an Azure Bot",
+        "2. Configuration → set messaging endpoint: https://your-server/webhooks/teams",
+        "3. Copy App ID from Configuration",
+        "4. Manage Password → New client secret → copy value",
+        "5. Channels → Add Microsoft Teams",
+      ].join("\n"),
+      "Microsoft Teams Setup"
+    );
+    envConfig.TEAMS_APP_ID       = guard(await p.text({ message: "Teams App ID (UUID)" }));
+    envConfig.TEAMS_APP_PASSWORD = guard(await p.password({ message: "Teams App Password (client secret)" }));
+  }
+
+  if (channels.includes("googlechat")) {
+    p.note(
+      [
+        "1. Google Cloud Console → Enable 'Google Chat API'",
+        "2. IAM → Service Accounts → Create → download JSON key",
+        "3. Chat API → Configuration → Bot URL: https://your-server/webhooks/googlechat",
+        "4. Paste the ENTIRE JSON key file contents as one line below",
+      ].join("\n"),
+      "Google Chat Setup"
+    );
+    envConfig.GOOGLE_CHAT_SERVICE_ACCOUNT = guard(await p.text({ message: "Service account JSON (one line)" }));
+    envConfig.GOOGLE_CHAT_PROJECT_NUMBER  = guard(await p.text({ message: "Google Cloud project number" }));
+  }
+
+  if (channels.includes("matrix")) {
+    p.note(
+      [
+        "1. Create a bot account on matrix.org or your homeserver",
+        "2. Get access token:  POST /_matrix/client/v3/login",
+        "   Body: {\"type\":\"m.login.password\",\"user\":\"@bot:matrix.org\",\"password\":\"...\"}",
+        "3. Copy 'access_token' from the response",
+      ].join("\n"),
+      "Matrix Setup"
+    );
+    envConfig.MATRIX_HOMESERVER_URL = guard(await p.text({ message: "Homeserver URL", initialValue: "https://matrix.org" }));
+    envConfig.MATRIX_ACCESS_TOKEN   = guard(await p.password({ message: "Bot access token" }));
+    envConfig.MATRIX_BOT_USER_ID    = guard(await p.text({ message: "Bot user ID (e.g. @daemora:matrix.org)" }));
+  }
+
+  if (channels.includes("mattermost")) {
+    p.note(
+      [
+        "1. System Console → Integrations → Bot Accounts → Enable",
+        "2. Integrations → Bot Accounts → Add Bot Account",
+        "3. Copy the bot token shown after creation",
+        "4. Find bot user ID: GET /api/v4/users/me  (Authorization: Bearer <token>)",
+      ].join("\n"),
+      "Mattermost Setup"
+    );
+    envConfig.MATTERMOST_URL         = guard(await p.text({ message: "Mattermost URL", placeholder: "https://your-mattermost.example.com" }));
+    envConfig.MATTERMOST_TOKEN       = guard(await p.password({ message: "Bot token" }));
+    envConfig.MATTERMOST_BOT_USER_ID = guard(await p.text({ message: "Bot user ID (optional)", initialValue: "" }));
+  }
+
+  if (channels.includes("twitch")) {
+    p.note(
+      [
+        "1. Create a Twitch account for your bot",
+        "2. Get OAuth token: https://twitchapps.com/tmi/",
+        "   (authorize with your BOT account, not your main account)",
+        "3. Copy the oauth:... token",
+        "",
+        "Users trigger the bot with: !ask <message>",
+        "Change prefix with: TWITCH_COMMAND_PREFIX=!ai",
+      ].join("\n"),
+      "Twitch Setup"
+    );
+    envConfig.TWITCH_BOT_USERNAME = guard(await p.text({ message: "Bot Twitch username" }));
+    envConfig.TWITCH_OAUTH_TOKEN  = guard(await p.password({ message: "OAuth token (oauth:...)" }));
+    envConfig.TWITCH_CHANNEL      = guard(await p.text({ message: "Channel to join (without #)" }));
+  }
+
+  if (channels.includes("irc")) {
+    p.note(
+      [
+        "Connects to any IRC network. No external packages — uses raw TCP.",
+        "Popular networks: irc.libera.chat  irc.freenode.net  irc.oftc.net",
+        "",
+        "Optional: IRC_PASSWORD=<nickserv-password>",
+      ].join("\n"),
+      "IRC Setup"
+    );
+    envConfig.IRC_SERVER  = guard(await p.text({ message: "IRC server", initialValue: "irc.libera.chat" }));
+    envConfig.IRC_PORT    = guard(await p.text({ message: "IRC port", initialValue: "6667" }));
+    envConfig.IRC_NICK    = guard(await p.text({ message: "Bot nick", initialValue: "daemora-bot" }));
+    envConfig.IRC_CHANNEL = guard(await p.text({ message: "Channel to join (e.g. #mychannel)" }));
+    const ircPass = guard(await p.password({ message: "NickServ password (optional, leave blank)" }));
+    if (ircPass) envConfig.IRC_PASSWORD = ircPass;
+  }
+
+  if (channels.includes("imessage")) {
+    if (process.platform !== "darwin") {
+      p.log.warn("iMessage requires macOS. Skipping.");
+    } else {
+      p.note(
+        [
+          "Polls iMessages via AppleScript — macOS only.",
+          "Requires: Messages app open + Accessibility permissions granted to Terminal",
+          "",
+          "System Preferences › Privacy & Security › Accessibility → allow Terminal",
+          "",
+          "Optional: IMESSAGE_ALLOWLIST=+1234567890,user@icloud.com",
+        ].join("\n"),
+        "iMessage Setup"
+      );
+      envConfig.IMESSAGE_ENABLED          = "true";
+      envConfig.IMESSAGE_POLL_INTERVAL_MS = "5000";
+    }
+  }
+
+  if (channels.includes("feishu")) {
+    p.note(
+      [
+        "1. Go to https://open.feishu.cn/app → Create App",
+        "2. Credentials & Basic Info → copy App ID and App Secret",
+        "3. Add capability: Bot",
+        "4. Event Subscriptions → set webhook: https://your-server/channels/feishu",
+        "5. Add events: im.message.receive_v1",
+      ].join("\n"),
+      "Feishu / Lark Setup"
+    );
+    envConfig.FEISHU_APP_ID            = guard(await p.text({ message: "Feishu App ID" }));
+    envConfig.FEISHU_APP_SECRET        = guard(await p.password({ message: "Feishu App Secret" }));
+    envConfig.FEISHU_VERIFICATION_TOKEN = guard(await p.password({ message: "Verification token (optional)", }));
+  }
+
+  if (channels.includes("zalo")) {
+    p.note(
+      [
+        "1. Register Official Account at https://oa.zalo.me",
+        "2. Create app at https://developers.zalo.me → API Tools",
+        "3. Copy App ID and App Secret",
+        "4. Get access token via OAuth",
+        "5. Set webhook: https://your-server/channels/zalo",
+      ].join("\n"),
+      "Zalo Setup"
+    );
+    envConfig.ZALO_APP_ID      = guard(await p.text({ message: "Zalo App ID" }));
+    envConfig.ZALO_APP_SECRET  = guard(await p.password({ message: "Zalo App Secret" }));
+    envConfig.ZALO_ACCESS_TOKEN = guard(await p.password({ message: "Zalo Access Token" }));
+  }
+
+  if (channels.includes("nextcloud")) {
+    p.note(
+      [
+        "1. Log into Nextcloud → Profile icon → Settings → Security",
+        "2. Devices & Sessions → create App Password for the bot account",
+        "3. Find the room token in Talk URL: /call/<room-token>",
+      ].join("\n"),
+      "Nextcloud Talk Setup"
+    );
+    envConfig.NEXTCLOUD_URL          = guard(await p.text({ message: "Nextcloud URL", placeholder: "https://cloud.example.com" }));
+    envConfig.NEXTCLOUD_USER         = guard(await p.text({ message: "Bot username", initialValue: "daemora-bot" }));
+    envConfig.NEXTCLOUD_PASSWORD     = guard(await p.password({ message: "App password" }));
+    envConfig.NEXTCLOUD_ROOM_TOKEN   = guard(await p.text({ message: "Room token (from Talk URL)" }));
+  }
+
+  if (channels.includes("bluebubbles")) {
+    p.note(
+      [
+        "BlueBubbles is an iMessage relay server that runs on a Mac.",
+        "Download: https://bluebubbles.app",
+        "",
+        "1. Install BlueBubbles on a Mac that is signed into iMessage",
+        "2. Settings → Server → copy Server URL and Password",
+        "3. The URL is usually http://192.168.x.x:1234 on your LAN",
+      ].join("\n"),
+      "BlueBubbles Setup"
+    );
+    envConfig.BLUEBUBBLES_URL      = guard(await p.text({ message: "BlueBubbles server URL", placeholder: "http://192.168.1.100:1234" }));
+    envConfig.BLUEBUBBLES_PASSWORD = guard(await p.password({ message: "BlueBubbles server password" }));
+  }
+
+  if (channels.includes("nostr")) {
+    p.note(
+      [
+        "Nostr is a decentralized protocol. The bot receives NIP-04 encrypted DMs.",
+        "",
+        "Generate a private key:",
+        "  openssl rand -hex 32",
+        "",
+        "Default relays are pre-filled. Add/remove as needed.",
+        "Share your bot's npub (public key) so users can DM it.",
+      ].join("\n"),
+      "Nostr Setup"
+    );
+    envConfig.NOSTR_PRIVATE_KEY = guard(await p.password({ message: "Nostr private key (hex, 64 chars)" }));
+    const relaysRaw = guard(await p.text({
+      message: "Relay URLs (comma-separated)",
+      initialValue: "wss://relay.damus.io,wss://nos.lol,wss://relay.nostr.band",
+    }));
+    envConfig.NOSTR_RELAYS = relaysRaw;
+  }
+
+  const activeChannels = ["HTTP", ...channels.map((c) => {
+    const labels = { googlechat: "GoogleChat", imessage: "iMessage", bluebubbles: "BlueBubbles" };
+    return labels[c] || c.charAt(0).toUpperCase() + c.slice(1);
+  })];
   p.log.success(`Channels: ${t.bold(activeChannels.join(", "))}`);
 
   // ━━━ Step 6: Daemon ━━━
@@ -650,6 +1024,7 @@ export async function runSetupWizard() {
 
       const secretKeys = [
         "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY",
+        "XAI_API_KEY", "DEEPSEEK_API_KEY", "MISTRAL_API_KEY",
         "TELEGRAM_BOT_TOKEN", "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN",
         "EMAIL_PASSWORD",
       ];
@@ -684,7 +1059,7 @@ export async function runSetupWizard() {
   ];
 
   const categories = {
-    "AI Model": ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "DEFAULT_MODEL"],
+    "AI Model": ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "XAI_API_KEY", "DEEPSEEK_API_KEY", "MISTRAL_API_KEY", "DEFAULT_MODEL"],
     "Server": ["PORT"],
     "Safety": ["PERMISSION_TIER", "MAX_COST_PER_TASK", "MAX_DAILY_COST"],
     "Filesystem": ["ALLOWED_PATHS", "BLOCKED_PATHS", "RESTRICT_COMMANDS"],

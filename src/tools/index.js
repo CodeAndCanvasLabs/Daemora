@@ -28,7 +28,7 @@ import { transcribeAudio, transcribeAudioDescription } from "./transcribeAudio.j
 import { sendFile, sendFileDescription } from "./sendFile.js";
 import { textToSpeech, textToSpeechDescription } from "./textToSpeech.js";
 
-// ─── New tools ─────────────────────────────────────────────────────────────────
+// ─── Search & code tools ───────────────────────────────────────────────────────
 import { globSearch, globSearchDescription } from "./glob.js";
 import { grep, grepDescription } from "./grep.js";
 import { applyPatch, applyPatchDescription } from "./applyPatch.js";
@@ -41,6 +41,21 @@ import { projectTracker, projectTrackerDescription } from "./projectTracker.js";
 import { manageMCP, manageMCPDescription } from "./manageMCP.js";
 import { useMCP, useMCPDescription } from "./useMCP.js";
 import { makeVoiceCall, makeVoiceCallDescription } from "./makeVoiceCall.js";
+
+// ─── Phase 24 tools ────────────────────────────────────────────────────────────
+import { generateImage, generateImageDescription } from "./generateImage.js";
+import { readPDF, readPDFDescription } from "./readPDF.js";
+import { gitTool, gitToolDescription } from "./gitTool.js";
+import { clipboard, clipboardDescription } from "./clipboard.js";
+import { notification, notificationDescription } from "./notification.js";
+import { iMessageTool, iMessageToolDescription } from "./iMessageTool.js";
+import { calendar, calendarDescription } from "./calendar.js";
+import { sshTool, sshToolDescription } from "./sshTool.js";
+import { database, databaseDescription } from "./database.js";
+import { contacts, contactsDescription } from "./contacts.js";
+import { googlePlaces, googlePlacesDescription } from "./googlePlaces.js";
+import { philipsHue, philipsHueDescription } from "./philipsHue.js";
+import { sonos, sonosDescription } from "./sonos.js";
 
 // ─── Wrap spawnAgent for the tool interface ────────────────────────────────────
 function spawnAgent(taskDescription, optionsJson) {
@@ -75,7 +90,7 @@ export const toolFunctions = {
   listDirectory,
   searchFiles,
   searchContent,
-  // Advanced search (new)
+  // Advanced search
   glob: globSearch,
   grep,
   applyPatch,
@@ -119,6 +134,23 @@ export const toolFunctions = {
   useMCP,
   // Voice
   makeVoiceCall,
+  // Phase 24: Image & document
+  generateImage,
+  readPDF,
+  // Phase 24: Developer tools
+  gitTool,
+  clipboard,
+  sshTool,
+  database,
+  // Phase 24: macOS / notifications
+  notification,
+  iMessageTool,
+  calendar,
+  contacts,
+  // Phase 24: External services
+  googlePlaces,
+  philipsHue,
+  sonos,
 };
 
 // ─── Tool Descriptions Array ───────────────────────────────────────────────────
@@ -175,4 +207,21 @@ export const toolDescriptions = [
   useMCPDescription,
   // Voice
   makeVoiceCallDescription,
+  // Phase 24: Image & document
+  generateImageDescription,
+  readPDFDescription,
+  // Phase 24: Developer tools
+  gitToolDescription,
+  clipboardDescription,
+  sshToolDescription,
+  databaseDescription,
+  // Phase 24: macOS / notifications
+  notificationDescription,
+  iMessageToolDescription,
+  calendarDescription,
+  contactsDescription,
+  // Phase 24: External services
+  googlePlacesDescription,
+  philipsHueDescription,
+  sonosDescription,
 ];

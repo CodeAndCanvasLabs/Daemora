@@ -30,8 +30,8 @@ GIT_RULES.md         # local dev notes
 # ── Claude Code project context ───────────────────────────────────────────────
 .claude/
 
-# ── Test artifacts ────────────────────────────────────────────────────────────
-tests/
+# ── Test artifacts (not the test source files) ───────────────────────────────
+tests/example.spec.ts      # Playwright example - not our tests
 playwright.config.ts
 pnpm-lock.yaml
 /test-results/

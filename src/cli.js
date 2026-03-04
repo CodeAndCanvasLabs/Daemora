@@ -19,35 +19,49 @@ import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
 import { execSync } from "child_process";
 
+// ── Color palette — matches Daemora UI exactly ──────────────────────────────
 const P = {
-  brand: "#7C6AFF",
-  accent: "#4ECDC4",
-  success: "#2ECC71",
-  error: "#E74C3C",
-  muted: "#7F8C8D",
-  dim: "#555E68",
+  cyan:   "#00d9ff",   // primary brand (cyan)
+  teal:   "#4ECDC4",   // secondary accent (teal)
+  red:    "#ff4458",   // danger / features (logo horns color)
+  green:  "#00ff88",   // success / security
+  amber:  "#ffaa00",   // warning / [NEW] badges
+  muted:  "#64748b",   // slate-500
+  dim:    "#94a3b8",   // slate-400
+  border: "#1f1f2e",   // border color
+  // semantic aliases
+  get brand()   { return this.cyan; },
+  get accent()  { return this.teal; },
+  get success() { return this.green; },
+  get warning() { return this.amber; },
+  get error()   { return this.red; },
 };
 
 const t = {
-  brand: (s) => chalk.hex(P.brand)(s),
-  accent: (s) => chalk.hex(P.accent)(s),
-  success: (s) => chalk.hex(P.success)(s),
-  error: (s) => chalk.hex(P.error)(s),
-  muted: (s) => chalk.hex(P.muted)(s),
-  bold: (s) => chalk.bold(s),
-  h: (s) => chalk.bold.hex(P.brand)(s),
-  cmd: (s) => chalk.hex(P.accent)(s),
-  dim: (s) => chalk.hex(P.dim)(s),
+  brand:   (s) => chalk.hex(P.cyan)(s),
+  accent:  (s) => chalk.hex(P.teal)(s),
+  success: (s) => chalk.hex(P.green)(s),
+  warning: (s) => chalk.hex(P.amber)(s),
+  error:   (s) => chalk.hex(P.red)(s),
+  muted:   (s) => chalk.hex(P.muted)(s),
+  dim:     (s) => chalk.hex(P.dim)(s),
+  bold:    (s) => chalk.bold(s),
+  h:       (s) => chalk.bold.hex(P.cyan)(s),
+  h2:      (s) => chalk.bold.hex(P.teal)(s),
+  cmd:     (s) => chalk.hex(P.teal)(s),
+  new:     (s) => chalk.hex(P.amber)(s),
 };
 
 const S = {
-  check: chalk.hex(P.success)("\u2714"),
-  cross: chalk.hex(P.error)("\u2718"),
-  arrow: chalk.hex(P.brand)("\u25B8"),
-  dot: chalk.hex(P.muted)("\u00B7"),
-  bar: chalk.hex(P.dim)("\u2502"),
-  info: chalk.hex(P.accent)("\u25C6"),
-  lock: chalk.hex("#F1C40F")("\u25A3"),
+  check:   chalk.hex(P.green)("\u2714"),
+  cross:   chalk.hex(P.red)("\u2718"),
+  arrow:   chalk.hex(P.cyan)("\u25B8"),
+  dot:     chalk.hex(P.muted)("\u00B7"),
+  bar:     chalk.hex(P.muted)("\u2502"),
+  info:    chalk.hex(P.teal)("\u25C6"),
+  lock:    chalk.hex(P.amber)("\u25A3"),
+  eye:     chalk.hex(P.red)("\u25C9"),
+  star:    chalk.hex(P.amber)("\u2605"),
 };
 
 const [,, command, subcommand, ...rest] = process.argv;
@@ -102,6 +116,18 @@ async function main() {
 
     case "doctor":
       await handleDoctor();
+      break;
+
+    case "channels":
+      await handleChannels(subcommand);
+      break;
+
+    case "models":
+      await handleModels();
+      break;
+
+    case "tools":
+      await handleTools(subcommand);
       break;
 
     case "setup":
@@ -1255,6 +1281,690 @@ async function handleDoctor() {
   }
 }
 
+// ─── Channels ─────────────────────────────────────────────────────────────────
+
+const CHANNEL_DEFS = [
+  {
+    name: "telegram", label: "Telegram", desc: "Bot via @BotFather",
+    envRequired: ["TELEGRAM_BOT_TOKEN"],
+    envOptional: [
+      ["TELEGRAM_ALLOWLIST",  "Comma-separated chat IDs allowed to message the bot. Empty = open."],
+      ["TELEGRAM_MODEL",      "Model override for this channel (e.g. anthropic:claude-sonnet-4-6)"],
+    ],
+    setup: [
+      "1. Open Telegram → search @BotFather",
+      "2. Send /newbot and follow the prompts",
+      "3. Copy the token (format: 123456789:ABCdef...)",
+    ],
+    tenantKey: "telegram",
+  },
+  {
+    name: "whatsapp", label: "WhatsApp", desc: "Via Twilio (sandbox or dedicated number)",
+    envRequired: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"],
+    envOptional: [
+      ["TWILIO_WHATSAPP_FROM",  "Sending number (default: whatsapp:+14155238886 sandbox)"],
+      ["WHATSAPP_ALLOWLIST",    "Comma-separated phone numbers allowed (+1234567890)"],
+      ["WHATSAPP_MODEL",        "Model override for this channel"],
+    ],
+    setup: [
+      "1. Sign up at https://console.twilio.com",
+      "2. Copy Account SID + Auth Token from the dashboard",
+      "3. Messaging › Try it out › WhatsApp → join sandbox",
+    ],
+    tenantKey: "whatsapp",
+  },
+  {
+    name: "discord", label: "Discord", desc: "Bot via Discord Developer Portal",
+    envRequired: ["DISCORD_BOT_TOKEN"],
+    envOptional: [
+      ["DISCORD_ALLOWLIST", "Comma-separated Discord user snowflake IDs"],
+      ["DISCORD_MODEL",     "Model override for this channel"],
+    ],
+    setup: [
+      "1. https://discord.com/developers/applications → New Application → Bot",
+      "2. Reset Token → copy it",
+      "3. Enable 'Message Content Intent' under Privileged Intents",
+      "4. OAuth2 URL Generator → bot scope → Send Messages, Read Message History",
+      "5. Invite bot to your server with the generated URL",
+    ],
+    tenantKey: "discord",
+  },
+  {
+    name: "slack", label: "Slack", desc: "Socket Mode bot",
+    envRequired: ["SLACK_BOT_TOKEN", "SLACK_APP_TOKEN"],
+    envOptional: [
+      ["SLACK_ALLOWLIST", "Comma-separated Slack user IDs (Uxxxxxxxxx)"],
+      ["SLACK_MODEL",     "Model override for this channel"],
+    ],
+    setup: [
+      "1. https://api.slack.com/apps → Create New App → From scratch",
+      "2. Socket Mode → Enable → App-Level Token (xapp-...) → copy as SLACK_APP_TOKEN",
+      "3. OAuth & Permissions → Bot Scopes: chat:write, im:history, app_mentions:read",
+      "4. Install to workspace → Bot Token (xoxb-...) → copy as SLACK_BOT_TOKEN",
+    ],
+    tenantKey: "slack",
+  },
+  {
+    name: "email", label: "Email", desc: "Gmail IMAP/SMTP (reads + sends)",
+    envRequired: ["EMAIL_USER", "EMAIL_PASSWORD"],
+    envOptional: [
+      ["EMAIL_IMAP_HOST",  "IMAP host (default: imap.gmail.com)"],
+      ["EMAIL_SMTP_HOST",  "SMTP host (default: smtp.gmail.com)"],
+      ["EMAIL_ALLOWLIST",  "Comma-separated allowed sender emails"],
+      ["EMAIL_MODEL",      "Model override for this channel"],
+      ["RESEND_API_KEY",   "Alternative: Resend.com API key for sending only"],
+      ["RESEND_FROM",      "Resend from address (e.g. you@yourdomain.com)"],
+    ],
+    setup: [
+      "Gmail: Google Account › Security › 2-Step Verification → enable",
+      "Then: Security › App Passwords → Mail → create 16-char password",
+      "Use that app password as EMAIL_PASSWORD (NOT your Gmail password)",
+    ],
+    tenantKey: "email",
+  },
+  {
+    name: "line", label: "LINE", desc: "LINE Messaging API",
+    envRequired: ["LINE_CHANNEL_ACCESS_TOKEN", "LINE_CHANNEL_SECRET"],
+    envOptional: [
+      ["LINE_ALLOWLIST", "Comma-separated LINE user IDs (Uxxxxxxxxxx)"],
+      ["LINE_MODEL",     "Model override for this channel"],
+    ],
+    setup: [
+      "1. https://developers.line.biz → Create Provider → Messaging API channel",
+      "2. Basic settings → Channel Secret",
+      "3. Messaging API → Channel Access Token (long-lived) → Issue",
+      "4. Webhook URL: https://your-server/webhooks/line",
+    ],
+    tenantKey: "line",
+  },
+  {
+    name: "signal", label: "Signal", desc: "signal-cli REST daemon",
+    envRequired: ["SIGNAL_CLI_URL", "SIGNAL_PHONE_NUMBER"],
+    envOptional: [
+      ["SIGNAL_ALLOWLIST", "Comma-separated phone numbers (+1234567890)"],
+      ["SIGNAL_MODEL",     "Model override for this channel"],
+    ],
+    setup: [
+      "Install signal-cli: https://github.com/AsamK/signal-cli",
+      "Register: signal-cli -u +1234567890 register",
+      "Verify:   signal-cli -u +1234567890 verify <code>",
+      "Daemon:   signal-cli -u +1234567890 daemon --http 127.0.0.1:8080",
+    ],
+    tenantKey: "signal",
+  },
+  {
+    name: "teams", label: "Microsoft Teams", desc: "Azure Bot Framework",
+    envRequired: ["TEAMS_APP_ID", "TEAMS_APP_PASSWORD"],
+    envOptional: [
+      ["TEAMS_ALLOWLIST", "Comma-separated Teams user IDs or AAD object IDs"],
+      ["TEAMS_MODEL",     "Model override for this channel"],
+    ],
+    setup: [
+      "1. https://portal.azure.com → Create an Azure Bot",
+      "2. Configuration → Messaging endpoint: https://your-server/webhooks/teams",
+      "3. Copy App ID  +  Manage Password → New client secret",
+      "4. Channels → Add Microsoft Teams",
+    ],
+    tenantKey: "teams",
+  },
+  {
+    name: "googlechat", label: "Google Chat", desc: "Google Cloud service account",
+    envRequired: ["GOOGLE_CHAT_SERVICE_ACCOUNT"],
+    envOptional: [
+      ["GOOGLE_CHAT_PROJECT_NUMBER", "GCP project number"],
+      ["GOOGLE_CHAT_ALLOWLIST",      "Comma-separated Google user IDs or emails"],
+      ["GOOGLE_CHAT_MODEL",          "Model override for this channel"],
+    ],
+    setup: [
+      "1. GCP Console → Enable 'Google Chat API'",
+      "2. IAM → Service Accounts → Create → download JSON key",
+      "3. Chat API → Configuration → Bot URL: https://your-server/webhooks/googlechat",
+      "4. Paste entire JSON key as one line into GOOGLE_CHAT_SERVICE_ACCOUNT",
+    ],
+    tenantKey: "googlechat",
+  },
+  {
+    name: "matrix", label: "Matrix", desc: "Element / matrix.org protocol",
+    envRequired: ["MATRIX_HOMESERVER_URL", "MATRIX_ACCESS_TOKEN"],
+    envOptional: [
+      ["MATRIX_BOT_USER_ID", "Bot user ID (e.g. @daemora:matrix.org)"],
+    ],
+    setup: [
+      "1. Create bot account on matrix.org or your homeserver",
+      "2. Get access token:",
+      "   POST /_matrix/client/v3/login",
+      "   {\"type\":\"m.login.password\",\"user\":\"@bot:matrix.org\",\"password\":\"...\"}",
+      "3. Copy 'access_token' from response",
+    ],
+    tenantKey: "matrix",
+  },
+  {
+    name: "mattermost", label: "Mattermost", desc: "WebSocket bot",
+    envRequired: ["MATTERMOST_URL", "MATTERMOST_TOKEN"],
+    envOptional: [
+      ["MATTERMOST_BOT_USER_ID",  "Bot user ID"],
+      ["MATTERMOST_BOT_USERNAME", "Bot username (default: daemora-bot)"],
+    ],
+    setup: [
+      "1. System Console → Integrations → Bot Accounts → Enable",
+      "2. Integrations → Bot Accounts → Add Bot Account",
+      "3. Copy the bot token shown after creation",
+      "4. Find bot user ID: GET /api/v4/users/me  (Authorization: Bearer <token>)",
+    ],
+    tenantKey: "mattermost",
+  },
+  {
+    name: "twitch", label: "Twitch", desc: "Chat commands (!ask prefix)",
+    envRequired: ["TWITCH_BOT_USERNAME", "TWITCH_OAUTH_TOKEN", "TWITCH_CHANNEL"],
+    envOptional: [
+      ["TWITCH_COMMAND_PREFIX", "Command prefix (default: !ask)"],
+    ],
+    setup: [
+      "1. Create a Twitch account for your bot",
+      "2. Get OAuth token at https://twitchapps.com/tmi/ (authorize as bot account)",
+      "3. Copy the oauth:... token",
+    ],
+    tenantKey: "twitch",
+  },
+  {
+    name: "irc", label: "IRC", desc: "Any IRC network — no external packages",
+    envRequired: ["IRC_SERVER", "IRC_NICK"],
+    envOptional: [
+      ["IRC_PORT",     "Port (default: 6667)"],
+      ["IRC_CHANNEL",  "Channel to join (e.g. #mychannel)"],
+      ["IRC_PASSWORD", "NickServ password"],
+    ],
+    setup: [
+      "Popular networks: irc.libera.chat  irc.freenode.net  irc.oftc.net",
+      "Uses raw TCP — no npm packages needed.",
+    ],
+    tenantKey: "irc",
+  },
+  {
+    name: "imessage", label: "iMessage", desc: "macOS only — AppleScript polling",
+    envRequired: ["IMESSAGE_ENABLED=true"],
+    envOptional: [
+      ["IMESSAGE_POLL_INTERVAL_MS", "Poll interval in ms (default: 5000)"],
+      ["IMESSAGE_ALLOWLIST",        "Comma-separated phone numbers or iCloud emails"],
+    ],
+    setup: [
+      "macOS only. Messages app must be open and signed in.",
+      "System Preferences › Privacy & Security › Accessibility → allow Terminal",
+      "Set IMESSAGE_ENABLED=true in your .env",
+    ],
+    tenantKey: "imessage",
+  },
+  {
+    name: "feishu", label: "Feishu / Lark", desc: "Bytedance enterprise messaging",
+    envRequired: ["FEISHU_APP_ID", "FEISHU_APP_SECRET"],
+    envOptional: [
+      ["FEISHU_VERIFICATION_TOKEN", "Webhook verification token"],
+      ["FEISHU_PORT",               "Webhook port (default: 3004)"],
+    ],
+    setup: [
+      "1. https://open.feishu.cn/app → Create App",
+      "2. Credentials & Basic Info → App ID + App Secret",
+      "3. Add capability: Bot",
+      "4. Event Subscriptions → webhook: https://your-server/channels/feishu",
+      "5. Subscribe to: im.message.receive_v1",
+    ],
+    tenantKey: "feishu",
+  },
+  {
+    name: "zalo", label: "Zalo", desc: "Vietnam — 75M+ users",
+    envRequired: ["ZALO_APP_ID", "ZALO_ACCESS_TOKEN"],
+    envOptional: [
+      ["ZALO_APP_SECRET", "Zalo App Secret"],
+      ["ZALO_PORT",       "Webhook port (default: 3005)"],
+    ],
+    setup: [
+      "1. Register Official Account at https://oa.zalo.me",
+      "2. Create app at https://developers.zalo.me → API Tools",
+      "3. Get access token via OAuth",
+      "4. Webhook: https://your-server/channels/zalo",
+    ],
+    tenantKey: "zalo",
+  },
+  {
+    name: "nextcloud", label: "Nextcloud Talk", desc: "Self-hosted collaboration",
+    envRequired: ["NEXTCLOUD_URL", "NEXTCLOUD_USER", "NEXTCLOUD_PASSWORD"],
+    envOptional: [
+      ["NEXTCLOUD_ROOM_TOKEN", "Talk room token (from /call/<token> in URL)"],
+    ],
+    setup: [
+      "1. Nextcloud → Profile → Settings → Security",
+      "2. Devices & Sessions → create App Password for the bot account",
+      "3. Find room token in Talk URL: /call/<room-token>",
+    ],
+    tenantKey: "nextcloud",
+  },
+  {
+    name: "bluebubbles", label: "BlueBubbles", desc: "iMessage relay server (Mac required)",
+    envRequired: ["BLUEBUBBLES_URL", "BLUEBUBBLES_PASSWORD"],
+    envOptional: [],
+    setup: [
+      "1. Install BlueBubbles on a Mac signed into iMessage",
+      "   https://bluebubbles.app",
+      "2. Settings → Server → copy Server URL + Password",
+    ],
+    tenantKey: "bluebubbles",
+  },
+  {
+    name: "nostr", label: "Nostr", desc: "Decentralized protocol — NIP-04 encrypted DMs",
+    envRequired: ["NOSTR_PRIVATE_KEY"],
+    envOptional: [
+      ["NOSTR_RELAYS", "Comma-separated relay WSS URLs"],
+    ],
+    setup: [
+      "Generate private key:  openssl rand -hex 32",
+      "Share the bot's npub (public key) so users can DM it.",
+      "Default relays: relay.damus.io, nos.lol, relay.nostr.band",
+    ],
+    tenantKey: "nostr",
+  },
+];
+
+async function handleChannels() {
+  const { select, isCancel } = await import("@clack/prompts");
+  const w = 67;
+  const line    = chalk.hex(P.cyan)("━".repeat(w));
+  const rowLine = chalk.hex(P.border)("─".repeat(w));
+
+  const configured   = CHANNEL_DEFS.filter(c => {
+    const key = c.envRequired[0].split("=")[0];
+    return !!process.env[key] || c.envRequired[0].includes("=true") && process.env[key] === "true";
+  });
+
+  // ── Header ────────────────────────────────────────────────────────────────
+  console.log(`\n${line}`);
+  console.log(`  ${chalk.bold.hex(P.cyan)("Daemora Channels")}  ${chalk.hex(P.muted)(CHANNEL_DEFS.length + " supported · " + configured.length + " configured")}`);
+  console.log(rowLine);
+
+  while (true) {
+    console.log();
+    const options = CHANNEL_DEFS.map(ch => {
+      const isConfigured = ch.envRequired.every(e => {
+        const [k, v] = e.split("=");
+        return v ? process.env[k] === v : !!process.env[k];
+      });
+      const badge = isConfigured ? chalk.hex(P.green)("✔") : chalk.hex(P.border)("○");
+      return {
+        value: ch.name,
+        label: `${badge}  ${(isConfigured ? chalk.bold.hex(P.teal) : chalk.hex(P.dim))(ch.label.padEnd(20))}  ${chalk.hex(P.muted)(ch.desc)}`,
+      };
+    });
+    options.push({ value: "exit", label: `${chalk.hex(P.muted)("─")}  Exit` });
+
+    const choice = await select({
+      message: chalk.hex(P.cyan)("Select a channel for full setup details"),
+      options,
+    });
+
+    if (isCancel(choice) || choice === "exit") break;
+
+    const ch = CHANNEL_DEFS.find(c => c.name === choice);
+    if (!ch) continue;
+
+    const isConfigured = ch.envRequired.every(e => {
+      const [k, v] = e.split("=");
+      return v ? process.env[k] === v : !!process.env[k];
+    });
+
+    console.log(`\n${rowLine}`);
+    console.log(`  ${isConfigured ? chalk.hex(P.green)("✔") : chalk.hex(P.border)("○")}  ${chalk.bold.hex(P.cyan)(ch.label)}  ${chalk.hex(P.muted)(ch.desc)}`);
+    console.log(`  ${rowLine}`);
+
+    // Required env vars
+    console.log(`\n  ${chalk.bold.hex(P.teal)("Required env vars")}`);
+    for (const env of ch.envRequired) {
+      const [k] = env.split("=");
+      const set = process.env[k];
+      const status = set ? chalk.hex(P.green)("✔ set") : chalk.hex(P.red)("✘ not set");
+      console.log(`  ${S.bar}  ${chalk.hex(P.amber)(env.padEnd(38))}  ${status}`);
+    }
+
+    // Optional env vars
+    if (ch.envOptional.length > 0) {
+      console.log(`\n  ${chalk.bold.hex(P.teal)("Optional env vars")}`);
+      for (const [env, desc] of ch.envOptional) {
+        const set = process.env[env];
+        const val = set ? chalk.hex(P.green)("✔ " + set.slice(0, 30) + (set.length > 30 ? "…" : "")) : chalk.hex(P.border)("not set");
+        console.log(`  ${S.bar}  ${chalk.hex(P.dim)(env.padEnd(38))}  ${val}`);
+        console.log(`     ${" ".repeat(38)}  ${chalk.hex(P.border)(desc)}`);
+      }
+    }
+
+    // Setup steps
+    console.log(`\n  ${chalk.bold.hex(P.teal)("Setup")}`);
+    for (const line of ch.setup) {
+      console.log(`  ${S.arrow}  ${chalk.hex(P.dim)(line)}`);
+    }
+
+    // Tenant configuration
+    console.log(`\n  ${chalk.bold.hex(P.teal)("Tenant / per-user config")}`);
+    console.log(`  ${S.bar}  ${chalk.hex(P.muted)("View tenants on this channel:")}`);
+    console.log(`     ${chalk.hex(P.teal)("daemora tenant list")}  ${chalk.hex(P.border)("(then filter by " + ch.name + ":)")}`);
+    console.log(`  ${S.bar}  ${chalk.hex(P.muted)("Set per-tenant model override:")}`);
+    console.log(`     ${chalk.hex(P.teal)("daemora tenant set " + ch.tenantKey + ":<userId> model anthropic:claude-sonnet-4-6")}`);
+    console.log(`  ${S.bar}  ${chalk.hex(P.muted)("Set per-tenant cost limit:")}`);
+    console.log(`     ${chalk.hex(P.teal)("daemora tenant set " + ch.tenantKey + ":<userId> maxDailyCost 1.00")}`);
+    console.log(`  ${S.bar}  ${chalk.hex(P.muted)("Give tenant their own API key:")}`);
+    console.log(`     ${chalk.hex(P.teal)("daemora tenant apikey set " + ch.tenantKey + ":<userId> OPENAI_API_KEY sk-...")}`);
+    console.log(`  ${S.bar}  ${chalk.hex(P.muted)("Suspend a tenant:")}`);
+    console.log(`     ${chalk.hex(P.teal)("daemora tenant suspend " + ch.tenantKey + ":<userId> \"reason\"")}`);
+    console.log(`  ${S.bar}  ${chalk.hex(P.muted)("Store outbound channel credential:")}`);
+    console.log(`     ${chalk.hex(P.teal)("daemora tenant channel set " + ch.tenantKey + ":<userId> resend_api_key re_xxx")}`);
+
+    console.log(`\n${rowLine}\n`);
+  }
+
+  console.log(`  ${S.arrow}  ${chalk.hex(P.teal)("daemora setup")}  to configure channels interactively`);
+  console.log(`  ${S.arrow}  Edit ${chalk.hex(P.teal)(".env")} and restart to apply changes\n`);
+}
+
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+async function handleModels() {
+  const { select, isCancel } = await import("@clack/prompts");
+  const w = 67;
+  const line    = chalk.hex(P.cyan)("━".repeat(w));
+  const rowLine = chalk.hex(P.border)("─".repeat(w));
+
+  const PROVIDERS = [
+    {
+      name: "OpenAI", prefix: "openai", envKey: "OPENAI_API_KEY",
+      models: [
+        // GPT-5 family
+        { id: "gpt-5.3-codex",              desc: "Latest coding model (2025)",                  isNew: true },
+        { id: "gpt-5.2-pro",                desc: "GPT-5.2 Pro — highest capability",            isNew: true },
+        { id: "gpt-5.2",                    desc: "GPT-5.2 flagship (Dec 2025)",                 isNew: true },
+        { id: "gpt-5.1-codex-max",          desc: "GPT-5.1 Codex Max — coding (Nov 2025)",      isNew: true },
+        { id: "gpt-5.1",                    desc: "GPT-5.1 (Nov 2025)",                         isNew: true },
+        { id: "gpt-5-pro",                  desc: "GPT-5 Pro — most powerful" },
+        { id: "gpt-5",                      desc: "GPT-5 flagship (Aug 2025)" },
+        { id: "gpt-5-mini",                 desc: "GPT-5 Mini — fast & cheap" },
+        { id: "gpt-5-nano",                 desc: "GPT-5 Nano — cheapest GPT-5" },
+        // o-series reasoning
+        { id: "o3-pro",                     desc: "Best reasoning — most thorough" },
+        { id: "o3-deep-research",           desc: "Deep research with web browsing" },
+        { id: "o4-mini-deep-research",      desc: "Fast deep research" },
+        { id: "o3",                         desc: "Advanced reasoning (Apr 2025)" },
+        { id: "o4-mini",                    desc: "Fast reasoning (Apr 2025)" },
+        { id: "o1-pro",                     desc: "o1 Pro — powerful reasoning (Mar 2025)" },
+        { id: "o1",                         desc: "o1 reasoning model" },
+        { id: "o3-mini",                    desc: "Lightweight reasoning" },
+        // GPT-4.1 (1M context)
+        { id: "gpt-4.1",                    desc: "1M context, best instruction following" },
+        { id: "gpt-4.1-mini",               desc: "1M context, fast & affordable (default)" },
+        { id: "gpt-4.1-nano",               desc: "1M context, fastest & cheapest" },
+        // GPT-4o & specialized
+        { id: "gpt-4o",                     desc: "Vision + text (128K ctx)" },
+        { id: "gpt-4o-mini",                desc: "GPT-4o Mini (128K ctx)" },
+        { id: "computer-use-preview",       desc: "Computer use / GUI automation" },
+        { id: "gpt-4o-search-preview",      desc: "Built-in live web search" },
+        { id: "gpt-image-1",                desc: "Image generation (native API)" },
+      ],
+    },
+    {
+      name: "Anthropic", prefix: "anthropic", envKey: "ANTHROPIC_API_KEY",
+      models: [
+        { id: "claude-opus-4-6",            desc: "Most intelligent — complex reasoning + extended thinking", isNew: true },
+        { id: "claude-sonnet-4-6",          desc: "Best speed/intelligence — daily coding & agents",         isNew: true },
+        { id: "claude-haiku-4-5",           desc: "Fastest — high-volume, cost-sensitive tasks" },
+        { id: "claude-opus-4-5-20251101",   desc: "Opus 4.5 — complex multi-step tasks (Nov 2025)" },
+        { id: "claude-sonnet-4-5-20250929", desc: "Sonnet 4.5 — coding & agentic tasks (200K ctx)" },
+        { id: "claude-opus-4-1-20250805",   desc: "Opus 4.1 — long-duration complex tasks" },
+        { id: "claude-3-5-sonnet-latest",   desc: "3.5 Sonnet — previous gen, widely used" },
+        { id: "claude-3-5-haiku-latest",    desc: "3.5 Haiku — fast previous gen" },
+      ],
+    },
+    {
+      name: "Google", prefix: "google", envKey: "GOOGLE_AI_API_KEY",
+      models: [
+        { id: "gemini-3.1-pro-preview",             desc: "Latest — complex tasks, advanced reasoning",    isNew: true },
+        { id: "gemini-3.1-flash-lite-preview",      desc: "Latest — cost-efficient & fast",               isNew: true },
+        { id: "gemini-2.5-pro",                     desc: "GA — complex reasoning & coding (1M ctx)" },
+        { id: "gemini-2.5-flash",                   desc: "Fast & cost-effective for high-volume tasks" },
+        { id: "gemini-2.5-flash-lite",              desc: "Speed-optimised for high-throughput" },
+        { id: "gemini-live-2.5-flash-native-audio", desc: "Real-time bidirectional audio/video agents" },
+        { id: "gemini-2.0-flash",                   desc: "Previous gen flash" },
+      ],
+    },
+    {
+      name: "xAI", prefix: "xai", envKey: "XAI_API_KEY",
+      models: [
+        { id: "grok-4",           desc: "Grok 4 — latest & most capable (Jul 2025)", isNew: true },
+        { id: "grok-3-beta",      desc: "Grok 3 Beta — 131K ctx" },
+        { id: "grok-3-mini-beta", desc: "Grok 3 Mini — fast, 131K ctx" },
+      ],
+    },
+    {
+      name: "DeepSeek", prefix: "deepseek", envKey: "DEEPSEEK_API_KEY",
+      models: [
+        { id: "deepseek-chat",     desc: "DeepSeek V3 — excellent coder (128K ctx)" },
+        { id: "deepseek-reasoner", desc: "DeepSeek R1 — chain-of-thought reasoning" },
+      ],
+    },
+    {
+      name: "Mistral", prefix: "mistral", envKey: "MISTRAL_API_KEY",
+      models: [
+        { id: "mistral-large-2512",     desc: "Flagship — best quality (Dec 2025)",    isNew: true },
+        { id: "mistral-medium-3",       desc: "Balanced capability & speed (May 2025)" },
+        { id: "codestral-2508",         desc: "Code specialist (Aug 2025)" },
+        { id: "mistral-small-3.2-24b",  desc: "Lightweight, runs locally (24B params)" },
+      ],
+    },
+    {
+      name: "Ollama (local)", prefix: "ollama", configured: true,
+      models: [
+        { id: "llama4-maverick", desc: "Llama 4 Maverick — 17B MoE, 1M ctx, multimodal", isNew: true },
+        { id: "llama4-scout",    desc: "Llama 4 Scout — 17B MoE, 10M ctx",               isNew: true },
+        { id: "llama3.3",        desc: "Llama 3.3 70B — best open model (Dec 2024)" },
+        { id: "qwen2.5",         desc: "Qwen 2.5 72B — strong coder" },
+        { id: "deepseek-r1",     desc: "DeepSeek-R1 local — reasoning" },
+        { id: "mistral",         desc: "Mistral 7B — fast small model" },
+        { id: "phi4",            desc: "Phi-4 14B — Microsoft small model" },
+        { id: "codellama",       desc: "CodeLlama — code specialised" },
+      ],
+    },
+  ];
+
+  const routingRows = [
+    ["DEFAULT_MODEL",  process.env.DEFAULT_MODEL  || chalk.hex(P.muted)("openai:gpt-4.1-mini (built-in default)")],
+    ["CODE_MODEL",     process.env.CODE_MODEL     || chalk.hex(P.border)("not set — uses DEFAULT_MODEL")],
+    ["RESEARCH_MODEL", process.env.RESEARCH_MODEL || chalk.hex(P.border)("not set — uses DEFAULT_MODEL")],
+    ["WRITER_MODEL",   process.env.WRITER_MODEL   || chalk.hex(P.border)("not set — uses DEFAULT_MODEL")],
+    ["ANALYST_MODEL",  process.env.ANALYST_MODEL  || chalk.hex(P.border)("not set — uses DEFAULT_MODEL")],
+  ];
+
+  function renderProvider(prov) {
+    const configured = prov.configured || !!process.env[prov.envKey];
+    const status = configured
+      ? chalk.hex(P.green)("✔") + "  " + chalk.bold.hex(P.teal)(prov.name) + chalk.hex(P.muted)(`  [${prov.prefix}:]`) + chalk.hex(P.green)("  configured")
+      : chalk.hex(P.red)("✘") + "  " + chalk.bold.hex(P.dim)(prov.name)   + chalk.hex(P.border)(` [${prov.prefix}:]`) + chalk.hex(P.border)("  not configured");
+
+    console.log(`\n  ${status}`);
+    if (!configured && prov.envKey) {
+      console.log(`     ${chalk.hex(P.border)("env: ")}${chalk.hex(P.amber)(prov.envKey)}`);
+    }
+    console.log(`  ${chalk.hex(P.border)("─".repeat(65))}`);
+    for (const m of prov.models) {
+      const fullId  = `${prov.prefix}:${m.id}`;
+      const newBadge = m.isNew ? chalk.hex(P.amber)(" [NEW]") : "";
+      console.log(`  ${S.dot}  ${chalk.hex(P.teal)(fullId.padEnd(50))}${newBadge}`);
+      console.log(`       ${chalk.hex(P.dim)(m.desc)}`);
+    }
+  }
+
+  // ── Header ────────────────────────────────────────────────────────────────
+  console.log(`\n${line}`);
+  console.log(`  ${chalk.bold.hex(P.cyan)("Daemora Model Providers")}  ${chalk.hex(P.muted)(PROVIDERS.length + " providers · " + PROVIDERS.reduce((s,p) => s + p.models.length, 0) + " models")}`);
+  console.log(rowLine);
+
+  // ── Interactive provider browser ──────────────────────────────────────────
+  while (true) {
+    const choices = PROVIDERS.map(p => {
+      const configured = p.configured || !!process.env[p.envKey];
+      const badge = configured ? chalk.hex(P.green)("✔") : chalk.hex(P.border)("○");
+      return {
+        value: p.prefix,
+        label: `${badge}  ${p.name.padEnd(18)} ${chalk.hex(P.muted)(p.models.length + " models")}`,
+      };
+    });
+    choices.push({ value: "routing", label: `${S.star}  Task-Type Routing` });
+    choices.push({ value: "exit",    label: `${chalk.hex(P.muted)("─")}  Exit` });
+
+    console.log();
+    const choice = await select({
+      message: chalk.hex(P.cyan)("Select a provider to browse models"),
+      options: choices,
+    });
+
+    if (isCancel(choice) || choice === "exit") break;
+
+    if (choice === "routing") {
+      console.log(`\n${rowLine}`);
+      console.log(`  ${chalk.bold.hex(P.teal)("Task-Type Model Routing")}`);
+      console.log(`  ${chalk.hex(P.border)("─".repeat(65))}`);
+      for (const [k, v] of routingRows) {
+        console.log(`  ${S.bar}  ${chalk.hex(P.muted)(k.padEnd(16))}  ${chalk.hex(P.teal)(String(v))}`);
+      }
+      console.log(`\n  ${chalk.hex(P.dim)("Set via env vars. Sub-agents auto-pick model by profile (coder/researcher/...)")}`);
+      continue;
+    }
+
+    const prov = PROVIDERS.find(p => p.prefix === choice);
+    if (prov) renderProvider(prov);
+  }
+
+  console.log(`\n${rowLine}`);
+  console.log(`  ${S.arrow}  ${chalk.hex(P.teal)("daemora setup")}               choose provider interactively`);
+  console.log(`  ${S.arrow}  ${chalk.hex(P.teal)("DEFAULT_MODEL=... daemora start")}  override at startup\n`);
+}
+
+// ─── Tools ────────────────────────────────────────────────────────────────────
+
+async function handleTools(filter) {
+  const { select, isCancel } = await import("@clack/prompts");
+  const w = 67;
+  const line    = chalk.hex(P.cyan)("━".repeat(w));
+  const rowLine = chalk.hex(P.border)("─".repeat(w));
+
+  const TOOLS = [
+    { name: "readFile",             cat: "Files",        desc: "Read files from disk" },
+    { name: "writeFile",            cat: "Files",        desc: "Write/create files" },
+    { name: "editFile",             cat: "Files",        desc: "Edit files (search & replace)" },
+    { name: "listDirectory",        cat: "Files",        desc: "List directory contents" },
+    { name: "searchFiles",          cat: "Files",        desc: "Find files by name/pattern" },
+    { name: "searchContent",        cat: "Files",        desc: "Search file content (ripgrep-style)" },
+    { name: "glob",                 cat: "Files",        desc: "Glob file pattern matching" },
+    { name: "grep",                 cat: "Files",        desc: "Regex search in files" },
+    { name: "applyPatch",           cat: "Files",        desc: "Apply unified diff patches" },
+    { name: "executeCommand",       cat: "System",       desc: "Run shell commands (sandboxed)" },
+    { name: "sshTool",              cat: "System",       desc: "SSH remote exec & SCP file transfer" },
+    { name: "database",             cat: "System",       desc: "Query SQLite / PostgreSQL / MySQL" },
+    { name: "webFetch",             cat: "Web",          desc: "Fetch any URL content" },
+    { name: "webSearch",            cat: "Web",          desc: "Search the web (SerpAPI/Brave)" },
+    { name: "browserAction",        cat: "Web",          desc: "Browser automation (Playwright)" },
+    { name: "googlePlaces",         cat: "Web",          desc: "Search places via Google Places API" },
+    { name: "sendEmail",            cat: "Communication", desc: "Send emails via SMTP/Resend" },
+    { name: "messageChannel",       cat: "Communication", desc: "Send message to any active channel" },
+    { name: "makeVoiceCall",        cat: "Communication", desc: "Make voice calls (Twilio)" },
+    { name: "iMessageTool",         cat: "Communication", desc: "Send/read iMessages (macOS)" },
+    { name: "readPDF",              cat: "Media",        desc: "Extract text from PDF files" },
+    { name: "generateImage",        cat: "Media",        desc: "Generate images (DALL-E 3)" },
+    { name: "imageAnalysis",        cat: "Media",        desc: "Analyze images with vision AI" },
+    { name: "transcribeAudio",      cat: "Media",        desc: "Transcribe audio files (Whisper)" },
+    { name: "textToSpeech",         cat: "Media",        desc: "Convert text to speech (TTS)" },
+    { name: "screenCapture",        cat: "Media",        desc: "Capture screen / screenshots" },
+    { name: "sendFile",             cat: "Media",        desc: "Send files via channels" },
+    { name: "createDocument",       cat: "Media",        desc: "Create formatted documents" },
+    { name: "gitTool",              cat: "Dev",          desc: "Git operations (clone/commit/push/...)" },
+    { name: "clipboard",            cat: "Dev",          desc: "Read/write system clipboard" },
+    { name: "readMemory",           cat: "Memory",       desc: "Read agent memory file" },
+    { name: "writeMemory",          cat: "Memory",       desc: "Write/update agent memory" },
+    { name: "searchMemory",         cat: "Memory",       desc: "Semantic search in memory" },
+    { name: "readDailyLog",         cat: "Memory",       desc: "Read daily activity log" },
+    { name: "writeDailyLog",        cat: "Memory",       desc: "Append to daily log" },
+    { name: "pruneMemory",          cat: "Memory",       desc: "Compact/prune old memories" },
+    { name: "listMemoryCategories", cat: "Memory",       desc: "List memory categories" },
+    { name: "spawnAgent",           cat: "Agents",       desc: "Spawn a sub-agent for a task" },
+    { name: "parallelAgents",       cat: "Agents",       desc: "Spawn multiple agents in parallel" },
+    { name: "delegateToAgent",      cat: "Agents",       desc: "Delegate to a remote A2A agent" },
+    { name: "manageAgents",         cat: "Agents",       desc: "List/kill/steer running agents" },
+    { name: "manageMCP",            cat: "MCP",          desc: "Manage MCP server connections" },
+    { name: "useMCP",               cat: "MCP",          desc: "Call any MCP tool by name" },
+    { name: "projectTracker",       cat: "Productivity", desc: "Track projects, tasks, milestones" },
+    { name: "cron",                 cat: "Productivity", desc: "Schedule recurring tasks" },
+    { name: "notification",         cat: "Productivity", desc: "Desktop/push notifications (ntfy/Pushover)" },
+    { name: "calendar",             cat: "Productivity", desc: "Read/create calendar events (macOS/Google)" },
+    { name: "contacts",             cat: "Productivity", desc: "Search macOS / Google contacts" },
+    { name: "philipsHue",           cat: "Smart Home",   desc: "Control Philips Hue lights" },
+    { name: "sonos",                cat: "Smart Home",   desc: "Control Sonos speakers" },
+  ];
+
+  // ── Header ────────────────────────────────────────────────────────────────
+  console.log(`\n${line}`);
+  console.log(`  ${chalk.bold.hex(P.cyan)("Daemora Tools")}  ${chalk.hex(P.muted)(TOOLS.length + " built-in tools")}`);
+  console.log(rowLine);
+
+  // ── Filter mode (daemora tools <keyword>) ─────────────────────────────────
+  if (filter) {
+    const fl = filter.toLowerCase();
+    const results = TOOLS.filter(t =>
+      t.name.toLowerCase().includes(fl) ||
+      t.cat.toLowerCase().includes(fl) ||
+      t.desc.toLowerCase().includes(fl),
+    );
+    console.log(`\n  ${chalk.hex(P.amber)("Filter:")} ${chalk.bold(filter)}  ${chalk.hex(P.muted)(results.length + " match" + (results.length !== 1 ? "es" : ""))}\n`);
+    for (const tool of results) {
+      console.log(`  ${S.dot}  ${chalk.hex(P.teal)(tool.name.padEnd(26))}  ${chalk.hex(P.dim)(tool.cat.padEnd(14))}  ${chalk.hex(P.muted)(tool.desc)}`);
+    }
+    console.log();
+    return;
+  }
+
+  // ── Group by category ─────────────────────────────────────────────────────
+  const byCategory = {};
+  for (const tool of TOOLS) {
+    (byCategory[tool.cat] = byCategory[tool.cat] || []).push(tool);
+  }
+  const categories = Object.keys(byCategory);
+
+  // ── Interactive category browser ──────────────────────────────────────────
+  while (true) {
+    const catChoices = categories.map(cat => ({
+      value: cat,
+      label: `${chalk.hex(P.teal)(cat.padEnd(16))}  ${chalk.hex(P.muted)(byCategory[cat].length + " tools")}`,
+    }));
+    catChoices.push({ value: "all",  label: `${chalk.hex(P.cyan)("◆")}  All tools (${TOOLS.length})` });
+    catChoices.push({ value: "exit", label: `${chalk.hex(P.muted)("─")}  Exit` });
+
+    console.log();
+    const choice = await select({
+      message: chalk.hex(P.cyan)("Browse tools by category"),
+      options: catChoices,
+    });
+
+    if (isCancel(choice) || choice === "exit") break;
+
+    const toolList = choice === "all" ? TOOLS : byCategory[choice];
+
+    console.log(`\n  ${chalk.bold.hex(P.teal)(choice === "all" ? "All Tools" : choice)}  ${chalk.hex(P.muted)("(" + toolList.length + ")")}`);
+    console.log(`  ${chalk.hex(P.border)("─".repeat(65))}`);
+    for (const tool of toolList) {
+      const cat = choice === "all" ? chalk.hex(P.border)(tool.cat.padEnd(14) + "  ") : "";
+      console.log(`  ${S.dot}  ${chalk.hex(P.teal)(tool.name.padEnd(26))}  ${cat}${chalk.hex(P.dim)(tool.desc)}`);
+    }
+  }
+
+  console.log(`\n${rowLine}`);
+  console.log(`  ${S.arrow}  ${chalk.hex(P.teal)("daemora tools Files")}        filter by category name`);
+  console.log(`  ${S.arrow}  ${chalk.hex(P.teal)("daemora mcp list")}            see connected MCP server tools\n`);
+}
+
+
 function printHelp() {
   const w = 56;
   const line = chalk.hex(P.brand)("\u2501".repeat(w));
@@ -1262,7 +1972,7 @@ function printHelp() {
 
   console.log(`
 ${line}
-  ${t.h("Daemora")}  ${t.muted("Your 24/7 AI Digital Worker")}
+  ${t.h("Daemora")}  ${t.muted("Your 24/7 AI Agent")}
 ${line}
 
   ${t.bold("USAGE")}
@@ -1321,12 +2031,20 @@ ${line}
   ${t.cmd("tenant channel list")} ${t.dim("<id>")}         List stored channel credential keys
   ${t.muted("  channel keys: email  email_password  resend_api_key  resend_from")}
 
+  ${t.cmd("channels")}                          List all 19 supported channels + setup status
+  ${t.cmd("models")}                            List all model providers + task-type routing
+  ${t.cmd("tools")} ${t.dim("[filter]")}                    List all 50 built-in tools (filter by name/category)
+
   ${t.cmd("doctor")}                           Security audit - check for misconfigurations
 
   ${t.cmd("help")}                             Show this help
 
   ${t.bold("EXAMPLES")}
   ${dimLine}
+  ${t.dim("$")} daemora channels
+  ${t.dim("$")} daemora models
+  ${t.dim("$")} daemora tools
+  ${t.dim("$")} daemora tools Files
   ${t.dim("$")} daemora setup
   ${t.dim("$")} daemora start
   ${t.dim("$")} daemora daemon install

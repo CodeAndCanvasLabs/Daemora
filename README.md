@@ -7,7 +7,7 @@
 [![node](https://img.shields.io/badge/node-20%2B-black)](https://nodejs.org)
 [![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-black)](#)
 
-Daemora runs on your own machine. It connects to your messaging apps, accepts tasks in plain language, executes them autonomously with 36 built-in tools, and reports back - without you watching over it.
+Daemora runs on your own machine. It connects to your messaging apps, accepts tasks in plain language, executes them autonomously with 48 built-in tools across 19 channels, and reports back - without you watching over it.
 
 Unlike cloud AI assistants, nothing leaves your infrastructure except the tokens you intentionally send to model APIs. You own the data, the keys, and the security boundary.
 
@@ -31,9 +31,11 @@ Unlike cloud AI assistants, nothing leaves your infrastructure except the tokens
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         INPUT CHANNELS                          │
+│                      INPUT CHANNELS (19)                        │
 │  Telegram · WhatsApp · Discord · Slack · Email · LINE ·         │
-│  Signal · Microsoft Teams · Google Chat                         │
+│  Signal · Teams · Google Chat · Matrix · Mattermost · Twitch ·  │
+│  IRC · iMessage · Feishu · Zalo · Nextcloud · BlueBubbles ·     │
+│  Nostr                                                          │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                             ▼
@@ -63,13 +65,14 @@ Unlike cloud AI assistants, nothing leaves your infrastructure except the tokens
                │                                 │
                ▼                                 ▼
 ┌──────────────────────────┐      ┌──────────────────────────────┐
-│     BUILT-IN TOOLS       │      │        SUB-AGENTS            │
+│   BUILT-IN TOOLS (48)    │      │        SUB-AGENTS            │
 │  File I/O · Shell        │      │  spawnAgent · parallelAgents │
 │  Web · Browser           │      │  delegateToAgent             │
 │  Email · Messaging       │      │  Profiles: coder / researcher│
-│  Vision · TTS            │      │  / writer / analyst          │
+│  Vision · TTS · PDF      │      │  / writer / analyst          │
 │  Memory · Documents      │      │  Inherit model + API keys    │
 │  Cron · Agents · MCP     │      │  Max depth: 3  Max: 7 agents │
+│  Git · Calendar · IoT    │      │  Task-type model routing     │
 └──────────────────────────┘      └──────────────┬───────────────┘
                                                  │
                                                  ▼
@@ -232,7 +235,7 @@ daemora start
 ```bash
 git clone https://github.com/umarfarooq/daemora-agent.git
 cd daemora-agent
-npm install
+pnpm install
 cp .env.example .env
 # Add your API keys to .env
 daemora setup
@@ -263,22 +266,29 @@ At least one provider is required:
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 GOOGLE_AI_API_KEY=...
+XAI_API_KEY=...
+DEEPSEEK_API_KEY=...
+MISTRAL_API_KEY=...
 
 # Default model (used when no model is specified)
 DEFAULT_MODEL=openai:gpt-4.1-mini
 ```
 
-**Supported models:**
+**7 providers, 10+ models:**
 
 | Model ID | Description |
 |---|---|
 | `openai:gpt-4.1` | Most capable OpenAI model |
 | `openai:gpt-4.1-mini` | Fast and cheap - good default |
+| `openai:o3-mini` | Reasoning-optimised |
 | `anthropic:claude-opus-4-6` | Best for complex reasoning |
 | `anthropic:claude-sonnet-4-6` | Balanced - great for code |
-| `google:gemini-2.5-pro` | Best for long context |
+| `anthropic:claude-haiku-4-5` | Fastest Anthropic model |
 | `google:gemini-2.0-flash` | Fastest Google model |
-| `ollama:llama3.2` | Local - no API key needed |
+| `xai:grok-4` | xAI flagship |
+| `deepseek:deepseek-chat` | DeepSeek V3 |
+| `mistral:mistral-large-2512` | Mistral flagship |
+| `ollama:llama3` | Local - no API key needed |
 
 ### Task-Type Model Routing (optional)
 
@@ -293,35 +303,33 @@ ANALYST_MODEL=openai:gpt-4.1
 
 When a sub-agent is spawned with `profile: "coder"`, it automatically uses `CODE_MODEL`. Sub-agents without an explicit model inherit from their parent.
 
-### Channels
+### Channels (19)
 
-Enable only what you need:
+Enable only what you need. Each channel supports `{CHANNEL}_ALLOWLIST` and `{CHANNEL}_MODEL` overrides.
 
-```env
-# Telegram
-TELEGRAM_BOT_TOKEN=...
-TELEGRAM_ALLOWLIST=123456789,987654321   # optional: restrict to specific users
+| Channel | Required Env Vars |
+|---|---|
+| **Telegram** | `TELEGRAM_BOT_TOKEN` |
+| **WhatsApp** | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` |
+| **Discord** | `DISCORD_BOT_TOKEN` |
+| **Slack** | `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN` |
+| **Email** | `EMAIL_USER`, `EMAIL_PASSWORD`, `EMAIL_IMAP_HOST`, `EMAIL_SMTP_HOST` |
+| **LINE** | `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_CHANNEL_SECRET` |
+| **Signal** | `SIGNAL_CLI_PATH`, `SIGNAL_PHONE_NUMBER` |
+| **Microsoft Teams** | `TEAMS_APP_ID`, `TEAMS_APP_PASSWORD` |
+| **Google Chat** | `GOOGLE_CHAT_CREDENTIALS_PATH`, `GOOGLE_CHAT_SPACE_ID` |
+| **Matrix** | `MATRIX_HOMESERVER_URL`, `MATRIX_ACCESS_TOKEN`, `MATRIX_USER_ID` |
+| **Mattermost** | `MATTERMOST_URL`, `MATTERMOST_BOT_TOKEN` |
+| **Twitch** | `TWITCH_BOT_USERNAME`, `TWITCH_OAUTH_TOKEN`, `TWITCH_CHANNEL` |
+| **IRC** | `IRC_SERVER`, `IRC_NICKNAME`, `IRC_CHANNEL` |
+| **iMessage** | `IMESSAGE_APPLESCRIPT_ENABLED=true` (macOS only) |
+| **Feishu** | `FEISHU_APP_ID`, `FEISHU_APP_SECRET` |
+| **Zalo** | `ZALO_APP_ID`, `ZALO_SECRET_KEY`, `ZALO_ACCESS_TOKEN` |
+| **Nextcloud** | `NEXTCLOUD_URL`, `NEXTCLOUD_USERNAME`, `NEXTCLOUD_PASSWORD` |
+| **BlueBubbles** | `BLUEBUBBLES_SERVER_URL`, `BLUEBUBBLES_PASSWORD` |
+| **Nostr** | `NOSTR_PRIVATE_KEY` |
 
-# WhatsApp (via Twilio)
-TWILIO_ACCOUNT_SID=...
-TWILIO_AUTH_TOKEN=...
-TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
-
-# Discord
-DISCORD_BOT_TOKEN=...
-
-# Slack
-SLACK_BOT_TOKEN=xoxb-...
-SLACK_APP_TOKEN=xapp-...
-
-# Email (IMAP + SMTP)
-EMAIL_USER=you@gmail.com
-EMAIL_PASSWORD=your-app-password
-EMAIL_IMAP_HOST=imap.gmail.com
-EMAIL_SMTP_HOST=smtp.gmail.com
-```
-
-Each channel supports an `{CHANNEL}_ALLOWLIST` and `{CHANNEL}_MODEL` override.
+Run `daemora channels` for full setup instructions per channel.
 
 ### Cost Limits
 
@@ -384,7 +392,7 @@ daemora mcp remove github     # Remove permanently
 
 ## Built-in Tools
 
-36 tools the agent uses autonomously:
+48 tools the agent uses autonomously:
 
 | Category | Tools |
 |---|---|
@@ -393,13 +401,19 @@ daemora mcp remove github     # Remove permanently
 | **Shell** | executeCommand (foreground + background) |
 | **Web** | webFetch, webSearch, browserAction (navigate, click, fill, screenshot) |
 | **Vision** | imageAnalysis, screenCapture |
-| **Communication** | sendEmail, messageChannel, sendFile, transcribeAudio, textToSpeech |
-| **Documents** | createDocument (Markdown, PDF, DOCX) |
-| **Memory** | readMemory, writeMemory, searchMemory, pruneMemory, readDailyLog, writeDailyLog |
+| **Communication** | sendEmail, messageChannel, sendFile, makeVoiceCall, transcribeAudio, textToSpeech |
+| **Documents** | createDocument (Markdown, PDF, DOCX), readPDF |
+| **Memory** | readMemory, writeMemory, searchMemory, pruneMemory, readDailyLog, writeDailyLog, listMemoryCategories |
 | **Agents** | spawnAgent, parallelAgents, delegateToAgent, manageAgents |
 | **MCP** | useMCP, manageMCP |
 | **Scheduling** | cron (add, list, run, update, delete) |
 | **Tracking** | projectTracker |
+| **Dev Tools** | gitTool (status, diff, commit, branch, log, stash) |
+| **Media** | generateImage (DALL-E / Stable Diffusion) |
+| **System** | clipboard, notification, calendar, contacts |
+| **IoT** | philipsHue, sonos |
+| **Apple** | iMessageTool (macOS only) |
+| **Location** | googlePlaces |
 
 ---
 
@@ -602,7 +616,8 @@ Use nginx or Caddy as a reverse proxy for HTTPS if exposing the API port.
 |---|---|
 | Runtime | Node.js 20+ - ES modules, no build step |
 | AI SDK | Vercel AI SDK (`ai`) - model-agnostic, 25+ providers |
-| Models | OpenAI, Anthropic, Google Gemini, Ollama (local) |
+| Models | OpenAI, Anthropic, Google Gemini, xAI, DeepSeek, Mistral, Ollama (local) |
+| Testing | Vitest (unit + integration), Playwright (E2E) |
 | MCP | `@modelcontextprotocol/sdk` - stdio, HTTP, SSE |
 | Channels | grammy, twilio, discord.js, @slack/bolt, nodemailer/imap, botbuilder, google-auth-library |
 | Scheduling | node-cron |
@@ -634,15 +649,30 @@ Daemora was built in response to OpenClaw's security weaknesses. Key differences
 
 ---
 
+## Testing
+
+```bash
+pnpm test                  # Run all tests
+pnpm test:watch            # Interactive watch mode
+pnpm test:coverage         # Coverage report
+pnpm test:unit             # Unit tests only
+pnpm test:integration      # Integration tests only
+```
+
+97 tests covering: Task lifecycle, CostTracker (per-tenant daily budgets), SecretScanner (pattern + blind env-var redaction), FilesystemGuard (blocked patterns, path scoping), TenantManager (AES-256-GCM encryption round-trip, tamper detection), TenantContext (AsyncLocalStorage concurrent isolation), ModelRouter (task-type routing, profile resolution), and multi-tenant integration (cross-tenant filesystem + cost isolation).
+
+---
+
 ## Contributing
 
 ```bash
 git clone https://github.com/umarfarooq/daemora-agent.git
 cd daemora-agent
-npm install
+pnpm install
 cp .env.example .env
 # Add your API keys to .env
 daemora setup
+pnpm test          # Make sure everything passes
 daemora start
 ```
 

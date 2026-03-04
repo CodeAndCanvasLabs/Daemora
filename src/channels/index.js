@@ -3,6 +3,7 @@
 // Uncomment only if you've added your own auth middleware.
 // import { HttpChannel } from "./HttpChannel.js";
 
+// ─── Core channels ─────────────────────────────────────────────────────────────
 import { TelegramChannel } from "./TelegramChannel.js";
 import { WhatsAppChannel } from "./WhatsAppChannel.js";
 import { EmailChannel } from "./EmailChannel.js";
@@ -12,6 +13,19 @@ import { LineChannel } from "./LineChannel.js";
 import { SignalChannel } from "./SignalChannel.js";
 import { TeamsChannel } from "./TeamsChannel.js";
 import { GoogleChatChannel } from "./GoogleChatChannel.js";
+
+// ─── Phase 24 channels ─────────────────────────────────────────────────────────
+import { MatrixChannel } from "./MatrixChannel.js";
+import { MattermostChannel } from "./MattermostChannel.js";
+import { TwitchChannel } from "./TwitchChannel.js";
+import { IRCChannel } from "./IRCChannel.js";
+import { iMessageChannel } from "./iMessageChannel.js";
+import { FeishuChannel } from "./FeishuChannel.js";
+import { ZaloChannel } from "./ZaloChannel.js";
+import { NextcloudChannel } from "./NextcloudChannel.js";
+import { BlueBubblesChannel } from "./BlueBubblesChannel.js";
+import { NostrChannel } from "./NostrChannel.js";
+
 import { config } from "../config/default.js";
 import eventBus from "../core/EventBus.js";
 
@@ -34,7 +48,9 @@ class ChannelRegistry {
     // await http.start();
     // ─────────────────────────────────────────────────────────────────────────
 
-    // Telegram - check process.env directly (vault may have loaded token after config init)
+    // ── Core channels ─────────────────────────────────────────────────────────
+
+    // Telegram
     const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
     if (telegramToken) {
       try {
@@ -46,7 +62,7 @@ class ChannelRegistry {
       }
     }
 
-    // WhatsApp - check process.env directly
+    // WhatsApp
     const twilioSid = process.env.TWILIO_ACCOUNT_SID;
     if (twilioSid) {
       const whatsapp = new WhatsAppChannel({
@@ -60,7 +76,7 @@ class ChannelRegistry {
       await whatsapp.start();
     }
 
-    // Email - check process.env directly
+    // Email
     const emailUser = process.env.EMAIL_USER;
     if (emailUser) {
       const email = new EmailChannel({
@@ -73,7 +89,7 @@ class ChannelRegistry {
       await email.start();
     }
 
-    // Discord - check process.env directly
+    // Discord
     const discordToken = process.env.DISCORD_BOT_TOKEN;
     if (discordToken) {
       try {
@@ -85,7 +101,7 @@ class ChannelRegistry {
       }
     }
 
-    // Slack - requires both bot token and app token (Socket Mode)
+    // Slack
     const slackBotToken = process.env.SLACK_BOT_TOKEN;
     const slackAppToken = process.env.SLACK_APP_TOKEN;
     if (slackBotToken && slackAppToken) {
@@ -98,7 +114,7 @@ class ChannelRegistry {
       }
     }
 
-    // LINE - webhook-based, needs access token + channel secret
+    // LINE
     const lineAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
     const lineSecret = process.env.LINE_CHANNEL_SECRET;
     if (lineAccessToken && lineSecret) {
@@ -111,7 +127,7 @@ class ChannelRegistry {
       }
     }
 
-    // Signal - requires signal-cli running as REST daemon
+    // Signal
     const signalCliUrl = process.env.SIGNAL_CLI_URL;
     const signalPhone = process.env.SIGNAL_PHONE_NUMBER;
     if (signalCliUrl && signalPhone) {
@@ -124,7 +140,7 @@ class ChannelRegistry {
       }
     }
 
-    // Microsoft Teams - Bot Framework v4
+    // Microsoft Teams
     const teamsAppId = process.env.TEAMS_APP_ID;
     const teamsAppPwd = process.env.TEAMS_APP_PASSWORD;
     if (teamsAppId && teamsAppPwd) {
@@ -141,7 +157,7 @@ class ChannelRegistry {
       }
     }
 
-    // Google Chat - service account + Chat API webhook
+    // Google Chat
     const googleServiceAccount = process.env.GOOGLE_CHAT_SERVICE_ACCOUNT;
     if (googleServiceAccount) {
       try {
@@ -157,14 +173,181 @@ class ChannelRegistry {
       }
     }
 
+    // ── Phase 24 channels ──────────────────────────────────────────────────────
+
+    // Matrix
+    const matrixHomeserver = process.env.MATRIX_HOMESERVER_URL;
+    const matrixToken = process.env.MATRIX_ACCESS_TOKEN;
+    if (matrixHomeserver && matrixToken) {
+      try {
+        const matrix = new MatrixChannel({
+          homeserverUrl: matrixHomeserver,
+          accessToken: matrixToken,
+          botUserId: process.env.MATRIX_BOT_USER_ID,
+        });
+        this.channels.set("matrix", matrix);
+        await matrix.start();
+      } catch (e) {
+        console.log(`[Channel:Matrix] Failed to start: ${e.message}`);
+      }
+    }
+
+    // Mattermost
+    const mmUrl = process.env.MATTERMOST_URL;
+    const mmToken = process.env.MATTERMOST_TOKEN;
+    if (mmUrl && mmToken) {
+      try {
+        const mattermost = new MattermostChannel({
+          url: mmUrl,
+          token: mmToken,
+          botUserId: process.env.MATTERMOST_BOT_USER_ID,
+          botUsername: process.env.MATTERMOST_BOT_USERNAME,
+        });
+        this.channels.set("mattermost", mattermost);
+        await mattermost.start();
+      } catch (e) {
+        console.log(`[Channel:Mattermost] Failed to start: ${e.message}`);
+      }
+    }
+
+    // Twitch
+    const twitchUser = process.env.TWITCH_BOT_USERNAME;
+    const twitchToken = process.env.TWITCH_OAUTH_TOKEN;
+    const twitchChannel = process.env.TWITCH_CHANNEL;
+    if (twitchUser && twitchToken && twitchChannel) {
+      try {
+        const twitch = new TwitchChannel({
+          username: twitchUser,
+          token: twitchToken,
+          channel: twitchChannel,
+          prefix: process.env.TWITCH_COMMAND_PREFIX || "!ask",
+        });
+        this.channels.set("twitch", twitch);
+        await twitch.start();
+      } catch (e) {
+        console.log(`[Channel:Twitch] Failed to start: ${e.message}`);
+      }
+    }
+
+    // IRC
+    const ircServer = process.env.IRC_SERVER;
+    const ircNick = process.env.IRC_NICK;
+    if (ircServer && ircNick) {
+      try {
+        const irc = new IRCChannel({
+          server: ircServer,
+          nick: ircNick,
+          port: parseInt(process.env.IRC_PORT || "6667"),
+          channel: process.env.IRC_CHANNEL,
+          password: process.env.IRC_PASSWORD,
+        });
+        this.channels.set("irc", irc);
+        await irc.start();
+      } catch (e) {
+        console.log(`[Channel:IRC] Failed to start: ${e.message}`);
+      }
+    }
+
+    // iMessage (macOS only)
+    if (process.platform === "darwin" && process.env.IMESSAGE_ENABLED === "true") {
+      try {
+        const imessage = new iMessageChannel({
+          pollIntervalMs: parseInt(process.env.IMESSAGE_POLL_INTERVAL_MS || "5000"),
+        });
+        this.channels.set("imessage", imessage);
+        await imessage.start();
+      } catch (e) {
+        console.log(`[Channel:iMessage] Failed to start: ${e.message}`);
+      }
+    }
+
+    // Feishu / Lark
+    const feishuAppId = process.env.FEISHU_APP_ID;
+    const feishuSecret = process.env.FEISHU_APP_SECRET;
+    if (feishuAppId && feishuSecret) {
+      try {
+        const feishu = new FeishuChannel({
+          appId: feishuAppId,
+          appSecret: feishuSecret,
+          verificationToken: process.env.FEISHU_VERIFICATION_TOKEN,
+          port: parseInt(process.env.FEISHU_PORT || "3004"),
+        });
+        this.channels.set("feishu", feishu);
+        await feishu.start();
+      } catch (e) {
+        console.log(`[Channel:Feishu] Failed to start: ${e.message}`);
+      }
+    }
+
+    // Zalo
+    const zaloAppId = process.env.ZALO_APP_ID;
+    const zaloToken = process.env.ZALO_ACCESS_TOKEN;
+    if (zaloAppId && zaloToken) {
+      try {
+        const zalo = new ZaloChannel({
+          appId: zaloAppId,
+          appSecret: process.env.ZALO_APP_SECRET,
+          accessToken: zaloToken,
+          port: parseInt(process.env.ZALO_PORT || "3005"),
+        });
+        this.channels.set("zalo", zalo);
+        await zalo.start();
+      } catch (e) {
+        console.log(`[Channel:Zalo] Failed to start: ${e.message}`);
+      }
+    }
+
+    // Nextcloud Talk
+    const nextcloudUrl = process.env.NEXTCLOUD_URL;
+    const nextcloudUser = process.env.NEXTCLOUD_USER;
+    const nextcloudPass = process.env.NEXTCLOUD_PASSWORD;
+    if (nextcloudUrl && nextcloudUser && nextcloudPass) {
+      try {
+        const nextcloud = new NextcloudChannel({
+          url: nextcloudUrl,
+          user: nextcloudUser,
+          password: nextcloudPass,
+          roomToken: process.env.NEXTCLOUD_ROOM_TOKEN,
+        });
+        this.channels.set("nextcloud", nextcloud);
+        await nextcloud.start();
+      } catch (e) {
+        console.log(`[Channel:Nextcloud] Failed to start: ${e.message}`);
+      }
+    }
+
+    // BlueBubbles
+    const bbUrl = process.env.BLUEBUBBLES_URL;
+    const bbPassword = process.env.BLUEBUBBLES_PASSWORD;
+    if (bbUrl && bbPassword) {
+      try {
+        const bb = new BlueBubblesChannel({ url: bbUrl, password: bbPassword });
+        this.channels.set("bluebubbles", bb);
+        await bb.start();
+      } catch (e) {
+        console.log(`[Channel:BlueBubbles] Failed to start: ${e.message}`);
+      }
+    }
+
+    // Nostr
+    const nostrKey = process.env.NOSTR_PRIVATE_KEY;
+    if (nostrKey) {
+      try {
+        const relays = (process.env.NOSTR_RELAYS || "wss://relay.damus.io,wss://nos.lol").split(",").map(r => r.trim());
+        const nostr = new NostrChannel({ privateKey: nostrKey, relays });
+        this.channels.set("nostr", nostr);
+        await nostr.start();
+      } catch (e) {
+        console.log(`[Channel:Nostr] Failed to start: ${e.message}`);
+      }
+    }
+
     const active = [...this.channels.entries()]
       .filter(([_, ch]) => ch.running)
       .map(([name]) => name);
     console.log(`[ChannelRegistry] Active channels: ${active.join(", ") || "none"}`);
 
-    // Recovery reply handler — when a task completes after an agent restart and there
-    // is no channel waiter (because the original process died), route the reply back
-    // to the user automatically via the channel's existing sendReply() method.
+    // Recovery reply handler
     eventBus.on("task:reply:needed", async ({ task }) => {
       const channel = this.channels.get(task.channel);
       if (!channel?.running) {
@@ -211,7 +394,35 @@ class ChannelRegistry {
       running: ch.running,
     }));
   }
+
+  /**
+   * Returns all supported channel names (including unconfigured ones).
+   */
+  static getSupportedChannels() {
+    return [
+      { name: "telegram",    env: "TELEGRAM_BOT_TOKEN",                         desc: "Telegram bot" },
+      { name: "whatsapp",    env: "TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN",     desc: "WhatsApp via Twilio" },
+      { name: "discord",     env: "DISCORD_BOT_TOKEN",                          desc: "Discord bot" },
+      { name: "slack",       env: "SLACK_BOT_TOKEN + SLACK_APP_TOKEN",          desc: "Slack Socket Mode bot" },
+      { name: "email",       env: "EMAIL_USER + EMAIL_PASSWORD",                desc: "Email (IMAP/SMTP)" },
+      { name: "line",        env: "LINE_CHANNEL_ACCESS_TOKEN + LINE_CHANNEL_SECRET", desc: "LINE messaging" },
+      { name: "signal",      env: "SIGNAL_CLI_URL + SIGNAL_PHONE_NUMBER",       desc: "Signal via signal-cli" },
+      { name: "teams",       env: "TEAMS_APP_ID + TEAMS_APP_PASSWORD",          desc: "Microsoft Teams Bot Framework" },
+      { name: "googlechat",  env: "GOOGLE_CHAT_SERVICE_ACCOUNT",                desc: "Google Chat service account" },
+      { name: "matrix",      env: "MATRIX_HOMESERVER_URL + MATRIX_ACCESS_TOKEN", desc: "Matrix (Element) protocol" },
+      { name: "mattermost",  env: "MATTERMOST_URL + MATTERMOST_TOKEN",          desc: "Mattermost WebSocket bot" },
+      { name: "twitch",      env: "TWITCH_BOT_USERNAME + TWITCH_OAUTH_TOKEN + TWITCH_CHANNEL", desc: "Twitch chat commands" },
+      { name: "irc",         env: "IRC_SERVER + IRC_NICK",                      desc: "IRC (any server)" },
+      { name: "imessage",    env: "IMESSAGE_ENABLED=true (macOS only)",         desc: "iMessage via AppleScript" },
+      { name: "feishu",      env: "FEISHU_APP_ID + FEISHU_APP_SECRET",          desc: "Feishu / Lark" },
+      { name: "zalo",        env: "ZALO_APP_ID + ZALO_ACCESS_TOKEN",            desc: "Zalo (Vietnam)" },
+      { name: "nextcloud",   env: "NEXTCLOUD_URL + NEXTCLOUD_USER + NEXTCLOUD_PASSWORD", desc: "Nextcloud Talk" },
+      { name: "bluebubbles", env: "BLUEBUBBLES_URL + BLUEBUBBLES_PASSWORD",     desc: "BlueBubbles iMessage relay" },
+      { name: "nostr",       env: "NOSTR_PRIVATE_KEY",                          desc: "Nostr decentralized protocol" },
+    ];
+  }
 }
 
 const channelRegistry = new ChannelRegistry();
 export default channelRegistry;
+export { ChannelRegistry };
