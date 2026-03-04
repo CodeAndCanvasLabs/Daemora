@@ -7,7 +7,7 @@
 [![node](https://img.shields.io/badge/node-20%2B-black)](https://nodejs.org)
 [![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-black)](#)
 
-Daemora runs on your own machine. It connects to your messaging apps, accepts tasks in plain language, executes them autonomously with 48 built-in tools across 19 channels, and reports back - without you watching over it.
+Daemora runs on your own machine. It connects to your messaging apps, accepts tasks in plain language, executes them autonomously with 51 built-in tools across 20 channels, and reports back - without you watching over it.
 
 Unlike cloud AI assistants, nothing leaves your infrastructure except the tokens you intentionally send to model APIs. You own the data, the keys, and the security boundary.
 
@@ -20,9 +20,9 @@ Unlike cloud AI assistants, nothing leaves your infrastructure except the tokens
 | **Code** | Write, edit, run, test, and debug code across multiple files. Takes screenshots of UIs to verify output. Fixes failing tests. Ships working software. |
 | **Research** | Search the web, read pages, analyse images, cross-reference sources, write reports. Spawns parallel sub-agents for speed. |
 | **Automation** | Schedule recurring tasks via cron. Monitor repos, inboxes, or APIs. React to events. Runs while you sleep. |
-| **Communicate** | Send emails, Telegram messages, Slack posts, Discord messages - autonomously, when the task calls for it. |
+| **Communicate** | Send emails, Telegram messages, Slack posts, Discord messages - autonomously. Screenshots, files, and media sent directly back to you via `replyWithFile`. |
 | **Tools** | Connect to any MCP server - create Notion pages, open GitHub issues, update Linear tasks, manage Shopify products, query databases. |
-| **Multi-Agent** | Spawn parallel sub-agents (researcher + coder + writer working simultaneously). Each inherits the parent's model and API keys. |
+| **Multi-Agent** | Spawn parallel sub-agents (researcher + coder + writer working simultaneously). Each inherits the parent's model and API keys. Persistent sessions - specialists remember context across tasks. |
 | **Multi-Tenant** | Run one instance for your whole team. Per-user memory, cost caps, tool allowlists, filesystem isolation, and encrypted API keys. |
 
 ---
@@ -31,11 +31,11 @@ Unlike cloud AI assistants, nothing leaves your infrastructure except the tokens
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      INPUT CHANNELS (19)                        │
+│                      INPUT CHANNELS (20)                        │
 │  Telegram · WhatsApp · Discord · Slack · Email · LINE ·         │
 │  Signal · Teams · Google Chat · Matrix · Mattermost · Twitch ·  │
 │  IRC · iMessage · Feishu · Zalo · Nextcloud · BlueBubbles ·     │
-│  Nostr                                                          │
+│  Nostr · HTTP                                                   │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                             ▼
@@ -43,7 +43,7 @@ Unlike cloud AI assistants, nothing leaves your infrastructure except the tokens
 │                    MULTI-TENANT LAYER                           │
 │  TenantManager + TenantContext (AsyncLocalStorage)              │
 │  Per-user: model, tools, MCP servers, filesystem, cost caps,    │
-│  encrypted API keys, isolated memory                            │
+│  encrypted API keys, isolated memory, channel context           │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                             ▼
@@ -52,6 +52,7 @@ Unlike cloud AI assistants, nothing leaves your infrastructure except the tokens
 │  Priority queue · Per-session serialisation                     │
 │  Steer/inject: follow-up messages injected into running loop    │
 │  Cost budget check · Tenant suspension check                    │
+│  Persistent sessions · Auto-cleanup (configurable retention)    │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
                             ▼
@@ -65,14 +66,15 @@ Unlike cloud AI assistants, nothing leaves your infrastructure except the tokens
                │                                 │
                ▼                                 ▼
 ┌──────────────────────────┐      ┌──────────────────────────────┐
-│   BUILT-IN TOOLS (48)    │      │        SUB-AGENTS            │
+│   BUILT-IN TOOLS (51)    │      │        SUB-AGENTS            │
 │  File I/O · Shell        │      │  spawnAgent · parallelAgents │
 │  Web · Browser           │      │  delegateToAgent             │
 │  Email · Messaging       │      │  Profiles: coder / researcher│
 │  Vision · TTS · PDF      │      │  / writer / analyst          │
-│  Memory · Documents      │      │  Inherit model + API keys    │
-│  Cron · Agents · MCP     │      │  Max depth: 3  Max: 7 agents │
-│  Git · Calendar · IoT    │      │  Task-type model routing     │
+│  Memory · Documents      │      │  Persistent sessions (--sep) │
+│  Cron · Agents · MCP     │      │  Inherit model + API keys    │
+│  Git · SSH · Database    │      │  Max depth: 3  Max: 7 agents │
+│  Calendar · IoT          │      │  Task-type model routing     │
 └──────────────────────────┘      └──────────────┬───────────────┘
                                                  │
                                                  ▼
@@ -117,10 +119,10 @@ sequenceDiagram
     participant MC as MCP Server
 
     User->>Ch: "Fix the auth bug and open a PR"
-    Ch->>TQ: enqueue(task, sessionId)
+    Ch->>TQ: enqueue(task, sessionId, channelMeta)
     Ch-->>User: ⏳ reaction
 
-    TQ->>TC: run({ tenant, model, apiKeys })
+    TQ->>TC: run({ tenant, model, apiKeys, sessionId, channelMeta })
     TC->>AL: runAgentLoop(systemPrompt, messages)
 
     AL->>T: readFile("src/auth.js")
@@ -150,6 +152,7 @@ sequenceDiagram
     actor User
     participant AL as AgentLoop (Main)
     participant SM as SubAgentManager
+    participant SS as Session Store
     participant R  as Researcher Agent
     participant W  as Writer Agent
     participant C  as Coder Agent
@@ -157,6 +160,7 @@ sequenceDiagram
     User->>AL: "Research top 5 competitors, write a report, save it to docs/"
 
     AL->>SM: parallelAgents([researcher × 5, writer])
+    SM->>SS: load persistent sessions (user123--researcher, user123--writer)
 
     par Concurrent execution
         SM->>R: spawn(profile=researcher, "Competitor A")
@@ -171,6 +175,8 @@ sequenceDiagram
         W->>W: structure + draft
         W-->>AL: draft report
     end
+
+    SM->>SS: save sub-agent sessions to disk
 
     AL->>C: spawnAgent(profile=coder, "save report to docs/competitors.md")
     C->>C: writeFile("docs/competitors.md")
@@ -212,7 +218,7 @@ sequenceDiagram
 
 ```bash
 npm install -g daemora
-daemora setup      # interactive wizard - models, channels, vault, MCP
+daemora setup      # interactive wizard (9 steps) - models, channels, cleanup, vault, MCP
 daemora start      # start the agent
 ```
 
@@ -303,7 +309,7 @@ ANALYST_MODEL=openai:gpt-4.1
 
 When a sub-agent is spawned with `profile: "coder"`, it automatically uses `CODE_MODEL`. Sub-agents without an explicit model inherit from their parent.
 
-### Channels (19)
+### Channels (20)
 
 Enable only what you need. Each channel supports `{CHANNEL}_ALLOWLIST` and `{CHANNEL}_MODEL` overrides.
 
@@ -392,7 +398,7 @@ daemora mcp remove github     # Remove permanently
 
 ## Built-in Tools
 
-48 tools the agent uses autonomously:
+51 tools the agent uses autonomously:
 
 | Category | Tools |
 |---|---|
@@ -401,14 +407,14 @@ daemora mcp remove github     # Remove permanently
 | **Shell** | executeCommand (foreground + background) |
 | **Web** | webFetch, webSearch, browserAction (navigate, click, fill, screenshot) |
 | **Vision** | imageAnalysis, screenCapture |
-| **Communication** | sendEmail, messageChannel, sendFile, makeVoiceCall, transcribeAudio, textToSpeech |
+| **Communication** | sendEmail, messageChannel, sendFile, replyWithFile, makeVoiceCall, transcribeAudio, textToSpeech |
 | **Documents** | createDocument (Markdown, PDF, DOCX), readPDF |
 | **Memory** | readMemory, writeMemory, searchMemory, pruneMemory, readDailyLog, writeDailyLog, listMemoryCategories |
 | **Agents** | spawnAgent, parallelAgents, delegateToAgent, manageAgents |
 | **MCP** | useMCP, manageMCP |
 | **Scheduling** | cron (add, list, run, update, delete) |
 | **Tracking** | projectTracker |
-| **Dev Tools** | gitTool (status, diff, commit, branch, log, stash) |
+| **Dev Tools** | gitTool (status, diff, commit, branch, log, stash), sshTool, database |
 | **Media** | generateImage (DALL-E / Stable Diffusion) |
 | **System** | clipboard, notification, calendar, contacts |
 | **IoT** | philipsHue, sonos |
@@ -476,11 +482,13 @@ Per-tenant isolation:
 | Isolation | Mechanism |
 |---|---|
 | Memory | `data/tenants/{id}/MEMORY.md` - never shared across users |
+| Sessions | Persistent per-user sessions + per-sub-agent sessions (`userId--coder`, `userId--researcher`) |
 | Filesystem | `allowedPaths` and `blockedPaths` scoped per user |
 | API keys | AES-256-GCM encrypted; passed through call stack, never via `process.env` |
 | Cost tracking | Per-tenant daily cost recorded in audit log |
 | MCP servers | `mcpServers` field restricts which servers a tenant can call |
 | Tools | `tools` allowlist limits which tools the agent can use for this user |
+| Channel context | `channelMeta` auto-carried in TenantContext - tools like `replyWithFile` send files back without LLM knowing channel details |
 
 All isolation runs via `AsyncLocalStorage` - concurrent tasks from different users cannot read each other's context.
 
@@ -511,12 +519,50 @@ daemora doctor
 
 ---
 
+## Data Storage
+
+All data is file-based (no database required). Default location: `data/` in the install directory.
+
+```
+data/
+├── tasks/          Task JSON files (one per task)
+├── sessions/       Conversation history (main + sub-agent sessions)
+│   ├── telegram-123.json           Main session
+│   ├── telegram-123--coder.json    Persistent sub-agent session
+│   └── telegram-123--researcher.json
+├── memory/         MEMORY.md + daily logs + skill embeddings
+├── audit/          Append-only JSONL audit logs (secrets stripped)
+├── costs/          Per-day cost tracking logs
+├── tenants/        Per-tenant config, memory, and workspaces
+│   └── {tenantId}/
+│       ├── tenant.json
+│       ├── MEMORY.md
+│       └── workspace/
+├── projects/       Project tracker data
+└── workspaces/     Global workspace data
+```
+
+### Data Cleanup
+
+Configurable retention prevents unbounded growth. Set via `CLEANUP_AFTER_DAYS` env var, CLI, or setup wizard.
+
+```bash
+daemora cleanup stats            # Show storage usage
+daemora cleanup set 30           # Auto-delete files older than 30 days
+daemora cleanup set 0            # Never auto-delete
+daemora cleanup                  # Run cleanup now
+```
+
+Auto-cleanup runs on startup. Cleans: tasks, audit logs, cost logs, and stale sub-agent sessions. Main user sessions are never auto-deleted.
+
+---
+
 ## CLI Reference
 
 ```
 daemora start                    Start the agent server
 daemora setup                    Interactive setup wizard
-daemora doctor                   Security audit - 8-check scored report
+daemora doctor                   Security audit - scored report
 
 daemora mcp list                 List all MCP servers
 daemora mcp add                  Add an MCP server (interactive)
@@ -553,6 +599,10 @@ daemora tenant unsuspend <id>    Unsuspend a tenant
 daemora tenant apikey set <id> <KEY> <value>   Store per-tenant API key (encrypted)
 daemora tenant apikey delete <id> <KEY>        Remove a per-tenant API key
 daemora tenant apikey list <id>                List stored key names (values never shown)
+
+daemora cleanup                  Run data cleanup now (uses configured retention)
+daemora cleanup stats            Show storage usage (tasks, sessions, audit, costs)
+daemora cleanup set <days>       Set retention period (0 = never delete)
 
 daemora help                     Show full help
 ```
@@ -645,7 +695,7 @@ Daemora was built in response to OpenClaw's security weaknesses. Key differences
 | Task-type model routing | CODE_MODEL / RESEARCH_MODEL / etc. | None |
 | Sub-agent model inheritance | Inherits parent model | Falls back to default |
 | Setup | `npm install -g daemora && daemora start` | Complex multi-step with Docker/WSL |
-| Codebase size | ~5k LOC, no build | 80k+ LOC, TypeScript build |
+| Codebase size | ~26k LOC, no build | 80k+ LOC, TypeScript build |
 
 ---
 
