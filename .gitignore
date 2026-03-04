@@ -23,6 +23,7 @@ components/          # scratch UI components
 daemoreDir/          # scratch directory
 docs/                # internal planning docs
 PHASES.md            # internal phase planning
+STATUS.md            # internal status tracking
 DEEP_RESEARCH_REPORT.md
 GIT_RULES.md         # local dev notes
 
