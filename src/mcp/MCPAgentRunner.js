@@ -1,5 +1,6 @@
 import { spawnSubAgent } from "../agents/SubAgentManager.js";
 import mcpManager from "./MCPManager.js";
+import { createSession, getSession, setMessages } from "../services/sessions.js";
 
 /**
  * MCP Agent Runner - spawns specialist sub-agents for individual MCP servers.
@@ -69,6 +70,8 @@ All MCP tool params must be passed as a single JSON string (the first and only a
  * @returns {Promise<string>}       - Agent's final response
  */
 export async function runMCPAgent(serverName, taskDescription, options = {}) {
+  const { mainSessionId, ...restOptions } = options;
+
   // Get only this server's tool functions
   const serverTools = mcpManager.getServerTools(serverName);
 
@@ -107,15 +110,40 @@ export async function runMCPAgent(serverName, taskDescription, options = {}) {
 
   const systemPromptOverride = buildMCPAgentSystemPrompt(serverName, toolDocs);
 
+  // Load sub-agent session history (persistent across calls)
+  const subSessionId = mainSessionId ? `${mainSessionId}--${serverName}` : null;
+  let historyMessages = [];
+  if (subSessionId) {
+    const subSession = getSession(subSessionId);
+    if (subSession && subSession.messages.length > 0) {
+      historyMessages = subSession.messages.map(m => ({ role: m.role, content: m.content }));
+      console.log(`[MCPAgentRunner] Loaded ${historyMessages.length} history messages for "${serverName}"`);
+    }
+  }
+
   console.log(
     `[MCPAgentRunner] Spawning specialist for "${serverName}" (${Object.keys(serverTools).length} tools)`
   );
 
-  return spawnSubAgent(taskDescription, {
-    ...options,
+  const fullResult = await spawnSubAgent(taskDescription, {
+    ...restOptions,
     toolOverride: serverTools,
     systemPromptOverride,
-    // MCP agents are always depth 1 - they don't spawn further sub-agents
     depth: 1,
+    historyMessages,
+    returnFullResult: true,
   });
+
+  // Save sub-agent session (cap at 100 messages)
+  if (subSessionId && fullResult.messages) {
+    let subSession = getSession(subSessionId);
+    if (!subSession) subSession = createSession(subSessionId);
+    const capped = fullResult.messages.length > 100
+      ? fullResult.messages.slice(-100)
+      : fullResult.messages;
+    setMessages(subSessionId, capped);
+    console.log(`[MCPAgentRunner] Saved ${capped.length} messages to sub-session "${subSessionId}"`);
+  }
+
+  return typeof fullResult === "string" ? fullResult : fullResult.text;
 }

@@ -148,17 +148,25 @@ export async function runAgentLoop({
       consecutiveErrors = 0; // Reset on success
 
       // Track token usage
-      if (response.usage) {
-        totalInputTokens += response.usage.promptTokens || 0;
-        totalOutputTokens += response.usage.completionTokens || 0;
+      const usage = response.usage;
+      if (usage && (usage.promptTokens || usage.completionTokens)) {
+        totalInputTokens += usage.promptTokens || 0;
+        totalOutputTokens += usage.completionTokens || 0;
+      } else {
+        // Fallback: estimate from message sizes if usage not available
+        console.log(`[Loop ${loopCount}] WARNING: No token usage returned. response.usage = ${JSON.stringify(usage)}`);
+        const inputChars = messages.reduce((sum, m) => sum + (typeof m.content === "string" ? m.content.length : 0), 0);
+        const outputChars = JSON.stringify(response.object).length;
+        totalInputTokens += Math.ceil(inputChars / 4);
+        totalOutputTokens += Math.ceil(outputChars / 4);
       }
 
       eventBus.emitEvent("model:called", {
         modelId: resolvedModelId,
         loopCount,
         elapsed,
-        inputTokens: response.usage?.promptTokens || 0,
-        outputTokens: response.usage?.completionTokens || 0,
+        inputTokens: usage?.promptTokens || 0,
+        outputTokens: usage?.completionTokens || 0,
       });
 
       const parsedOutput = response.object;

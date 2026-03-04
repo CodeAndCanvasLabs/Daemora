@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from "fs";
+import { writeFileSync, readFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from "fs";
 import { config } from "../config/default.js";
 
 const SESSIONS_DIR = config.sessionsDir;
@@ -57,6 +57,37 @@ export function setMessages(sessionId, messages) {
   session.messages = messages;
   saveSession(session);
   return session;
+}
+
+/**
+ * List sub-agent session IDs. If prefix given, only returns sessions starting with `{prefix}--`.
+ */
+export function listSessions(prefix = null) {
+  try {
+    const files = readdirSync(SESSIONS_DIR).filter(f => f.endsWith(".json"));
+    let sessionIds = files.map(f => f.slice(0, -5));
+    if (prefix) {
+      sessionIds = sessionIds.filter(id => id.startsWith(prefix + "--"));
+    }
+    return sessionIds;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Clear a session — removes messages from memory and deletes file from disk.
+ */
+export function clearSession(sessionId) {
+  if (sessions.has(sessionId)) {
+    sessions.delete(sessionId);
+  }
+  const filePath = `${SESSIONS_DIR}/${sessionId}.json`;
+  if (existsSync(filePath)) {
+    unlinkSync(filePath);
+    return true;
+  }
+  return false;
 }
 
 function saveSession(session) {

@@ -10,6 +10,40 @@ import tenantContext from "../tenants/TenantContext.js";
 import inputSanitizer from "../safety/InputSanitizer.js";
 
 /**
+ * Filter out internal tool call/result JSON from messages before saving to session.
+ * Keeps only clean user text and assistant text that users should see.
+ */
+function filterCleanMessages(messages) {
+  return messages.filter(msg => {
+    if (!msg.content || typeof msg.content !== "string") return false;
+
+    const trimmed = msg.content.trimStart();
+    if (trimmed.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        // Assistant tool_call messages
+        if (parsed.type === "tool_call" || parsed.tool_call) return false;
+        // User tool_result messages
+        if (parsed.tool_name) return false;
+        // Structured finalResponse wrappers (the actual text is saved separately)
+        if (parsed.type === "text" && parsed.finalResponse !== undefined) return false;
+      } catch {
+        // Not valid JSON - keep it (probably natural language that starts with {)
+      }
+    }
+
+    // Filter out system injection messages
+    if (msg.role === "user" && msg.content.startsWith("[Supervisor instruction]:")) return false;
+    if (msg.role === "user" && msg.content.startsWith("[System:")) return false;
+    if (msg.role === "user" && msg.content.includes("You have used") && msg.content.includes("iterations")) return false;
+    if (msg.role === "user" && msg.content.includes("You are calling") && msg.content.includes("same params repeatedly")) return false;
+    if (msg.role === "user" && msg.content.includes("Provide a text summary of what you did")) return false;
+
+    return true;
+  });
+}
+
+/**
  * Task runner - worker loop that picks tasks from the queue and executes them.
  *
  * Configurable concurrency (default: 2 parallel tasks).
@@ -176,7 +210,7 @@ class TaskRunner {
       // Wrap entire task execution in tenant context (AsyncLocalStorage).
       // This allows FilesystemGuard, memory tools, and other tools to read per-tenant config
       // without any race conditions across concurrent tasks.
-      await tenantContext.run({ tenant, resolvedConfig, resolvedModel, apiKeys }, async () => {
+      await tenantContext.run({ tenant, resolvedConfig, resolvedModel, apiKeys, sessionId: task.sessionId }, async () => {
         // Get or create session
         let session = task.sessionId ? getSession(task.sessionId) : null;
         if (!session) {
@@ -210,8 +244,8 @@ class TaskRunner {
           steerQueue,
         });
 
-        // Update session with conversation
-        setMessages(session.sessionId, result.messages);
+        // Update session with CLEAN conversation only (strip internal tool JSON)
+        setMessages(session.sessionId, filterCleanMessages(result.messages));
 
         // Update task cost info
         task.cost = result.cost;

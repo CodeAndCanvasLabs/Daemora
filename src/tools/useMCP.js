@@ -19,7 +19,8 @@ export async function useMCP(serverName, taskDescription) {
     return `Access denied: MCP server "${serverName}" is not in your allowed list. Contact the operator.`;
   }
 
-  return runMCPAgent(serverName, taskDescription);
+  const mainSessionId = store?.sessionId || null;
+  return runMCPAgent(serverName, taskDescription, { mainSessionId });
 }
 
 export const useMCPDescription =

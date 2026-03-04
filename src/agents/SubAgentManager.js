@@ -6,6 +6,7 @@ import eventBus from "../core/EventBus.js";
 import { v4 as uuidv4 } from "uuid";
 import tenantContext from "../tenants/TenantContext.js";
 import { resolveModelForProfile } from "../models/ModelRouter.js";
+import { createSession, getSession, setMessages } from "../services/sessions.js";
 
 /**
  * Sub-Agent Manager - spawns, tracks, kills, and steers sub-agents.
@@ -100,6 +101,8 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     parentContext        = null,
     approvalMode         = "auto",
     channelMeta          = null,
+    historyMessages      = [],     // previous session messages to prepend (persistent sub-agent sessions)
+    returnFullResult     = false,  // return {text, messages, cost} instead of just text
   } = options;
 
   const maxDepth = 3;
@@ -230,11 +233,25 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     taskDescription: taskDescription.slice(0, 100),
   });
 
-  // ── Build initial messages (optionally include parent context) ────────────
-  const initialMessages = [];
+  // ── Auto session load for regular sub-agents (not MCP — they manage their own) ──
+  const mainSessionId = store?.sessionId || null;
+  const shouldManageSession = !toolOverride && historyMessages.length === 0 && mainSessionId;
+  let subSessionId = null;
+
+  if (shouldManageSession) {
+    const sessionKey = profile || "general";
+    subSessionId = `${mainSessionId}--${sessionKey}`;
+    const subSession = getSession(subSessionId);
+    if (subSession && subSession.messages.length > 0) {
+      historyMessages = subSession.messages.map(m => ({ role: m.role, content: m.content }));
+      console.log(`[SubAgent:${agentId}] Loaded ${historyMessages.length} history messages from "${subSessionId}"`);
+    }
+  }
+
+  // ── Build initial messages (include history + optionally parent context) ──
+  const initialMessages = [...historyMessages];
 
   if (parentContext) {
-    // Give the sub-agent a quick summary of what the parent knows
     initialMessages.push({
       role: "user",
       content: `[Context from parent agent]:\n${parentContext}\n\n[Your task]:\n${taskDescription}`,
@@ -274,6 +291,21 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     _agentLog(C.green + C.bold, "✅ DONE ", agentId, depth,
       `${C.green}${C.bold}completed in ${elapsed}s${costStr}${C.reset}`);
     eventBus.emitEvent("agent:finished", { agentId, taskId, parentTaskId, cost: result.cost });
+
+    // ── Auto session save for regular sub-agents ──────────────────────────
+    if (subSessionId && result.messages) {
+      let subSession = getSession(subSessionId);
+      if (!subSession) subSession = createSession(subSessionId);
+      const capped = result.messages.length > 100
+        ? result.messages.slice(-100)
+        : result.messages;
+      setMessages(subSessionId, capped);
+      console.log(`[SubAgent:${agentId}] Saved ${capped.length} messages to "${subSessionId}"`);
+    }
+
+    if (returnFullResult) {
+      return { text: result.text, messages: result.messages, cost: result.cost };
+    }
     return result.text;
 
   } catch (error) {

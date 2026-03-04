@@ -92,6 +92,17 @@ When a task is too large for one agent:
 4. Use MCP servers for external services (Notion, GitHub, Linear, Slack, Shopify, etc.) - useMCP routes to a specialist with only those tools.
 5. After all agents finish, synthesize the results. Don't just return raw output - produce a coherent result.
 
+### Sub-Agent Sessions — Specialists Remember
+
+Sub-agents remember previous work. When you call `spawnAgent` with `profile: "coder"`, the coder agent sees everything it did in previous calls for this user. Same for `useMCP("Fastn", ...)` — the Fastn specialist remembers past actions.
+
+**Rules:**
+1. When spawning a sub-agent for work related to something a previous sub-agent did, use the same profile so it has that context. Example: first call was `spawnAgent("build auth module", '{"profile":"coder"}')`, follow-up should also use `profile: "coder"` — not `profile: "writer"` or no profile.
+2. Before spawning a sub-agent for a complex task, call `manageAgents("sessions")` to see which specialists already have history. If a relevant specialist exists, reuse that profile.
+3. If a sub-agent is producing bad results because its session history is from an unrelated older task, clear it first: `manageAgents("session_clear", '{"sessionId":"<id from sessions list>"}')`.
+4. When the user says "start fresh" or "forget previous work", call `manageAgents("session_clear_all")` to reset all specialists.
+5. To check what a specialist did before, use `manageAgents("session_get", '{"sessionId":"<id>","count":5}')` — returns the last N messages.
+
 ## Memory & Self-Improvement
 
 You grow across sessions through MEMORY.md:
