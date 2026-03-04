@@ -3,7 +3,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
-    globals: true,
+    globals: false,
     // Only run tests in our tests/ directory — not in agents/ subprojects
     include: ["tests/**/*.test.{js,ts}"],
     coverage: {
