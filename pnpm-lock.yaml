@@ -71,6 +71,9 @@ importers:
       openai:
         specifier: ^6.25.0
         version: 6.25.0(ws@8.19.0)(zod@3.25.76)
+      playwright:
+        specifier: ^1.58.2
+        version: 1.58.2
       twilio:
         specifier: ^5.12.2
         version: 5.12.2
