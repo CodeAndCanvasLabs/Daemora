@@ -7,7 +7,7 @@ import { banner, stepHeader, kv, summaryTable, completeBanner, t, S } from "./th
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, "..", "..");
-const TOTAL_STEPS = 8;
+const TOTAL_STEPS = 9;
 
 function cancelled() {
   p.cancel("Setup cancelled.");
@@ -646,8 +646,25 @@ export async function runSetupWizard() {
 
   p.log.success(`Daemon: ${t.bold(daemonMode ? "Enabled" : "Disabled")}`);
 
-  // ━━━ Step 7: MCP Servers ━━━
-  stepHeader(7, TOTAL_STEPS, "MCP Tool Servers");
+  // ━━━ Step 7: Data Cleanup ━━━
+  stepHeader(7, TOTAL_STEPS, "Data Cleanup");
+
+  const cleanupDays = guard(await p.select({
+    message: "Auto-delete old tasks, logs & sessions after how many days?",
+    options: [
+      { value: "30",  label: "30 days",  hint: "recommended" },
+      { value: "7",   label: "7 days",   hint: "aggressive — saves most space" },
+      { value: "90",  label: "90 days",  hint: "keep 3 months of history" },
+      { value: "365", label: "1 year",   hint: "long-term retention" },
+      { value: "0",   label: "Never",    hint: "keep everything forever" },
+    ],
+  }));
+  envConfig.CLEANUP_AFTER_DAYS = cleanupDays;
+
+  p.log.success(`Cleanup: ${t.bold(cleanupDays === "0" ? "Never" : cleanupDays + " days")}`);
+
+  // ━━━ Step 8: MCP Servers ━━━
+  stepHeader(8, TOTAL_STEPS, "MCP Tool Servers");
 
   p.note(
     [
@@ -962,7 +979,7 @@ export async function runSetupWizard() {
   }
 
   // ━━━ Step 8: Secret Vault ━━━
-  stepHeader(8, TOTAL_STEPS, "Secret Vault");
+  stepHeader(9, TOTAL_STEPS, "Secret Vault");
 
   p.note(
     [
