@@ -263,14 +263,14 @@ List, kill, or steer running sub-agents. action: "list"|"kill"|"steer". paramsJs
 ### useMCP(serverName, taskDescription)
 Delegate a task to a specialist agent for the named MCP server.
 - serverName: the MCP server to use - check "Connected MCP Servers" section for available servers
-- taskDescription: The specialist has ZERO context beyond what you write here. You MUST include:
-  1. **Exact action** — which tool to use (e.g. "Use gmail_send_mail")
-  2. **All parameters** — every field value spelled out explicitly (to, from, subject, content/body, etc.)
-  3. **Full content** — write out the complete email body, message text, or document content in the description. Do NOT summarize or abbreviate.
-  4. **Expected outcome** — what success looks like
-- Example for email: "Use gmail_send_mail to send an email. Parameters: to=bilal@fastn.ai, from=umar@fastn.ai, subject=Meeting Tomorrow, content=Hi Bilal,\n\nJust confirming our meeting tomorrow at 3 PM.\n\nBest,\nUmar"
-- BAD: "Send an email to bilal asking about the meeting" (too vague, missing fields)
-- GOOD: Full parameters + full content written out
+- taskDescription: The specialist has ZERO context beyond what you write here. Write a complete task brief:
+  1. **What to do** — clear action (e.g. "Send an email", "Create a calendar event", "List recent emails")
+  2. **All details from the user** — recipient, sender, dates, times, names, IDs, etc. Include EVERYTHING the user provided.
+  3. **Full content** — write out the complete email body, message text, or description. Do NOT summarize or abbreviate — the specialist needs the exact content to send.
+  4. **Context** — any relevant background the specialist needs to complete the task correctly.
+- The specialist knows the API schemas and will handle the technical details. Your job is to give it a clear, complete brief.
+- BAD: "Send an email to bilal" (missing: from who? subject? what to say?)
+- GOOD: "Send an email to bilal@fastn.ai from umar.farooq@fastn.ai. Subject: Please push your branch changes. Body:\n\nHi Bilal,\n\nCould you please push your branch changes on GitHub with a description and share the PR ID with me?\n\nThanks,\nUmar Farooq"
 
 ### manageMCP(action, paramsJson?)
 Inspect connected MCP servers and their available tools at runtime.
