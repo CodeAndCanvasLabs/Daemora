@@ -233,7 +233,7 @@ daemora start
 ### Clone from source
 
 ```bash
-git clone https://github.com/umarfarooq/daemora-agent.git
+git clone https://github.com/CodeAndCanvasLabs/Daemora.git
 cd daemora-agent
 pnpm install
 cp .env.example .env
@@ -666,7 +666,7 @@ pnpm test:integration      # Integration tests only
 ## Contributing
 
 ```bash
-git clone https://github.com/umarfarooq/daemora-agent.git
+git clone https://github.com/CodeAndCanvasLabs/Daemora.git
 cd daemora-agent
 pnpm install
 cp .env.example .env
@@ -692,5 +692,5 @@ See [LICENSE](LICENSE) for the full text.
 
 - **Website:** https://daemora.com
 - **npm:** https://npmjs.com/package/daemora
-- **GitHub:** https://github.com/umarfarooq/daemora-agent
-- **Issues:** https://github.com/umarfarooq/daemora-agent/issues
+- **GitHub:** https://github.com/CodeAndCanvasLabs/Daemora
+- **Issues:** https://github.com/CodeAndCanvasLabs/Daemora/issues

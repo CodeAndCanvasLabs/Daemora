@@ -44,11 +44,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/umarfarooq/daemora-agent.git"
+    "url": "https://github.com/CodeAndCanvasLabs/Daemora.git"
   },
   "homepage": "https://daemora.com",
   "bugs": {
-    "url": "https://github.com/umarfarooq/daemora-agent/issues"
+    "url": "https://github.com/CodeAndCanvasLabs/Daemora/issues"
   },
   "files": [
     "src/",
