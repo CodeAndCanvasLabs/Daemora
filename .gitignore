@@ -1,6 +1,5 @@
 # ── Dependencies ─────────────────────────────────────────────────────────────
 node_modules/
-pnpm-lock.yaml       # use package-lock.json (npm) or yarn.lock (yarn) instead
 
 # ── Environment - NEVER commit secrets ───────────────────────────────────────
 .env
@@ -33,7 +32,6 @@ GIT_RULES.md         # local dev notes
 # ── Test artifacts (not the test source files) ───────────────────────────────
 tests/example.spec.ts      # Playwright example - not our tests
 playwright.config.ts
-pnpm-lock.yaml
 /test-results/
 /playwright-report/
 /blob-report/
