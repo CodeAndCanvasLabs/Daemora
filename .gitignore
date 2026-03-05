@@ -51,5 +51,13 @@ Thumbs.db
 *.swp
 *.swo
 
-# ---------------UI Node Modules -------------
-daemora-ui/node_modules
+# --------------- UI Package -----------------
+daemora-ui/node_modules/
+daemora-ui/dist/
+daemora-ui/.vite/
+daemora-ui/.env.local
+daemora-ui/.env.*.local
+daemora-ui/npm-debug.log*
+daemora-ui/yarn-debug.log*
+daemora-ui/yarn-error.log*
+daemora-ui/pnpm-debug.log*
