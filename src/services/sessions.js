@@ -80,15 +80,17 @@ export function listSessions(prefix = null) {
  * Clear a session — removes messages from memory and deletes file from disk.
  */
 export function clearSession(sessionId) {
+  let found = false;
   if (sessions.has(sessionId)) {
     sessions.delete(sessionId);
+    found = true;
   }
   const filePath = `${SESSIONS_DIR}/${sessionId}.json`;
   if (existsSync(filePath)) {
     unlinkSync(filePath);
-    return true;
+    found = true;
   }
-  return false;
+  return found;
 }
 
 function saveSession(session) {

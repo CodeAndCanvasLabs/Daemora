@@ -3,7 +3,7 @@ import { mkdirSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { toolFunctions } from "./tools/index.js";
-import { getSession, listSessions, createSession } from "./services/sessions.js";
+import { getSession, listSessions, createSession, clearSession } from "./services/sessions.js";
 import { config } from "./config/default.js";
 import { listAvailableModels } from "./models/ModelRouter.js";
 import taskQueue from "./core/TaskQueue.js";
@@ -227,6 +227,14 @@ app.get("/api/sessions/:id", (req, res) => {
     return res.status(404).json({ error: "Session not found" });
   }
   res.json(session);
+});
+
+app.delete("/api/sessions/:id", (req, res) => {
+  const deleted = clearSession(req.params.id);
+  if (!deleted) {
+    return res.status(404).json({ error: "Session not found" });
+  }
+  res.json({ message: "Session deleted" });
 });
 
 // --- Config endpoint ---
