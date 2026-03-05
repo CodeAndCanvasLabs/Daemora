@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Boxes, Play, Pause, RefreshCw, Plus, Trash2, Loader2, Globe, Cpu, AlertTriangle } from "lucide-react";
+import { Play, Pause, RefreshCw, Plus, Trash2, Loader2, Globe, Cpu, AlertTriangle, Key, X } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -16,6 +16,14 @@ interface MCPServer {
   type: "stdio" | "http" | "sse";
   command?: string;
   url?: string;
+  description?: string | null;
+  envKeys?: string[];
+  headerKeys?: string[];
+}
+
+interface KVPair {
+  key: string;
+  value: string;
 }
 
 export function MCP() {
@@ -24,10 +32,13 @@ export function MCP() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newServer, setNewServer] = useState({
     name: "",
-    type: "stdio" as "stdio" | "http",
+    type: "stdio" as "stdio" | "http" | "sse",
     command: "",
     url: "",
+    description: "",
   });
+  const [envVars, setEnvVars] = useState<KVPair[]>([]);
+  const [headers, setHeaders] = useState<KVPair[]>([]);
 
   const fetchServers = async () => {
     try {
@@ -76,13 +87,33 @@ export function MCP() {
     }
   };
 
+  const resetAddForm = () => {
+    setNewServer({ name: "", type: "stdio", command: "", url: "", description: "" });
+    setEnvVars([]);
+    setHeaders([]);
+  };
+
   const handleAddServer = async () => {
     if (!newServer.name) return;
     try {
-      const body = newServer.type === "stdio" 
-        ? { name: newServer.name, command: newServer.command }
-        : { name: newServer.name, url: newServer.url, transport: newServer.type };
-        
+      const env: Record<string, string> = {};
+      envVars.forEach((kv) => { if (kv.key.trim()) env[kv.key.trim()] = kv.value; });
+
+      const hdrs: Record<string, string> = {};
+      headers.forEach((kv) => { if (kv.key.trim()) hdrs[kv.key.trim()] = kv.value; });
+
+      const body: any = { name: newServer.name };
+      if (newServer.description.trim()) body.description = newServer.description.trim();
+
+      if (newServer.type === "stdio") {
+        body.command = newServer.command;
+        if (Object.keys(env).length > 0) body.env = env;
+      } else {
+        body.url = newServer.url;
+        if (newServer.type === "sse") body.transport = "sse";
+        if (Object.keys(hdrs).length > 0) body.headers = hdrs;
+      }
+
       const res = await fetch("/api/mcp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -92,7 +123,7 @@ export function MCP() {
       if (res.ok) {
         toast.success("Server added successfully");
         setIsAddDialogOpen(false);
-        setNewServer({ name: "", type: "stdio", command: "", url: "" });
+        resetAddForm();
         fetchServers();
       } else {
         const err = await res.json();
@@ -101,6 +132,20 @@ export function MCP() {
     } catch (error: any) {
       toast.error(error.message);
     }
+  };
+
+  const addKVPair = (list: KVPair[], setList: (l: KVPair[]) => void) => {
+    setList([...list, { key: "", value: "" }]);
+  };
+
+  const updateKVPair = (list: KVPair[], setList: (l: KVPair[]) => void, index: number, field: "key" | "value", val: string) => {
+    const updated = [...list];
+    updated[index][field] = val;
+    setList(updated);
+  };
+
+  const removeKVPair = (list: KVPair[], setList: (l: KVPair[]) => void, index: number) => {
+    setList(list.filter((_, i) => i !== index));
   };
 
   if (isLoading) {
@@ -119,32 +164,46 @@ export function MCP() {
           <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">MCP Servers</h2>
           <p className="text-gray-400 font-mono text-sm tracking-widest">EXTERNAL TOOL INTEGRATIONS</p>
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <Dialog open={isAddDialogOpen} onOpenChange={(open) => { setIsAddDialogOpen(open); if (!open) resetAddForm(); }}>
           <DialogTrigger asChild>
             <Button className="bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] hover:opacity-90 text-white font-mono text-xs uppercase tracking-wider">
               <Plus className="w-4 h-4 mr-2" />
               Add Server
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-slate-950 border-slate-800 text-white border-2 shadow-[0_0_30px_rgba(0,217,255,0.1)]">
+          <DialogContent className="bg-slate-950 border-slate-800 text-white border-2 shadow-[0_0_30px_rgba(0,217,255,0.1)] max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-white uppercase font-bold tracking-widest border-b border-slate-800 pb-4">New MCP Connection</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-4 font-mono">
+              {/* Name */}
               <div className="space-y-2">
                 <label className="text-[10px] text-gray-500 uppercase">Server Name</label>
                 <Input
                   value={newServer.name}
                   onChange={(e) => setNewServer({ ...newServer, name: e.target.value })}
-                  placeholder="e.g. postgres-db"
+                  placeholder="e.g. github, slack, postgres"
                   className="bg-slate-900 border-slate-800 text-[#00d9ff] text-xs"
                 />
               </div>
+
+              {/* Description */}
+              <div className="space-y-2">
+                <label className="text-[10px] text-gray-500 uppercase">Description (optional)</label>
+                <Input
+                  value={newServer.description}
+                  onChange={(e) => setNewServer({ ...newServer, description: e.target.value })}
+                  placeholder="e.g. GitHub repos, PRs, issues"
+                  className="bg-slate-900 border-slate-800 text-white text-xs"
+                />
+              </div>
+
+              {/* Transport */}
               <div className="space-y-2">
                 <label className="text-[10px] text-gray-500 uppercase">Transport Protocol</label>
                 <Select
                   value={newServer.type}
-                  onValueChange={(value: "stdio" | "http") =>
+                  onValueChange={(value: "stdio" | "http" | "sse") =>
                     setNewServer({ ...newServer, type: value })
                   }
                 >
@@ -152,18 +211,21 @@ export function MCP() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                    <SelectItem value="stdio" className="text-xs">STDIO (LOCAL)</SelectItem>
-                    <SelectItem value="http" className="text-xs">HTTP/SSE (REMOTE)</SelectItem>
+                    <SelectItem value="stdio" className="text-xs">STDIO (LOCAL PROCESS)</SelectItem>
+                    <SelectItem value="http" className="text-xs">HTTP (STREAMABLE)</SelectItem>
+                    <SelectItem value="sse" className="text-xs">SSE (LEGACY)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Connection config */}
               {newServer.type === "stdio" ? (
                 <div className="space-y-2">
-                  <label className="text-[10px] text-gray-500 uppercase">Binary / Command</label>
+                  <label className="text-[10px] text-gray-500 uppercase">Command</label>
                   <Input
                     value={newServer.command}
                     onChange={(e) => setNewServer({ ...newServer, command: e.target.value })}
-                    placeholder="npx -y @modelcontextprotocol/server-postgres"
+                    placeholder="npx -y @modelcontextprotocol/server-github"
                     className="bg-slate-900 border-slate-800 text-white text-xs"
                   />
                 </div>
@@ -178,9 +240,106 @@ export function MCP() {
                   />
                 </div>
               )}
+
+              {/* Env vars — for stdio servers */}
+              {newServer.type === "stdio" && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] text-gray-500 uppercase flex items-center gap-1">
+                      <Key className="w-3 h-3" /> Environment Variables
+                    </label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => addKVPair(envVars, setEnvVars)}
+                      className="text-[10px] text-[#00d9ff] hover:bg-[#00d9ff]/10 h-6 px-2"
+                    >
+                      <Plus className="w-3 h-3 mr-1" /> Add
+                    </Button>
+                  </div>
+                  {envVars.length === 0 && (
+                    <p className="text-[10px] text-gray-600 italic">No env vars. Click Add if server needs API keys.</p>
+                  )}
+                  {envVars.map((kv, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <Input
+                        value={kv.key}
+                        onChange={(e) => updateKVPair(envVars, setEnvVars, i, "key", e.target.value)}
+                        placeholder="GITHUB_TOKEN"
+                        className="bg-slate-900 border-slate-800 text-gray-300 text-xs flex-1"
+                      />
+                      <Input
+                        type="password"
+                        value={kv.value}
+                        onChange={(e) => updateKVPair(envVars, setEnvVars, i, "value", e.target.value)}
+                        placeholder="value or ${ENV_VAR}"
+                        className="bg-slate-900 border-slate-800 text-gray-300 text-xs flex-1"
+                      />
+                      <button
+                        onClick={() => removeKVPair(envVars, setEnvVars, i)}
+                        className="text-gray-600 hover:text-red-400 shrink-0"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Headers — for HTTP/SSE servers */}
+              {(newServer.type === "http" || newServer.type === "sse") && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] text-gray-500 uppercase flex items-center gap-1">
+                      <Key className="w-3 h-3" /> Auth Headers
+                    </label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => addKVPair(headers, setHeaders)}
+                      className="text-[10px] text-[#00d9ff] hover:bg-[#00d9ff]/10 h-6 px-2"
+                    >
+                      <Plus className="w-3 h-3 mr-1" /> Add
+                    </Button>
+                  </div>
+                  {headers.length === 0 && (
+                    <p className="text-[10px] text-gray-600 italic">No headers. Click Add for auth (e.g. Authorization: Bearer token).</p>
+                  )}
+                  {headers.map((kv, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <Input
+                        value={kv.key}
+                        onChange={(e) => updateKVPair(headers, setHeaders, i, "key", e.target.value)}
+                        placeholder="Authorization"
+                        className="bg-slate-900 border-slate-800 text-gray-300 text-xs flex-[0.8]"
+                      />
+                      <Input
+                        type="password"
+                        value={kv.value}
+                        onChange={(e) => updateKVPair(headers, setHeaders, i, "value", e.target.value)}
+                        placeholder="Bearer ${MY_TOKEN}"
+                        className="bg-slate-900 border-slate-800 text-gray-300 text-xs flex-1"
+                      />
+                      <button
+                        onClick={() => removeKVPair(headers, setHeaders, i)}
+                        className="text-gray-600 hover:text-red-400 shrink-0"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  {headers.length > 0 && (
+                    <p className="text-[9px] text-gray-600">Use {"${ENV_VAR}"} to reference .env values instead of pasting secrets.</p>
+                  )}
+                </div>
+              )}
+
+              {/* Submit */}
               <Button
                 onClick={handleAddServer}
-                disabled={!newServer.name}
+                disabled={!newServer.name || (newServer.type === "stdio" ? !newServer.command : !newServer.url)}
                 className="w-full bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] hover:opacity-90 text-white mt-4 uppercase tracking-tighter"
               >
                 Add Server
@@ -215,11 +374,29 @@ export function MCP() {
                             Connection Failed
                           </div>
                         )}
+                        {!server.enabled && (
+                          <Badge variant="outline" className="text-[9px] text-gray-500 border-gray-700">DISABLED</Badge>
+                        )}
                       </div>
+                      {server.description && (
+                        <p className="text-gray-400 text-[11px] mt-0.5">{server.description}</p>
+                      )}
                       <CardDescription className="text-gray-500 font-mono text-[10px] mt-0.5 uppercase flex items-center gap-2">
                         {server.type === "stdio" ? <Cpu className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
                         {server.type === "stdio" ? server.command : server.url}
                       </CardDescription>
+                      {/* Show configured auth keys (names only, not values) */}
+                      {((server.envKeys && server.envKeys.length > 0) || (server.headerKeys && server.headerKeys.length > 0)) && (
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <Key className="w-3 h-3 text-gray-600" />
+                          {server.envKeys?.map((k) => (
+                            <Badge key={k} variant="outline" className="text-[8px] text-gray-500 border-gray-800 font-mono">{k}</Badge>
+                          ))}
+                          {server.headerKeys?.map((k) => (
+                            <Badge key={k} variant="outline" className="text-[8px] text-amber-600/70 border-amber-900/30 font-mono">{k}</Badge>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -278,7 +455,9 @@ export function MCP() {
                         </Badge>
                       ))
                     ) : (
-                      <span className="text-[10px] text-gray-600 font-mono italic lowercase tracking-tight">no tools exported</span>
+                      <span className="text-[10px] text-gray-600 font-mono italic lowercase tracking-tight">
+                        {server.enabled ? "no tools exported" : "server disabled"}
+                      </span>
                     )}
                   </div>
                 </div>

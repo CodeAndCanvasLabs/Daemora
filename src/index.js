@@ -477,6 +477,9 @@ app.get("/api/mcp", (req, res) => {
         type: serverCfg.command ? "stdio" : (serverCfg.transport || "http"),
         command: serverCfg.command || null,
         url: serverCfg.url || null,
+        description: serverCfg.description || null,
+        envKeys: serverCfg.env ? Object.keys(serverCfg.env) : [],
+        headerKeys: serverCfg.headers ? Object.keys(serverCfg.headers) : [],
       };
     });
   res.json({ servers });
@@ -484,13 +487,14 @@ app.get("/api/mcp", (req, res) => {
 
 // Add a new MCP server
 app.post("/api/mcp", async (req, res) => {
-  const { name, command, args, url, transport, env } = req.body;
+  const { name, command, args, url, transport, env, headers, description } = req.body;
   if (!name) return res.status(400).json({ error: "name is required" });
   if (!command && !url) return res.status(400).json({ error: "command (stdio) or url (http/sse) required" });
 
   const serverConfig = command
-    ? { command, args: args || [], env: env || {} }
-    : { url, transport: transport || undefined, env: env || {} };
+    ? { command, args: args || [], ...(env && Object.keys(env).length > 0 ? { env } : {}) }
+    : { url, ...(transport ? { transport } : {}), ...(headers && Object.keys(headers).length > 0 ? { headers } : {}) };
+  if (description) serverConfig.description = description;
 
   try {
     const result = await mcpManager.addServer(name, serverConfig);
