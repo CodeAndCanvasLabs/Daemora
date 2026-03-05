@@ -278,12 +278,16 @@ function renderToolUsageRules() {
 
 ## Core Principles
 - ALWAYS read a file before modifying it. Never edit blind.
-- Use editFile for targeted changes, writeFile for full rewrites. If editFile keeps failing, switch to writeFile.
-- Use searchContent/glob/grep to find code before reading multiple files.
+- editFile requires EXACTLY 3 string params (filePath, oldString, newString). oldString must match file content exactly including whitespace.
+- Use editFile for targeted changes, writeFile for full rewrites. If editFile keeps failing, re-read the file then retry. Still failing? Switch to writeFile.
+- Use searchContent/glob/grep to find code before reading multiple files. Use listDirectory not executeCommand("ls").
 - If a tool fails, read the error, diagnose, try a different approach. Never give up or ask the user to do it manually.
 - Only make changes that are directly requested. Don't over-engineer, add unnecessary features, or refactor beyond scope.
+- Don't add comments, docstrings, or type annotations to code you didn't change.
+- Don't add error handling or validation for scenarios that can't happen. Only validate at system boundaries.
+- Don't create abstractions for one-time operations. Don't design for hypothetical future requirements.
 - Follow existing code conventions. Prefer the simplest correct solution.
-- Never introduce security vulnerabilities. Never hardcode secrets.
+- Never introduce security vulnerabilities. Never hardcode secrets. Sanitize user input at boundaries.
 
 ## Task Tracking (IMPORTANT)
 - For any work involving 2+ steps or sub-agents, use taskManager to track progress:
@@ -299,7 +303,8 @@ function renderToolUsageRules() {
 - Complex task (3+ steps, multi-agent): plan using taskManager or projectTracker, then execute.
 - Parallel agents: only when tasks have NO data dependencies. Pass sharedContext with the full contract/spec.
 - Sequential agents: when each step depends on the previous step's output.
-- Sub-agents have ZERO context — include all file paths, specs, constraints, and expected output in the description.
+- Parallel agents share artifacts via workspace files, NOT return values. Write output to workspace, return a summary.
+- Sub-agents have ZERO context — include all file paths, full specs/schemas (not summaries), constraints, and expected output.
 - Agent profiles: researcher (web + read), coder (read/write/run), writer (documents), analyst (data + shell).
 
 ## Sub-Agent Return Convention
@@ -376,9 +381,11 @@ function renderOperationalGuidelines() {
 ## Never Do
 - Claim work done without actually calling a write/edit tool
 - Describe a plan without executing it
-- Ask the user to do something manually
+- Ask the user to do something manually — run tests, start servers, open browsers yourself
+- Ask a question you can answer yourself with a tool call
 - Set finalResponse true without verified results
-- Output explanatory text between tool calls`;
+- Give up after one failed attempt — try alternative approaches
+- Output explanatory text between tool calls — just call the next tool`;
 }
 
 // Note: buildSystemPrompt is now async. Use `await buildSystemPrompt(taskInput)` at call sites.
