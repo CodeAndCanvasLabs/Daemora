@@ -39,6 +39,7 @@ import { manageAgents, manageAgentsDescription } from "./manageAgents.js";
 import { cron, cronDescription } from "./cronTool.js";
 import { messageChannel, messageChannelDescription } from "./messageChannel.js";
 import { projectTracker, projectTrackerDescription } from "./projectTracker.js";
+import { taskManager, taskManagerDescription } from "./taskManager.js";
 import { manageMCP, manageMCPDescription } from "./manageMCP.js";
 import { useMCP, useMCPDescription } from "./useMCP.js";
 import { makeVoiceCall, makeVoiceCallDescription } from "./makeVoiceCall.js";
@@ -126,6 +127,7 @@ export const toolFunctions = {
   manageAgents,
   // Project tracking
   projectTracker,
+  taskManager,
   // Automation
   cron,
   // Vision / Screen
@@ -200,6 +202,7 @@ export const toolDescriptions = [
   manageAgentsDescription,
   // Project tracking
   projectTrackerDescription,
+  taskManagerDescription,
   // Automation
   cronDescription,
   // Vision / Screen

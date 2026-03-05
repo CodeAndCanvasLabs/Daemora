@@ -23,7 +23,7 @@ export function loadTask(taskId) {
 /**
  * List recent tasks (sorted by createdAt descending).
  */
-export function listTasks({ limit = 20, status = null } = {}) {
+export function listTasks({ limit = 20, status = null, type = null } = {}) {
   const files = readdirSync(TASKS_DIR).filter((f) => f.endsWith(".json"));
   let tasks = files.map((f) => {
     try {
@@ -37,8 +37,26 @@ export function listTasks({ limit = 20, status = null } = {}) {
     tasks = tasks.filter((t) => t.status === status);
   }
 
+  if (type) {
+    tasks = tasks.filter((t) => (t.type || "chat") === type);
+  }
+
   tasks.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   return tasks.slice(0, limit);
+}
+
+/**
+ * List child tasks of a given parent task.
+ */
+export function listChildTasks(parentTaskId) {
+  const files = readdirSync(TASKS_DIR).filter((f) => f.endsWith(".json"));
+  return files
+    .map((f) => {
+      try { return JSON.parse(readFileSync(`${TASKS_DIR}/${f}`, "utf-8")); }
+      catch { return null; }
+    })
+    .filter((t) => t && t.parentTaskId === parentTaskId)
+    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 }
 
 /**

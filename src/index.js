@@ -8,7 +8,7 @@ import { config } from "./config/default.js";
 import { listAvailableModels } from "./models/ModelRouter.js";
 import taskQueue from "./core/TaskQueue.js";
 import taskRunner from "./core/TaskRunner.js";
-import { loadTask, listTasks } from "./storage/TaskStore.js";
+import { loadTask, listTasks, listChildTasks } from "./storage/TaskStore.js";
 import { getTodayCost } from "./core/CostTracker.js";
 import supervisor from "./agents/Supervisor.js";
 import { getActiveSubAgentCount, listActiveAgents } from "./agents/SubAgentManager.js";
@@ -111,6 +111,7 @@ app.post("/api/chat", async (req, res) => {
       tenantId: tenantId || "http:local",
       model,
       priority: priority || 5,
+      type: "chat",
     });
 
     // Wait for completion (sync)
@@ -154,22 +155,48 @@ app.get("/api/tasks/:id", (req, res) => {
 });
 
 app.get("/api/tasks", (req, res) => {
-  const { limit, status } = req.query;
+  const { limit, status, type } = req.query;
   const tasks = listTasks({
     limit: limit ? parseInt(limit, 10) : 20,
     status: status || null,
+    type: type || null,
   });
   res.json({
     tasks: tasks.map((t) => ({
       id: t.id,
       status: t.status,
+      type: t.type || "chat",
+      title: t.title || null,
       channel: t.channel,
-      input: t.input.slice(0, 100),
+      input: t.input?.slice(0, 100) || "",
       cost: t.cost,
+      parentTaskId: t.parentTaskId || null,
+      agentId: t.agentId || null,
+      agentCreated: t.agentCreated || false,
+      subAgents: t.subAgents || null,
       createdAt: t.createdAt,
       completedAt: t.completedAt,
     })),
     queue: taskQueue.stats(),
+  });
+});
+
+// --- Child tasks endpoint ---
+app.get("/api/tasks/:id/children", (req, res) => {
+  const children = listChildTasks(req.params.id);
+  res.json({
+    parentTaskId: req.params.id,
+    children: children.map((t) => ({
+      id: t.id,
+      status: t.status,
+      type: t.type || "chat",
+      title: t.title || null,
+      input: t.input?.slice(0, 100) || "",
+      agentId: t.agentId || null,
+      cost: t.cost,
+      createdAt: t.createdAt,
+      completedAt: t.completedAt,
+    })),
   });
 });
 

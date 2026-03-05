@@ -114,6 +114,7 @@ export const defaultSubAgentTools = [
   "searchMemory", "pruneMemory", "listMemoryCategories",
   // Project tracking
   "projectTracker",
+  "taskManager",
   // MCP (via specialist agent - no direct mcp__ tools)
   "manageMCP",
   "useMCP",

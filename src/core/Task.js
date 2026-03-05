@@ -16,10 +16,20 @@ export function createTask({
   model = null,
   maxCost = null,
   approvalMode = "auto",
+  // ── Task system fields ──────────────────────────────────────────────────
+  type = "chat",            // "chat" (from user message) | "task" (agent-created)
+  title = null,             // short descriptive title (agent-created tasks)
+  description = null,       // detailed task description
+  parentTaskId = null,      // ID of parent task (for hierarchy)
+  agentId = null,           // which agent/sub-agent is executing
+  agentCreated = false,     // whether the agent created this task vs system
 }) {
   return {
     id: uuidv4(),
     status: "pending",
+    type,                 // chat | task
+    title,                // short title for agent-created tasks
+    description,          // detailed description
     input,                // user's message text
     channel,              // http | telegram | whatsapp | email | a2a
     channelMeta,          // channel-specific metadata (chat_id, phone, email, etc.)
@@ -28,6 +38,9 @@ export function createTask({
     model,                // explicit model override or null (use default)
     maxCost,              // per-task cost budget or null (use global)
     approvalMode,         // auto | dangerous-only | every-tool | milestones
+    parentTaskId,         // parent task ID (for hierarchy)
+    agentId,              // executing agent/sub-agent ID
+    agentCreated,         // true if created by agent via taskManager tool
     result: null,         // final response text
     error: null,          // error message if failed
     cost: {

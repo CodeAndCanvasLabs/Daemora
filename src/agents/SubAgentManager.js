@@ -290,7 +290,13 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     const costStr = costVal ? ` $${costVal.toFixed(4)}` : "";
     _agentLog(C.green + C.bold, "✅ DONE ", agentId, depth,
       `${C.green}${C.bold}completed in ${elapsed}s${costStr}${C.reset}`);
-    eventBus.emitEvent("agent:finished", { agentId, taskId, parentTaskId, cost: result.cost });
+    eventBus.emitEvent("agent:finished", {
+      agentId, taskId, parentTaskId, cost: result.cost,
+      toolCalls: (result.toolCalls || []).map(tc => ({ tool: tc.tool, duration: tc.duration })),
+      resultPreview: (result.text || "").slice(0, 200),
+      model: resolvedModel,
+      role: profile || "general",
+    });
 
     // ── Auto session save for regular sub-agents ──────────────────────────
     if (subSessionId && result.messages) {

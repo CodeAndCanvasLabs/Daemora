@@ -23,9 +23,13 @@ interface SystemHealth {
 interface TaskSummary {
   id: string;
   status: string;
+  type: string;
+  title: string | null;
   channel: string;
   input: string;
   cost: number;
+  agentId: string | null;
+  agentCreated: boolean;
   createdAt: string;
   completedAt: string | null;
 }
@@ -39,7 +43,7 @@ export function Dashboard() {
     try {
       const [healthRes, tasksRes] = await Promise.all([
         fetch("/api/health"),
-        fetch("/api/tasks?limit=5")
+        fetch("/api/tasks?limit=5&type=task")
       ]);
       
       if (healthRes.ok) setHealth(await healthRes.json());
@@ -188,9 +192,9 @@ export function Dashboard() {
                       <AlertCircle className="w-5 h-5 text-[#ff4458]" />
                     )}
                     <div>
-                      <div className="font-medium text-white truncate max-w-[300px] group-hover:text-[#00d9ff] transition-colors font-mono">{task.input}</div>
+                      <div className="font-medium text-white truncate max-w-[300px] group-hover:text-[#00d9ff] transition-colors font-mono">{task.title || task.input}</div>
                       <div className="text-xs text-gray-500 font-mono uppercase tracking-tighter">
-                        {task.channel} // {new Date(task.createdAt).toLocaleString()}
+                        {task.agentCreated ? "agent" : task.channel} // {new Date(task.createdAt).toLocaleString()}
                       </div>
                     </div>
                   </div>

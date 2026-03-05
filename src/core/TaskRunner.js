@@ -211,7 +211,7 @@ class TaskRunner {
       // Wrap entire task execution in tenant context (AsyncLocalStorage).
       // This allows FilesystemGuard, memory tools, and other tools to read per-tenant config
       // without any race conditions across concurrent tasks.
-      await tenantContext.run({ tenant, resolvedConfig, resolvedModel, apiKeys, sessionId: task.sessionId, channelMeta: task.channelMeta || null, directReplySent: false }, async () => {
+      await tenantContext.run({ tenant, resolvedConfig, resolvedModel, apiKeys, sessionId: task.sessionId, channelMeta: task.channelMeta || null, directReplySent: false, currentTaskId: task.id, agentId: "main" }, async () => {
         // Get or create session
         let session = task.sessionId ? getSession(task.sessionId) : null;
         if (!session) {
@@ -243,6 +243,10 @@ class TaskRunner {
               sa.status = evt.error ? "failed" : (evt.killed ? "killed" : "completed");
               sa.cost = evt.cost || null;
               sa.error = evt.error || null;
+              sa.toolCalls = evt.toolCalls || [];
+              sa.resultPreview = evt.resultPreview || null;
+              sa.model = evt.model || null;
+              sa.role = evt.role || null;
               sa.completedAt = new Date().toISOString();
             }
           }

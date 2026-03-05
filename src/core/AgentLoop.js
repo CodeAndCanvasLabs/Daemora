@@ -150,11 +150,11 @@ export async function runAgentLoop({
       const elapsed = Date.now() - startTime;
       consecutiveErrors = 0; // Reset on success
 
-      // Track token usage
+      // Track token usage (Vercel AI SDK uses inputTokens/outputTokens)
       const usage = response.usage;
-      if (usage && (usage.promptTokens || usage.completionTokens)) {
-        totalInputTokens += usage.promptTokens || 0;
-        totalOutputTokens += usage.completionTokens || 0;
+      if (usage && (usage.inputTokens || usage.outputTokens || usage.promptTokens || usage.completionTokens)) {
+        totalInputTokens += usage.inputTokens || usage.promptTokens || 0;
+        totalOutputTokens += usage.outputTokens || usage.completionTokens || 0;
       } else {
         // Fallback: estimate from message sizes if usage not available
         console.log(`[Loop ${loopCount}] WARNING: No token usage returned. response.usage = ${JSON.stringify(usage)}`);
@@ -168,8 +168,8 @@ export async function runAgentLoop({
         modelId: resolvedModelId,
         loopCount,
         elapsed,
-        inputTokens: usage?.promptTokens || 0,
-        outputTokens: usage?.completionTokens || 0,
+        inputTokens: usage?.inputTokens || usage?.promptTokens || 0,
+        outputTokens: usage?.outputTokens || usage?.completionTokens || 0,
       });
 
       const parsedOutput = response.object;
