@@ -262,7 +262,7 @@ function renderMCPTools() {
     })
     .join("\n");
 
-  return `# Connected MCP Servers
+  return `# Connected MCP Servers (via useMCP)
 
 ${serverList}`;
 }
