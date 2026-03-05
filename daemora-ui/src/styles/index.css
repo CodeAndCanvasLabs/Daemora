@@ -1,0 +1,50 @@
+@import './fonts.css';
+@import './tailwind.css';
+@import './theme.css';
+
+* {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+}
+
+code, pre, .font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Markdown prose styling for dark theme */
+.prose-invert {
+  color: #e2e8f0;
+}
+
+.prose-invert code {
+  color: #00d9ff;
+  background-color: rgba(0, 217, 255, 0.1);
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+}
+
+.prose-invert pre {
+  background-color: #1e293b;
+  border: 1px solid #334155;
+}
+
+.prose-invert pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+.prose-invert a {
+  color: #00d9ff;
+  text-decoration: none;
+}
+
+.prose-invert a:hover {
+  color: #4ECDC4;
+}
+
+.prose-invert strong {
+  color: #f0f0f3;
+}

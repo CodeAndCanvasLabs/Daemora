@@ -1,7 +1,4 @@
-// HTTP channel is intentionally commented out - it has no authentication.
-// Anyone on the network could send arbitrary tasks to the agent.
-// Uncomment only if you've added your own auth middleware.
-// import { HttpChannel } from "./HttpChannel.js";
+import { HttpChannel } from "./HttpChannel.js";
 
 // ─── Core channels ─────────────────────────────────────────────────────────────
 import { TelegramChannel } from "./TelegramChannel.js";
@@ -42,10 +39,10 @@ class ChannelRegistry {
    * Initialize and start all enabled channels.
    */
   async startAll() {
-    // ─── HTTP channel disabled (no authentication) ────────────────────────────
-    // const http = new HttpChannel(config.channels.http);
-    // this.channels.set("http", http);
-    // await http.start();
+    // ─── HTTP channel (Securely handled by Express routes in index.js) ────────
+    const http = new HttpChannel(config.channels.http);
+    this.channels.set("http", http);
+    await http.start();
     // ─────────────────────────────────────────────────────────────────────────
 
     // ── Core channels ─────────────────────────────────────────────────────────
@@ -351,11 +348,11 @@ class ChannelRegistry {
     eventBus.on("task:reply:needed", async ({ task }) => {
       const channel = this.channels.get(task.channel);
       if (!channel?.running) {
-        console.log(`[ChannelRegistry] Cannot send recovered reply — channel "${task.channel}" not running`);
+        console.log(`[ChannelRegistry] Cannot send recovered reply \u2014 channel "${task.channel}" not running`);
         return;
       }
       try {
-        const reply = task.result || "(Task completed — no output)";
+        const reply = task.result || "(Task completed \u2014 no output)";
         await channel.sendReply(task.channelMeta, reply);
         console.log(`[ChannelRegistry] Recovered reply sent via ${task.channel} for task ${task.id}`);
       } catch (e) {

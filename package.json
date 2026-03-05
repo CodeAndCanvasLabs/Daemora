@@ -13,6 +13,8 @@
     "daemon:start": "node src/cli.js daemon start",
     "daemon:stop": "node src/cli.js daemon stop",
     "daemon:status": "node src/cli.js daemon status",
+    "ui:dev": "pnpm --filter daemora-ui dev",
+    "ui:build": "pnpm --filter daemora-ui build",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -55,6 +57,7 @@
     "src/",
     "config/",
     "skills/",
+    "daemora-ui/dist/",
     "SOUL.md",
     "README.md",
     "LICENSE"
@@ -91,5 +94,10 @@
     "@types/node": "^25.3.2",
     "@vitest/coverage-v8": "^4.0.18",
     "vitest": "^4.0.18"
+  },
+  "pnpm": {
+    "overrides": {
+      "vite": "6.3.5"
+    }
   }
 }

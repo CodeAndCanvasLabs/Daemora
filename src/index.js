@@ -1,7 +1,9 @@
 import express from "express";
-import { mkdirSync } from "fs";
+import { mkdirSync, existsSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 import { toolFunctions } from "./tools/index.js";
-import { getSession } from "./services/sessions.js";
+import { getSession, listSessions, createSession } from "./services/sessions.js";
 import { config } from "./config/default.js";
 import { listAvailableModels } from "./models/ModelRouter.js";
 import taskQueue from "./core/TaskQueue.js";
@@ -23,6 +25,8 @@ import daemonManager from "./daemon/DaemonManager.js";
 import secretVault from "./safety/SecretVault.js";
 import tenantManager from "./tenants/TenantManager.js";
 import { runCleanup } from "./services/cleanup.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Ensure all data directories exist
 const dirs = [
@@ -64,8 +68,20 @@ mountA2AServer(app);
 // Mount voice call webhooks (Twilio callbacks during live calls)
 app.use("/voice", voiceWebhook);
 
+// --- Security middleware ---
+const localOnly = (req, res, next) => {
+  const remoteAddress = req.socket.remoteAddress;
+  // Support both IPv4 and IPv6 localhost
+  if (remoteAddress === "127.0.0.1" || remoteAddress === "::ffff:127.0.0.1" || remoteAddress === "::1") {
+    next();
+  } else {
+    console.warn(`[Security] Blocked non-local request from ${remoteAddress}`);
+    res.status(403).json({ error: "Access denied. Only local requests are allowed." });
+  }
+};
+
 // --- Health check ---
-app.get("/health", (req, res) => {
+app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
     uptime: process.uptime(),
@@ -78,14 +94,53 @@ app.get("/health", (req, res) => {
   });
 });
 
-// --- Chat endpoint (DISABLED - no authentication, anyone on the network could submit tasks) ---
-// Uncomment and add authentication middleware before re-enabling.
-// app.post("/chat", async (req, res) => { ... });
+// --- Chat endpoint (Sync) ---
+app.post("/api/chat", localOnly, async (req, res) => {
+  try {
+    const { input, sessionId, model, priority } = req.body;
+    if (!input) return res.status(400).json({ error: "input is required" });
 
-// --- Task submit endpoint (DISABLED - same reason, unauthenticated) ---
-// app.post("/tasks", (req, res) => { ... });
+    const task = taskQueue.enqueue({
+      input,
+      channel: "http",
+      sessionId: sessionId || "local-user",
+      model,
+      priority: priority || 5,
+    });
 
-app.get("/tasks/:id", (req, res) => {
+    // Wait for completion (sync)
+    const result = await taskQueue.waitForCompletion(task.id);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- Task submit endpoint (Async) ---
+app.post("/api/tasks", localOnly, (req, res) => {
+  try {
+    const { input, sessionId, model, priority } = req.body;
+    if (!input) return res.status(400).json({ error: "input is required" });
+
+    const task = taskQueue.enqueue({
+      input,
+      channel: "http",
+      sessionId: sessionId || "local-user",
+      model,
+      priority: priority || 5,
+    });
+
+    res.status(202).json({
+      message: "Task enqueued",
+      taskId: task.id,
+      status: task.status,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/tasks/:id", (req, res) => {
   const task = loadTask(req.params.id);
   if (!task) {
     return res.status(404).json({ error: "Task not found" });
@@ -93,7 +148,7 @@ app.get("/tasks/:id", (req, res) => {
   res.json(task);
 });
 
-app.get("/tasks", (req, res) => {
+app.get("/api/tasks", (req, res) => {
   const { limit, status } = req.query;
   const tasks = listTasks({
     limit: limit ? parseInt(limit, 10) : 20,
@@ -113,8 +168,28 @@ app.get("/tasks", (req, res) => {
   });
 });
 
-// --- Session endpoint ---
-app.get("/sessions/:id", (req, res) => {
+// --- Session endpoints ---
+app.get("/api/sessions", (req, res) => {
+  const sessionIds = listSessions();
+  const sessionList = sessionIds.map(id => {
+    const s = getSession(id);
+    return {
+      sessionId: s.sessionId,
+      createdAt: s.createdAt,
+      lastMessage: s.messages.length > 0 ? s.messages[s.messages.length - 1].content.slice(0, 50) : "Empty chat",
+      messageCount: s.messages.length
+    };
+  }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  
+  res.json({ sessions: sessionList });
+});
+
+app.post("/api/sessions", (req, res) => {
+  const session = createSession();
+  res.status(201).json(session);
+});
+
+app.get("/api/sessions/:id", (req, res) => {
   const session = getSession(req.params.id);
   if (!session) {
     return res.status(404).json({ error: "Session not found" });
@@ -123,7 +198,7 @@ app.get("/sessions/:id", (req, res) => {
 });
 
 // --- Config endpoint ---
-app.get("/config", (req, res) => {
+app.get("/api/config", (req, res) => {
   res.json({
     defaultModel: config.defaultModel,
     permissionTier: config.permissionTier,
@@ -138,7 +213,7 @@ app.get("/config", (req, res) => {
 });
 
 // --- Models endpoint ---
-app.get("/models", (req, res) => {
+app.get("/api/models", (req, res) => {
   res.json({
     default: config.defaultModel,
     available: listAvailableModels(),
@@ -146,7 +221,7 @@ app.get("/models", (req, res) => {
 });
 
 // --- Supervisor endpoint ---
-app.get("/supervisor", (req, res) => {
+app.get("/api/supervisor", (req, res) => {
   res.json({
     warnings: supervisor.getWarnings(),
     activeSubAgents: getActiveSubAgentCount(),
@@ -218,22 +293,22 @@ app.post("/webhooks/line", express.raw({ type: "application/json" }), async (req
 });
 
 // --- Channels endpoint ---
-app.get("/channels", (req, res) => {
+app.get("/api/channels", (req, res) => {
   res.json({ channels: channelRegistry.list() });
 });
 
 // --- Skills endpoint ---
-app.get("/skills", (req, res) => {
+app.get("/api/skills", (req, res) => {
   res.json({ skills: skillLoader.list() });
 });
 
-app.post("/skills/reload", (req, res) => {
+app.post("/api/skills/reload", (req, res) => {
   skillLoader.reload();
   res.json({ message: "Skills reloaded", skills: skillLoader.list() });
 });
 
 // --- Schedule endpoints ---
-app.post("/schedules", (req, res) => {
+app.post("/api/schedules", (req, res) => {
   try {
     const { cronExpression, taskInput, channel, model, name } = req.body;
     if (!cronExpression || !taskInput) {
@@ -246,22 +321,22 @@ app.post("/schedules", (req, res) => {
   }
 });
 
-app.get("/schedules", (req, res) => {
+app.get("/api/schedules", (req, res) => {
   res.json({ schedules: scheduler.list() });
 });
 
-app.delete("/schedules/:id", (req, res) => {
+app.delete("/api/schedules/:id", (req, res) => {
   scheduler.delete(req.params.id);
   res.json({ message: "Schedule deleted" });
 });
 
 // --- Audit endpoint ---
-app.get("/audit", (req, res) => {
+app.get("/api/audit", (req, res) => {
   res.json(auditLog.stats());
 });
 
 // --- MCP endpoints ---
-app.get("/mcp", (req, res) => {
+app.get("/api/mcp", (req, res) => {
   const cfg = mcpManager.readConfig().mcpServers || {};
   const live = mcpManager.list();
   const servers = Object.entries(cfg)
@@ -282,7 +357,7 @@ app.get("/mcp", (req, res) => {
 });
 
 // Add a new MCP server
-app.post("/mcp", async (req, res) => {
+app.post("/api/mcp", async (req, res) => {
   const { name, command, args, url, transport, env } = req.body;
   if (!name) return res.status(400).json({ error: "name is required" });
   if (!command && !url) return res.status(400).json({ error: "command (stdio) or url (http/sse) required" });
@@ -300,7 +375,7 @@ app.post("/mcp", async (req, res) => {
 });
 
 // Remove an MCP server
-app.delete("/mcp/:name", async (req, res) => {
+app.delete("/api/mcp/:name", async (req, res) => {
   try {
     const result = await mcpManager.removeServer(req.params.name);
     res.json({ message: result });
@@ -310,7 +385,7 @@ app.delete("/mcp/:name", async (req, res) => {
 });
 
 // Enable / disable / reload an MCP server
-app.post("/mcp/:name/:action", async (req, res) => {
+app.post("/api/mcp/:name/:action", async (req, res) => {
   const { name, action } = req.params;
   try {
     let result;
@@ -325,11 +400,11 @@ app.post("/mcp/:name/:action", async (req, res) => {
 });
 
 // --- Daemon endpoints ---
-app.get("/daemon/status", (req, res) => {
+app.get("/api/daemon/status", (req, res) => {
   res.json(daemonManager.status());
 });
 
-app.post("/daemon/:action", (req, res) => {
+app.post("/api/daemon/:action", (req, res) => {
   const { action } = req.params;
   try {
     switch (action) {
@@ -362,14 +437,14 @@ app.post("/daemon/:action", (req, res) => {
 });
 
 // --- Vault endpoints ---
-app.get("/vault/status", (req, res) => {
+app.get("/api/vault/status", (req, res) => {
   res.json({
     exists: secretVault.exists(),
     unlocked: secretVault.isUnlocked(),
   });
 });
 
-app.post("/vault/unlock", (req, res) => {
+app.post("/api/vault/unlock", (req, res) => {
   try {
     const { passphrase } = req.body;
     if (!passphrase) return res.status(400).json({ error: "passphrase is required" });
@@ -385,30 +460,30 @@ app.post("/vault/unlock", (req, res) => {
   }
 });
 
-app.post("/vault/lock", (req, res) => {
+app.post("/api/vault/lock", (req, res) => {
   secretVault.lock();
   res.json({ message: "Vault locked" });
 });
 
 // --- Tenant endpoints ---
-app.get("/tenants", (req, res) => {
+app.get("/api/tenants", (req, res) => {
   const tenants = tenantManager.list();
   res.json({ tenants, stats: tenantManager.stats() });
 });
 
-app.get("/tenants/:id", (req, res) => {
+app.get("/api/tenants/:id", (req, res) => {
   const tenant = tenantManager.get(decodeURIComponent(req.params.id));
   if (!tenant) return res.status(404).json({ error: "Tenant not found" });
   res.json(tenant);
 });
 
-app.patch("/tenants/:id", (req, res) => {
+app.patch("/api/tenants/:id", (req, res) => {
   const id = decodeURIComponent(req.params.id);
   const updated = tenantManager.set(id, req.body);
   res.json(updated);
 });
 
-app.post("/tenants/:id/suspend", (req, res) => {
+app.post("/api/tenants/:id/suspend", (req, res) => {
   const id = decodeURIComponent(req.params.id);
   const { reason } = req.body;
   const updated = tenantManager.suspend(id, reason || "");
@@ -416,21 +491,21 @@ app.post("/tenants/:id/suspend", (req, res) => {
   res.json(updated);
 });
 
-app.post("/tenants/:id/unsuspend", (req, res) => {
+app.post("/api/tenants/:id/unsuspend", (req, res) => {
   const id = decodeURIComponent(req.params.id);
   const updated = tenantManager.unsuspend(id);
   if (!updated) return res.status(404).json({ error: "Tenant not found" });
   res.json(updated);
 });
 
-app.post("/tenants/:id/reset", (req, res) => {
+app.post("/api/tenants/:id/reset", (req, res) => {
   const id = decodeURIComponent(req.params.id);
   const updated = tenantManager.reset(id);
   if (!updated) return res.status(404).json({ error: "Tenant not found" });
   res.json(updated);
 });
 
-app.delete("/tenants/:id", (req, res) => {
+app.delete("/api/tenants/:id", (req, res) => {
   const id = decodeURIComponent(req.params.id);
   const deleted = tenantManager.delete(id);
   if (!deleted) return res.status(404).json({ error: "Tenant not found" });
@@ -438,7 +513,7 @@ app.delete("/tenants/:id", (req, res) => {
 });
 
 // --- Costs endpoint ---
-app.get("/costs/today", (req, res) => {
+app.get("/api/costs/today", (req, res) => {
   res.json({
     date: new Date().toISOString().split("T")[0],
     totalCost: getTodayCost(),
@@ -446,6 +521,20 @@ app.get("/costs/today", (req, res) => {
     remaining: Math.max(0, config.maxDailyCost - getTodayCost()),
   });
 });
+
+// --- Static UI ---
+const uiPath = join(__dirname, "..", "daemora-ui", "dist");
+if (existsSync(uiPath)) {
+  app.use(express.static(uiPath));
+  // Serve index.html for all other routes (React Router support)
+  app.get(/.*/, (req, res, next) => {
+    if (req.path.startsWith("/api/") || req.path.startsWith("/webhooks/") || req.path.startsWith("/voice/") || req.path.startsWith("/a2a/")) {
+      return next();
+    }
+    res.sendFile(join(uiPath, "index.html"));
+  });
+  console.log(`[Server] Serving UI from ${uiPath}`);
+}
 
 // --- Start server ---
 app.listen(config.port, async () => {
