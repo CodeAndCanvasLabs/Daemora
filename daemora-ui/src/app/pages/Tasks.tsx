@@ -59,8 +59,8 @@ export function Tasks() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">Task Protocol</h2>
-          <p className="text-gray-400 font-mono text-sm tracking-widest">SYSTEM EXECUTION LOGS // ARCHIVE</p>
+          <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">Tasks</h2>
+          <p className="text-gray-400 font-mono text-sm tracking-widest">EXECUTION HISTORY</p>
         </div>
       </div>
 

@@ -78,8 +78,8 @@ export function Dashboard() {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">System Dashboard</h2>
-        <p className="text-gray-400 font-mono text-sm tracking-widest">REAL-TIME MONITORING // LIVE FEED</p>
+        <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">Dashboard</h2>
+        <p className="text-gray-400 font-mono text-sm tracking-widest">SYSTEM OVERVIEW</p>
       </div>
 
       {/* Stats Grid */}
@@ -129,7 +129,7 @@ export function Dashboard() {
               <Zap className="w-8 h-8 text-[#7C6AFF]" />
               <div>
                 <div className="text-2xl font-bold text-white">{health?.tools || 0}</div>
-                <div className="text-xs text-gray-400 font-mono uppercase">SYSTEM CAPABILITIES</div>
+                <div className="text-xs text-gray-400 font-mono uppercase">AVAILABLE</div>
               </div>
             </div>
           </CardContent>
@@ -157,7 +157,7 @@ export function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-white uppercase tracking-tighter">Recent Activity</CardTitle>
-              <CardDescription className="text-gray-400 font-mono text-xs">LATEST TASKS PROCESSED BY THE SYSTEM</CardDescription>
+              <CardDescription className="text-gray-400 font-mono text-xs">LATEST TASKS</CardDescription>
             </div>
             <Link
               to="/tasks"
@@ -171,7 +171,7 @@ export function Dashboard() {
           <div className="space-y-4">
             {tasks.length === 0 ? (
               <div className="text-center py-12 border-2 border-dashed border-slate-800 rounded-xl">
-                <p className="text-gray-500 font-mono uppercase tracking-widest text-xs">NO ACTIVE TASKS DETECTED</p>
+                <p className="text-gray-500 font-mono uppercase tracking-widest text-xs">NO TASKS YET</p>
               </div>
             ) : (
               tasks.map((task) => (

@@ -48,15 +48,15 @@ export function MCP() {
   }, []);
 
   const handleAction = async (name: string, action: "enable" | "disable" | "reload") => {
-    const toastId = toast.loading(`${action.toUpperCase()}ING NODE ${name}...`);
+    const toastId = toast.loading(`${action === "enable" ? "Enabling" : action === "disable" ? "Disabling" : "Reloading"} ${name}...`);
     try {
       const res = await fetch(`/api/mcp/${name}/${action}`, { method: "POST" });
       if (res.ok) {
-        toast.success(`NODE ${name} ${action.toUpperCase()} SUCCESSFUL`, { id: toastId });
+        toast.success(`${name} ${action}d successfully`, { id: toastId });
         fetchServers();
       } else {
         const err = await res.json();
-        toast.error(err.error || `FAILED TO ${action.toUpperCase()} NODE`, { id: toastId });
+        toast.error(err.error || `Failed to ${action} server`, { id: toastId });
       }
     } catch (error: any) {
       toast.error(error.message, { id: toastId });
@@ -68,7 +68,7 @@ export function MCP() {
     try {
       const res = await fetch(`/api/mcp/${name}`, { method: "DELETE" });
       if (res.ok) {
-        toast.success(`NODE ${name} PURGED`);
+        toast.success(`${name} removed`);
         fetchServers();
       }
     } catch (error: any) {
@@ -90,13 +90,13 @@ export function MCP() {
       });
 
       if (res.ok) {
-        toast.success("NEW NODE ESTABLISHED");
+        toast.success("Server added successfully");
         setIsAddDialogOpen(false);
         setNewServer({ name: "", type: "stdio", command: "", url: "" });
         fetchServers();
       } else {
         const err = await res.json();
-        toast.error(err.error || "LINK ESTABLISHMENT FAILED");
+        toast.error(err.error || "Failed to add server");
       }
     } catch (error: any) {
       toast.error(error.message);
@@ -116,14 +116,14 @@ export function MCP() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">MCP Grid</h2>
-          <p className="text-gray-400 font-mono text-sm tracking-widest">NEURAL EXTENSIONS // TOOL SERVERS</p>
+          <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">MCP Servers</h2>
+          <p className="text-gray-400 font-mono text-sm tracking-widest">EXTERNAL TOOL INTEGRATIONS</p>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button className="bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] hover:opacity-90 text-white font-mono text-xs uppercase tracking-wider">
               <Plus className="w-4 h-4 mr-2" />
-              Initialize Node
+              Add Server
             </Button>
           </DialogTrigger>
           <DialogContent className="bg-slate-950 border-slate-800 text-white border-2 shadow-[0_0_30px_rgba(0,217,255,0.1)]">
@@ -132,7 +132,7 @@ export function MCP() {
             </DialogHeader>
             <div className="space-y-4 pt-4 font-mono">
               <div className="space-y-2">
-                <label className="text-[10px] text-gray-500 uppercase">Node Identifier</label>
+                <label className="text-[10px] text-gray-500 uppercase">Server Name</label>
                 <Input
                   value={newServer.name}
                   onChange={(e) => setNewServer({ ...newServer, name: e.target.value })}
@@ -183,7 +183,7 @@ export function MCP() {
                 disabled={!newServer.name}
                 className="w-full bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] hover:opacity-90 text-white mt-4 uppercase tracking-tighter"
               >
-                Establish Link
+                Add Server
               </Button>
             </div>
           </DialogContent>
@@ -194,7 +194,7 @@ export function MCP() {
       <div className="grid grid-cols-1 gap-4">
         {servers.length === 0 ? (
           <div className="text-center py-20 border-2 border-dashed border-slate-800 rounded-xl bg-slate-900/20">
-            <p className="text-gray-600 font-mono uppercase tracking-widest text-xs">NO MCP NODES REGISTERED</p>
+            <p className="text-gray-600 font-mono uppercase tracking-widest text-xs">NO MCP SERVERS CONFIGURED</p>
           </div>
         ) : (
           servers.map((server) => (
@@ -248,7 +248,7 @@ export function MCP() {
                       className="text-red-500/70 hover:text-red-500 font-mono text-[10px] uppercase hover:bg-red-500/10"
                     >
                       <Trash2 className="w-3 h-3 mr-1" />
-                      Purge
+                      Remove
                     </Button>
                   </div>
                 </div>
@@ -257,14 +257,14 @@ export function MCP() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-[10px] font-mono text-gray-500 uppercase tracking-widest border-b border-slate-800 pb-2">
                     <span>Active Tools</span>
-                    <span className="text-[#00d9ff]">{server.tools?.length || 0} Subroutines</span>
+                    <span className="text-[#00d9ff]">{server.tools?.length || 0} Tools</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5 pt-1">
                     {!server.connected && server.enabled ? (
                       <div className="p-3 bg-slate-950/50 border border-slate-800 rounded w-full">
                         <p className="text-[10px] text-amber-500/70 font-mono leading-relaxed uppercase">
-                          NODE OFFLINE. CHECK .ENV CREDENTIALS OR CLI CONFIGURATION. 
-                          SOME NODES REQUIRE VALID API KEYS TO INITIALIZE.
+                          Server offline. Check credentials or CLI configuration.
+                          Some servers require valid API keys to connect.
                         </p>
                       </div>
                     ) : server.tools && server.tools.length > 0 ? (
@@ -278,7 +278,7 @@ export function MCP() {
                         </Badge>
                       ))
                     ) : (
-                      <span className="text-[10px] text-gray-600 font-mono italic lowercase tracking-tight">no tools exported by node</span>
+                      <span className="text-[10px] text-gray-600 font-mono italic lowercase tracking-tight">no tools exported</span>
                     )}
                   </div>
                 </div>

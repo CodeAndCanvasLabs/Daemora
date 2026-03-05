@@ -56,16 +56,16 @@ export function Skills() {
   }, []);
 
   const handleReloadSkills = async () => {
-    const toastId = toast.loading("RELOADING NEURAL SKILLS...");
+    const toastId = toast.loading("Reloading skills...");
     try {
       const res = await fetch("/api/skills/reload", { method: "POST" });
       if (res.ok) {
         const data = await res.json();
         setSkills(data.skills || []);
-        toast.success("SKILLS SYNCHRONIZED", { id: toastId });
+        toast.success("Skills reloaded", { id: toastId });
       }
     } catch (err) {
-      toast.error("RELOAD FAILED", { id: toastId });
+      toast.error("Failed to reload skills", { id: toastId });
     }
   };
 
@@ -73,11 +73,11 @@ export function Skills() {
     try {
       const res = await fetch(`/api/schedules/${id}`, { method: "DELETE" });
       if (res.ok) {
-        toast.success("CHRONO-TASK PURGED");
+        toast.success("Schedule deleted");
         fetchData();
       }
     } catch (err) {
-      toast.error("PURGE FAILED");
+      toast.error("Failed to delete schedule");
     }
   };
 
@@ -90,7 +90,7 @@ export function Skills() {
         body: JSON.stringify(newSchedule),
       });
       if (res.ok) {
-        toast.success("PROTOCOL SCHEDULED");
+        toast.success("Schedule created");
         setIsAddScheduleOpen(false);
         setNewSchedule({ name: "", cronExpression: "", taskInput: "" });
         fetchData();
@@ -115,8 +115,8 @@ export function Skills() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">Skill Grid</h2>
-        <p className="text-gray-400 font-mono text-sm tracking-widest">AGENT CAPABILITIES // AUTOMATION PROTOCOLS</p>
+        <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">Skills</h2>
+        <p className="text-gray-400 font-mono text-sm tracking-widest">AGENT SKILLS & SCHEDULES</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -127,9 +127,9 @@ export function Skills() {
               <div className="flex items-center gap-3">
                 <Sparkles className="w-6 h-6 text-[#00d9ff]" />
                 <div>
-                  <CardTitle className="text-white uppercase tracking-tight">Active Subroutines</CardTitle>
+                  <CardTitle className="text-white uppercase tracking-tight">Loaded Skills</CardTitle>
                   <CardDescription className="text-gray-500 font-mono text-[10px] uppercase">
-                    AVAILABLE AGENT CAPABILITIES
+                    AVAILABLE CAPABILITIES
                   </CardDescription>
                 </div>
               </div>
@@ -140,7 +140,7 @@ export function Skills() {
                 className="text-gray-400 hover:text-[#00d9ff] font-mono text-[10px] uppercase tracking-wider"
               >
                 <RefreshCw className="w-3 h-3 mr-2" />
-                Sync Grid
+                Reload
               </Button>
             </div>
           </CardHeader>
@@ -170,9 +170,9 @@ export function Skills() {
               <div className="flex items-center gap-3">
                 <Calendar className="w-6 h-6 text-[#7C6AFF]" />
                 <div>
-                  <CardTitle className="text-white uppercase tracking-tight">Timeline</CardTitle>
+                  <CardTitle className="text-white uppercase tracking-tight">Schedules</CardTitle>
                   <CardDescription className="text-gray-500 font-mono text-[10px] uppercase">
-                    CRON-BASED RECURRENCE
+                    CRON-BASED TASKS
                   </CardDescription>
                 </div>
               </div>
@@ -184,7 +184,7 @@ export function Skills() {
                 </DialogTrigger>
                 <DialogContent className="bg-slate-950 border-slate-800 text-white font-mono">
                   <DialogHeader>
-                    <DialogTitle className="uppercase tracking-widest text-sm border-b border-slate-800 pb-4">New Chrono-Protocol</DialogTitle>
+                    <DialogTitle className="uppercase tracking-widest text-sm border-b border-slate-800 pb-4">New Schedule</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4 pt-4">
                     <div className="space-y-1">
@@ -218,7 +218,7 @@ export function Skills() {
                       onClick={handleAddSchedule}
                       className="w-full bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] text-white uppercase text-xs tracking-tighter"
                     >
-                      Inject Protocol
+                      Create Schedule
                     </Button>
                   </div>
                 </DialogContent>
@@ -228,7 +228,7 @@ export function Skills() {
           <CardContent className="flex-1 overflow-y-auto pt-6 px-4">
             <div className="space-y-3">
               {schedules.length === 0 ? (
-                <div className="text-center py-12 text-gray-700 font-mono uppercase text-[10px] tracking-widest">Empty Timeline</div>
+                <div className="text-center py-12 text-gray-700 font-mono uppercase text-[10px] tracking-widest">No schedules</div>
               ) : (
                 schedules.map((schedule) => (
                   <div

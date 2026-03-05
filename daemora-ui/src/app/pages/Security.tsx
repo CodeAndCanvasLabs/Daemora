@@ -52,7 +52,7 @@ export function Security() {
         body: JSON.stringify({ passphrase }),
       });
       if (res.ok) {
-        toast.success("VAULT SYNCHRONIZED // ACCESS GRANTED");
+        toast.success("Vault unlocked successfully");
         setIsUnlockDialogOpen(false);
         setPassphrase("");
         fetchData();
@@ -61,7 +61,7 @@ export function Security() {
         toast.error(err.error || "ACCESS DENIED");
       }
     } catch (err) {
-      toast.error("ENCRYPTION MODULE OFFLINE");
+      toast.error("Failed to unlock vault");
     }
   };
 
@@ -69,11 +69,11 @@ export function Security() {
     try {
       const res = await fetch("/api/vault/lock", { method: "POST" });
       if (res.ok) {
-        toast.success("VAULT ENCRYPTED // SESSION PURGED");
+        toast.success("Vault locked successfully");
         fetchData();
       }
     } catch (err) {
-      toast.error("LOCK COMMAND FAILED");
+      toast.error("Failed to lock vault");
     }
   };
 
@@ -98,8 +98,8 @@ export function Security() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">Security Node</h2>
-        <p className="text-gray-400 font-mono text-sm tracking-widest">ENCRYPTION VAULT // SYSTEM AUDIT</p>
+        <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">Security</h2>
+        <p className="text-gray-400 font-mono text-sm tracking-widest">VAULT & AUDIT LOG</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -109,9 +109,9 @@ export function Security() {
             <div className="flex items-center gap-3">
               <Shield className="w-6 h-6 text-[#00d9ff]" />
               <div>
-                <CardTitle className="text-white uppercase tracking-tight">Encryption Core</CardTitle>
+                <CardTitle className="text-white uppercase tracking-tight">Secret Vault</CardTitle>
                 <CardDescription className="text-gray-500 font-mono text-[10px] uppercase">
-                  SENSITIVE CREDENTIAL STORAGE
+                  ENCRYPTED CREDENTIAL STORAGE
                 </CardDescription>
               </div>
             </div>
@@ -209,9 +209,9 @@ export function Security() {
             <div className="flex items-center gap-3">
               <Eye className="w-6 h-6 text-[#7C6AFF]" />
               <div>
-                <CardTitle className="text-white uppercase tracking-tight">Event Horizon</CardTitle>
+                <CardTitle className="text-white uppercase tracking-tight">Audit Log</CardTitle>
                 <CardDescription className="text-gray-500 font-mono text-[10px] uppercase">
-                  REAL-TIME SECURITY LOGS
+                  SECURITY EVENTS
                 </CardDescription>
               </div>
             </div>

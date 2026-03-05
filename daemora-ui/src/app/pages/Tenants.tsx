@@ -96,7 +96,7 @@ export function Tenants() {
     try {
       const res = await fetch(`/api/tenants/${encodeURIComponent(id)}`, { method: "DELETE" });
       if (res.ok) {
-        toast.success("TENANT PURGED", { id: toastId });
+        toast.success("Tenant deleted", { id: toastId });
         fetchTenants();
       } else {
         const err = await res.json();
@@ -185,7 +185,7 @@ export function Tenants() {
       {/* Header */}
       <div>
         <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">Tenants</h2>
-        <p className="text-gray-400 font-mono text-sm tracking-widest">MULTI-TENANT MANAGEMENT // ISOLATION LAYER</p>
+        <p className="text-gray-400 font-mono text-sm tracking-widest">USER & CHANNEL MANAGEMENT</p>
       </div>
 
       {/* Tenant Cards */}

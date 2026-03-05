@@ -51,8 +51,8 @@ export function Configuration() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">System Configuration</h2>
-        <p className="text-gray-400 font-mono text-sm tracking-widest">READ-ONLY ENVIRONMENT PROTOCOLS</p>
+        <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">Configuration</h2>
+        <p className="text-gray-400 font-mono text-sm tracking-widest">ENVIRONMENT SETTINGS</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -62,9 +62,9 @@ export function Configuration() {
             <div className="flex items-center gap-3">
               <SettingsIcon className="w-6 h-6 text-[#00d9ff]" />
               <div>
-                <CardTitle className="text-white uppercase tracking-tight text-lg">Core Parameters</CardTitle>
+                <CardTitle className="text-white uppercase tracking-tight text-lg">General Settings</CardTitle>
                 <CardDescription className="text-gray-500 font-mono text-xs uppercase">
-                  ACTIVE .ENV RUNTIME VALUES
+                  CURRENT .ENV VALUES
                 </CardDescription>
               </div>
             </div>
@@ -72,7 +72,7 @@ export function Configuration() {
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 gap-4">
               <div className="p-4 bg-slate-800/30 rounded-lg border border-slate-800/50">
-                <div className="text-xs text-gray-500 font-mono uppercase mb-1">Primary Neural Model</div>
+                <div className="text-xs text-gray-500 font-mono uppercase mb-1">Default Model</div>
                 <div className="text-white font-bold font-mono text-lg">{config.defaultModel}</div>
               </div>
               
@@ -116,9 +116,9 @@ export function Configuration() {
             <div className="flex items-center gap-3">
               <Globe className="w-6 h-6 text-[#7C6AFF]" />
               <div>
-                <CardTitle className="text-white uppercase tracking-tight text-lg">Communication Nodes</CardTitle>
+                <CardTitle className="text-white uppercase tracking-tight text-lg">Channels</CardTitle>
                 <CardDescription className="text-gray-500 font-mono text-xs uppercase">
-                  INTEGRATED INTERFACE STATUS
+                  INTEGRATION STATUS
                 </CardDescription>
               </div>
             </div>

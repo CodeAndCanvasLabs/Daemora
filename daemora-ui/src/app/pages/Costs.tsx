@@ -63,8 +63,8 @@ export function Costs() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">Finance Node</h2>
-        <p className="text-gray-400 font-mono text-sm tracking-widest">RESOURCE CONSUMPTION // QUOTA MONITOR</p>
+        <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">Costs</h2>
+        <p className="text-gray-400 font-mono text-sm tracking-widest">USAGE & SPENDING</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -74,9 +74,9 @@ export function Costs() {
             <div className="flex items-center gap-3">
               <DollarSign className="w-6 h-6 text-[#00d9ff]" />
               <div>
-                <CardTitle className="text-white uppercase tracking-tight">Cycle Expenditure</CardTitle>
+                <CardTitle className="text-white uppercase tracking-tight">Daily Spend</CardTitle>
                 <CardDescription className="text-gray-500 font-mono text-[10px] uppercase">
-                  CURRENT USAGE VS. HARD LIMIT
+                  CURRENT USAGE VS. LIMIT
                 </CardDescription>
               </div>
             </div>
@@ -124,7 +124,7 @@ export function Costs() {
               <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
                 <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
                 <p className="text-[10px] text-red-400 font-mono uppercase tracking-tight">
-                  CRITICAL: APPROACHING DAILY EXPENDITURE CAP. AGENT THROTTLING MAY OCCUR.
+                  WARNING: APPROACHING DAILY COST LIMIT. TASKS MAY BE THROTTLED.
                 </p>
               </div>
             )}
@@ -153,7 +153,7 @@ export function Costs() {
               <div className="text-2xl font-bold text-[#7C6AFF] font-mono uppercase">
                 {tenants.length}
               </div>
-              <div className="text-[9px] text-gray-600 font-mono uppercase mt-1">Resource Isolation Units</div>
+              <div className="text-[9px] text-gray-600 font-mono uppercase mt-1">Registered Tenants</div>
             </CardContent>
           </Card>
         </div>
@@ -165,9 +165,9 @@ export function Costs() {
           <div className="flex items-center gap-3">
             <Users className="w-6 h-6 text-[#4ECDC4]" />
             <div>
-              <CardTitle className="text-white uppercase tracking-tight">Tenant Isolation Breakdown</CardTitle>
+              <CardTitle className="text-white uppercase tracking-tight">Tenant Usage</CardTitle>
               <CardDescription className="text-gray-500 font-mono text-[10px] uppercase">
-                RESOURCE ALLOCATION PER USER/CHANNEL
+                COST BREAKDOWN PER TENANT
               </CardDescription>
             </div>
           </div>
@@ -188,7 +188,7 @@ export function Costs() {
                         <div className="font-mono text-sm text-white uppercase truncate max-w-[200px]">{tenant.name || tenant.id}</div>
                         <Badge variant="outline" className="text-[8px] h-4 uppercase border-slate-700 text-gray-500">{tenant.planTier}</Badge>
                       </div>
-                      <div className="text-[10px] text-gray-600 font-mono uppercase tracking-tighter">{(tenant?.usage?.taskCount || 0)} PROTOCOLS EXECUTED</div>
+                      <div className="text-[10px] text-gray-600 font-mono uppercase tracking-tighter">{(tenant?.usage?.taskCount || 0)} TASKS</div>
                     </div>
                     <div className="text-right">
                       <div className="text-xl font-bold text-[#00d9ff] font-mono tracking-tighter">
