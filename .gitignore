@@ -50,3 +50,6 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# ---------------UI Node Modules -------------
+daemora-ui/node_modules
