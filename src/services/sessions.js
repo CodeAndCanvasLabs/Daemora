@@ -17,6 +17,7 @@ export function createSession(existingId = null) {
     messages: [],
   };
   sessions.set(sessionId, session);
+  saveSession(session);
   return session;
 }
 
