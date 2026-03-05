@@ -258,10 +258,7 @@ function renderMCPTools() {
   const serverList = servers
     .map((s) => {
       const desc = s.description ? ` - ${s.description}` : "";
-      const toolList = s.toolDescriptions?.length
-        ? s.toolDescriptions.map(t => `  - ${t.name}${t.description ? `: ${t.description}` : ""}`).join("\n")
-        : `  - ${s.toolNames.join(", ")}`;
-      return `- **${s.name}**${desc} (${s.toolCount} tools)\n${toolList}`;
+      return `- **${s.name}**${desc} (${s.toolCount} tools: ${s.toolNames.join(", ")})`;
     })
     .join("\n");
 

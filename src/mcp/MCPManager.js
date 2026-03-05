@@ -420,7 +420,6 @@ class MCPManager {
         description: configServers[name]?.description || "",
         toolCount: client.getTools().length,
         toolNames: client.getTools().map((t) => t.name),
-        toolDescriptions: client.getTools().map((t) => ({ name: t.name, description: t.description || "" })),
       }));
   }
 
