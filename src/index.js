@@ -80,6 +80,9 @@ const localOnly = (req, res, next) => {
   }
 };
 
+// Apply local-only security to all API routes
+app.use("/api", localOnly);
+
 // --- Health check ---
 app.get("/api/health", (req, res) => {
   res.json({
@@ -95,7 +98,7 @@ app.get("/api/health", (req, res) => {
 });
 
 // --- Chat endpoint (Sync) ---
-app.post("/api/chat", localOnly, async (req, res) => {
+app.post("/api/chat", async (req, res) => {
   try {
     const { input, sessionId, model, priority } = req.body;
     if (!input) return res.status(400).json({ error: "input is required" });
@@ -117,7 +120,7 @@ app.post("/api/chat", localOnly, async (req, res) => {
 });
 
 // --- Task submit endpoint (Async) ---
-app.post("/api/tasks", localOnly, (req, res) => {
+app.post("/api/tasks", (req, res) => {
   try {
     const { input, sessionId, model, priority } = req.body;
     if (!input) return res.status(400).json({ error: "input is required" });
