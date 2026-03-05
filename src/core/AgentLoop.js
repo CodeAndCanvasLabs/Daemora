@@ -123,6 +123,17 @@ export async function runAgentLoop({
       }
     }
 
+    if (loopCount > config.maxLoops + 3) {
+      // Hard exit — agent ignored the soft stop message
+      console.log(`[FATAL] Agent exceeded hard limit (${config.maxLoops + 3}). Forcing exit.`);
+      return {
+        text: "Task stopped: exceeded maximum iterations. Here is what was accomplished before stopping.",
+        messages: messages.slice(1),
+        cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, estimatedCost: 0, modelCalls: loopCount, model: resolvedModelId },
+        toolCalls: toolCallLog,
+      };
+    }
+
     if (loopCount > config.maxLoops) {
       console.log(`[WARN] Hit max loop limit (${config.maxLoops}). Forcing agent to stop.`);
       messages.push({
@@ -143,7 +154,7 @@ export async function runAgentLoop({
         model,
         schema: outputSchema,
         messages,
-        maxTokens: 4096,
+        maxTokens: 8192,
         abortSignal: signal || undefined,
       });
 
@@ -415,11 +426,11 @@ export async function runAgentLoop({
       }
 
       consecutiveErrors++;
-      console.log(`[Loop ${loopCount}] Model call failed (${consecutiveErrors}/3): ${error.message}`);
+      console.log(`[Loop ${loopCount}] Model call failed (${consecutiveErrors}/5): ${error.message}`);
 
-      // Give up after 3 consecutive failures
-      if (consecutiveErrors >= 3) {
-        console.log(`[FATAL] 3 consecutive model failures. Stopping.`);
+      // Give up after 5 consecutive failures
+      if (consecutiveErrors >= 5) {
+        console.log(`[FATAL] 5 consecutive model failures. Stopping.`);
         return {
           text: `I encountered an error while processing your request: ${error.message}`,
           messages: messages.slice(1),
@@ -434,10 +445,15 @@ export async function runAgentLoop({
         };
       }
 
+      // Exponential backoff: 1s, 2s, 4s, 8s, 16s
+      const backoffMs = Math.min(1000 * Math.pow(2, consecutiveErrors - 1), 16000);
+      console.log(`[Loop ${loopCount}] Retrying in ${backoffMs}ms...`);
+      await new Promise(resolve => setTimeout(resolve, backoffMs));
+
       // Retry with a user-role nudge (compatible with all providers)
       messages.push({
         role: "user",
-        content: `[System: previous call failed: ${error.message}] Please provide your final answer. Set type to "text" and finalResponse to true.`,
+        content: `[System: previous call failed: ${error.message}] Try again with the same approach, or provide your final answer. Set type to "text" and finalResponse to true.`,
       });
       continue;
     }

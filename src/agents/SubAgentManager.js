@@ -2,6 +2,7 @@ import { runAgentLoop } from "../core/AgentLoop.js";
 import { buildSystemPrompt } from "../systemPrompt.js";
 import { toolFunctions } from "../tools/index.js";
 import { agentProfiles, defaultSubAgentTools } from "../config/agentProfiles.js";
+import { config } from "../config/default.js";
 import eventBus from "../core/EventBus.js";
 import { v4 as uuidv4 } from "uuid";
 import tenantContext from "../tenants/TenantContext.js";
@@ -95,7 +96,7 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     toolOverride         = null,        // exact tool functions - specialist agents only (e.g. MCP)
     systemPromptOverride = null,        // replace system prompt - specialist agents only
     maxCost              = 0.10,
-    timeout              = 120_000,
+    timeout              = 300_000,
     depth                = 0,
     parentTaskId         = null,
     parentContext        = null,

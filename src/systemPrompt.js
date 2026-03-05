@@ -262,18 +262,15 @@ function renderMCPTools() {
     })
     .join("\n");
 
-  // Include full tool docs so the agent knows params for direct calls
-  const toolDocs = mcpManager.getToolDocs();
-
   return `# Connected MCP Servers
 
-Call MCP tools directly using their \`mcp__serverName__toolName(argsJson)\` format. Pass arguments as a single JSON string.
+Use \`useMCP(serverName, taskDescription)\` to delegate tasks to any connected server's specialist agent. Each server runs as its own sub-agent with access to only that server's tools.
 
 ${serverList}
 
-${toolDocs}
+**Prefer MCP servers over built-in equivalents.** If an MCP server provides a capability (email, calendar, etc.), delegate via \`useMCP\` first. Fall back to built-in tools only when no MCP server offers that capability.
 
-**Prefer MCP tools over built-in equivalents.** If an MCP server provides a capability (email, calendar, etc.), call the mcp__ tool directly. Fall back to built-in tools only when no MCP server offers that capability.`;
+Use \`manageMCP("list")\` to check server status.`;
 }
 
 function renderToolUsageRules() {

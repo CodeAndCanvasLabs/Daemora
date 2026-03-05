@@ -192,9 +192,47 @@ class MCPManager {
 
     const servers = mcpConfig.mcpServers || {};
 
-    // Filter to only real, enabled servers
+    // Filter to only real, enabled servers with valid auth
     const enabledServers = Object.entries(servers).filter(
-      ([name, cfg]) => !name.startsWith("_comment") && typeof cfg === "object" && cfg.enabled !== false
+      ([name, cfg]) => {
+        if (name.startsWith("_comment") || typeof cfg !== "object" || cfg.enabled === false) return false;
+
+        // Validate auth: skip servers with placeholder or empty credentials
+        if (cfg.env) {
+          const hasPlaceholder = Object.entries(cfg.env).some(([, v]) =>
+            typeof v === "string" && (
+              v === "" ||
+              v.startsWith("YOUR_") ||
+              v === "your-token-here" ||
+              v === "your-key-here" ||
+              /^[A-Z_]+$/.test(v) // e.g. "GITHUB_TOKEN" as a value, not a reference
+            )
+          );
+          if (hasPlaceholder) {
+            console.log(`[MCPManager] Skipping "${name}" - env vars contain placeholder/empty values. Set real credentials.`);
+            return false;
+          }
+        }
+
+        if (cfg.headers) {
+          const expandedHeaders = Object.entries(cfg.headers).map(([k, v]) => {
+            if (typeof v === "string") {
+              return [k, v.replace(/\$\{([^}]+)\}/g, (_, envName) => process.env[envName] ?? "")];
+            }
+            return [k, v];
+          });
+          const hasEmpty = expandedHeaders.some(([, v]) => typeof v === "string" && v.trim() === "");
+          const hasPlaceholder = expandedHeaders.some(([, v]) =>
+            typeof v === "string" && (v.includes("YOUR_") || v === "Bearer " || v === "Bearer")
+          );
+          if (hasEmpty || hasPlaceholder) {
+            console.log(`[MCPManager] Skipping "${name}" - headers resolve to empty/placeholder values. Set env vars.`);
+            return false;
+          }
+        }
+
+        return true;
+      }
     );
 
     if (enabledServers.length === 0) {

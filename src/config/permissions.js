@@ -59,6 +59,16 @@ export const permissionTiers = {
       // Screen
       "screenCapture",
       "replyWithFile",
+      "sendFile",
+      // Media
+      "transcribeAudio",
+      "textToSpeech",
+      // Task management & agents
+      "taskManager",
+      "spawnAgent",
+      "parallelAgents",
+      "manageAgents",
+      "useMCP",
       // Project tracking
       "projectTracker",
       // MCP inspection (read-only - no side effects)
