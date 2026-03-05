@@ -264,13 +264,7 @@ function renderMCPTools() {
 
   return `# Connected MCP Servers
 
-Use \`useMCP(serverName, taskDescription)\` to delegate tasks to any connected server's specialist agent. Each server runs as its own sub-agent with access to only that server's tools.
-
-${serverList}
-
-**Prefer MCP servers over built-in equivalents.** If an MCP server provides a capability (email, calendar, etc.), delegate via \`useMCP\` first. Fall back to built-in tools only when no MCP server offers that capability.
-
-Use \`manageMCP("list")\` to check server status.`;
+${serverList}`;
 }
 
 function renderToolUsageRules() {
