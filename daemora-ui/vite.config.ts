@@ -10,6 +10,26 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8081',
+        changeOrigin: true,
+      },
+      '/webhooks': {
+        target: 'http://localhost:8081',
+        changeOrigin: true,
+      },
+      '/voice': {
+        target: 'http://localhost:8081',
+        changeOrigin: true,
+      },
+      '/a2a': {
+        target: 'http://localhost:8081',
+        changeOrigin: true,
+      },
+    },
+  },
   resolve: {
     alias: {
       // Alias @ to the src directory
