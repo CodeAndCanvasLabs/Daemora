@@ -285,10 +285,13 @@ function renderToolUsageRules() {
 - Follow existing code conventions. Prefer the simplest correct solution.
 - Never introduce security vulnerabilities. Never hardcode secrets.
 
-## Task Tracking
-- For complex multi-step work, use taskManager("createTask") to break it into trackable tasks visible in the UI.
-- Update task status as you work: in_progress when starting, completed when verified done.
-- When spawning sub-agents, create a task per agent so you can check progress via taskManager("getTask").
+## Task Tracking (IMPORTANT)
+- For any work involving 2+ steps or sub-agents, use taskManager to track progress:
+  1. Call taskManager("createTask") for each logical step BEFORE starting it.
+  2. Call taskManager("updateTask") to mark in_progress when starting, completed/failed when done.
+  3. When spawning sub-agents, pass the task ID in the description so sub-agents can update it.
+  4. Call taskManager("listTasks") or taskManager("getTask") to check progress of child tasks.
+- Tasks are visible in the UI — the user can see what you're doing and track sub-agent progress.
 - For large projects with workspace needs, use projectTracker to create a project with shared workspace directory.
 
 ## Orchestration

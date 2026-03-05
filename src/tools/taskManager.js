@@ -57,7 +57,7 @@ export function taskManager(action, paramsJson) {
       saveTask(task);
 
       const parentStr = effectiveParentId ? ` (child of ${effectiveParentId.slice(0, 8)})` : "";
-      return `Task created: [${task.id.slice(0, 8)}] "${title}"${parentStr} — status: ${task.status}`;
+      return `Task created: ${task.id} "${title}"${parentStr} — status: ${task.status}`;
     }
 
     // ── Update task ─────────────────────────────────────────────────────────
@@ -87,11 +87,11 @@ export function taskManager(action, paramsJson) {
             return `Error: Invalid status "${status}". Use: pending, in_progress, completed, failed`;
         }
         saveTask(task);
-        return `Task [${taskId.slice(0, 8)}] "${task.title || task.input?.slice(0, 40)}": ${oldStatus} → ${status}`;
+        return `Task ${taskId} "${task.title || task.input?.slice(0, 40)}": ${oldStatus} → ${status}`;
       }
 
       saveTask(task);
-      return `Task [${taskId.slice(0, 8)}] updated`;
+      return `Task ${taskId} updated`;
     }
 
     // ── List tasks ──────────────────────────────────────────────────────────
@@ -108,9 +108,9 @@ export function taskManager(action, paramsJson) {
 
       return tasks.map(t => {
         const icon = t.status === "completed" ? "✅" : t.status === "running" ? "🔄" : t.status === "failed" ? "❌" : "⬜";
-        const agent = t.agentId ? ` [agent:${t.agentId.slice(0, 8)}]` : "";
-        const parent = t.parentTaskId ? ` ← ${t.parentTaskId.slice(0, 8)}` : "";
-        return `${icon} [${t.id.slice(0, 8)}] ${t.title || t.input?.slice(0, 50)}${agent}${parent} — ${t.status}`;
+        const agent = t.agentId ? ` [agent:${t.agentId}]` : "";
+        const parent = t.parentTaskId ? ` ← ${t.parentTaskId}` : "";
+        return `${icon} ${t.id} ${t.title || t.input?.slice(0, 50)}${agent}${parent} — ${t.status}`;
       }).join("\n");
     }
 
@@ -153,11 +153,12 @@ export function taskManager(action, paramsJson) {
 }
 
 export const taskManagerDescription =
-  `taskManager(action: string, paramsJson?: string) - Create and track tasks with hierarchy and sub-agent linkage. Tasks appear in the UI.
+  `taskManager(action: string, paramsJson?: string) - Create, update, and monitor tasks. Tasks appear in the UI and link to sub-agents.
   Actions:
-    createTask  - {"title":"Build API endpoint","description":"Create REST endpoint for /users","status":"in_progress"}
-    updateTask  - {"taskId":"abc-123","status":"completed","result":"Endpoint created successfully"}
-    listTasks   - {} or {"status":"running","parentTaskId":"parent-id"}
-    getTask     - {"taskId":"abc-123"} → full details + child tasks + sub-agent info
+    createTask  - {"title":"...","description":"...","status":"pending|in_progress"} → returns full task ID
+    updateTask  - {"taskId":"<full-uuid>","status":"completed|failed","result":"summary of what was done"}
+    listTasks   - {} or {"status":"running","parentTaskId":"<uuid>"} → list tasks with IDs and status
+    getTask     - {"taskId":"<full-uuid>"} → full details + child tasks + sub-agent info
   Statuses: pending | in_progress | completed | failed
-  Tasks auto-link to the current parent task. Use this to break work into trackable steps.`;
+  Tasks auto-link to the current parent task. Use createTask before starting each step, updateTask when done.
+  When spawning sub-agents, include the task ID in their description so they can call updateTask on it.`;
