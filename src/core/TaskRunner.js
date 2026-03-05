@@ -8,6 +8,7 @@ import { config } from "../config/default.js";
 import tenantManager from "../tenants/TenantManager.js";
 import tenantContext from "../tenants/TenantContext.js";
 import inputSanitizer from "../safety/InputSanitizer.js";
+import eventBus from "./EventBus.js";
 
 /**
  * Filter out internal tool call/result JSON from messages before saving to session.
@@ -228,6 +229,27 @@ class TaskRunner {
         }));
         const messages = [...previousMessages, { role: "user", content: task.input }];
 
+        // Track sub-agents spawned during this task
+        const subAgents = [];
+        const onSpawn = (evt) => {
+          if (evt.parentTaskId === task.id) {
+            subAgents.push({ agentId: evt.agentId, taskId: evt.taskId, description: evt.taskDescription, depth: evt.depth, status: "running", startedAt: new Date().toISOString() });
+          }
+        };
+        const onFinish = (evt) => {
+          if (evt.parentTaskId === task.id) {
+            const sa = subAgents.find(s => s.agentId === evt.agentId);
+            if (sa) {
+              sa.status = evt.error ? "failed" : (evt.killed ? "killed" : "completed");
+              sa.cost = evt.cost || null;
+              sa.error = evt.error || null;
+              sa.completedAt = new Date().toISOString();
+            }
+          }
+        };
+        eventBus.on("agent:spawned", onSpawn);
+        eventBus.on("agent:finished", onFinish);
+
         // Run agent loop with resolved model, cost limits, and per-tenant API keys.
         // steerQueue lets follow-up messages from the same user be injected live
         // between tool calls instead of spawning a competing agent loop.
@@ -244,11 +266,17 @@ class TaskRunner {
           steerQueue,
         });
 
+        // Clean up event listeners
+        eventBus.removeListener("agent:spawned", onSpawn);
+        eventBus.removeListener("agent:finished", onFinish);
+
         // Update session with CLEAN conversation only (strip internal tool JSON)
         setMessages(session.sessionId, filterCleanMessages(result.messages));
 
-        // Update task cost info
+        // Update task cost info and tool calls
         task.cost = result.cost;
+        task.toolCalls = result.toolCalls || [];
+        if (subAgents.length > 0) task.subAgents = subAgents;
 
         // Record cost against tenant lifetime totals
         const estimatedCost = result.cost?.estimatedCost || 0;

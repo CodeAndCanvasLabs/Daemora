@@ -2,26 +2,26 @@ import { Outlet, Link, useLocation } from "react-router";
 import { StarField } from "./StarField";
 import { Logo } from "./ui/Logo";
 import {
-  MessageSquare,
-  ListTodo,
-  Settings,
-  Boxes,
-  Sparkles,
-  Shield,
-  DollarSign,
-  LayoutDashboard,
+  Terminal,
+  Skull,
+  SlidersHorizontal,
+  Network,
+  Flame,
+  ShieldAlert,
+  CircuitBoard,
+  Fingerprint,
   Users,
 } from "lucide-react";
 
 const navItems = [
-  { path: "/", label: "Dashboard", icon: LayoutDashboard },
-  { path: "/chat", label: "Chat", icon: MessageSquare },
-  { path: "/tasks", label: "Tasks", icon: ListTodo },
-  { path: "/mcp", label: "MCP", icon: Boxes },
-  { path: "/skills", label: "Skills", icon: Sparkles },
-  { path: "/config", label: "Config", icon: Settings },
-  { path: "/security", label: "Security", icon: Shield },
-  { path: "/costs", label: "Costs", icon: DollarSign },
+  { path: "/", label: "Dashboard", icon: CircuitBoard },
+  { path: "/chat", label: "Chat", icon: Terminal },
+  { path: "/tasks", label: "Tasks", icon: Skull },
+  { path: "/mcp", label: "MCP", icon: Network },
+  { path: "/skills", label: "Skills", icon: Flame },
+  { path: "/config", label: "Config", icon: SlidersHorizontal },
+  { path: "/security", label: "Security", icon: ShieldAlert },
+  { path: "/costs", label: "Costs", icon: Fingerprint },
   { path: "/tenants", label: "Tenants", icon: Users },
 ];
 
@@ -89,8 +89,8 @@ export function Layout() {
         </header>
 
         {/* Dynamic Page Content */}
-        <main className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-[1600px] mx-auto h-full">
+        <main className={`flex-1 overflow-y-auto ${location.pathname === "/chat" ? "" : "p-6"}`}>
+          <div className={`h-full ${location.pathname === "/chat" ? "" : "max-w-[1600px] mx-auto"}`}>
             <Outlet />
           </div>
         </main>

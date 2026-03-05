@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import { Search, Filter, Clock, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Search, Filter, Clock, CheckCircle2, AlertCircle, Loader2, Skull } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
@@ -11,7 +11,7 @@ interface Task {
   status: string;
   channel: string;
   input: string;
-  cost: number;
+  cost: { estimatedCost?: number; inputTokens?: number; outputTokens?: number; modelCalls?: number; model?: string } | number;
   createdAt: string;
   completedAt: string | null;
 }
@@ -87,9 +87,10 @@ export function Tasks() {
           <div className="grid grid-cols-12 gap-4 text-[10px] font-mono text-gray-500 uppercase tracking-widest px-6">
             <div className="col-span-1">Status</div>
             <div className="col-span-2">Task ID</div>
-            <div className="col-span-5">Input</div>
-            <div className="col-span-2">Channel</div>
-            <div className="col-span-2 text-right">Created At</div>
+            <div className="col-span-4">Input</div>
+            <div className="col-span-1">Channel</div>
+            <div className="col-span-2 text-right">Cost</div>
+            <div className="col-span-2 text-right">Created</div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -110,20 +111,29 @@ export function Tasks() {
                       <Clock className="w-4 h-4 text-[#ffaa00] animate-pulse" />
                     ) : task.status === "completed" ? (
                       <CheckCircle2 className="w-4 h-4 text-[#00ff88]" />
-                    ) : (
+                    ) : task.status === "failed" ? (
                       <AlertCircle className="w-4 h-4 text-[#ff4458]" />
+                    ) : (
+                      <Clock className="w-4 h-4 text-gray-600" />
                     )}
                   </div>
                   <div className="col-span-2 font-mono text-[10px] text-gray-400 truncate uppercase">
                     {task.id.split("-")[0]}...
                   </div>
-                  <div className="col-span-5 text-sm text-gray-200 truncate group-hover:text-[#00d9ff] transition-colors font-mono">
+                  <div className="col-span-4 text-sm text-gray-200 truncate group-hover:text-[#00d9ff] transition-colors font-mono">
                     {task.input}
                   </div>
-                  <div className="col-span-2">
-                    <Badge variant="outline" className="bg-slate-800/50 border-slate-700 text-[10px] font-mono text-gray-400 uppercase">
+                  <div className="col-span-1">
+                    <Badge variant="outline" className="bg-slate-800/50 border-slate-700 text-[9px] font-mono text-gray-400 uppercase">
                       {task.channel}
                     </Badge>
+                  </div>
+                  <div className="col-span-2 text-right font-mono text-[10px] text-[#00ff88]">
+                    {typeof task.cost === "object" && task.cost?.estimatedCost
+                      ? `$${task.cost.estimatedCost.toFixed(4)}`
+                      : typeof task.cost === "number" && task.cost > 0
+                        ? `$${task.cost.toFixed(4)}`
+                        : "-"}
                   </div>
                   <div className="col-span-2 text-right font-mono text-[10px] text-gray-500 uppercase">
                     {new Date(task.createdAt).toLocaleDateString()} {new Date(task.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

@@ -69,6 +69,7 @@ export async function runAgentLoop({
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
   let consecutiveErrors = 0;
+  const toolCallLog = [];  // Track tool calls for task history
 
   const WRITE_TOOLS = new Set(["writeFile", "editFile", "applyPatch", "executeCommand", "sendEmail", "createDocument", "browserAction", "messageChannel"]);
   let gitSnapshotDone = false; // Only snapshot once per task
@@ -88,6 +89,7 @@ export async function runAgentLoop({
         text: "Agent was stopped by the supervisor.",
         messages: messages.slice(1),
         cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, estimatedCost: 0, modelCalls: loopCount, model: resolvedModelId },
+        toolCalls: toolCallLog,
       };
     }
 
@@ -98,6 +100,7 @@ export async function runAgentLoop({
         text: "Task was stopped by the safety supervisor due to excessive tool usage or a dangerous pattern.",
         messages: messages.slice(1),
         cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, estimatedCost: 0, modelCalls: loopCount, model: resolvedModelId },
+        toolCalls: toolCallLog,
       };
     }
 
@@ -283,6 +286,16 @@ export async function runAgentLoop({
             console.log(`[Step ${stepCount}] Done in ${toolElapsed}ms`);
             console.log(`[Step ${stepCount}] Output: ${preview}`);
 
+            // Record tool call in log
+            toolCallLog.push({
+              tool: tool_name,
+              params,
+              duration: toolElapsed,
+              output_preview: outputStr.slice(0, 500),
+              status: "success",
+              step: stepCount,
+            });
+
             eventBus.emitEvent("tool:after", {
               tool_name,
               params,
@@ -311,6 +324,16 @@ export async function runAgentLoop({
             });
           } catch (error) {
             console.log(`[Step ${stepCount}] FAILED: ${error.message}`);
+
+            // Record failed tool call in log
+            toolCallLog.push({
+              tool: tool_name,
+              params,
+              duration: 0,
+              output_preview: `Error: ${error.message}`,
+              status: "error",
+              step: stepCount,
+            });
 
             // Record failure for circuit breaker
             circuitBreaker.recordToolFailure(tool_name);
@@ -377,7 +400,7 @@ export async function runAgentLoop({
         messages.push({ role: "assistant", content: parsedOutput.text_content });
 
         const conversationMessages = messages.slice(1);
-        return { text: parsedOutput.text_content, messages: conversationMessages, cost };
+        return { text: parsedOutput.text_content, messages: conversationMessages, cost, toolCalls: toolCallLog };
       }
     } catch (error) {
       // Abort signal fires as an error - exit cleanly
@@ -387,6 +410,7 @@ export async function runAgentLoop({
           text: "Agent was stopped by the supervisor.",
           messages: messages.slice(1),
           cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, estimatedCost: 0, modelCalls: loopCount, model: resolvedModelId },
+          toolCalls: toolCallLog,
         };
       }
 
@@ -406,6 +430,7 @@ export async function runAgentLoop({
             modelCalls: loopCount,
             model: resolvedModelId,
           },
+          toolCalls: toolCallLog,
         };
       }
 

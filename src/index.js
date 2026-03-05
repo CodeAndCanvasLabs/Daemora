@@ -11,7 +11,8 @@ import taskRunner from "./core/TaskRunner.js";
 import { loadTask, listTasks } from "./storage/TaskStore.js";
 import { getTodayCost } from "./core/CostTracker.js";
 import supervisor from "./agents/Supervisor.js";
-import { getActiveSubAgentCount } from "./agents/SubAgentManager.js";
+import { getActiveSubAgentCount, listActiveAgents } from "./agents/SubAgentManager.js";
+import eventBus from "./core/EventBus.js";
 import channelRegistry from "./channels/index.js";
 import skillLoader from "./skills/SkillLoader.js";
 import mcpManager from "./mcp/MCPManager.js";
@@ -230,6 +231,75 @@ app.get("/api/supervisor", (req, res) => {
     warnings: supervisor.getWarnings(),
     activeSubAgents: getActiveSubAgentCount(),
   });
+});
+
+// --- Sub-agents endpoint ---
+app.get("/api/subagents", (req, res) => {
+  res.json({ agents: listActiveAgents() });
+});
+
+// --- SSE streaming endpoint for task events ---
+app.get("/api/tasks/:id/stream", (req, res) => {
+  const taskId = req.params.id;
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+  });
+
+  const send = (event, data) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  // Send current state immediately
+  const task = loadTask(taskId);
+  if (task) send("task:state", task);
+
+  const onTool = (evt) => {
+    if (evt.taskId === taskId) send("tool:after", evt);
+  };
+  const onModel = (evt) => {
+    if (evt.taskId === taskId || evt.taskId?.startsWith("subagent-")) send("model:called", evt);
+  };
+  const onAgentSpawn = (evt) => {
+    if (evt.parentTaskId === taskId) send("agent:spawned", evt);
+  };
+  const onAgentDone = (evt) => {
+    if (evt.parentTaskId === taskId) send("agent:finished", evt);
+  };
+  const onComplete = (evt) => {
+    if (evt.taskId === taskId) {
+      const finalTask = loadTask(taskId);
+      send("task:completed", finalTask || evt);
+      cleanup();
+      res.end();
+    }
+  };
+  const onFail = (evt) => {
+    if (evt.taskId === taskId) {
+      send("task:failed", evt);
+      cleanup();
+      res.end();
+    }
+  };
+
+  eventBus.on("tool:after", onTool);
+  eventBus.on("model:called", onModel);
+  eventBus.on("agent:spawned", onAgentSpawn);
+  eventBus.on("agent:finished", onAgentDone);
+  eventBus.on("task:completed", onComplete);
+  eventBus.on("task:failed", onFail);
+
+  const cleanup = () => {
+    eventBus.removeListener("tool:after", onTool);
+    eventBus.removeListener("model:called", onModel);
+    eventBus.removeListener("agent:spawned", onAgentSpawn);
+    eventBus.removeListener("agent:finished", onAgentDone);
+    eventBus.removeListener("task:completed", onComplete);
+    eventBus.removeListener("task:failed", onFail);
+  };
+
+  req.on("close", cleanup);
 });
 
 // --- WhatsApp webhook ---
