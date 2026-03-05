@@ -100,13 +100,14 @@ app.get("/api/health", (req, res) => {
 // --- Chat endpoint (Sync) ---
 app.post("/api/chat", async (req, res) => {
   try {
-    const { input, sessionId, model, priority } = req.body;
+    const { input, sessionId, model, priority, tenantId } = req.body;
     if (!input) return res.status(400).json({ error: "input is required" });
 
     const task = taskQueue.enqueue({
       input,
       channel: "http",
       sessionId: sessionId || "local-user",
+      tenantId: tenantId || "http:local",
       model,
       priority: priority || 5,
     });

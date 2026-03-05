@@ -10,6 +10,7 @@ import {
   Shield,
   DollarSign,
   LayoutDashboard,
+  Users,
 } from "lucide-react";
 
 const navItems = [
@@ -21,6 +22,7 @@ const navItems = [
   { path: "/config", label: "Config", icon: Settings },
   { path: "/security", label: "Security", icon: Shield },
   { path: "/costs", label: "Costs", icon: DollarSign },
+  { path: "/tenants", label: "Tenants", icon: Users },
 ];
 
 export function Layout() {

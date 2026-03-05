@@ -1,10 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, User, Loader2, Plus, MessageSquare, History, Terminal, ShieldCheck } from "lucide-react";
-import { Card, CardContent, CardHeader } from "../components/ui/card";
+import { Send, User, Loader2, Plus, Terminal } from "lucide-react";
 import { Textarea } from "../components/ui/textarea";
 import { Button } from "../components/ui/button";
 import { ScrollArea } from "../components/ui/scroll-area";
-import { Badge } from "../components/ui/badge";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Logo } from "../components/ui/Logo";
@@ -213,27 +211,20 @@ export function Chat() {
         {/* Operational View */}
         {currentSessionId && (
           <>
-            {/* Status Header */}
-            <div className="flex items-center justify-between px-6 py-3 border-b border-slate-800/50 bg-slate-900/40 backdrop-blur-md z-10 h-16">
-              <div className="flex items-center gap-4">
+            {/* Header */}
+            <div className="flex items-center justify-center px-6 py-3 border-b border-slate-800/50 bg-slate-900/40 backdrop-blur-md z-10 h-16 gap-3">
+              <div className="animate-[bounce-slow_2s_ease-in-out_infinite]">
                 <Logo size={32} />
-                <div>
-                  <h2 className="text-xs font-bold text-white font-mono uppercase tracking-widest">Active Uplink</h2>
-                  <div className="text-[8px] text-[#00ff88] font-mono uppercase tracking-widest flex items-center gap-2 mt-0.5 opacity-70">
-                    <ShieldCheck className="w-3 h-3" />
-                    Secure // Node: Local
-                  </div>
-                </div>
               </div>
-              <div className="flex gap-2">
-                <Badge variant="outline" className="border-slate-800 text-gray-500 font-mono text-[9px] uppercase tracking-widest bg-slate-950/50">Encrypted</Badge>
-              </div>
+              <h2 className="text-lg font-bold bg-gradient-to-r from-white via-[#00d9ff] to-[#4ECDC4] bg-clip-text text-transparent tracking-tight">
+                Daemora
+              </h2>
             </div>
 
             {/* Messages Area */}
             <div className="flex-1 overflow-hidden relative z-10 flex flex-col">
               <ScrollArea className="flex-1" ref={scrollAreaRef}>
-                <div className="max-w-4xl mx-auto py-8 px-6 space-y-6">
+                <div className="max-w-5xl mx-auto py-8 px-6 space-y-6">
                   {messages.map((message, i) => (
                     <div
                       key={i}
@@ -244,7 +235,7 @@ export function Chat() {
                           <Logo size={20} />
                         </div>
                       )}
-                      <div className={`max-w-[75%] ${message.role === "user" ? "flex justify-end" : ""}`}>
+                      <div className={`max-w-[85%] ${message.role === "user" ? "flex justify-end" : ""}`}>
                         <div
                           className={`rounded-lg p-4 shadow-md border transition-all ${
                             message.role === "user"
@@ -283,7 +274,7 @@ export function Chat() {
                       <div className="w-8 h-8 rounded-lg bg-slate-950 border border-slate-800/80 p-1 flex-shrink-0 flex items-center justify-center">
                         <Logo size={20} />
                       </div>
-                      <div className="max-w-[75%]">
+                      <div className="max-w-[85%]">
                         <div className="rounded-lg p-4 bg-slate-800/30 border border-slate-800 flex items-center gap-3">
                           <Loader2 className="w-3 h-3 text-[#00d9ff] animate-spin" />
                           <span className="text-[9px] text-[#00d9ff] font-mono tracking-[0.2em] uppercase">Processing...</span>
@@ -296,7 +287,7 @@ export function Chat() {
 
               {/* Input Module */}
               <div className="p-4 bg-slate-950/40 border-t border-slate-800/50 backdrop-blur-xl">
-                <div className="max-w-4xl mx-auto flex gap-3 items-end">
+                <div className="max-w-5xl mx-auto flex gap-3 items-end">
                   <div className="relative flex-1 group">
                     <Textarea
                       ref={textareaRef}
@@ -335,8 +326,13 @@ export function Chat() {
         
         {/* Empty State */}
         {!currentSessionId && (
-          <div className="flex-1 flex flex-col items-center justify-center space-y-4 opacity-50">
-             <Logo size={80} />
+          <div className="flex-1 flex flex-col items-center justify-center space-y-4">
+             <div className="animate-[bounce-slow_2s_ease-in-out_infinite]">
+               <Logo size={80} />
+             </div>
+             <h2 className="text-2xl font-bold bg-gradient-to-r from-white via-[#00d9ff] to-[#4ECDC4] bg-clip-text text-transparent tracking-tight">
+               Daemora
+             </h2>
              <p className="text-gray-600 font-mono text-xs uppercase tracking-widest">Select or Initialize Session</p>
           </div>
         )}
