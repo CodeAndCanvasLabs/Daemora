@@ -102,7 +102,7 @@ class TaskQueue {
     saveTask(task);
     this.active.delete(taskId);
 
-    eventBus.emitEvent("task:completed", { taskId: task.id, cost: task.cost });
+    eventBus.emitEvent("task:completed", { taskId: task.id, cost: task.cost, result: task.result });
 
     // Resolve any sync waiters (normal flow - channel is waiting for completion)
     const waiter = this.waiters.get(taskId);

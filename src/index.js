@@ -98,8 +98,8 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// --- Chat endpoint (Sync) ---
-app.post("/api/chat", async (req, res) => {
+// --- Chat endpoint (Async — returns taskId, client uses SSE to stream) ---
+app.post("/api/chat", (req, res) => {
   try {
     const { input, sessionId, model, priority, tenantId } = req.body;
     if (!input) return res.status(400).json({ error: "input is required" });
@@ -114,9 +114,11 @@ app.post("/api/chat", async (req, res) => {
       type: "chat",
     });
 
-    // Wait for completion (sync)
-    const result = await taskQueue.waitForCompletion(task.id);
-    res.json(result);
+    res.status(202).json({
+      taskId: task.id,
+      sessionId: task.sessionId,
+      status: "queued",
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -226,7 +228,22 @@ app.get("/api/sessions/:id", (req, res) => {
   if (!session) {
     return res.status(404).json({ error: "Session not found" });
   }
-  res.json(session);
+  // Filter out any leaked tool_call / tool_result messages
+  const cleanMessages = (session.messages || []).filter(msg => {
+    if (!msg.content || typeof msg.content !== "string") return false;
+    if (msg.role !== "user" && msg.role !== "assistant") return false;
+    const trimmed = msg.content.trimStart();
+    if (trimmed.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed.type === "tool_call" || parsed.tool_call) return false;
+        if (parsed.tool_name) return false;
+        if (parsed.type === "text" && parsed.finalResponse !== undefined) return false;
+      } catch { /* not JSON, keep it */ }
+    }
+    return true;
+  });
+  res.json({ ...session, messages: cleanMessages });
 });
 
 app.delete("/api/sessions/:id", (req, res) => {

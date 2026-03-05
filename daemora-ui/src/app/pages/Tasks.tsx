@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import { Search, Filter, Clock, CheckCircle2, AlertCircle, Loader2, ChevronRight, ChevronDown, Bot, ListTodo, ScrollText } from "lucide-react";
+import { Search, Clock, CheckCircle2, AlertCircle, Loader2, ChevronRight, ChevronDown, Bot } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
-import { Button } from "../components/ui/button";
 
 interface SubAgent {
   agentId: string;
@@ -46,20 +45,16 @@ interface ChildTask {
   completedAt: string | null;
 }
 
-type ViewMode = "tasks" | "log";
-
 export function Tasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [viewMode, setViewMode] = useState<ViewMode>("tasks");
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [childrenMap, setChildrenMap] = useState<Record<string, ChildTask[]>>({});
 
   const fetchTasks = async () => {
     try {
-      const typeParam = viewMode === "tasks" ? "&type=task" : "";
-      const res = await fetch(`/api/tasks?limit=50${typeParam}`);
+      const res = await fetch("/api/tasks?limit=50");
       if (res.ok) {
         const data = await res.json();
         setTasks(data.tasks || []);
@@ -76,7 +71,7 @@ export function Tasks() {
     fetchTasks();
     const interval = setInterval(fetchTasks, 15000);
     return () => clearInterval(interval);
-  }, [viewMode]);
+  }, []);
 
   const toggleExpand = async (taskId: string) => {
     const next = new Set(expandedTasks);
@@ -84,7 +79,6 @@ export function Tasks() {
       next.delete(taskId);
     } else {
       next.add(taskId);
-      // Fetch children if not already loaded
       if (!childrenMap[taskId]) {
         try {
           const res = await fetch(`/api/tasks/${taskId}/children`);
@@ -99,7 +93,7 @@ export function Tasks() {
   };
 
   const filteredTasks = tasks
-    .filter((task) => !task.parentTaskId) // Only show top-level tasks
+    .filter((task) => !task.parentTaskId)
     .filter((task) =>
       (task.title || task.input || "").toLowerCase().includes(search.toLowerCase()) ||
       task.id.toLowerCase().includes(search.toLowerCase())
@@ -132,38 +126,8 @@ export function Tasks() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">Tasks</h2>
-          <p className="text-gray-400 font-mono text-sm tracking-widest">
-            {viewMode === "tasks" ? "AGENT-CREATED TASKS" : "EXECUTION HISTORY"}
-          </p>
+          <p className="text-gray-400 font-mono text-sm tracking-widest">EXECUTION HISTORY</p>
         </div>
-      </div>
-
-      {/* View Toggle */}
-      <div className="flex gap-2">
-        <Button
-          variant={viewMode === "tasks" ? "default" : "outline"}
-          onClick={() => setViewMode("tasks")}
-          className={`font-mono text-xs uppercase ${
-            viewMode === "tasks"
-              ? "bg-[#00d9ff]/10 text-[#00d9ff] border-[#00d9ff]/30 hover:bg-[#00d9ff]/20"
-              : "border-slate-800 text-gray-400 hover:text-white"
-          }`}
-        >
-          <ListTodo className="w-4 h-4 mr-2" />
-          Tasks
-        </Button>
-        <Button
-          variant={viewMode === "log" ? "default" : "outline"}
-          onClick={() => setViewMode("log")}
-          className={`font-mono text-xs uppercase ${
-            viewMode === "log"
-              ? "bg-[#00d9ff]/10 text-[#00d9ff] border-[#00d9ff]/30 hover:bg-[#00d9ff]/20"
-              : "border-slate-800 text-gray-400 hover:text-white"
-          }`}
-        >
-          <ScrollText className="w-4 h-4 mr-2" />
-          Execution Log
-        </Button>
       </div>
 
       {/* Search */}
@@ -185,8 +149,8 @@ export function Tasks() {
           <div className="grid grid-cols-12 gap-4 text-[10px] font-mono text-gray-500 uppercase tracking-widest px-6">
             <div className="col-span-1">Status</div>
             <div className="col-span-2">ID</div>
-            <div className="col-span-4">{viewMode === "tasks" ? "Title" : "Input"}</div>
-            <div className="col-span-1">{viewMode === "tasks" ? "Agent" : "Channel"}</div>
+            <div className="col-span-4">Input</div>
+            <div className="col-span-1">Channel</div>
             <div className="col-span-2 text-right">Cost</div>
             <div className="col-span-2 text-right">Created</div>
           </div>
@@ -196,12 +160,12 @@ export function Tasks() {
             {filteredTasks.length === 0 ? (
               <div className="text-center py-20">
                 <p className="text-gray-600 font-mono uppercase tracking-widest text-xs">
-                  {viewMode === "tasks" ? "NO AGENT TASKS YET" : "NO RECORDS MATCHING QUERY"}
+                  NO TASKS YET
                 </p>
               </div>
             ) : (
               filteredTasks.map((task) => {
-                const hasChildren = task.subAgents?.length || task.agentCreated;
+                const hasChildren = (task.subAgents && task.subAgents.length > 0) || task.agentCreated;
                 const isExpanded = expandedTasks.has(task.id);
                 const children = childrenMap[task.id] || [];
 
@@ -224,24 +188,13 @@ export function Tasks() {
                       </div>
                       <div className="col-span-4 text-sm text-gray-200 truncate group-hover:text-[#00d9ff] transition-colors font-mono">
                         <Link to={`/tasks/${task.id}`}>
-                          {viewMode === "tasks" ? (task.title || task.input) : task.input}
+                          {task.title || task.input}
                         </Link>
                       </div>
                       <div className="col-span-1">
-                        {viewMode === "tasks" ? (
-                          task.agentId ? (
-                            <Badge variant="outline" className="bg-[#7C6AFF]/10 border-[#7C6AFF]/30 text-[9px] font-mono text-[#7C6AFF] uppercase">
-                              <Bot className="w-3 h-3 mr-1" />
-                              {task.agentId.slice(0, 6)}
-                            </Badge>
-                          ) : (
-                            <span className="text-gray-600 text-[10px] font-mono">-</span>
-                          )
-                        ) : (
-                          <Badge variant="outline" className="bg-slate-800/50 border-slate-700 text-[9px] font-mono text-gray-400 uppercase">
-                            {task.channel}
-                          </Badge>
-                        )}
+                        <Badge variant="outline" className="bg-slate-800/50 border-slate-700 text-[9px] font-mono text-gray-400 uppercase">
+                          {task.channel}
+                        </Badge>
                       </div>
                       <div className="col-span-2 text-right font-mono text-[10px] text-[#00ff88]">
                         <CostDisplay cost={task.cost} />

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, User, Loader2, Plus, Terminal, PanelLeftClose, PanelLeftOpen, ArrowUp, Paperclip } from "lucide-react";
+import { Send, User, Loader2, Plus, Terminal, PanelLeftClose, PanelLeftOpen, ArrowUp, Paperclip, Trash2, Wrench, Brain, Bot } from "lucide-react";
 import { Textarea } from "../components/ui/textarea";
 import { Button } from "../components/ui/button";
 import { ScrollArea } from "../components/ui/scroll-area";
@@ -29,8 +29,10 @@ export function Chat() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSessionsLoading, setIsSessionsLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [streamStatus, setStreamStatus] = useState<string | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
   const fetchSessions = async () => {
     try {
@@ -76,8 +78,36 @@ export function Chat() {
     }
   };
 
+  const deleteSession = async (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
+      if (res.ok) {
+        setSessions((prev) => prev.filter((s) => s.sessionId !== sessionId));
+        if (currentSessionId === sessionId) {
+          setCurrentSessionId(null);
+          setMessages([]);
+        }
+        toast.success("Session deleted");
+      } else {
+        toast.error("Failed to delete session");
+      }
+    } catch (error) {
+      toast.error("Failed to delete session");
+    }
+  };
+
   useEffect(() => {
     fetchSessions();
+  }, []);
+
+  // Cleanup EventSource on unmount
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+    };
   }, []);
 
   const handleSend = async () => {
@@ -101,6 +131,7 @@ export function Chat() {
     const currentInput = input;
     setInput("");
     setIsLoading(true);
+    setStreamStatus("Queuing...");
 
     try {
       const response = await fetch("/api/chat", {
@@ -115,13 +146,21 @@ export function Chat() {
 
       const data = await response.json();
 
-      const assistantMessage: Message = {
-        role: "assistant",
-        content: data.result || "(No response from system)",
-        timestamp: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
-      fetchSessions();
+      // New async flow: connect to SSE stream
+      if (data.taskId) {
+        connectToStream(data.taskId);
+      } else if (data.result) {
+        // Fallback for sync response (shouldn't happen but safe)
+        const assistantMessage: Message = {
+          role: "assistant",
+          content: data.result || "(No response from system)",
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+        setIsLoading(false);
+        setStreamStatus(null);
+        fetchSessions();
+      }
     } catch (error: any) {
       const errorMessage: Message = {
         role: "assistant",
@@ -129,9 +168,128 @@ export function Chat() {
         timestamp: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, errorMessage]);
-    } finally {
       setIsLoading(false);
+      setStreamStatus(null);
     }
+  };
+
+  const connectToStream = (taskId: string) => {
+    // Close any existing stream
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+
+    const es = new EventSource(`/api/tasks/${taskId}/stream`);
+    eventSourceRef.current = es;
+
+    es.addEventListener("task:state", (e) => {
+      const data = JSON.parse(e.data);
+      if (data.status === "completed" && data.result) {
+        // Task already completed before we connected
+        const assistantMessage: Message = {
+          role: "assistant",
+          content: data.result,
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+        setIsLoading(false);
+        setStreamStatus(null);
+        fetchSessions();
+        es.close();
+        eventSourceRef.current = null;
+      } else if (data.status === "failed") {
+        const errorMessage: Message = {
+          role: "assistant",
+          content: `**SYSTEM ERROR:** ${data.error || "Task failed"}`,
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+        setIsLoading(false);
+        setStreamStatus(null);
+        es.close();
+        eventSourceRef.current = null;
+      } else if (data.status === "running") {
+        setStreamStatus("Processing...");
+      }
+    });
+
+    es.addEventListener("model:called", (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        const iteration = data.iteration || data.loop || "";
+        setStreamStatus(`Thinking${iteration ? ` (step ${iteration})` : ""}...`);
+      } catch {
+        setStreamStatus("Thinking...");
+      }
+    });
+
+    es.addEventListener("tool:after", (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        const toolName = data.tool_name || data.tool || "tool";
+        setStreamStatus(`Using ${toolName}...`);
+      } catch {
+        setStreamStatus("Using tool...");
+      }
+    });
+
+    es.addEventListener("agent:spawned", (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        setStreamStatus(`Sub-agent spawned${data.role ? `: ${data.role}` : ""}...`);
+      } catch {
+        setStreamStatus("Sub-agent working...");
+      }
+    });
+
+    es.addEventListener("agent:finished", (e) => {
+      try {
+        JSON.parse(e.data);
+        setStreamStatus("Sub-agent completed, continuing...");
+      } catch {
+        // ignore
+      }
+    });
+
+    es.addEventListener("task:completed", (e) => {
+      const data = JSON.parse(e.data);
+      const result = data.result || data.output || "(No response from system)";
+      const assistantMessage: Message = {
+        role: "assistant",
+        content: result,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
+      setIsLoading(false);
+      setStreamStatus(null);
+      fetchSessions();
+      es.close();
+      eventSourceRef.current = null;
+    });
+
+    es.addEventListener("task:failed", (e) => {
+      const data = JSON.parse(e.data);
+      const errorMessage: Message = {
+        role: "assistant",
+        content: `**SYSTEM ERROR:** ${data.error || "Task failed"}. KERNEL PANIC.`,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+      setIsLoading(false);
+      setStreamStatus(null);
+      es.close();
+      eventSourceRef.current = null;
+    });
+
+    es.onerror = () => {
+      // EventSource will auto-reconnect on transient errors.
+      // Only clean up if the connection is fully closed.
+      if (es.readyState === EventSource.CLOSED) {
+        setIsLoading(false);
+        setStreamStatus(null);
+        eventSourceRef.current = null;
+      }
+    };
   };
 
   useEffect(() => {
@@ -146,6 +304,14 @@ export function Chat() {
   const formatTime = (ts: string) => {
     const d = new Date(ts);
     return isNaN(d.getTime()) ? new Date().toLocaleTimeString() : d.toLocaleTimeString();
+  };
+
+  const getStatusIcon = () => {
+    if (!streamStatus) return null;
+    if (streamStatus.startsWith("Using ")) return <Wrench className="w-3 h-3 text-[#00d9ff] animate-pulse" />;
+    if (streamStatus.startsWith("Thinking")) return <Brain className="w-3 h-3 text-[#00d9ff] animate-pulse" />;
+    if (streamStatus.startsWith("Sub-agent")) return <Bot className="w-3 h-3 text-[#00d9ff] animate-pulse" />;
+    return <Loader2 className="w-3 h-3 text-[#00d9ff] animate-spin" />;
   };
 
   return (
@@ -203,6 +369,12 @@ export function Chat() {
                         <div className="opacity-40 font-mono text-[8px] uppercase tracking-widest">
                           {new Date(s.createdAt).toLocaleDateString()}
                         </div>
+                      </div>
+                      <div
+                        onClick={(e) => deleteSession(e, s.sessionId)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-500/20 hover:text-red-400 flex-shrink-0 cursor-pointer"
+                      >
+                        <Trash2 className="w-3 h-3" />
                       </div>
                     </div>
                   </button>
@@ -298,8 +470,10 @@ export function Chat() {
                       </div>
                       <div className="max-w-[88%]">
                         <div className="rounded-lg p-4 bg-slate-800/30 border border-slate-800 flex items-center gap-3">
-                          <Loader2 className="w-3 h-3 text-[#00d9ff] animate-spin" />
-                          <span className="text-[9px] text-[#00d9ff] font-mono tracking-[0.2em] uppercase">Processing...</span>
+                          {getStatusIcon()}
+                          <span className="text-[9px] text-[#00d9ff] font-mono tracking-[0.2em] uppercase">
+                            {streamStatus || "Processing..."}
+                          </span>
                         </div>
                       </div>
                     </div>

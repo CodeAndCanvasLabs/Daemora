@@ -20,7 +20,8 @@ export async function useMCP(serverName, taskDescription) {
   }
 
   const mainSessionId = store?.sessionId || null;
-  return runMCPAgent(serverName, taskDescription, { mainSessionId });
+  const parentTaskId = store?.currentTaskId || null;
+  return runMCPAgent(serverName, taskDescription, { mainSessionId, parentTaskId });
 }
 
 export const useMCPDescription =

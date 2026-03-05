@@ -68,7 +68,11 @@ export function listSessions(prefix = null) {
     const files = readdirSync(SESSIONS_DIR).filter(f => f.endsWith(".json"));
     let sessionIds = files.map(f => f.slice(0, -5));
     if (prefix) {
+      // Return only sub-agent sessions for this parent
       sessionIds = sessionIds.filter(id => id.startsWith(prefix + "--"));
+    } else {
+      // Exclude sub-agent sessions (contain "--") from top-level listing
+      sessionIds = sessionIds.filter(id => !id.includes("--"));
     }
     return sessionIds;
   } catch {
