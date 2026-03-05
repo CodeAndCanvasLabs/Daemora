@@ -164,7 +164,7 @@ export function Chat() {
             variant="ghost"
             size="sm"
             onClick={() => setSidebarOpen(false)}
-            className="text-gray-500 hover:text-white h-9 w-9 p-0 flex-shrink-0"
+            className="text-[#00d9ff] hover:text-white hover:bg-[#00d9ff]/10 h-9 w-9 p-0 flex-shrink-0"
           >
             <PanelLeftClose className="w-4 h-4" />
           </Button>
@@ -227,7 +227,7 @@ export function Chat() {
                   variant="ghost"
                   size="sm"
                   onClick={() => setSidebarOpen(true)}
-                  className="text-gray-500 hover:text-white h-8 w-8 p-0 flex-shrink-0"
+                  className="text-[#00d9ff] hover:text-white hover:bg-[#00d9ff]/10 h-8 w-8 p-0 flex-shrink-0"
                 >
                   <PanelLeftOpen className="w-4 h-4" />
                 </Button>
@@ -284,7 +284,7 @@ export function Chat() {
                         </div>
                       </div>
                       {message.role === "user" && (
-                        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#7C6AFF] to-[#4ECDC4] flex items-center justify-center flex-shrink-0 shadow-lg border border-white/10 p-1.5 mt-1">
+                        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#00d9ff] to-[#4ECDC4] flex items-center justify-center flex-shrink-0 shadow-lg border border-white/10 p-1.5 mt-1">
                           <User className="w-full h-full text-white" />
                         </div>
                       )}
@@ -366,7 +366,7 @@ export function Chat() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setSidebarOpen(true)}
-                className="absolute top-3 left-3 text-gray-500 hover:text-white h-8 w-8 p-0 z-10"
+                className="absolute top-3 left-3 text-[#00d9ff] hover:text-white hover:bg-[#00d9ff]/10 h-8 w-8 p-0 z-10"
               >
                 <PanelLeftOpen className="w-4 h-4" />
               </Button>
