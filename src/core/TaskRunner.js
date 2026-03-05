@@ -9,6 +9,7 @@ import tenantManager from "../tenants/TenantManager.js";
 import tenantContext from "../tenants/TenantContext.js";
 import inputSanitizer from "../safety/InputSanitizer.js";
 import eventBus from "./EventBus.js";
+import mcpManager from "../mcp/MCPManager.js";
 
 /**
  * Filter out internal tool call/result JSON from messages before saving to session.
@@ -190,6 +191,9 @@ class TaskRunner {
     let tools = resolvedConfig.tools?.length
       ? Object.fromEntries(Object.entries(toolFunctions).filter(([k]) => resolvedConfig.tools.includes(k)))
       : { ...toolFunctions };
+
+    // Merge connected MCP server tools directly into the agent's tool set
+    tools = mcpManager.getMergedTools(tools);
 
     // Filter MCP tools by per-tenant mcpServers allowlist (null = all allowed)
     const allowedMcpServers = resolvedConfig.mcpServers; // null = all

@@ -33,6 +33,7 @@ export function Chat() {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const activeTaskIdRef = useRef<string | null>(sessionStorage.getItem("daemora_active_task"));
 
   const fetchSessions = async () => {
     try {
@@ -99,13 +100,21 @@ export function Chat() {
 
   useEffect(() => {
     fetchSessions();
+    // Reconnect to active task stream if we remounted while a task was running
+    const pendingTaskId = sessionStorage.getItem("daemora_active_task");
+    if (pendingTaskId) {
+      setIsLoading(true);
+      setStreamStatus("Reconnecting...");
+      connectToStream(pendingTaskId);
+    }
   }, []);
 
-  // Cleanup EventSource on unmount
+  // Cleanup EventSource on unmount (but keep taskId in sessionStorage for reconnect)
   useEffect(() => {
     return () => {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
+        eventSourceRef.current = null;
       }
     };
   }, []);
@@ -179,25 +188,31 @@ export function Chat() {
       eventSourceRef.current.close();
     }
 
+    // Persist taskId so we can reconnect after tab switch
+    activeTaskIdRef.current = taskId;
+    sessionStorage.setItem("daemora_active_task", taskId);
+
+    const clearActiveTask = () => {
+      activeTaskIdRef.current = null;
+      sessionStorage.removeItem("daemora_active_task");
+    };
+
     const es = new EventSource(`/api/tasks/${taskId}/stream`);
     eventSourceRef.current = es;
 
     es.addEventListener("task:state", (e) => {
       const data = JSON.parse(e.data);
       if (data.status === "completed" && data.result) {
-        // Task already completed before we connected
-        const assistantMessage: Message = {
-          role: "assistant",
-          content: data.result,
-          timestamp: new Date().toISOString(),
-        };
-        setMessages((prev) => [...prev, assistantMessage]);
+        // Task already completed before we connected — reload session to get full history
+        clearActiveTask();
         setIsLoading(false);
         setStreamStatus(null);
-        fetchSessions();
+        if (currentSessionId) loadSession(currentSessionId);
+        else fetchSessions();
         es.close();
         eventSourceRef.current = null;
       } else if (data.status === "failed") {
+        clearActiveTask();
         const errorMessage: Message = {
           role: "assistant",
           content: `**SYSTEM ERROR:** ${data.error || "Task failed"}`,
@@ -252,14 +267,20 @@ export function Chat() {
     });
 
     es.addEventListener("task:completed", (e) => {
+      clearActiveTask();
       const data = JSON.parse(e.data);
-      const result = data.result || data.output || "(No response from system)";
-      const assistantMessage: Message = {
-        role: "assistant",
-        content: result,
-        timestamp: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
+      // Reload full session from server to get clean messages (avoids duplicates)
+      if (currentSessionId) {
+        loadSession(currentSessionId);
+      } else {
+        const result = data.result || data.output || "(No response from system)";
+        const assistantMessage: Message = {
+          role: "assistant",
+          content: result,
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+      }
       setIsLoading(false);
       setStreamStatus(null);
       fetchSessions();
@@ -268,6 +289,7 @@ export function Chat() {
     });
 
     es.addEventListener("task:failed", (e) => {
+      clearActiveTask();
       const data = JSON.parse(e.data);
       const errorMessage: Message = {
         role: "assistant",
