@@ -283,10 +283,35 @@ app.get("/api/config", (req, res) => {
 
 // --- Models endpoint ---
 app.get("/api/models", (req, res) => {
+  const available = listAvailableModels();
   res.json({
     default: config.defaultModel,
-    available: listAvailableModels(),
+    available: available.map(m => ({
+      ...m,
+      pricingPerMTok: m.costPer1kInput > 0 ? {
+        input: `$${(m.costPer1kInput * 1000).toFixed(2)}`,
+        output: `$${(m.costPer1kOutput * 1000).toFixed(2)}`,
+      } : { input: "$0", output: "$0" },
+    })),
   });
+});
+
+// --- Model switch endpoint ---
+app.post("/api/model", (req, res) => {
+  const { model } = req.body;
+  if (!model) return res.status(400).json({ error: "model is required" });
+
+  const available = listAvailableModels();
+  const match = available.find(m => m.id === model);
+  if (!match) {
+    return res.status(400).json({
+      error: `Unknown or unavailable model: ${model}`,
+      available: available.map(m => m.id),
+    });
+  }
+
+  config.defaultModel = model;
+  res.json({ message: `Default model set to ${model}`, model });
 });
 
 // --- Supervisor endpoint ---

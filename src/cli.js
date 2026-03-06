@@ -1744,60 +1744,66 @@ async function handleModels() {
     {
       name: "OpenAI", prefix: "openai", envKey: "OPENAI_API_KEY",
       models: [
-        // GPT-5 family
-        { id: "gpt-5.3-codex",              desc: "Latest coding model (2025)",                  isNew: true },
-        { id: "gpt-5.2-pro",                desc: "GPT-5.2 Pro — highest capability",            isNew: true },
-        { id: "gpt-5.2",                    desc: "GPT-5.2 flagship (Dec 2025)",                 isNew: true },
-        { id: "gpt-5.1-codex-max",          desc: "GPT-5.1 Codex Max — coding (Nov 2025)",      isNew: true },
-        { id: "gpt-5.1",                    desc: "GPT-5.1 (Nov 2025)",                         isNew: true },
-        { id: "gpt-5-pro",                  desc: "GPT-5 Pro — most powerful" },
-        { id: "gpt-5",                      desc: "GPT-5 flagship (Aug 2025)" },
-        { id: "gpt-5-mini",                 desc: "GPT-5 Mini — fast & cheap" },
-        { id: "gpt-5-nano",                 desc: "GPT-5 Nano — cheapest GPT-5" },
+        // GPT-5.4
+        { id: "gpt-5.4",                    desc: "GPT-5.4 flagship",                            price: "$2.50/$15",   isNew: true },
+        { id: "gpt-5.4-pro",                desc: "GPT-5.4 Pro — highest capability",            price: "$30/$180",    isNew: true },
+        // GPT-5.2
+        { id: "gpt-5.2",                    desc: "GPT-5.2 flagship (Dec 2025)",                 price: "$1.75/$14",   isNew: true },
+        { id: "gpt-5.2-pro",                desc: "GPT-5.2 Pro — extended reasoning",            price: "$21/$168",    isNew: true },
+        // GPT-5.1 / 5
+        { id: "gpt-5.1",                    desc: "GPT-5.1 (Nov 2025)",                          price: "$1.25/$10",   isNew: true },
+        { id: "gpt-5",                      desc: "GPT-5 flagship (Aug 2025)",                   price: "$1.25/$10" },
+        { id: "gpt-5-pro",                  desc: "GPT-5 Pro — most powerful",                   price: "$15/$120" },
+        { id: "gpt-5-mini",                 desc: "GPT-5 Mini — fast & cheap",                   price: "$0.25/$2" },
+        { id: "gpt-5-nano",                 desc: "GPT-5 Nano — cheapest GPT-5",                 price: "$0.05/$0.40" },
+        // Codex
+        { id: "gpt-5.3-codex",              desc: "Latest coding model (2025)",                  price: "$1.75/$14",   isNew: true },
+        { id: "gpt-5.1-codex",              desc: "GPT-5.1 Codex — coding",                     price: "$1.25/$10",   isNew: true },
+        { id: "gpt-5-codex",                desc: "GPT-5 Codex — coding",                       price: "$1.25/$10" },
         // o-series reasoning
-        { id: "o3-pro",                     desc: "Best reasoning — most thorough" },
-        { id: "o3-deep-research",           desc: "Deep research with web browsing" },
-        { id: "o4-mini-deep-research",      desc: "Fast deep research" },
-        { id: "o3",                         desc: "Advanced reasoning (Apr 2025)" },
-        { id: "o4-mini",                    desc: "Fast reasoning (Apr 2025)" },
-        { id: "o1-pro",                     desc: "o1 Pro — powerful reasoning (Mar 2025)" },
-        { id: "o1",                         desc: "o1 reasoning model" },
-        { id: "o3-mini",                    desc: "Lightweight reasoning" },
+        { id: "o3-pro",                     desc: "Best reasoning — most thorough",              price: "$20/$80" },
+        { id: "o3",                         desc: "Advanced reasoning (Apr 2025)",               price: "$2/$8" },
+        { id: "o4-mini",                    desc: "Fast reasoning (Apr 2025)",                   price: "$1.10/$4.40" },
+        { id: "o1-pro",                     desc: "o1 Pro — powerful reasoning",                 price: "$150/$600" },
+        { id: "o1",                         desc: "o1 reasoning model",                          price: "$15/$60" },
+        { id: "o3-mini",                    desc: "Lightweight reasoning",                       price: "$1.10/$4.40" },
         // GPT-4.1 (1M context)
-        { id: "gpt-4.1",                    desc: "1M context, best instruction following" },
-        { id: "gpt-4.1-mini",               desc: "1M context, fast & affordable (default)" },
-        { id: "gpt-4.1-nano",               desc: "1M context, fastest & cheapest" },
+        { id: "gpt-4.1",                    desc: "1M context, best instruction following",      price: "$2/$8" },
+        { id: "gpt-4.1-mini",               desc: "1M context, fast & affordable (default)",     price: "$0.40/$1.60" },
+        { id: "gpt-4.1-nano",               desc: "1M context, fastest & cheapest",              price: "$0.10/$0.40" },
         // GPT-4o & specialized
-        { id: "gpt-4o",                     desc: "Vision + text (128K ctx)" },
-        { id: "gpt-4o-mini",                desc: "GPT-4o Mini (128K ctx)" },
-        { id: "computer-use-preview",       desc: "Computer use / GUI automation" },
-        { id: "gpt-4o-search-preview",      desc: "Built-in live web search" },
-        { id: "gpt-image-1",                desc: "Image generation (native API)" },
+        { id: "gpt-4o",                     desc: "Vision + text (128K ctx)",                    price: "$2.50/$10" },
+        { id: "gpt-4o-mini",                desc: "GPT-4o Mini (128K ctx)",                      price: "$0.15/$0.60" },
+        { id: "computer-use-preview",       desc: "Computer use / GUI automation",               price: "$3/$12" },
       ],
     },
     {
       name: "Anthropic", prefix: "anthropic", envKey: "ANTHROPIC_API_KEY",
       models: [
-        { id: "claude-opus-4-6",            desc: "Most intelligent — complex reasoning + extended thinking", isNew: true },
-        { id: "claude-sonnet-4-6",          desc: "Best speed/intelligence — daily coding & agents",         isNew: true },
-        { id: "claude-haiku-4-5",           desc: "Fastest — high-volume, cost-sensitive tasks" },
-        { id: "claude-opus-4-5-20251101",   desc: "Opus 4.5 — complex multi-step tasks (Nov 2025)" },
-        { id: "claude-sonnet-4-5-20250929", desc: "Sonnet 4.5 — coding & agentic tasks (200K ctx)" },
-        { id: "claude-opus-4-1-20250805",   desc: "Opus 4.1 — long-duration complex tasks" },
-        { id: "claude-3-5-sonnet-latest",   desc: "3.5 Sonnet — previous gen, widely used" },
-        { id: "claude-3-5-haiku-latest",    desc: "3.5 Haiku — fast previous gen" },
+        { id: "claude-opus-4-6",            desc: "Most intelligent — complex reasoning",        price: "$5/$25",      isNew: true },
+        { id: "claude-opus-4-5",            desc: "Opus 4.5 — complex multi-step tasks",         price: "$5/$25",      isNew: true },
+        { id: "claude-opus-4-1",            desc: "Opus 4.1 — long-duration complex tasks",      price: "$15/$75" },
+        { id: "claude-opus-4",              desc: "Opus 4 — extended thinking",                  price: "$15/$75" },
+        { id: "claude-sonnet-4-6",          desc: "Best speed/intelligence — coding & agents",   price: "$3/$15",      isNew: true },
+        { id: "claude-sonnet-4-5",          desc: "Sonnet 4.5 — coding & agentic tasks",         price: "$3/$15" },
+        { id: "claude-sonnet-4",            desc: "Sonnet 4 — balanced performance",             price: "$3/$15" },
+        { id: "claude-haiku-4-5",           desc: "Fastest — high-volume, cost-sensitive",       price: "$1/$5" },
+        { id: "claude-haiku-3-5",           desc: "3.5 Haiku — fast previous gen",               price: "$0.80/$4" },
+        { id: "claude-haiku-3",             desc: "Haiku 3 — cheapest Claude",                   price: "$0.25/$1.25" },
       ],
     },
     {
       name: "Google", prefix: "google", envKey: "GOOGLE_AI_API_KEY",
       models: [
-        { id: "gemini-3.1-pro-preview",             desc: "Latest — complex tasks, advanced reasoning",    isNew: true },
-        { id: "gemini-3.1-flash-lite-preview",      desc: "Latest — cost-efficient & fast",               isNew: true },
-        { id: "gemini-2.5-pro",                     desc: "GA — complex reasoning & coding (1M ctx)" },
-        { id: "gemini-2.5-flash",                   desc: "Fast & cost-effective for high-volume tasks" },
-        { id: "gemini-2.5-flash-lite",              desc: "Speed-optimised for high-throughput" },
-        { id: "gemini-live-2.5-flash-native-audio", desc: "Real-time bidirectional audio/video agents" },
-        { id: "gemini-2.0-flash",                   desc: "Previous gen flash" },
+        { id: "gemini-3.1-pro-preview",          desc: "Latest — complex tasks, reasoning",      price: "$2/$12",      isNew: true },
+        { id: "gemini-3.1-flash-lite-preview",    desc: "Latest — cost-efficient & fast",         price: "$0.25/$1.50", isNew: true },
+        { id: "gemini-3-pro-preview",             desc: "Gemini 3 Pro — advanced reasoning",      price: "$2/$12",      isNew: true },
+        { id: "gemini-3-flash-preview",           desc: "Gemini 3 Flash — fast & cheap",          price: "$0.50/$3",    isNew: true },
+        { id: "gemini-2.5-pro",                   desc: "GA — complex reasoning & coding (1M)",   price: "$1.25/$10" },
+        { id: "gemini-2.5-flash",                 desc: "Fast & cost-effective for high-volume",  price: "$0.30/$2.50" },
+        { id: "gemini-2.5-flash-lite",            desc: "Speed-optimised for high-throughput",    price: "$0.10/$0.40" },
+        { id: "gemini-2.0-flash",                 desc: "Previous gen flash",                     price: "$0.15/$0.60" },
+        { id: "gemini-2.0-flash-lite",            desc: "Cheapest Gemini",                        price: "$0.075/$0.30" },
       ],
     },
     {
@@ -1827,14 +1833,14 @@ async function handleModels() {
     {
       name: "Ollama (local)", prefix: "ollama", configured: true,
       models: [
-        { id: "llama4-maverick", desc: "Llama 4 Maverick — 17B MoE, 1M ctx, multimodal", isNew: true },
-        { id: "llama4-scout",    desc: "Llama 4 Scout — 17B MoE, 10M ctx",               isNew: true },
-        { id: "llama3.3",        desc: "Llama 3.3 70B — best open model (Dec 2024)" },
-        { id: "qwen2.5",         desc: "Qwen 2.5 72B — strong coder" },
-        { id: "deepseek-r1",     desc: "DeepSeek-R1 local — reasoning" },
-        { id: "mistral",         desc: "Mistral 7B — fast small model" },
-        { id: "phi4",            desc: "Phi-4 14B — Microsoft small model" },
-        { id: "codellama",       desc: "CodeLlama — code specialised" },
+        { id: "llama4-maverick", desc: "Llama 4 Maverick — 17B MoE, 1M ctx, multimodal", price: "free", isNew: true },
+        { id: "llama4-scout",    desc: "Llama 4 Scout — 17B MoE, 10M ctx",               price: "free", isNew: true },
+        { id: "llama3.3",        desc: "Llama 3.3 70B — best open model (Dec 2024)",      price: "free" },
+        { id: "qwen2.5",         desc: "Qwen 2.5 72B — strong coder",                    price: "free" },
+        { id: "deepseek-r1",     desc: "DeepSeek-R1 local — reasoning",                  price: "free" },
+        { id: "mistral",         desc: "Mistral 7B — fast small model",                   price: "free" },
+        { id: "phi4",            desc: "Phi-4 14B — Microsoft small model",               price: "free" },
+        { id: "codellama",       desc: "CodeLlama — code specialised",                    price: "free" },
       ],
     },
   ];
@@ -1861,7 +1867,8 @@ async function handleModels() {
     for (const m of prov.models) {
       const fullId  = `${prov.prefix}:${m.id}`;
       const newBadge = m.isNew ? chalk.hex(P.amber)(" [NEW]") : "";
-      console.log(`  ${S.dot}  ${chalk.hex(P.teal)(fullId.padEnd(50))}${newBadge}`);
+      const priceTag = m.price ? chalk.hex(P.muted)(` ${m.price} /MTok`) : "";
+      console.log(`  ${S.dot}  ${chalk.hex(P.teal)(fullId.padEnd(44))}${priceTag}${newBadge}`);
       console.log(`       ${chalk.hex(P.dim)(m.desc)}`);
     }
   }
