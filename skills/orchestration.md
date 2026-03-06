@@ -73,3 +73,21 @@ Include:
 ## Sequential vs Parallel Agents
 - **Sequential**: `spawnAgent` multiple times when each step needs previous output (research → write → test).
 - **Parallel**: `parallelAgents` when steps can run simultaneously — always provide `sharedContext` with the shared contract.
+
+## Model Routing for Cost
+- Cheap tasks (research, summarization, boilerplate) → `"model":"openai:gpt-4.1-mini"` or `"model":"anthropic:claude-sonnet-4-20250514"`
+- Expensive tasks (complex code, architecture, debugging) → default model or `"model":"anthropic:claude-opus-4-6"`
+- Pass `"model"` in spawnAgent/parallelAgents options to override per-agent
+
+## Steering Running Agents
+- `manageAgents("steer")` with `{"agentId":"...", "message":"..."}` to redirect a running agent mid-task
+- Use when you realize a sub-agent is going down the wrong path — cheaper than killing and respawning
+- `manageAgents("list")` to see active agents and their status
+- `manageAgents("kill")` with `{"agentId":"..."}` to stop a stuck agent
+
+## Error Recovery
+- Sub-agent fails → read its error from the return, diagnose root cause
+- Transient failure (network, timeout) → respawn with same task description
+- Logic failure (wrong approach) → respawn with corrected instructions + add what went wrong
+- Never blindly retry — always adjust the task description based on the failure
+- If multiple agents fail on the same issue → fix the shared contract/workspace, then respawn all
