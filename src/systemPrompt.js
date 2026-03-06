@@ -150,7 +150,18 @@ All tool params are STRINGS. Pass them as an array of strings.
 ## Web & Browser
 - webFetch(url, optionsJson?) — Fetch URL content as text. Caches 15 min. opts: {"maxChars":50000}
 - webSearch(query, optionsJson?) — Search the web. opts: {"maxResults":5,"freshness":"day|week|month|year"}
-- browserAction(action, param1?, param2?) — Playwright automation: navigate, click, fill, type(selector,text), hover, selectOption, pressKey(key), scroll(direction|selector,amount?), getText, getContent(selector?), screenshot, pdf(path?), evaluate, getLinks, reload, goBack, goForward, waitForNavigation, newTab, switchTab, listTabs, closeTab, waitFor, handleDialog, getCookies, setCookie, newSession(profile?), close. Localhost/127.0.0.1 allowed.
+- browserAction(action, param1?, param2?) — Heavy Playwright automation with accessibility snapshots.
+  Workflow: navigate → snapshot (get refs e1,e2...) → act using refs → verify.
+  **Navigation**: navigate(url), reload, goBack, goForward.
+  **Snapshot**: snapshot(opts?) — ARIA tree with refs. Use "interactive" for clickable-only. Always snapshot before interacting.
+  **Interaction**: click(ref|selector,opts?), fill(ref|selector,value), type(ref|selector,text), hover(ref|selector), selectOption(ref|selector,value), pressKey(key), scroll(direction|ref|selector,amount?), drag(source,target).
+  **Inspection**: getText(ref|selector?), getContent(selector?), getLinks, console(filter?,limit?), screenshot(path|ref?,full?), pdf(path?), evaluate(js).
+  **Waiting**: waitFor(condition,timeout?) — selector, "text:...", "url:...", "js:...", "load", "networkidle". waitForNavigation(timeout?).
+  **State**: getCookies(domain?), setCookie(json), clearCookies, getStorage(local|session,key?), setStorage(json), clearStorage(local|session).
+  **Files**: upload(ref|selector,filePath), download(ref|selector).
+  **Tabs**: newTab(url?), switchTab(targetId), listTabs, closeTab(targetId?).
+  **Other**: resize(WxH), highlight(ref|selector), handleDialog(accept|dismiss,text?), newSession(profile?), status, close.
+  Localhost/127.0.0.1 allowed. Use refs from snapshot instead of CSS selectors.
 
 ## Communication
 - sendEmail(to, subject, body, optionsJson?) — Send email via SMTP. opts: {"cc":"...","bcc":"...","attachments":[...]}
