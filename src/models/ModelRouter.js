@@ -48,7 +48,28 @@ function getProvider(name, apiKeys = {}) {
  * @returns {{ model: object, meta: object }} AI SDK model instance + metadata
  */
 export function getModel(modelId, apiKeys = {}) {
-  const meta = models[modelId];
+  let meta = models[modelId];
+
+  // Passthrough: if model isn't in the registry but follows "provider:model" format,
+  // create a dynamic entry so new models work without updating the registry.
+  if (!meta && modelId.includes(":")) {
+    const [providerName, modelName] = modelId.split(":", 2);
+    const knownProviders = ["openai", "anthropic", "google", "ollama"];
+    if (knownProviders.includes(providerName)) {
+      console.log(`[ModelRouter] Model "${modelId}" not in registry — using dynamic passthrough`);
+      meta = {
+        provider: providerName,
+        model: modelName,
+        contextWindow: 128_000,
+        compactAt: 90_000,
+        costPer1kInput: 0.001,
+        costPer1kOutput: 0.004,
+        capabilities: ["text", "tools"],
+        tier: "standard",
+      };
+    }
+  }
+
   if (!meta) {
     throw new Error(`Unknown model: ${modelId}. Available: ${Object.keys(models).join(", ")}`);
   }
