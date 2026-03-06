@@ -1,5 +1,5 @@
 import express from "express";
-import { mkdirSync, existsSync } from "fs";
+import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { toolFunctions } from "./tools/index.js";
@@ -502,10 +502,15 @@ app.get("/api/audit", (req, res) => {
 app.get("/api/mcp", (req, res) => {
   const cfg = mcpManager.readConfig().mcpServers || {};
   const live = mcpManager.list();
+  const isPlaceholder = (v) => !v || v.startsWith("YOUR_") || v === "" || v.startsWith("${");
   const servers = Object.entries(cfg)
     .filter(([k]) => !k.startsWith("_comment"))
     .map(([name, serverCfg]) => {
       const liveEntry = live.find(s => s.name === name);
+      // Check if any env/header values are unconfigured placeholders
+      const envEntries = serverCfg.env ? Object.entries(serverCfg.env) : [];
+      const headerEntries = serverCfg.headers ? Object.entries(serverCfg.headers) : [];
+      const needsConfig = envEntries.some(([, v]) => isPlaceholder(v)) || headerEntries.some(([, v]) => isPlaceholder(v));
       return {
         name,
         enabled: serverCfg.enabled !== false,
@@ -517,6 +522,7 @@ app.get("/api/mcp", (req, res) => {
         description: serverCfg.description || null,
         envKeys: serverCfg.env ? Object.keys(serverCfg.env) : [],
         headerKeys: serverCfg.headers ? Object.keys(serverCfg.headers) : [],
+        needsConfig,
       };
     });
   res.json({ servers });
@@ -546,6 +552,29 @@ app.delete("/api/mcp/:name", async (req, res) => {
   try {
     const result = await mcpManager.removeServer(req.params.name);
     res.json({ message: result });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Update MCP server credentials (env vars or headers)
+app.patch("/api/mcp/:name", async (req, res) => {
+  const { name } = req.params;
+  const { env, headers: hdrs } = req.body;
+  try {
+    const mcpConfig = mcpManager.readConfig();
+    const serverCfg = mcpConfig.mcpServers?.[name];
+    if (!serverCfg) return res.status(404).json({ error: `Server "${name}" not found` });
+
+    if (env && typeof env === "object") {
+      serverCfg.env = { ...(serverCfg.env || {}), ...env };
+    }
+    if (hdrs && typeof hdrs === "object") {
+      serverCfg.headers = { ...(serverCfg.headers || {}), ...hdrs };
+    }
+    mcpConfig.mcpServers[name] = serverCfg;
+    mcpManager.writeConfig(mcpConfig);
+    res.json({ message: `Credentials updated for "${name}"` });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -692,6 +721,183 @@ app.post("/api/approvals/:id", (req, res) => {
   const resolved = execApproval.resolveApproval(req.params.id, decision);
   if (!resolved) return res.status(404).json({ error: "Approval not found or expired" });
   res.json({ message: `Approval ${req.params.id} → ${decision}` });
+});
+
+// --- Settings endpoint (read/write .env vars) ---
+app.get("/api/settings", (req, res) => {
+  const envPath = join(__dirname, "..", ".env");
+  const examplePath = join(__dirname, "..", ".env.example");
+
+  // Parse current .env
+  const envVars = {};
+  if (existsSync(envPath)) {
+    const lines = readFileSync(envPath, "utf-8").split("\n");
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eqIdx = trimmed.indexOf("=");
+      if (eqIdx === -1) continue;
+      const key = trimmed.slice(0, eqIdx).trim();
+      const val = trimmed.slice(eqIdx + 1).trim();
+      envVars[key] = val;
+    }
+  }
+
+  // Parse .env.example for available vars with sections
+  const available = [];
+  if (existsSync(examplePath)) {
+    const lines = readFileSync(examplePath, "utf-8").split("\n");
+    let section = "General";
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("# ===")) {
+        section = trimmed.replace(/^# =+\s*/, "").replace(/\s*=+$/, "");
+        continue;
+      }
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eqIdx = trimmed.indexOf("=");
+      if (eqIdx === -1) continue;
+      const key = trimmed.slice(0, eqIdx).trim();
+      available.push({ key, section });
+    }
+  }
+
+  // Mask values for security
+  const masked = {};
+  for (const [key, val] of Object.entries(envVars)) {
+    if (!val) { masked[key] = ""; continue; }
+    masked[key] = val.length <= 4 ? "****" : val.slice(0, 4) + "*".repeat(Math.min(val.length - 4, 20));
+  }
+
+  res.json({ vars: masked, available });
+});
+
+app.put("/api/settings", (req, res) => {
+  const { updates } = req.body; // { KEY: "value", KEY2: "value2" }
+  if (!updates || typeof updates !== "object") {
+    return res.status(400).json({ error: "updates object is required" });
+  }
+
+  const envPath = join(__dirname, "..", ".env");
+  let content = existsSync(envPath) ? readFileSync(envPath, "utf-8") : "";
+
+  for (const [key, value] of Object.entries(updates)) {
+    // Validate key format (alphanumeric + underscore only)
+    if (!/^[A-Z][A-Z0-9_]*$/.test(key)) continue;
+    const regex = new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}=.*$`, "m");
+    if (regex.test(content)) {
+      content = content.replace(regex, `${key}=${value}`);
+    } else {
+      content = content.trimEnd() + `\n${key}=${value}\n`;
+    }
+    // Also update process.env so changes take effect without restart
+    process.env[key] = value;
+  }
+
+  writeFileSync(envPath, content, "utf-8");
+
+  res.json({ message: `Updated ${Object.keys(updates).length} variable(s)`, updated: Object.keys(updates) });
+});
+
+// --- User Profile endpoints ---
+app.get("/api/profile", (req, res) => {
+  const profilePath = join(config.dataDir, "user-profile.json");
+  if (!existsSync(profilePath)) return res.json({});
+  try {
+    const profile = JSON.parse(readFileSync(profilePath, "utf-8"));
+    res.json(profile);
+  } catch {
+    res.json({});
+  }
+});
+
+app.put("/api/profile", (req, res) => {
+  const { name, personality, tone, instructions } = req.body;
+  const profilePath = join(config.dataDir, "user-profile.json");
+  const profile = { name: name || "", personality: personality || "", tone: tone || "", instructions: instructions || "" };
+  mkdirSync(dirname(profilePath), { recursive: true });
+  writeFileSync(profilePath, JSON.stringify(profile, null, 2), "utf-8");
+  res.json({ message: "Profile saved", profile });
+});
+
+// --- Custom Skills endpoints ---
+app.get("/api/skills/custom", (req, res) => {
+  const customDir = join(config.skillsDir, "custom");
+  if (!existsSync(customDir)) return res.json({ skills: [] });
+  const files = [];
+  try {
+    const entries = readdirSync(customDir);
+    for (const f of entries) {
+      if (!f.endsWith(".md")) continue;
+      const content = readFileSync(join(customDir, f), "utf-8");
+      // Parse frontmatter
+      const fmMatch = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+      const meta = {};
+      if (fmMatch) {
+        for (const line of fmMatch[1].split("\n")) {
+          const idx = line.indexOf(":");
+          if (idx > 0) meta[line.slice(0, idx).trim()] = line.slice(idx + 1).trim();
+        }
+      }
+      files.push({
+        name: meta.name || f.replace(".md", ""),
+        description: meta.description || "",
+        triggers: meta.triggers || "",
+        filename: f,
+        content: fmMatch ? fmMatch[2].trim() : content,
+      });
+    }
+  } catch { /* ignore */ }
+  res.json({ skills: files });
+});
+
+app.post("/api/skills/custom", (req, res) => {
+  const { name, description, triggers, content } = req.body;
+  if (!name) return res.status(400).json({ error: "name is required" });
+  if (!content) return res.status(400).json({ error: "content is required" });
+
+  // Sanitize filename
+  const safeName = name.replace(/[^a-zA-Z0-9_-]/g, "-").toLowerCase();
+  const customDir = join(config.skillsDir, "custom");
+  mkdirSync(customDir, { recursive: true });
+
+  const filePath = join(customDir, `${safeName}.md`);
+  const frontmatter = `---\nname: ${safeName}\ndescription: ${description || ""}\n${triggers ? `triggers: ${triggers}\n` : ""}---\n\n`;
+  writeFileSync(filePath, frontmatter + content, "utf-8");
+
+  // Reload skills so new skill is discoverable
+  skillLoader.reload();
+
+  res.status(201).json({ message: "Custom skill created", name: safeName });
+});
+
+app.delete("/api/skills/custom/:name", (req, res) => {
+  const safeName = req.params.name.replace(/[^a-zA-Z0-9_-]/g, "-").toLowerCase();
+  const filePath = join(config.skillsDir, "custom", `${safeName}.md`);
+  if (!existsSync(filePath)) return res.status(404).json({ error: "Skill not found" });
+
+  unlinkSync(filePath);
+  skillLoader.reload();
+  res.json({ message: "Custom skill deleted" });
+});
+
+// --- Memory endpoints ---
+app.get("/api/memory", (req, res) => {
+  const memoryPath = config.memoryPath;
+  if (!existsSync(memoryPath)) return res.json({ content: "" });
+  try {
+    const content = readFileSync(memoryPath, "utf-8");
+    res.json({ content });
+  } catch {
+    res.json({ content: "" });
+  }
+});
+
+app.put("/api/memory", (req, res) => {
+  const { content } = req.body;
+  if (content === undefined) return res.status(400).json({ error: "content is required" });
+  writeFileSync(config.memoryPath, content, "utf-8");
+  res.json({ message: "Memory saved" });
 });
 
 // --- Costs endpoint ---

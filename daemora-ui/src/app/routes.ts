@@ -10,6 +10,7 @@ import { Skills } from "./pages/Skills";
 import { Security } from "./pages/Security";
 import { Costs } from "./pages/Costs";
 import { Tenants } from "./pages/Tenants";
+import { Settings } from "./pages/Settings";
 
 export const router = createBrowserRouter([
   {
@@ -26,6 +27,7 @@ export const router = createBrowserRouter([
       { path: "security", Component: Security },
       { path: "costs", Component: Costs },
       { path: "tenants", Component: Tenants },
+      { path: "settings", Component: Settings },
     ],
   },
 ]);
