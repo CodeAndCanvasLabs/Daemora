@@ -134,6 +134,10 @@ async function main() {
       await handleTools(subcommand);
       break;
 
+    case "config":
+      handleConfig(subcommand, rest);
+      break;
+
     case "setup":
       const { runSetupWizard } = await import("./setup/wizard.js");
       await runSetupWizard();
@@ -646,6 +650,99 @@ async function handleMCP(action, args) {
       console.error(`\n  ${S.cross}  Unknown mcp command: ${action || "(none)"}`);
       console.log(`  ${t.muted("Usage:")} daemora mcp ${t.dim("[list|add|remove|enable|disable|reload|env]")}\n`);
       process.exit(1);
+  }
+}
+
+// ── Config (env var management from CLI) ──────────────────────────────────────
+
+function handleConfig(action, args) {
+  const header = `\n  ${t.h("Daemora Config")}  ${t.muted("Environment variable management")}\n`;
+
+  switch (action) {
+    case "set": {
+      const [key, ...valueParts] = args;
+      const value = valueParts.join(" ");
+      if (!key || !value) {
+        console.error(`\n  ${S.cross}  Usage: daemora config set ${t.dim("<KEY> <value>")}\n`);
+        console.log(`  ${t.muted("Example:")}  daemora config set OPENAI_API_KEY sk-...\n`);
+        process.exit(1);
+      }
+      writeEnvKey(key, value);
+      process.env[key] = value;
+      console.log(`${header}  ${S.check}  ${t.success(key)} = ${t.muted(value.length <= 8 ? value : value.slice(0, 4) + "****")}\n`);
+      break;
+    }
+    case "get": {
+      const [key] = args;
+      if (!key) {
+        console.error(`\n  ${S.cross}  Usage: daemora config get ${t.dim("<KEY>")}\n`);
+        process.exit(1);
+      }
+      const env = readEnvFile();
+      const val = env[key];
+      if (val !== undefined) {
+        const masked = val.length <= 4 ? "****" : val.slice(0, 4) + "*".repeat(Math.min(val.length - 4, 20));
+        console.log(`${header}  ${key} = ${t.muted(masked)}\n`);
+      } else {
+        console.log(`${header}  ${S.cross}  ${key} is not set\n`);
+      }
+      break;
+    }
+    case "delete":
+    case "unset": {
+      const [key] = args;
+      if (!key) {
+        console.error(`\n  ${S.cross}  Usage: daemora config unset ${t.dim("<KEY>")}\n`);
+        process.exit(1);
+      }
+      deleteEnvKey(key);
+      delete process.env[key];
+      console.log(`${header}  ${S.check}  ${key} removed\n`);
+      break;
+    }
+    case "list":
+    default: {
+      const env = readEnvFile();
+      const keys = Object.keys(env);
+      console.log(header);
+      if (keys.length === 0) {
+        console.log(`  ${t.muted("No env vars configured. Run:")}  daemora config set <KEY> <value>\n`);
+      } else {
+        // Also read .env.example for available keys
+        const examplePath = join(config.rootDir, ".env.example");
+        const availableKeys = new Set();
+        if (existsSync(examplePath)) {
+          for (const line of readFileSync(examplePath, "utf-8").split("\n")) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith("#")) continue;
+            const eqIdx = trimmed.indexOf("=");
+            if (eqIdx > 0) availableKeys.add(trimmed.slice(0, eqIdx));
+          }
+        }
+
+        // Show configured keys
+        console.log(`  ${t.muted("Configured")}  (${keys.length} keys)\n`);
+        for (const key of keys) {
+          const val = env[key];
+          const masked = !val ? t.dim("(empty)") : val.length <= 4 ? "****" : val.slice(0, 4) + "*".repeat(Math.min(val.length - 4, 16));
+          console.log(`  ${S.check}  ${t.success(key.padEnd(30))} ${t.muted(masked)}`);
+        }
+
+        // Show unconfigured keys from .env.example
+        const unconfigured = [...availableKeys].filter(k => !env[k]);
+        if (unconfigured.length > 0) {
+          console.log(`\n  ${t.muted("Available (not set)")}  (${unconfigured.length} keys)\n`);
+          for (const key of unconfigured.slice(0, 20)) {
+            console.log(`  ${S.cross}  ${t.dim(key)}`);
+          }
+          if (unconfigured.length > 20) {
+            console.log(`  ${t.dim(`... and ${unconfigured.length - 20} more`)}`);
+          }
+        }
+        console.log("");
+      }
+      break;
+    }
   }
 }
 
@@ -2059,6 +2156,11 @@ ${line}
   ${dimLine}
   ${t.cmd("start")}                            Start the agent server
   ${t.cmd("setup")}                            Interactive setup wizard
+
+  ${t.cmd("config list")}                      List all configured env vars
+  ${t.cmd("config set")} ${t.dim("<KEY> <value>")}          Set an env var (e.g. OPENAI_API_KEY)
+  ${t.cmd("config get")} ${t.dim("<KEY>")}                  Show an env var (masked)
+  ${t.cmd("config unset")} ${t.dim("<KEY>")}                Remove an env var
 
   ${t.cmd("daemon install")}                   Install as OS service (auto-start)
   ${t.cmd("daemon uninstall")}                 Remove OS service
