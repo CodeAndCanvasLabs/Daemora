@@ -159,6 +159,51 @@ export function listAvailableModels() {
   return available;
 }
 
+// ── Thinking Level Resolution ──────────────────────────────────────────────────
+
+const _thinkingAliases = { on: "low", min: "minimal", max: "high" };
+
+/**
+ * Resolve thinking config for a model + level combination.
+ * Returns params to merge into the generateObject call, or null if no thinking.
+ *
+ * @param {string} modelId - e.g. "anthropic:claude-sonnet-4-6"
+ * @param {string} level   - "auto"|"off"|"minimal"|"low"|"medium"|"high"|"xhigh"
+ * @returns {{ thinkingParams: object } | null}
+ */
+export function resolveThinkingConfig(modelId, level = "auto") {
+  const normalized = _thinkingAliases[level] || level;
+  if (normalized === "off" || normalized === "auto") return null;
+
+  const provider = modelId.split(":")[0];
+
+  // Anthropic: thinking.budget_tokens
+  if (provider === "anthropic") {
+    const budgetMap = { minimal: 1024, low: 2048, medium: 4096, high: 8192, xhigh: 16384 };
+    const budget = budgetMap[normalized];
+    if (!budget) return null;
+    return { thinkingParams: { thinking: { type: "enabled", budgetTokens: budget } } };
+  }
+
+  // OpenAI: reasoning.effort (only for o-series models)
+  if (provider === "openai") {
+    const effortMap = { minimal: "low", low: "low", medium: "medium", high: "high", xhigh: "high" };
+    const effort = effortMap[normalized];
+    if (!effort) return null;
+    return { thinkingParams: { reasoning: { effort } } };
+  }
+
+  // Google: thinkingConfig.thinkingBudget
+  if (provider === "google") {
+    const budgetMap = { minimal: 1024, low: 2048, medium: 4096, high: 8192, xhigh: 16384 };
+    const budget = budgetMap[normalized];
+    if (!budget) return null;
+    return { thinkingParams: { thinkingConfig: { thinkingBudget: budget } } };
+  }
+
+  return null;
+}
+
 // ── Task-Type Model Routing ────────────────────────────────────────────────────
 
 const _profileEnvMap = {

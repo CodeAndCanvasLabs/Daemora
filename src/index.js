@@ -26,6 +26,9 @@ import daemonManager from "./daemon/DaemonManager.js";
 import secretVault from "./safety/SecretVault.js";
 import tenantManager from "./tenants/TenantManager.js";
 import { runCleanup } from "./services/cleanup.js";
+import webhookHandler from "./webhooks/WebhookHandler.js";
+import execApproval from "./safety/ExecApproval.js";
+import openaiCompat from "./api/openai-compat.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -68,6 +71,15 @@ mountA2AServer(app);
 
 // Mount voice call webhooks (Twilio callbacks during live calls)
 app.use("/voice", voiceWebhook);
+
+// Mount webhook triggers (external integrations, CI/CD, GitHub webhooks)
+app.use("/hooks", webhookHandler);
+
+// Mount OpenAI-compatible API (gated by OPENAI_COMPAT_ENABLED)
+if (process.env.OPENAI_COMPAT_ENABLED === "true") {
+  app.use("/v1", openaiCompat);
+  console.log("[Server] OpenAI-compatible API enabled at /v1/chat/completions");
+}
 
 // --- Security middleware ---
 const localOnly = (req, res, next) => {
@@ -642,6 +654,21 @@ app.delete("/api/tenants/:id", (req, res) => {
   res.json({ message: "Tenant deleted" });
 });
 
+// --- Exec approvals ---
+app.get("/api/approvals", (req, res) => {
+  res.json({ approvals: execApproval.listPending(), mode: execApproval.mode });
+});
+
+app.post("/api/approvals/:id", (req, res) => {
+  const { decision } = req.body;
+  if (!["allow", "allow-once", "deny"].includes(decision)) {
+    return res.status(400).json({ error: 'decision must be "allow", "allow-once", or "deny"' });
+  }
+  const resolved = execApproval.resolveApproval(req.params.id, decision);
+  if (!resolved) return res.status(404).json({ error: "Approval not found or expired" });
+  res.json({ message: `Approval ${req.params.id} → ${decision}` });
+});
+
 // --- Costs endpoint ---
 app.get("/api/costs/today", (req, res) => {
   res.json({
@@ -658,7 +685,7 @@ if (existsSync(uiPath)) {
   app.use(express.static(uiPath));
   // Serve index.html for all other routes (React Router support)
   app.get(/.*/, (req, res, next) => {
-    if (req.path.startsWith("/api/") || req.path.startsWith("/webhooks/") || req.path.startsWith("/voice/") || req.path.startsWith("/a2a/")) {
+    if (req.path.startsWith("/api/") || req.path.startsWith("/webhooks/") || req.path.startsWith("/voice/") || req.path.startsWith("/a2a/") || req.path.startsWith("/hooks/") || req.path.startsWith("/v1/")) {
       return next();
     }
     res.sendFile(join(uiPath, "index.html"));

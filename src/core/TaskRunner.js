@@ -220,7 +220,10 @@ class TaskRunner {
         }
 
         // Build system prompt (SOUL.md + MEMORY.md + semantic recall + daily log + matched skills)
-        const systemPrompt = await buildSystemPrompt(task.input);
+        const systemPrompt = await buildSystemPrompt(task.input, "full", {
+          model: resolvedModel,
+          agentId: "main",
+        });
 
         // Build message history
         const previousMessages = session.messages.map((m) => ({

@@ -268,7 +268,11 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     const result = await Promise.race([
       runAgentLoop({
         messages:     initialMessages,
-        systemPrompt: systemPromptOverride || await buildSystemPrompt(taskDescription),
+        systemPrompt: systemPromptOverride || await buildSystemPrompt(taskDescription, "minimal", {
+          model: resolvedModel,
+          agentId,
+          taskDescription,
+        }),
         tools:        agentTools,
         modelId:      resolvedModel,
         taskId,

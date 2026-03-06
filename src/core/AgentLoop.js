@@ -1,5 +1,5 @@
 import { generateObject } from "ai";
-import { getModelWithFallback } from "../models/ModelRouter.js";
+import { getModelWithFallback, resolveThinkingConfig } from "../models/ModelRouter.js";
 import { compactIfNeeded, estimateTokens } from "./Compaction.js";
 import { config } from "../config/default.js";
 import eventBus from "./EventBus.js";
@@ -44,6 +44,10 @@ export async function runAgentLoop({
 }) {
   const selectedModelId = modelId || config.defaultModel;
   const { model, meta, modelId: resolvedModelId } = getModelWithFallback(selectedModelId, apiKeys);
+
+  // Resolve thinking level config
+  const thinkingConfig = resolveThinkingConfig(resolvedModelId, config.thinkingLevel);
+  const thinkingParams = thinkingConfig?.thinkingParams || {};
 
   // Build set of known secret values to redact from tool outputs (dynamic - catches tenant keys)
   const _knownSecrets = new Set([
@@ -142,8 +146,8 @@ export async function runAgentLoop({
       });
     }
 
-    // Compaction check before model call
-    messages = await compactIfNeeded(messages, meta, taskId);
+    // Compaction check before model call (pass tools for pre-compaction memory flush)
+    messages = await compactIfNeeded(messages, meta, taskId, tools);
 
     console.log(`\n[Loop ${loopCount}] Sending ${messages.length} messages (~${estimateTokens(messages)} tokens) to ${resolvedModelId}...`);
 
@@ -156,6 +160,7 @@ export async function runAgentLoop({
         messages,
         maxTokens: 8192,
         abortSignal: signal || undefined,
+        ...thinkingParams,
       });
 
       const elapsed = Date.now() - startTime;

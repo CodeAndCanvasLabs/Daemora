@@ -34,6 +34,13 @@ export const config = {
   maxLoops: 40,
   maxSubAgentDepth: 3,
 
+  // Thinking level: "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh"
+  thinkingLevel: process.env.THINKING_LEVEL || "auto",
+
+  // Message queue mode: "steer" (inject into live loop) | "collect" (batch into follow-up) | "followup" (queue as separate)
+  queueMode: process.env.QUEUE_MODE || "steer",
+  debounceMs: parseInt(process.env.DEBOUNCE_MS || "1500", 10),
+
   // Safety
   permissionTier: process.env.PERMISSION_TIER || "standard",
 

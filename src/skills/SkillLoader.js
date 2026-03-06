@@ -237,6 +237,48 @@ class SkillLoader {
     return this.getSkillPrompts(taskInput);
   }
 
+  /**
+   * Get matched skill summaries (name + description + path) for lazy loading.
+   * Does NOT inject skill bodies — the agent loads them on demand via readFile.
+   */
+  async getMatchedSkillSummaries(taskInput) {
+    if (!taskInput) return [];
+    if (!this.loaded) this.load();
+
+    const vectorsAvailable = Object.keys(this._skillVectors).length > 0;
+
+    if (getEmbeddingProvider() && vectorsAvailable) {
+      const queryVector = await this._generateEmbedding(taskInput);
+      if (queryVector) {
+        const scored = [];
+        for (const [name, skill] of this.skills) {
+          const cached = this._skillVectors[name];
+          if (!cached?.vector) continue;
+          const score = this._cosineSim(queryVector, cached.vector);
+          if (score >= EMBED_THRESHOLD) scored.push({ skill, score });
+        }
+        scored.sort((a, b) => b.score - a.score);
+        const matched = scored.slice(0, 5).map(s => ({
+          name: s.skill.name,
+          description: s.skill.description,
+          path: `skills/${s.skill.name}.md`,
+        }));
+        if (matched.length > 0) {
+          console.log(`[SkillLoader] Lazy match (${matched.length}): ${matched.map(s => s.name).join(", ")}`);
+          return matched;
+        }
+      }
+    }
+
+    // Fallback: keyword matching
+    const matched = this.matchSkills(taskInput);
+    return matched.map(s => ({
+      name: s.name,
+      description: s.description,
+      path: `skills/${s.name}.md`,
+    }));
+  }
+
   // ── Sync keyword API (fallback) ───────────────────────────────────────────────
 
   /**

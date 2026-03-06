@@ -13,12 +13,15 @@ import { resolve } from "node:path";
 import { config } from "../config/default.js";
 import filesystemGuard from "../safety/FilesystemGuard.js";
 import { checkCommand } from "../safety/CommandGuard.js";
+import execApproval from "../safety/ExecApproval.js";
+import dockerSandbox from "../safety/DockerSandbox.js";
+import tenantContext from "../tenants/TenantContext.js";
 
 const DEFAULT_TIMEOUT_MS = 120_000;   // 2 minutes default
 const MAX_TIMEOUT_MS = 600_000;       // 10 minutes hard max
 const MAX_BUFFER = 10 * 1024 * 1024; // 10MB
 
-export function executeCommand(cmd, optionsJson) {
+export async function executeCommand(cmd, optionsJson) {
   const opts = optionsJson ? JSON.parse(optionsJson) : {};
   const {
     cwd: cwdRaw = null,
@@ -41,6 +44,14 @@ export function executeCommand(cmd, optionsJson) {
   const cmdCheck = checkCommand(cmd);
   if (!cmdCheck.allowed) {
     return `Command blocked by security policy: ${cmdCheck.reason}`;
+  }
+
+  // ── Exec approval gate — pause for user approval if needed ──
+  if (execApproval.needsApproval(cmd)) {
+    const decision = await execApproval.requestApproval(cmd, opts.taskId || null);
+    if (decision === "deny") {
+      return `Command denied by approval gate: "${cmd.slice(0, 80)}". User chose to deny execution.`;
+    }
   }
   // ──────────────────────────────────────────────────────────────────────────
 
@@ -79,6 +90,13 @@ export function executeCommand(cmd, optionsJson) {
   const env = extraEnv ? { ...process.env, ...extraEnv } : process.env;
 
   console.log(`      [executeCommand] Running: ${cmd}${cwdRaw ? ` (cwd: ${cwdRaw})` : ""}${background ? " [background]" : ""}`);
+
+  // ── Docker sandbox mode — route through container ──
+  if (config.sandbox?.mode === "docker" && dockerSandbox.isAvailable() && !background) {
+    const store = tenantContext.getStore();
+    const scope = config.sandbox.docker?.scope === "shared" ? "shared" : (store?.sessionId || "shared");
+    return dockerSandbox.exec(scope, cmd, { timeout, cwd });
+  }
 
   // Background mode - spawn detached, return PID immediately
   if (background) {
