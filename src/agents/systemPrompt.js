@@ -1,12 +1,43 @@
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
-import { config } from "./config/default.js";
-import skillLoader from "./skills/SkillLoader.js";
-import mcpManager from "./mcp/MCPManager.js";
-import tenantContext from "./tenants/TenantContext.js";
+import { config } from "../config/default.js";
+import skillLoader from "../skills/SkillLoader.js";
+import mcpManager from "../mcp/MCPManager.js";
+import tenantContext from "../tenants/TenantContext.js";
 
 skillLoader.load();
-skillLoader.embedSkills().catch(() => {});  // Pre-compute skill embeddings at startup (fire-and-forget)
+skillLoader.embedSkills().catch(() => {});
+
+// ── Tool → required env keys mapping ──────────────────────────────────────────
+// Tools listed here need at least ONE of their required keys set.
+// Unconfigured tools are excluded from full docs and listed as [NO AUTH].
+const TOOL_REQUIRED_KEYS = {
+  sendEmail:       ["RESEND_API_KEY", "EMAIL_USER"],
+  makeVoiceCall:   ["TWILIO_ACCOUNT_SID"],
+  transcribeAudio: ["OPENAI_API_KEY"],
+  textToSpeech:    ["OPENAI_API_KEY", "ELEVENLABS_API_KEY"],
+  generateImage:   ["OPENAI_API_KEY"],
+  googlePlaces:    ["GOOGLE_PLACES_API_KEY"],
+  calendar:        ["GOOGLE_CALENDAR_API_KEY"],
+  contacts:        ["GOOGLE_CONTACTS_ACCESS_TOKEN"],
+  philipsHue:      ["HUE_BRIDGE_IP"],
+  sonos:           ["SONOS_HOST"],
+  database:        ["DATABASE_URL", "MYSQL_URL"],
+  sshTool:         ["SSH_DEFAULT_HOST"],
+};
+
+function _getConfiguredKeys() {
+  const store = tenantContext.getStore();
+  const tenantKeys = store?.apiKeys || {};
+  return { ...process.env, ...tenantKeys };
+}
+
+function _isToolConfigured(toolName) {
+  const requiredKeys = TOOL_REQUIRED_KEYS[toolName];
+  if (!requiredKeys) return true;
+  const env = _getConfiguredKeys();
+  return requiredKeys.some(key => !!env[key]);
+}
 
 /**
  * Build the system prompt dynamically by composing modular sections.
@@ -15,19 +46,20 @@ skillLoader.embedSkills().catch(() => {});  // Pre-compute skill embeddings at s
  * @param {object} [runtimeMeta] - Optional metadata for runtime line { model, agentId, thinkingLevel }
  */
 export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeMeta = {}) {
-  // Minimal mode: Soul + ResponseFormat + ToolDocs + MCP + SubagentContext only
-  // Skips: Memory, DailyLog, SemanticRecall, Skills, OperationalGuidelines
   const sections = promptMode === "minimal"
     ? await Promise.all([
         renderSoul(),
+        renderUserProfile(),
         renderResponseFormat(),
         renderToolDocs(),
         renderMCPTools(),
         renderToolUsageRules(),
+        renderSkills(taskInput, 10),
         renderSubagentContext(runtimeMeta.taskDescription || taskInput),
       ])
     : await Promise.all([
         renderSoul(),
+        renderUserProfile(),
         renderResponseFormat(),
         renderToolDocs(),
         renderMCPTools(),
@@ -39,7 +71,6 @@ export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeM
         renderOperationalGuidelines(),
       ]);
 
-  // Always append runtime line
   const runtime = renderRuntime(runtimeMeta);
   if (runtime) sections.push(runtime);
 
@@ -49,8 +80,7 @@ export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeM
   };
 }
 
-// ── Tenant-aware memory path resolution ───────────────────────────────────────
-// Called at render time so TenantContext is active (we're inside tenantContext.run(...)).
+// ── Tenant-aware path resolution ─────────────────────────────────────────────
 
 function _getContextMemoryPaths() {
   const store = tenantContext.getStore();
@@ -63,15 +93,10 @@ function _getContextMemoryPaths() {
   return { memoryPath: config.memoryPath, memoryDir: config.memoryDir, tenantId: null };
 }
 
-/**
- * Inject the top-k most semantically relevant memories for this specific task.
- * Only runs when OPENAI_API_KEY is set and the embeddings store has entries.
- * Falls back silently - never blocks startup or errors out.
- */
 async function renderSemanticRecall(taskInput) {
   if (!taskInput || taskInput.length < 10) return null;
   try {
-    const { getRelevantMemories } = await import("./tools/memory.js");
+    const { getRelevantMemories } = await import("../tools/memory.js");
     const { tenantId } = _getContextMemoryPaths();
     return await getRelevantMemories(taskInput, 5, tenantId);
   } catch {
@@ -79,13 +104,38 @@ async function renderSemanticRecall(taskInput) {
   }
 }
 
-// --- Section Renderers ---
+// ── Section Renderers ────────────────────────────────────────────────────────
 
 function renderSoul() {
   if (existsSync(config.soulPath)) {
     return readFileSync(config.soulPath, "utf-8").trim();
   }
   return "You are Daemora, a personal helpful AI assistant. Execute tasks immediately using tools.";
+}
+
+function renderUserProfile() {
+  const store = tenantContext.getStore();
+  const tenantId = store?.tenant?.id;
+  let profilePath;
+  if (tenantId) {
+    const safeId = tenantId.replace(/[^a-zA-Z0-9_-]/g, "_");
+    profilePath = join(config.dataDir, "tenants", safeId, "user-profile.json");
+  } else {
+    profilePath = join(config.dataDir, "user-profile.json");
+  }
+  if (!existsSync(profilePath)) return null;
+  try {
+    const profile = JSON.parse(readFileSync(profilePath, "utf-8"));
+    const lines = [];
+    if (profile.name) lines.push(`Name: ${profile.name}`);
+    if (profile.personality) lines.push(`Personality: ${profile.personality}`);
+    if (profile.tone) lines.push(`Tone: ${profile.tone}`);
+    if (profile.instructions) lines.push(`\nCustom Instructions:\n${profile.instructions}`);
+    if (lines.length === 0) return null;
+    return `# User Profile\n\n${lines.join("\n")}`;
+  } catch {
+    return null;
+  }
 }
 
 function renderResponseFormat() {
@@ -129,6 +179,15 @@ You MUST respond with a JSON object matching this exact schema on every turn:
 }
 
 function renderToolDocs() {
+  const unconfigured = Object.keys(TOOL_REQUIRED_KEYS).filter(t => !_isToolConfigured(t));
+
+  // Build the "no auth" warning section for unconfigured tools
+  const noAuthSection = unconfigured.length > 0
+    ? `\n\n## Unconfigured Tools [NO AUTH]
+The following tools require API keys that are NOT set. **Do NOT call these tools.** If the user asks to use one, tell them to configure the required keys first (Settings page or \`daemora setup\`).
+${unconfigured.map(t => `- ${t} — needs: ${TOOL_REQUIRED_KEYS[t].join(" or ")}`).join("\n")}`
+    : "";
+
   return `# Available Tools
 
 All tool params are STRINGS. Pass them as an array of strings.
@@ -162,9 +221,9 @@ All tool params are STRINGS. Pass them as an array of strings.
   **Tabs**: newTab(url?), switchTab(targetId), listTabs, closeTab(targetId?).
   **Other**: resize(WxH), highlight(ref|selector), handleDialog(accept|dismiss,text?), newSession(profile?), status, close.
   Localhost/127.0.0.1 allowed. Use refs from snapshot instead of CSS selectors.
-
+${_isToolConfigured("sendEmail") ? `
 ## Communication
-- sendEmail(to, subject, body, optionsJson?) — Send email via SMTP. opts: {"cc":"...","bcc":"...","attachments":[...]}
+- sendEmail(to, subject, body, optionsJson?) — Send email via SMTP. opts: {"cc":"...","bcc":"...","attachments":[...]}` : ""}
 - messageChannel(channel, target, message) — Send message on any channel. channel: "telegram"|"whatsapp"|"email".
 
 ## Documents
@@ -173,8 +232,8 @@ All tool params are STRINGS. Pass them as an array of strings.
 ## Vision & Screen
 - imageAnalysis(imagePath, prompt?) — Analyze image with vision model. Path or URL.
 - screenCapture(optionsJson?) — Screenshot or video. opts: {"mode":"screenshot"|"video","outputDir":"/tmp","duration":10}. Chain with replyWithFile or imageAnalysis.
-- transcribeAudio(audioPath, prompt?) — Transcribe audio to text via Whisper. Formats: mp3, wav, m4a, webm, ogg, flac.
-- textToSpeech(text, optionsJson?) — Text to MP3. opts: {"voice":"nova|alloy|echo|fable|onyx|shimmer","provider":"openai|elevenlabs"}. Chain with replyWithFile.
+${_isToolConfigured("transcribeAudio") ? `- transcribeAudio(audioPath, prompt?) — Transcribe audio to text via Whisper. Formats: mp3, wav, m4a, webm, ogg, flac.` : ""}
+${_isToolConfigured("textToSpeech") ? `- textToSpeech(text, optionsJson?) — Text to MP3. opts: {"voice":"nova|alloy|echo|fable|onyx|shimmer","provider":"openai|elevenlabs"}. Chain with replyWithFile.` : ""}
 - replyWithFile(filePath, caption?) — Send file back to current user. Use for any generated file (screenshot, doc, audio).
 - sendFile(channel, target, filePath, caption?) — Send file to a DIFFERENT user on a specific channel.
 
@@ -209,7 +268,7 @@ Delegate a task to a specialist agent for the named MCP server.
 - projectTracker(action, paramsJson?) — Track multi-step projects. Actions: createProject, addTask, updateTask, getProject, listProjects, deleteProject. Persisted to disk.
 
 ## Automation
-- cron(action, paramsJson?) — Schedule recurring tasks. action: "list"|"add"|"remove"|"run"|"status". opts for add: {"cronExpression":"...","taskInput":"...","name":"..."}`;
+- cron(action, paramsJson?) — Schedule recurring tasks. action: "list"|"add"|"remove"|"run"|"status". opts for add: {"cronExpression":"...","taskInput":"...","name":"..."}${noAuthSection}`;
 }
 
 function renderMCPTools() {
@@ -270,12 +329,11 @@ function renderToolUsageRules() {
 - Prefer simplest correct solution. Complexity is a cost.`;
 }
 
-async function renderSkills(taskInput) {
+async function renderSkills(taskInput, limit = 20) {
   const totalCount = skillLoader.list().length;
   if (totalCount === 0) return "";
 
-  // Hybrid: use embeddings/keyword matching to rank, show top 20
-  const summaries = await skillLoader.getMatchedSkillSummaries(taskInput, 20);
+  const summaries = await skillLoader.getMatchedSkillSummaries(taskInput, limit);
   if (!summaries || summaries.length === 0) return "";
 
   const lines = summaries.map(s =>
@@ -366,6 +424,4 @@ function renderRuntime(meta = {}) {
   return `Runtime: ${parts.join(" | ")}`;
 }
 
-// Note: buildSystemPrompt is now async. Use `await buildSystemPrompt(taskInput)` at call sites.
-// This legacy sync export is kept for any import that doesn't need task-specific recall.
-export const systemPrompt = { role: "system", content: "" }; // placeholder - rebuilt per-task
+export const systemPrompt = { role: "system", content: "" };

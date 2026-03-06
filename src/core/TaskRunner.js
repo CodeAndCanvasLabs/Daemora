@@ -1,5 +1,5 @@
 import { runAgentLoop } from "./AgentLoop.js";
-import { buildSystemPrompt } from "../systemPrompt.js";
+import { buildSystemPrompt } from "../agents/systemPrompt.js";
 import { toolFunctions } from "../tools/index.js";
 import { createSession, getSession, setMessages } from "../services/sessions.js";
 import taskQueue from "./TaskQueue.js";

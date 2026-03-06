@@ -1,5 +1,5 @@
 import { runAgentLoop } from "../core/AgentLoop.js";
-import { buildSystemPrompt } from "../systemPrompt.js";
+import { buildSystemPrompt } from "./systemPrompt.js";
 import { toolFunctions } from "../tools/index.js";
 import { agentProfiles, defaultSubAgentTools } from "../config/agentProfiles.js";
 import { config } from "../config/default.js";
