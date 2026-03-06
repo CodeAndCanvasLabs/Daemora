@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, statSync } from "fs";
-import { join } from "path";
+import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, statSync, accessSync, constants } from "fs";
+import { join, delimiter } from "path";
 import { createHash } from "node:crypto";
 import { config } from "../config/default.js";
 import { generateEmbedding, getEmbeddingProvider, buildTfidfVocab } from "../utils/Embeddings.js";
@@ -92,6 +92,10 @@ class SkillLoader {
       triggers: meta.triggers
         ? meta.triggers.split(",").map((t) => t.trim().toLowerCase())
         : [],
+      // Eligibility fields (OpenClaw-style filtering)
+      os: meta.os ? meta.os.split(",").map((s) => s.trim().toLowerCase()) : [],
+      requires: meta.requires ? meta.requires.split(",").map((s) => s.trim()) : [],
+      env: meta.env ? meta.env.split(",").map((s) => s.trim()) : [],
       content: body,
     };
   }
@@ -269,58 +273,55 @@ class SkillLoader {
 
   /**
    * Get matched skill summaries (name + description + path) for lazy loading.
-   * Does NOT inject skill bodies — the agent loads them on demand via readFile.
+   * Uses hybrid ranking: embeddings (API or local) → keyword fallback → list all.
+   * Returns up to `limit` skills, sorted by relevance.
    */
-  async getMatchedSkillSummaries(taskInput) {
-    if (!taskInput) return [];
+  async getMatchedSkillSummaries(taskInput, limit = 20) {
     if (!this.loaded) this.load();
+    if (this.skills.size === 0) return [];
 
-    const vectorsAvailable = Object.keys(this._skillVectors).length > 0;
+    const toSummary = (skill) => ({
+      name: skill.name,
+      description: skill.description,
+      path: `skills/${skill.name}.md`,
+    });
 
-    if (getEmbeddingProvider() && vectorsAvailable) {
-      const queryVector = await this._generateEmbedding(taskInput);
-      if (queryVector) {
-        const scored = [];
-        for (const [name, skill] of this.skills) {
-          const cached = this._skillVectors[name];
-          if (!cached?.vector) continue;
-          const score = this._cosineSim(queryVector, cached.vector);
-          if (score >= EMBED_THRESHOLD) scored.push({ skill, score });
+    // 1. Embedding match (OpenAI/Google/Ollama/TF-IDF — whatever is available)
+    if (taskInput) {
+      const vectorsAvailable = Object.keys(this._skillVectors).length > 0;
+      if (getEmbeddingProvider() && vectorsAvailable) {
+        const queryVector = await this._generateEmbedding(taskInput);
+        if (queryVector) {
+          const scored = [];
+          for (const [name, skill] of this.skills) {
+            const cached = this._skillVectors[name];
+            if (!cached?.vector) continue;
+            const score = this._cosineSim(queryVector, cached.vector);
+            scored.push({ skill, score });
+          }
+          scored.sort((a, b) => b.score - a.score);
+          const top = scored.slice(0, limit);
+          if (top.length > 0) {
+            console.log(`[SkillLoader] Ranked top ${top.length}/${this.skills.size} skills (embedding)`);
+            return top.map((s) => toSummary(s.skill));
+          }
         }
-        scored.sort((a, b) => b.score - a.score);
-        const matched = scored.slice(0, 5).map(s => ({
-          name: s.skill.name,
-          description: s.skill.description,
-          path: `skills/${s.skill.name}.md`,
-        }));
-        if (matched.length > 0) {
-          console.log(`[SkillLoader] Lazy match (${matched.length}): ${matched.map(s => s.name).join(", ")}`);
-          return matched;
-        }
+      }
+
+      // 2. Keyword fallback — matched first, then fill remaining up to limit
+      const keywordMatched = this.matchSkills(taskInput);
+      if (keywordMatched.length > 0) {
+        const matchedNames = new Set(keywordMatched.map((s) => s.name));
+        const rest = [...this.skills.values()].filter((s) => !matchedNames.has(s.name));
+        const combined = [...keywordMatched, ...rest].slice(0, limit);
+        console.log(`[SkillLoader] Ranked top ${combined.length}/${this.skills.size} skills (keyword)`);
+        return combined.map(toSummary);
       }
     }
 
-    // Fallback: keyword matching
-    const matched = this.matchSkills(taskInput);
-    if (matched.length > 0) {
-      return matched.map(s => ({
-        name: s.name,
-        description: s.description,
-        path: `skills/${s.name}.md`,
-      }));
-    }
-
-    // Last resort: list ALL skills (OpenClaw style) when count is manageable
-    if (this.skills.size <= 25) {
-      console.log(`[SkillLoader] No match — listing all ${this.skills.size} skills (OpenClaw style)`);
-      return [...this.skills.values()].map(s => ({
-        name: s.name,
-        description: s.description,
-        path: `skills/${s.name}.md`,
-      }));
-    }
-
-    return [];
+    // 3. No match or no input — return first N alphabetically
+    const all = [...this.skills.values()].slice(0, limit);
+    return all.map(toSummary);
   }
 
   // ── Sync keyword API (fallback) ───────────────────────────────────────────────

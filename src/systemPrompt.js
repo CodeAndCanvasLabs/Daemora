@@ -271,17 +271,25 @@ function renderToolUsageRules() {
 }
 
 async function renderSkills(taskInput) {
-  if (!taskInput) return "";
-  const summaries = await skillLoader.getMatchedSkillSummaries(taskInput);
+  const totalCount = skillLoader.list().length;
+  if (totalCount === 0) return "";
+
+  // Hybrid: use embeddings/keyword matching to rank, show top 20
+  const summaries = await skillLoader.getMatchedSkillSummaries(taskInput, 20);
   if (!summaries || summaries.length === 0) return "";
+
   const lines = summaries.map(s =>
-    `- **${s.name}** (skills/${s.name}.md) — ${s.description}`
+    `- ${s.name} (${s.path}) — ${s.description}`
   );
+  const remaining = totalCount - summaries.length;
+  const dirHint = remaining > 0
+    ? `\n\n> ${totalCount} skills total in skills/ — run \`ls skills/\` to discover more.`
+    : "";
   return `# Available Skills
 
-Before replying, scan these skills. If one applies, use readFile to load it, then follow it.
+Before replying, scan this list. If a skill applies, use readFile to load it, then follow it.
 
-${lines.join("\n")}`;
+${lines.join("\n")}${dirHint}`;
 }
 
 function renderMemory() {
