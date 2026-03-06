@@ -408,11 +408,14 @@ function renderSubagentContext(taskDescription) {
   if (!taskDescription) return null;
   return `# Subagent Context
 
-You are a sub-agent spawned for a specific task.
-- Complete your assigned task. That's your entire purpose.
-- Stay focused — no side quests, no proactive actions.
-- Your final message will be reported back to the parent agent.
-- Include: what you accomplished, relevant details, keep it concise.`;
+You are a sub-agent spawned for a specific task. Complete it fully without asking questions.
+
+## Rules
+- Execute the task end-to-end. Do not stop to ask the parent agent for clarification — figure it out.
+- If matched skills were injected in your context, follow them precisely.
+- If you need a skill not already injected, load it with \`readFile("skills/<name>.md")\` and follow its instructions.
+- Use every tool, command, and skill available to you to finish the job.
+- When done, report back: what you did, key outcomes, any issues found. Keep it concise.`;
 }
 
 function renderRuntime(meta = {}) {
