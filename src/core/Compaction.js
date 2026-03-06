@@ -145,14 +145,18 @@ Available tools: ${Object.keys(memoryTools).join(", ")}`;
 export async function compactIfNeeded(messages, modelMeta, taskId = null, tools = {}) {
   const tokenCount = estimateTokens(messages);
 
-  if (tokenCount < modelMeta.compactAt) {
+  // Dynamic threshold: compact when within 10k tokens of the model's context window
+  const contextLimit = modelMeta.contextWindow || 128_000;
+  const compactThreshold = Math.max(contextLimit - 10_000, modelMeta.compactAt || 90_000);
+
+  if (tokenCount < compactThreshold) {
     return messages;
   }
 
   console.log(
-    `[Compaction] Triggered: ~${tokenCount} tokens exceeds threshold ${modelMeta.compactAt}`
+    `[Compaction] Triggered: ~${tokenCount} tokens exceeds threshold ${compactThreshold} (context: ${contextLimit})`
   );
-  eventBus.emitEvent("compact:triggered", { tokenCount, threshold: modelMeta.compactAt });
+  eventBus.emitEvent("compact:triggered", { tokenCount, threshold: compactThreshold });
 
   // Pre-compaction memory flush — let agent save important context before we compact
   await runPreCompactionFlush(messages, tools);
@@ -182,15 +186,29 @@ export async function compactIfNeeded(messages, modelMeta, taskId = null, tools 
     return msg;
   });
 
-  // Step 3: Summarize old messages using a cheap model
+  // Step 3: Summarize old messages using the same model (or cheap fallback)
   try {
-    const { model } = getCheapModel();
-    const summaryPrompt = `Summarize the following conversation history concisely. Preserve:
-- Key decisions made
+    let model;
+    try {
+      // Prefer the same model the agent is using for consistent quality
+      const { getModelWithFallback } = await import("../models/ModelRouter.js");
+      const resolved = getModelWithFallback(modelMeta.provider ? `${modelMeta.provider}:${modelMeta.model}` : null);
+      model = resolved.model;
+    } catch {
+      const cheap = getCheapModel();
+      model = cheap.model;
+    }
+
+    const summaryPrompt = `Summarize the following conversation history concisely. You MUST preserve:
+- What was done (completed steps)
+- What is left to do (pending work, next steps)
+- Key decisions made and why
 - File paths mentioned and their purpose
-- Task progress and what was accomplished
 - Any errors encountered and how they were resolved
-- User preferences or instructions
+- User preferences, instructions, or constraints
+- Current task status (in progress, blocked, etc.)
+
+Format as a structured summary with clear sections.
 
 Conversation to summarize:
 ${prunedOld.map((m) => `[${m.role}]: ${typeof m.content === "string" ? m.content.slice(0, 2000) : JSON.stringify(m.content).slice(0, 2000)}`).join("\n")}`;
