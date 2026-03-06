@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, statSync } from "fs";
 import { join } from "path";
 import { createHash } from "node:crypto";
 import { config } from "../config/default.js";
@@ -47,21 +47,8 @@ class SkillLoader {
       return;
     }
 
-    const files = readdirSync(skillsDir).filter((f) => f.endsWith(".md"));
     this.skills.clear();
-
-    for (const file of files) {
-      try {
-        const filePath = join(skillsDir, file);
-        const content = readFileSync(filePath, "utf-8");
-        const skill = this.parseSkill(content, file);
-        if (skill) {
-          this.skills.set(skill.name, skill);
-        }
-      } catch (error) {
-        console.log(`[SkillLoader] Error loading ${file}: ${error.message}`);
-      }
-    }
+    this._loadFromDir(skillsDir);
 
     this.loaded = true;
     this._loadSkillVectors();
@@ -107,6 +94,37 @@ class SkillLoader {
         : [],
       content: body,
     };
+  }
+
+  /**
+   * Load skills from a directory — supports flat .md files and subdirectories with SKILL.md.
+   * Scans one level deep: skills/foo.md and skills/bar/SKILL.md both work.
+   */
+  _loadFromDir(dir) {
+    const entries = readdirSync(dir);
+    for (const entry of entries) {
+      try {
+        const entryPath = join(dir, entry);
+        const stat = statSync(entryPath);
+
+        if (stat.isFile() && entry.endsWith(".md")) {
+          // Flat file: skills/coding.md
+          const content = readFileSync(entryPath, "utf-8");
+          const skill = this.parseSkill(content, entry);
+          if (skill) this.skills.set(skill.name, skill);
+        } else if (stat.isDirectory()) {
+          // Subdirectory: skills/webapp-testing/SKILL.md
+          const skillMd = join(entryPath, "SKILL.md");
+          if (existsSync(skillMd)) {
+            const content = readFileSync(skillMd, "utf-8");
+            const skill = this.parseSkill(content, `${entry}/SKILL.md`);
+            if (skill) this.skills.set(skill.name, skill);
+          }
+        }
+      } catch (error) {
+        console.log(`[SkillLoader] Error loading ${entry}: ${error.message}`);
+      }
+    }
   }
 
   /**
