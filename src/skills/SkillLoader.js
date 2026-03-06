@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync } from 
 import { join } from "path";
 import { createHash } from "node:crypto";
 import { config } from "../config/default.js";
-import { generateEmbedding, getEmbeddingProvider } from "../utils/Embeddings.js";
+import { generateEmbedding, getEmbeddingProvider, buildTfidfVocab } from "../utils/Embeddings.js";
 
 /**
  * Skill Loader - auto-discovers .md skill files from the skills/ directory.
@@ -65,6 +65,7 @@ class SkillLoader {
 
     this.loaded = true;
     this._loadSkillVectors();
+    this._buildTfidfIndex();
     console.log(
       `[SkillLoader] Loaded ${this.skills.size} skills: ${[...this.skills.keys()].join(", ") || "(none)"}`
     );
@@ -106,6 +107,17 @@ class SkillLoader {
         : [],
       content: body,
     };
+  }
+
+  /**
+   * Build TF-IDF vocabulary from all loaded skills (zero-cost local embeddings fallback).
+   */
+  _buildTfidfIndex() {
+    const docs = [];
+    for (const [, skill] of this.skills) {
+      docs.push(`${skill.name} ${skill.description} ${skill.triggers.join(" ")} ${skill.content.slice(0, 500)}`);
+    }
+    buildTfidfVocab(docs);
   }
 
   // ── Embedding helpers ────────────────────────────────────────────────────────
@@ -272,11 +284,25 @@ class SkillLoader {
 
     // Fallback: keyword matching
     const matched = this.matchSkills(taskInput);
-    return matched.map(s => ({
-      name: s.name,
-      description: s.description,
-      path: `skills/${s.name}.md`,
-    }));
+    if (matched.length > 0) {
+      return matched.map(s => ({
+        name: s.name,
+        description: s.description,
+        path: `skills/${s.name}.md`,
+      }));
+    }
+
+    // Last resort: list ALL skills (OpenClaw style) when count is manageable
+    if (this.skills.size <= 25) {
+      console.log(`[SkillLoader] No match — listing all ${this.skills.size} skills (OpenClaw style)`);
+      return [...this.skills.values()].map(s => ({
+        name: s.name,
+        description: s.description,
+        path: `skills/${s.name}.md`,
+      }));
+    }
+
+    return [];
   }
 
   // ── Sync keyword API (fallback) ───────────────────────────────────────────────

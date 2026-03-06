@@ -8,6 +8,52 @@ import { banner, stepHeader, kv, summaryTable, completeBanner, t, S } from "./th
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, "..", "..");
 const TOTAL_STEPS = 9;
+const OLLAMA_EMBED_MODEL = "all-minilm";
+
+/**
+ * Pull all-minilm embedding model (if Ollama available) and pre-embed all skills.
+ * This runs during setup so the agent has instant skill matching from first task.
+ */
+async function setupSkillEmbeddings(provider, envConfig, spin) {
+  const { execSync } = await import("child_process");
+  const hasOllama = (() => {
+    try { execSync("ollama --version", { stdio: "ignore" }); return true; } catch { return false; }
+  })();
+
+  // Pull local embedding model as primary (no API key) or fallback (has API key)
+  const hasApiEmbedding = envConfig.OPENAI_API_KEY || envConfig.GOOGLE_AI_API_KEY;
+
+  if (hasOllama) {
+    const purpose = hasApiEmbedding ? "offline fallback" : "skill matching";
+    spin.message(`Pulling ${OLLAMA_EMBED_MODEL} for ${purpose} (22M params, ~45MB)`);
+    try {
+      execSync(`ollama pull ${OLLAMA_EMBED_MODEL}`, { stdio: "ignore", timeout: 120_000 });
+      p.log.success(`${S.check}  Embedding model ${t.bold(OLLAMA_EMBED_MODEL)} ready (${purpose})`);
+    } catch {
+      if (!hasApiEmbedding) {
+        p.log.warn(`Could not pull ${OLLAMA_EMBED_MODEL}. Skill matching will use built-in TF-IDF.`);
+      }
+    }
+  }
+
+  // Pre-embed all skills (works with any provider: API, Ollama, or TF-IDF)
+  spin.message("Pre-embedding skills for instant matching");
+  try {
+    // Temporarily set env vars so the embedding provider can detect them
+    if (envConfig.OPENAI_API_KEY) process.env.OPENAI_API_KEY = envConfig.OPENAI_API_KEY;
+    if (envConfig.GOOGLE_AI_API_KEY) process.env.GOOGLE_AI_API_KEY = envConfig.GOOGLE_AI_API_KEY;
+    if (provider === "ollama" || hasOllama) process.env.OLLAMA_HOST = process.env.OLLAMA_HOST || "http://localhost:11434";
+
+    const skillLoader = (await import("../skills/SkillLoader.js")).default;
+    skillLoader.load();
+    await skillLoader.embedSkills();
+
+    const count = skillLoader.list().length;
+    p.log.success(`${S.check}  ${count} skills embedded for instant matching`);
+  } catch {
+    p.log.info("Skill embedding deferred to first startup.");
+  }
+}
 
 function cancelled() {
   p.cancel("Setup cancelled.");
@@ -1116,6 +1162,14 @@ export async function runSetupWizard() {
     } catch {
       // Non-fatal - user can install later
     }
+  }
+
+  // Pull embedding model & pre-embed skills
+  spin.message("Setting up skill embeddings");
+  try {
+    await setupSkillEmbeddings(provider, envConfig, spin);
+  } catch {
+    // Non-fatal — TF-IDF fallback will handle it
   }
 
   spin.stop(`${S.check}  Configuration saved`);
