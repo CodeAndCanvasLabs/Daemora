@@ -24,29 +24,19 @@
     "_comment_memory": "Persistent memory via knowledge graph (no API key needed)",
     "memory": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-memory"
-      ],
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
       "enabled": false
     },
-    "_comment_filesystem": "Secure file access (CHANGE the path to your workspace!)",
+    "_comment_filesystem": "Secure file access (set allowed directory paths in args)",
     "filesystem": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "/Users/you/Projects"
-      ],
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/you/Projects"],
       "enabled": false
     },
     "_comment_github": "GitHub integration - repos, PRs, issues, commits",
     "github": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-github"
-      ],
+      "args": ["-y", "@modelcontextprotocol/server-github"],
       "env": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_TOKEN"
       },
@@ -55,72 +45,38 @@
     "_comment_brave": "Brave Search - web, news, image search",
     "brave-search": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@anthropic-ai/brave-search-mcp-server"
-      ],
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
       "env": {
         "BRAVE_API_KEY": "YOUR_BRAVE_API_KEY"
       },
       "enabled": false
     },
-    "_comment_git": "Git operations - read, search, manipulate repos",
-    "git": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-git"
-      ],
-      "enabled": false
-    },
-    "_comment_fetch": "Web fetching - convert web pages to LLM-friendly text",
-    "fetch": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-fetch"
-      ],
-      "enabled": false
-    },
     "_comment_slack": "Slack workspace integration",
     "slack": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-slack"
-      ],
+      "args": ["-y", "@modelcontextprotocol/server-slack"],
       "env": {
         "SLACK_BOT_TOKEN": "",
         "SLACK_TEAM_ID": ""
       },
       "enabled": false
     },
-    "_comment_postgres": "PostgreSQL database access",
+    "_comment_postgres": "PostgreSQL database access (read-only SQL)",
     "postgres": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-postgres",
-        "postgresql://user:pass@localhost:5432/mydb"
-      ],
+      "args": ["-y", "@modelcontextprotocol/server-postgres", "postgresql://user:pass@localhost:5432/mydb"],
       "enabled": false
     },
-    "_comment_puppeteer": "Browser automation via Puppeteer",
+    "_comment_puppeteer": "Browser automation, screenshots, web interaction",
     "puppeteer": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-puppeteer"
-      ],
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
       "enabled": false
     },
-    "_comment_sentry": "Sentry error tracking integration",
+    "_comment_sentry": "Sentry error tracking - query issues, generate patches",
     "sentry": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@sentry/mcp-server@latest"
-      ],
+      "args": ["-y", "@sentry/mcp-server@latest"],
       "env": {
         "SENTRY_AUTH_TOKEN": "YOUR_SENTRY_AUTH_TOKEN"
       },
@@ -129,10 +85,120 @@
     "_comment_sequential": "Sequential thinking - structured problem solving",
     "sequential-thinking": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-sequential-thinking"
-      ],
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "enabled": false
+    },
+    "_comment_notion": "Notion - pages, databases, search, comments",
+    "notion": {
+      "command": "npx",
+      "args": ["-y", "@notionhq/notion-mcp-server"],
+      "env": {
+        "NOTION_TOKEN": ""
+      },
+      "enabled": false
+    },
+    "_comment_linear": "Linear - issues, projects, teams, sprints",
+    "linear": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://mcp.linear.app/mcp"],
+      "enabled": false
+    },
+    "_comment_hubspot": "HubSpot CRM - contacts, deals, companies, tickets",
+    "hubspot": {
+      "command": "npx",
+      "args": ["-y", "@hubspot/mcp-server"],
+      "env": {
+        "PRIVATE_APP_ACCESS_TOKEN": ""
+      },
+      "enabled": false
+    },
+    "_comment_stripe": "Stripe - payments, invoices, subscriptions, customers",
+    "stripe": {
+      "command": "npx",
+      "args": ["-y", "@stripe/mcp", "--tools=all"],
+      "env": {
+        "STRIPE_SECRET_KEY": ""
+      },
+      "enabled": false
+    },
+    "_comment_jira": "Jira - issues, projects, sprints, JQL search",
+    "jira": {
+      "command": "npx",
+      "args": ["-y", "@aashari/mcp-server-atlassian-jira"],
+      "env": {
+        "ATLASSIAN_SITE_NAME": "",
+        "ATLASSIAN_USER_EMAIL": "",
+        "ATLASSIAN_API_TOKEN": ""
+      },
+      "enabled": false
+    },
+    "_comment_confluence": "Confluence - spaces, pages, search, content",
+    "confluence": {
+      "command": "npx",
+      "args": ["-y", "@aashari/mcp-server-atlassian-confluence"],
+      "env": {
+        "ATLASSIAN_SITE_NAME": "",
+        "ATLASSIAN_USER_EMAIL": "",
+        "ATLASSIAN_API_TOKEN": ""
+      },
+      "enabled": false
+    },
+    "_comment_figma": "Figma - design data, layouts, styles, components",
+    "figma": {
+      "command": "npx",
+      "args": ["-y", "figma-developer-mcp", "--figma-api-key=YOUR_FIGMA_TOKEN", "--stdio"],
+      "enabled": false
+    },
+    "_comment_gdrive": "Google Drive - files, folders, search",
+    "gdrive": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-gdrive"],
+      "env": {
+        "GDRIVE_CREDENTIALS_PATH": ""
+      },
+      "enabled": false
+    },
+    "_comment_google_maps": "Google Maps - geocoding, directions, places, elevation",
+    "google-maps": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-google-maps"],
+      "env": {
+        "GOOGLE_MAPS_API_KEY": ""
+      },
+      "enabled": false
+    },
+    "_comment_firecrawl": "Firecrawl - web scraping, crawling, content extraction",
+    "firecrawl": {
+      "command": "npx",
+      "args": ["-y", "firecrawl-mcp"],
+      "env": {
+        "FIRECRAWL_API_KEY": ""
+      },
+      "enabled": false
+    },
+    "_comment_tavily": "Tavily - real-time web search, data extraction",
+    "tavily": {
+      "command": "npx",
+      "args": ["-y", "tavily-mcp@latest"],
+      "env": {
+        "TAVILY_API_KEY": ""
+      },
+      "enabled": false
+    },
+    "_comment_cloudflare": "Cloudflare - Workers, KV, R2, D1 management",
+    "cloudflare": {
+      "command": "npx",
+      "args": ["-y", "@cloudflare/mcp-server-cloudflare"],
+      "enabled": false
+    },
+    "_comment_upstash": "Upstash - serverless Redis and message queues",
+    "upstash": {
+      "command": "npx",
+      "args": ["-y", "@upstash/mcp-server"],
+      "env": {
+        "UPSTASH_REDIS_REST_URL": "",
+        "UPSTASH_REDIS_REST_TOKEN": ""
+      },
       "enabled": false
     }
   }
