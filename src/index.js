@@ -82,9 +82,20 @@ if (process.env.OPENAI_COMPAT_ENABLED === "true") {
 }
 
 // --- Security middleware ---
+
+// Security headers on all responses
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  next();
+});
+
+// Localhost-only: reject non-local IP addresses
 const localOnly = (req, res, next) => {
   const remoteAddress = req.socket.remoteAddress;
-  // Support both IPv4 and IPv6 localhost
   if (remoteAddress === "127.0.0.1" || remoteAddress === "::ffff:127.0.0.1" || remoteAddress === "::1") {
     next();
   } else {
@@ -93,8 +104,41 @@ const localOnly = (req, res, next) => {
   }
 };
 
-// Apply local-only security to all API routes
+// Origin validation: block DNS rebinding and cross-origin browser attacks.
+// Browsers always send Origin on cross-origin requests. A malicious page on
+// evil.com making fetch("http://localhost:8081/api/...") will have Origin: https://evil.com
+// which we reject. Same-origin requests from our UI have no Origin or matching localhost.
+const originGuard = (req, res, next) => {
+  const origin = req.headers.origin;
+  if (!origin) return next(); // Same-origin requests (no Origin header) — safe
+
+  // Allow only our own localhost origins
+  const allowedOrigins = [
+    `http://localhost:${config.port}`,
+    `http://127.0.0.1:${config.port}`,
+    `http://[::1]:${config.port}`,
+  ];
+  // Also allow Vite dev server (common dev ports)
+  for (const devPort of [5173, 5174, 3000, 3001]) {
+    allowedOrigins.push(`http://localhost:${devPort}`);
+    allowedOrigins.push(`http://127.0.0.1:${devPort}`);
+  }
+
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (req.method === "OPTIONS") return res.sendStatus(204);
+    return next();
+  }
+
+  console.warn(`[Security] Blocked cross-origin request from ${origin}`);
+  res.status(403).json({ error: "Cross-origin request blocked." });
+};
+
+// Apply security to all API routes (IP + origin check)
 app.use("/api", localOnly);
+app.use("/api", originGuard);
 
 // --- Health check ---
 app.get("/api/health", (req, res) => {
@@ -953,6 +997,11 @@ app.listen(config.port, async () => {
   console.log(`Data dir: ${config.dataDir}`);
   console.log(`Daemon mode: ${config.daemonMode}`);
   console.log(`Task runner: active (concurrency: 2)`);
+
+  // Initialize Ollama embedding model (auto-pull if needed, non-blocking)
+  import("./utils/Embeddings.js").then(({ ensureOllamaEmbedModel }) =>
+    ensureOllamaEmbedModel().catch(() => {})
+  );
 
   // Initialize MCP in background
   mcpManager.init().catch((e) => console.log(`[MCPManager] Init error: ${e.message}`));

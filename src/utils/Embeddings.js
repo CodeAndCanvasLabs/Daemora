@@ -4,12 +4,15 @@
  * Auto-detects the best available embedding provider (priority order):
  *   1. OPENAI_API_KEY      → text-embedding-3-small  (512 dims)
  *   2. GOOGLE_AI_API_KEY   → text-embedding-004       (768 dims)
- *   3. OLLAMA_HOST         → nomic-embed-text         (768 dims, local/free)
- *   4. Ollama auto-detect  → tries localhost:11434    (no config needed)
- *   5. Built-in TF-IDF     → pure JS, zero deps, zero API calls
+ *   3. Ollama (local)      → all-minilm               (384 dims, auto-pulled)
+ *   4. Built-in TF-IDF     → pure JS, zero deps, zero API calls
+ *
+ * Ollama is the default local embedding engine. On startup, ensureOllamaEmbedModel()
+ * probes localhost:11434, and if Ollama is running but the model isn't pulled, auto-pulls it.
+ * No user configuration needed — just have Ollama installed and running.
  *
  * Override with: EMBEDDING_PROVIDER=openai|google|ollama|tfidf
- * Override Ollama model with: OLLAMA_EMBED_MODEL=nomic-embed-text
+ * Override Ollama model with: OLLAMA_EMBED_MODEL=all-minilm
  *
  * Note: vectors from different providers are NOT interchangeable.
  * Callers (SkillLoader, memory.js) tag stored vectors with the provider name
@@ -19,22 +22,93 @@
 import { embed } from "ai";
 
 let _ollamaAutoDetected = null; // null = untested, true/false = tested
+let _ollamaModelReady = false;  // true once we've confirmed the embed model exists
 
 /**
  * Probe localhost:11434 for a running Ollama instance (one-time check, cached).
  */
 async function _probeOllama() {
   if (_ollamaAutoDetected !== null) return _ollamaAutoDetected;
+  const baseUrl = process.env.OLLAMA_HOST || "http://localhost:11434";
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 1500);
-    const res = await fetch("http://localhost:11434/api/tags", { signal: ctrl.signal });
+    const timer = setTimeout(() => ctrl.abort(), 2000);
+    const res = await fetch(`${baseUrl}/api/tags`, { signal: ctrl.signal });
     clearTimeout(timer);
     _ollamaAutoDetected = res.ok;
   } catch {
     _ollamaAutoDetected = false;
   }
   return _ollamaAutoDetected;
+}
+
+/**
+ * Check if a specific model is available in Ollama. If not, pull it.
+ * Called once at startup — non-blocking background pull.
+ */
+async function _ensureOllamaModel(modelName) {
+  if (_ollamaModelReady) return true;
+  const baseUrl = process.env.OLLAMA_HOST || "http://localhost:11434";
+
+  try {
+    // Check if model already exists
+    const tagsRes = await fetch(`${baseUrl}/api/tags`);
+    if (!tagsRes.ok) return false;
+    const tags = await tagsRes.json();
+    const models = tags.models || [];
+    const exists = models.some(m =>
+      m.name === modelName || m.name === `${modelName}:latest` || m.name.startsWith(`${modelName}:`)
+    );
+
+    if (exists) {
+      _ollamaModelReady = true;
+      return true;
+    }
+
+    // Model not found — pull it
+    console.log(`[Embeddings] Pulling Ollama model "${modelName}" for embeddings (one-time)...`);
+    const pullRes = await fetch(`${baseUrl}/api/pull`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: modelName, stream: false }),
+    });
+
+    if (pullRes.ok) {
+      console.log(`[Embeddings] Successfully pulled "${modelName}"`);
+      _ollamaModelReady = true;
+      return true;
+    } else {
+      const err = await pullRes.text().catch(() => "unknown error");
+      console.log(`[Embeddings] Failed to pull "${modelName}": ${err}`);
+      return false;
+    }
+  } catch (e) {
+    console.log(`[Embeddings] Ollama model check failed: ${e.message}`);
+    return false;
+  }
+}
+
+/**
+ * Initialize Ollama embedding model on startup.
+ * Call this once — it probes Ollama and auto-pulls the embed model if needed.
+ * Non-blocking, fire-and-forget safe.
+ */
+export async function ensureOllamaEmbedModel() {
+  // Skip if user explicitly chose a different provider
+  const override = process.env.EMBEDDING_PROVIDER?.toLowerCase();
+  if (override && override !== "ollama") return;
+
+  // Skip if OpenAI or Google keys are set (they take priority)
+  if (process.env.OPENAI_API_KEY || process.env.GOOGLE_AI_API_KEY) return;
+
+  const ollamaAvailable = await _probeOllama();
+  if (!ollamaAvailable) {
+    console.log("[Embeddings] Ollama not detected — using TF-IDF for embeddings");
+    return;
+  }
+
+  const modelName = process.env.OLLAMA_EMBED_MODEL || "all-minilm";
+  await _ensureOllamaModel(modelName);
 }
 
 /**
@@ -56,7 +130,7 @@ export function getEmbeddingProvider() {
   if (process.env.OPENAI_API_KEY)    return "openai";
   if (process.env.GOOGLE_AI_API_KEY) return "google";
   if (process.env.OLLAMA_HOST)       return "ollama";
-  // Ollama auto-detect result (set after first generateEmbedding call)
+  // Ollama auto-detect result (set after first generateEmbedding call or ensureOllamaEmbedModel)
   if (_ollamaAutoDetected === true)  return "ollama";
   // Always available — built-in TF-IDF as last resort
   return "tfidf";
@@ -85,6 +159,9 @@ export async function getEmbeddingProviderAsync() {
     const found = await _probeOllama();
     if (found) {
       console.log("[Embeddings] Auto-detected Ollama at localhost:11434");
+      // Also ensure the embed model is pulled
+      const modelName = process.env.OLLAMA_EMBED_MODEL || "all-minilm";
+      await _ensureOllamaModel(modelName);
       return "ollama";
     }
   } else if (_ollamaAutoDetected) {
