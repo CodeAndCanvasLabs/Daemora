@@ -35,6 +35,10 @@ export function Chat() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const activeTaskIdRef = useRef<string | null>(sessionStorage.getItem("daemora_active_task"));
+  const sessionIdRef = useRef<string | null>(currentSessionId);
+
+  // Keep ref in sync with state so SSE handlers always see current sessionId
+  useEffect(() => { sessionIdRef.current = currentSessionId; }, [currentSessionId]);
 
   const fetchSessions = async () => {
     try {
@@ -208,7 +212,7 @@ export function Chat() {
         clearActiveTask();
         setIsLoading(false);
         setStreamStatus(null);
-        if (currentSessionId) loadSession(currentSessionId);
+        if (sessionIdRef.current) loadSession(sessionIdRef.current);
         else fetchSessions();
         es.close();
         eventSourceRef.current = null;
@@ -271,8 +275,8 @@ export function Chat() {
       clearActiveTask();
       const data = JSON.parse(e.data);
       // Reload full session from server to get clean messages (avoids duplicates)
-      if (currentSessionId) {
-        loadSession(currentSessionId);
+      if (sessionIdRef.current) {
+        loadSession(sessionIdRef.current);
       } else {
         const result = data.result || data.output || "(No response from system)";
         const assistantMessage: Message = {

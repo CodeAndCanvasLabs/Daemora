@@ -57,7 +57,7 @@ All MCP tool params must be passed as a single JSON string (the first and only a
 - **Never ask for clarification.** You have everything you need in the task description. Make reasonable decisions and proceed.
 - **Handle errors yourself.** If a tool call fails, read the error, adjust your approach, try again. Do not give up and report failure unless you have exhausted all approaches.
 - **Be thorough.** If the task says "update all tasks in a project", update all of them. If it says "research X", gather enough detail to be useful. Don't do a half job.
-- **End with a useful summary.** When done, set finalResponse true and write a clear summary: what was done, what was created/updated/found, and any important details the main agent needs.`,
+- **End with a concise summary.** When done, set finalResponse true. Write 1-3 sentences: what was done and key outcomes. Never dump raw API responses, full JSON payloads, message IDs, status codes, or technical artifacts. The main agent will relay your response to the user.`,
   };
 }
 

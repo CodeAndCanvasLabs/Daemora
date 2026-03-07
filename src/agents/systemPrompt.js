@@ -176,6 +176,7 @@ You MUST respond with a JSON object matching this exact schema on every turn:
 - Infer context from conversation history, memory, and available information.
 - If the request has multiple parts, handle all of them. Don't skip any.
 - If genuinely ambiguous, ask ONE focused question. Otherwise just do it.
+- When the user says "or" between options (e.g. "save to Notes or Desktop"), pick the best option and do it. Never ask which one.
 
 ## Final response format
 - 1-3 sentences. What happened, from the user's perspective.
@@ -197,6 +198,7 @@ ${unconfigured.map(t => `- ${t} — needs: ${TOOL_REQUIRED_KEYS[t].join(" or ")}
   return `# Available Tools
 
 All tool params are STRINGS. Pass them as an array of strings.
+Use the \`home\` and \`cwd\` from Runtime info for correct path construction. Never concatenate cwd with user home paths (e.g. ~/Desktop is home + "/Desktop", not cwd + "/Desktop").
 
 ## File Operations
 - readFile(filePath, offset?, limit?) — Read file with line numbers. Always read before editing.
@@ -295,7 +297,9 @@ The following MCP servers are connected. Use \`useMCP(serverName, taskDescriptio
 
 ${serverList}
 
-**Prefer MCP servers over built-in tools** when both can do the job. Route tasks through \`useMCP(serverName, taskDescription)\` — the specialist gets only that server's tools. Do not call mcp__ tools directly.`;
+**Prefer MCP servers over built-in tools** when both can do the job. Route tasks through \`useMCP(serverName, taskDescription)\` — the specialist gets only that server's tools. Do not call mcp__ tools directly.
+
+**Never expose MCP tool names to the user.** When describing capabilities, use natural language (e.g. "I can manage your calendar" not "I have google_calendar_create_event"). Internal tool names are implementation details.`;
 }
 
 function renderToolUsageRules() {
@@ -412,7 +416,15 @@ You are a sub-agent spawned for a specific task. Complete it fully without askin
 - If matched skills were injected in your context, follow them precisely.
 - If you need a skill not already injected, load it with \`readFile("skills/<name>.md")\` and follow its instructions.
 - Use every tool, command, and skill available to you to finish the job.
-- When done, report back: what you did, key outcomes, any issues found. Keep it concise.`;
+- When the user says "or" between options, pick the best one and do it. Never ask which one.
+- If one approach fails, try another. Exhaust every option before reporting failure.
+
+## Final Response (CRITICAL)
+- Your response goes back to the main agent, not the user.
+- Write 1-3 sentences: what was done and key outcomes.
+- Never dump raw API responses, full JSON payloads, message IDs, status codes, or technical artifacts.
+- Never include tool names, session IDs, or internal details.
+- The main agent will relay your summary to the user.`;
 }
 
 function renderRuntime(meta = {}) {
@@ -420,7 +432,10 @@ function renderRuntime(meta = {}) {
   if (meta.model) parts.push(`model=${meta.model}`);
   if (meta.thinkingLevel) parts.push(`thinking=${meta.thinkingLevel}`);
   if (meta.agentId) parts.push(`agent=${meta.agentId}`);
-  if (parts.length === 0) return null;
+  // Always include home directory and working directory so the model constructs correct paths
+  const homeDir = process.env.HOME || process.env.USERPROFILE || "";
+  if (homeDir) parts.push(`home=${homeDir}`);
+  parts.push(`cwd=${process.cwd()}`);
   return `Runtime: ${parts.join(" | ")}`;
 }
 
