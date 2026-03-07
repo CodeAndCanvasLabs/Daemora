@@ -730,90 +730,69 @@ export async function runSetupWizard() {
     mcpConfig = { mcpServers: {} };
   }
 
-  // ── Preset servers ────────────────────────────────────────────────────────
+  // ── Preset servers (dynamically built from config/mcp.json) ──────────────
   p.log.info(`Press ${t.bold("space")} to select, ${t.bold("enter")} to confirm`);
+
+  const isPlaceholder = (v) => !v || v.startsWith("YOUR_") || v === "" || v.startsWith("${");
+  const allServers = Object.entries(mcpConfig.mcpServers || {})
+    .filter(([k]) => !k.startsWith("_comment"))
+    .map(([name, cfg]) => {
+      const envKeys = cfg.env ? Object.keys(cfg.env) : [];
+      const headerKeys = cfg.headers ? Object.keys(cfg.headers) : [];
+      const needsCreds = envKeys.some(k => isPlaceholder(cfg.env[k]))
+        || headerKeys.some(k => isPlaceholder(cfg.headers[k]));
+      const comment = mcpConfig.mcpServers[`_comment_${name}`] || "";
+      const desc = comment.replace(/^[^-]*-\s*/, "").trim();
+      const hint = desc
+        ? `${desc}${needsCreds ? " \u2014 needs credentials" : " \u2014 no key needed"}`
+        : needsCreds ? "needs credentials" : "no key needed";
+      return { value: name, label: name.charAt(0).toUpperCase() + name.slice(1).replace(/-/g, " "), hint, needsCreds, envKeys, headerKeys, cfg };
+    });
 
   const mcpChoices = guard(await p.multiselect({
     message: "Enable built-in MCP servers",
-    options: [
-      { value: "github",       label: "GitHub",         hint: "Repos, PRs, issues \u2014 needs token" },
-      { value: "brave-search", label: "Brave Search",   hint: "Web search \u2014 needs API key" },
-      { value: "memory",       label: "Memory",         hint: "Knowledge graph \u2014 no key needed" },
-      { value: "filesystem",   label: "Filesystem",     hint: "File access \u2014 no key needed" },
-      { value: "fetch",        label: "Web Fetch",      hint: "Page to text \u2014 no key needed" },
-      { value: "git",          label: "Git",            hint: "Repo operations \u2014 no key needed" },
-      { value: "slack",        label: "Slack",          hint: "Workspace \u2014 needs bot token" },
-      { value: "sentry",       label: "Sentry",         hint: "Error tracking \u2014 needs auth token" },
-    ],
+    options: allServers.map(({ value, label, hint }) => ({ value, label, hint })),
     required: false,
   }));
 
-  for (const server of mcpChoices) {
-    if (!mcpConfig.mcpServers[server]) continue;
+  for (const serverName of mcpChoices) {
+    const serverInfo = allServers.find(s => s.value === serverName);
+    if (!serverInfo || !mcpConfig.mcpServers[serverName]) continue;
 
-    if (server === "github") {
-      p.note(
-        [
-          "1. Go to https://github.com/settings/tokens",
-          "2. Click \"Generate new token (classic)\"",
-          "3. Select scopes: repo, read:org, read:user",
-          "4. Copy the token (starts with ghp_)",
-        ].join("\n"),
-        "Get GitHub Token"
-      );
-      const ghToken = guard(await p.password({ message: "GitHub Personal Access Token" }));
-      if (ghToken) {
-        mcpConfig.mcpServers.github.enabled = true;
-        mcpConfig.mcpServers.github.env.GITHUB_PERSONAL_ACCESS_TOKEN = ghToken;
+    if (serverInfo.needsCreds) {
+      // Dynamically prompt for each env/header credential
+      const credKeys = serverInfo.envKeys.filter(k => isPlaceholder(serverInfo.cfg.env?.[k]));
+      const headerCredKeys = serverInfo.headerKeys.filter(k => isPlaceholder(serverInfo.cfg.headers?.[k]));
+
+      if (credKeys.length > 0 || headerCredKeys.length > 0) {
+        p.log.info(`${t.bold(serverInfo.label)} requires ${credKeys.length + headerCredKeys.length} credential(s)`);
       }
-    } else if (server === "brave-search") {
-      p.note(
-        [
-          "1. Go to https://api.search.brave.com/register",
-          "2. Sign up and get your API key",
-          "3. Free tier: 2,000 queries/month",
-        ].join("\n"),
-        "Get Brave Search Key"
-      );
-      const braveKey = guard(await p.password({ message: "Brave Search API key" }));
-      if (braveKey) {
-        mcpConfig.mcpServers["brave-search"].enabled = true;
-        mcpConfig.mcpServers["brave-search"].env.BRAVE_API_KEY = braveKey;
+
+      let allFilled = true;
+      for (const key of credKeys) {
+        const val = guard(await p.password({ message: `${key} for ${serverInfo.label}` }));
+        if (val) {
+          mcpConfig.mcpServers[serverName].env[key] = val;
+        } else {
+          allFilled = false;
+        }
       }
-    } else if (server === "slack") {
-      p.note(
-        [
-          "1. Go to https://api.slack.com/apps",
-          "2. Create a new app > From scratch",
-          "3. Add Bot Token Scopes: channels:read, chat:write",
-          "4. Install to workspace, copy Bot User OAuth Token (xoxb-...)",
-          "5. Get Team ID from workspace URL or Slack settings",
-        ].join("\n"),
-        "Get Slack Token"
-      );
-      const slackToken = guard(await p.password({ message: "Slack Bot Token (xoxb-...)" }));
-      const slackTeam = guard(await p.text({ message: "Slack Team ID" }));
-      if (slackToken && mcpConfig.mcpServers.slack) {
-        mcpConfig.mcpServers.slack.enabled = true;
-        mcpConfig.mcpServers.slack.env.SLACK_BOT_TOKEN = slackToken;
-        mcpConfig.mcpServers.slack.env.SLACK_TEAM_ID = slackTeam;
+      for (const key of headerCredKeys) {
+        const val = guard(await p.password({ message: `${key} for ${serverInfo.label}` }));
+        if (val) {
+          mcpConfig.mcpServers[serverName].headers[key] = val;
+        } else {
+          allFilled = false;
+        }
       }
-    } else if (server === "sentry") {
-      p.note(
-        [
-          "1. Go to https://sentry.io/settings/auth-tokens/",
-          "2. Create a new auth token",
-          "3. Select scopes: project:read, event:read",
-        ].join("\n"),
-        "Get Sentry Token"
-      );
-      const sentryToken = guard(await p.password({ message: "Sentry Auth Token" }));
-      if (sentryToken && mcpConfig.mcpServers.sentry) {
-        mcpConfig.mcpServers.sentry.enabled = true;
-        mcpConfig.mcpServers.sentry.env.SENTRY_AUTH_TOKEN = sentryToken;
+
+      if (allFilled) {
+        mcpConfig.mcpServers[serverName].enabled = true;
+      } else {
+        p.log.warn(`${serverInfo.label}: missing credentials — saved but not enabled`);
       }
     } else {
-      mcpConfig.mcpServers[server].enabled = true;
+      mcpConfig.mcpServers[serverName].enabled = true;
     }
   }
 
