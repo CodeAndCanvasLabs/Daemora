@@ -280,10 +280,7 @@ Delegate a task to a specialist agent for the named MCP server.
 - projectTracker(action, paramsJson?) — Track multi-step projects. Actions: createProject, addTask, updateTask, getProject, listProjects, deleteProject. Persisted to disk.
 
 ## Automation
-- cron(action, paramsJson?) — Schedule recurring tasks. action: "list"|"add"|"remove"|"run"|"status". opts for add: {"cronExpression":"...","taskInput":"...","name":"..."}
-
-## API Keys & Credentials
-Tools that need API keys (e.g. sendEmail, googlePlaces, textToSpeech) read them from the runtime environment automatically — you never need to handle keys directly. If a tool fails with an auth error, tell the user to configure the required key in Settings or via \`daemora setup\`. Never ask the user to paste API keys in chat.${noAuthSection}`;
+- cron(action, paramsJson?) — Schedule recurring tasks. action: "list"|"add"|"remove"|"run"|"status". opts for add: {"cronExpression":"...","taskInput":"...","name":"..."}${noAuthSection}`;
 }
 
 function renderMCPTools() {
@@ -357,6 +354,7 @@ async function renderSkills(taskInput, limit = 20) {
   return `# Available Skills
 
 Before replying, scan this list. If a skill applies, use readFile to load it, then follow it.
+Skills that need API keys or credentials access them from the runtime environment automatically — never ask the user for keys in chat.
 
 ${lines.join("\n")}${dirHint}`;
 }
