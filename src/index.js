@@ -54,9 +54,8 @@ if (config.cleanupAfterDays > 0) {
   }
 }
 
-// Initialize task system
+// Initialize task system (TaskRunner starts after full init — see startup sequence below)
 taskQueue.init();
-taskRunner.start();
 supervisor.start();
 auditLog.start();
 scheduler.start();
@@ -143,7 +142,8 @@ app.use("/api", originGuard);
 // --- Health check ---
 app.get("/api/health", (req, res) => {
   res.json({
-    status: "ok",
+    status: _serverReady ? "ok" : "starting",
+    ready: _serverReady,
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     tools: Object.keys(toolFunctions).length,
@@ -985,6 +985,20 @@ try {
   }
 } catch { /* ignore */ }
 
+// --- Server readiness gate ---
+// The server must fully initialize before processing user messages.
+// Skills, MCP, embeddings, and channels all need to load first.
+// Requests that arrive before ready get a 503 with a clear message.
+let _serverReady = false;
+
+// Gate message-processing endpoints until startup completes
+const readinessGate = (req, res, next) => {
+  if (_serverReady) return next();
+  res.status(503).json({ error: "Server is starting up — loading skills, MCP, and channels. Please wait a moment and retry." });
+};
+app.use("/api/chat", readinessGate);
+app.post("/api/tasks", readinessGate);
+
 // --- Start server ---
 app.listen(config.port, async () => {
   console.log("\n--- Daemora Server ---");
@@ -992,27 +1006,48 @@ app.listen(config.port, async () => {
   console.log(`Model: ${config.defaultModel}`);
   if (process.env.SUB_AGENT_MODEL) console.log(`Sub-agent model: ${process.env.SUB_AGENT_MODEL}`);
   console.log(`Permission tier: ${config.permissionTier}`);
-  console.log(`Tools loaded: ${Object.keys(toolFunctions).join(", ")}`);
-  console.log(`Total tools: ${Object.keys(toolFunctions).length}`);
   console.log(`Data dir: ${config.dataDir}`);
   console.log(`Daemon mode: ${config.daemonMode}`);
-  console.log(`Task runner: active (concurrency: 2)`);
 
-  // Initialize Ollama embedding model (auto-pull if needed, non-blocking)
-  import("./utils/Embeddings.js").then(({ ensureOllamaEmbedModel }) =>
-    ensureOllamaEmbedModel().catch(() => {})
-  );
+  // ── Phase 1: Load skills + embeddings (must complete before processing messages) ──
+  console.log("[Startup] Loading skills...");
+  skillLoader.load();
+  console.log(`[Startup] Skills loaded: ${skillLoader.list().length}`);
 
-  // Initialize MCP in background
-  mcpManager.init().catch((e) => console.log(`[MCPManager] Init error: ${e.message}`));
+  console.log("[Startup] Initializing embeddings...");
+  try {
+    const { ensureOllamaEmbedModel } = await import("./utils/Embeddings.js");
+    await ensureOllamaEmbedModel();
+  } catch { /* non-fatal */ }
 
-  // Start channels (await so we see results before the blank line)
+  // Embed skills (uses whatever embedding provider is available)
+  try {
+    await skillLoader.embedSkills();
+    console.log("[Startup] Skill embeddings ready");
+  } catch { /* non-fatal — TF-IDF fallback always works */ }
+
+  // ── Phase 2: Connect MCP servers ──
+  console.log("[Startup] Connecting MCP servers...");
+  try {
+    await mcpManager.init();
+  } catch (e) {
+    console.log(`[Startup] MCP init error (non-fatal): ${e.message}`);
+  }
+
+  // ── Phase 3: Start channels ──
+  console.log("[Startup] Starting channels...");
   try {
     await channelRegistry.startAll();
   } catch (e) {
-    console.log(`[ChannelRegistry] Start error: ${e.message}`);
+    console.log(`[Startup] Channel start error: ${e.message}`);
   }
-  console.log("");
+
+  // ── Ready — start processing messages ──
+  taskRunner.start();
+  console.log(`[Startup] Tools: ${Object.keys(toolFunctions).length}`);
+  console.log(`[Startup] Task runner: active (concurrency: 2)`);
+  _serverReady = true;
+  console.log("[Startup] Server ready ✓\n");
 });
 
 // Graceful shutdown

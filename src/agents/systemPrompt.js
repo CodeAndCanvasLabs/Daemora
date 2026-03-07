@@ -5,9 +5,6 @@ import skillLoader from "../skills/SkillLoader.js";
 import mcpManager from "../mcp/MCPManager.js";
 import tenantContext from "../tenants/TenantContext.js";
 
-skillLoader.load();
-skillLoader.embedSkills().catch(() => {});
-
 // ── Tool → required env keys mapping ──────────────────────────────────────────
 // Tools listed here need at least ONE of their required keys set.
 // Unconfigured tools are excluded from full docs and listed as [NO AUTH].
