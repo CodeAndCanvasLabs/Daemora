@@ -161,7 +161,7 @@ You MUST respond with a JSON object matching this exact schema on every turn:
 
 ### When you are truly finished (type = "text"):
 - Set type to "text"
-- Set text_content to a brief summary of what you DID (past tense)
+- Set text_content to your response — for tasks, a brief summary of what you did; for conversation, a natural reply
 - Set tool_call to null
 - Set finalResponse to true
 

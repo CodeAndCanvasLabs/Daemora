@@ -333,6 +333,78 @@ export const models = {
     tier: "cheap",
   },
 
+  // ─── xAI ───────────────────────────────────────────────────────────────────
+
+  "xai:grok-4": {
+    provider: "xai", model: "grok-4",
+    contextWindow: 131_072, compactAt: 90_000,
+    costPer1kInput: 0.003, costPer1kOutput: 0.015,
+    capabilities: ["text", "tools", "structured-output"],
+    tier: "standard",
+  },
+  "xai:grok-3-beta": {
+    provider: "xai", model: "grok-3-beta",
+    contextWindow: 131_072, compactAt: 90_000,
+    costPer1kInput: 0.003, costPer1kOutput: 0.015,
+    capabilities: ["text", "tools"],
+    tier: "standard",
+  },
+  "xai:grok-3-mini-beta": {
+    provider: "xai", model: "grok-3-mini-beta",
+    contextWindow: 131_072, compactAt: 90_000,
+    costPer1kInput: 0.0005, costPer1kOutput: 0.005,
+    capabilities: ["text", "tools", "reasoning"],
+    tier: "cheap",
+  },
+
+  // ─── DeepSeek ──────────────────────────────────────────────────────────────
+
+  "deepseek:deepseek-chat": {
+    provider: "deepseek", model: "deepseek-chat",
+    contextWindow: 128_000, compactAt: 90_000,
+    costPer1kInput: 0.00027, costPer1kOutput: 0.0011,
+    capabilities: ["text", "tools", "structured-output"],
+    tier: "cheap",
+  },
+  "deepseek:deepseek-reasoner": {
+    provider: "deepseek", model: "deepseek-reasoner",
+    contextWindow: 128_000, compactAt: 90_000,
+    costPer1kInput: 0.00055, costPer1kOutput: 0.0022,
+    capabilities: ["text", "reasoning"],
+    tier: "cheap",
+  },
+
+  // ─── Mistral ───────────────────────────────────────────────────────────────
+
+  "mistral:mistral-large-latest": {
+    provider: "mistral", model: "mistral-large-latest",
+    contextWindow: 128_000, compactAt: 90_000,
+    costPer1kInput: 0.002, costPer1kOutput: 0.006,
+    capabilities: ["text", "tools", "structured-output"],
+    tier: "standard",
+  },
+  "mistral:mistral-medium-latest": {
+    provider: "mistral", model: "mistral-medium-latest",
+    contextWindow: 128_000, compactAt: 90_000,
+    costPer1kInput: 0.0004, costPer1kOutput: 0.002,
+    capabilities: ["text", "tools"],
+    tier: "cheap",
+  },
+  "mistral:codestral-latest": {
+    provider: "mistral", model: "codestral-latest",
+    contextWindow: 256_000, compactAt: 180_000,
+    costPer1kInput: 0.0003, costPer1kOutput: 0.0009,
+    capabilities: ["text", "tools"],
+    tier: "cheap",
+  },
+  "mistral:mistral-small-latest": {
+    provider: "mistral", model: "mistral-small-latest",
+    contextWindow: 128_000, compactAt: 90_000,
+    costPer1kInput: 0.0001, costPer1kOutput: 0.0003,
+    capabilities: ["text", "tools"],
+    tier: "cheap",
+  },
+
   // ─── Ollama (local — no cost) ────────────────────────────────────────────────
 
   "ollama:llama3": {

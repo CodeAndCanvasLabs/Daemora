@@ -550,6 +550,12 @@ async function handleMCP(action, args) {
 
       let serverConfig;
       if (commandOrUrl.startsWith("http://") || commandOrUrl.startsWith("https://")) {
+        // Detect URLs that were truncated by shell (& splits in zsh/bash)
+        if (commandOrUrl.includes("?") && !commandOrUrl.includes("&") && restArgs.some(a => a.includes("="))) {
+          console.error(`\n  ${S.cross}  URL appears truncated by the shell. Wrap it in quotes:`);
+          console.error(`  ${S.arrow}  daemora mcp add ${name} "${commandOrUrl}&${restArgs.filter(a => a.includes("=")).join("&")}"\n`);
+          process.exit(1);
+        }
         const isSSE = restArgs.includes("--sse");
         serverConfig = { url: commandOrUrl, enabled: true };
         if (isSSE) serverConfig.transport = "sse";
@@ -2217,7 +2223,7 @@ ${line}
   ${t.dim("$")} daemora mcp env notion NOTION_TOKEN ntn_...
   ${t.dim("$")} daemora mcp env stripe STRIPE_SECRET_KEY sk_live_...
   ${t.dim("$")} daemora mcp enable notion
-  ${t.dim("$")} daemora mcp add myserver https://api.example.com/mcp
+  ${t.dim("$")} daemora mcp add myserver "https://api.example.com/mcp?key=123&id=456"
   ${t.dim("$")} daemora mcp add mysse https://api.example.com/sse --sse
   ${t.dim("$")} daemora mcp remove github
   ${t.dim("$")} daemora mcp add                   (interactive - prompts for everything)

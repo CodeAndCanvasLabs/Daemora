@@ -87,104 +87,74 @@ export async function runSetupWizard() {
     ],
   }));
 
-  if (provider === "openai") {
-    const key = guard(await p.password({ message: "OpenAI API key (sk-...)", validate: (v) => !v ? "Required" : undefined }));
-    envConfig.OPENAI_API_KEY = key;
-    envConfig.DEFAULT_MODEL = guard(await p.select({
-      message: "OpenAI model",
-      options: [
-        { value: "openai:gpt-4.1-mini",  label: "gpt-4.1-mini",  hint: "1M ctx \u2014 fast & affordable (recommended)" },
-        { value: "openai:gpt-5.2-pro",   label: "gpt-5.2-pro",   hint: "GPT-5.2 Pro \u2014 highest capability [NEW]" },
-        { value: "openai:gpt-5.2",       label: "gpt-5.2",       hint: "GPT-5.2 flagship (Dec 2025) [NEW]" },
-        { value: "openai:gpt-5",         label: "gpt-5",         hint: "GPT-5 flagship (Aug 2025)" },
-        { value: "openai:gpt-5-mini",    label: "gpt-5-mini",    hint: "GPT-5 Mini \u2014 fast & cheap" },
-        { value: "openai:gpt-4.1",       label: "gpt-4.1",       hint: "1M ctx, best instruction following" },
-        { value: "openai:gpt-4.1-nano",  label: "gpt-4.1-nano",  hint: "1M ctx, cheapest" },
-        { value: "openai:o3-pro",        label: "o3-pro",        hint: "Best reasoning \u2014 most thorough" },
-        { value: "openai:o4-mini",       label: "o4-mini",       hint: "Fast reasoning (Apr 2025)" },
-        { value: "openai:gpt-4o",        label: "gpt-4o",        hint: "Vision + text (128K ctx)" },
-        { value: "openai:gpt-4o-mini",   label: "gpt-4o-mini",   hint: "GPT-4o Mini \u2014 balanced" },
-      ],
-    }));
-  } else if (provider === "anthropic") {
-    const key = guard(await p.password({ message: "Anthropic API key (sk-ant-...)", validate: (v) => !v ? "Required" : undefined }));
-    envConfig.ANTHROPIC_API_KEY = key;
-    envConfig.DEFAULT_MODEL = guard(await p.select({
-      message: "Claude model",
-      options: [
-        { value: "anthropic:claude-sonnet-4-6",          label: "claude-sonnet-4-6",          hint: "Best speed/intelligence \u2014 coding & agents [NEW]" },
-        { value: "anthropic:claude-opus-4-6",            label: "claude-opus-4-6",            hint: "Most intelligent \u2014 extended thinking [NEW]" },
-        { value: "anthropic:claude-haiku-4-5",           label: "claude-haiku-4-5",           hint: "Fastest \u2014 high-volume tasks" },
-        { value: "anthropic:claude-sonnet-4-5-20250929", label: "claude-sonnet-4-5-20250929", hint: "Sonnet 4.5 \u2014 coding & agentic (200K ctx)" },
-        { value: "anthropic:claude-3-5-sonnet-latest",   label: "claude-3-5-sonnet-latest",   hint: "3.5 Sonnet \u2014 widely used previous gen" },
-      ],
-    }));
-  } else if (provider === "google") {
-    const key = guard(await p.password({ message: "Google AI API key", validate: (v) => !v ? "Required" : undefined }));
-    envConfig.GOOGLE_AI_API_KEY = key;
-    envConfig.DEFAULT_MODEL = guard(await p.select({
-      message: "Gemini model",
-      options: [
-        { value: "google:gemini-2.5-flash",               label: "gemini-2.5-flash",               hint: "Fast & cost-effective \u2014 recommended" },
-        { value: "google:gemini-3.1-pro-preview",         label: "gemini-3.1-pro-preview",         hint: "Latest \u2014 complex tasks [NEW]" },
-        { value: "google:gemini-3.1-flash-lite-preview",  label: "gemini-3.1-flash-lite-preview",  hint: "Latest lite \u2014 cost-efficient [NEW]" },
-        { value: "google:gemini-2.5-pro",                 label: "gemini-2.5-pro",                 hint: "Complex reasoning & coding (1M ctx)" },
-        { value: "google:gemini-2.5-flash-lite",          label: "gemini-2.5-flash-lite",          hint: "Speed-optimised high-throughput" },
-        { value: "google:gemini-2.0-flash",               label: "gemini-2.0-flash",               hint: "Previous gen flash" },
-      ],
-    }));
-  } else if (provider === "xai") {
-    const key = guard(await p.password({ message: "xAI API key", validate: (v) => !v ? "Required" : undefined }));
-    envConfig.XAI_API_KEY = key;
-    envConfig.DEFAULT_MODEL = guard(await p.select({
-      message: "Grok model",
-      options: [
-        { value: "xai:grok-4",           label: "grok-4",           hint: "Latest & most capable (Jul 2025) [NEW]" },
-        { value: "xai:grok-3-beta",      label: "grok-3-beta",      hint: "Grok 3 Beta \u2014 131K ctx" },
-        { value: "xai:grok-3-mini-beta", label: "grok-3-mini-beta", hint: "Grok 3 Mini \u2014 fast, 131K ctx" },
-      ],
-    }));
-  } else if (provider === "deepseek") {
-    const key = guard(await p.password({ message: "DeepSeek API key (sk-...)", validate: (v) => !v ? "Required" : undefined }));
-    envConfig.DEEPSEEK_API_KEY = key;
-    envConfig.DEFAULT_MODEL = guard(await p.select({
-      message: "DeepSeek model",
-      options: [
-        { value: "deepseek:deepseek-chat",     label: "deepseek-chat",     hint: "V3 \u2014 excellent coder (128K ctx, recommended)" },
-        { value: "deepseek:deepseek-reasoner", label: "deepseek-reasoner", hint: "R1 \u2014 chain-of-thought reasoning" },
-      ],
-    }));
-  } else if (provider === "mistral") {
-    const key = guard(await p.password({ message: "Mistral API key", validate: (v) => !v ? "Required" : undefined }));
-    envConfig.MISTRAL_API_KEY = key;
-    envConfig.DEFAULT_MODEL = guard(await p.select({
-      message: "Mistral model",
-      options: [
-        { value: "mistral:mistral-large-2512",    label: "mistral-large-2512",    hint: "Flagship \u2014 best quality (Dec 2025) [NEW]" },
-        { value: "mistral:mistral-medium-3",      label: "mistral-medium-3",      hint: "Balanced capability & speed" },
-        { value: "mistral:codestral-2508",        label: "codestral-2508",        hint: "Code specialist (Aug 2025)" },
-        { value: "mistral:mistral-small-3.2-24b", label: "mistral-small-3.2-24b", hint: "Lightweight, runs locally (24B)" },
-      ],
-    }));
-  } else if (provider === "ollama") {
+  // Load model registry dynamically
+  const { models: modelRegistry } = await import("../config/models.js");
+
+  // Provider config: API key prompt + env var name
+  const providerKeys = {
+    openai:    { env: "OPENAI_API_KEY",    prompt: "OpenAI API key (sk-...)" },
+    anthropic: { env: "ANTHROPIC_API_KEY", prompt: "Anthropic API key (sk-ant-...)" },
+    google:    { env: "GOOGLE_AI_API_KEY", prompt: "Google AI API key" },
+    xai:       { env: "XAI_API_KEY",       prompt: "xAI API key" },
+    deepseek:  { env: "DEEPSEEK_API_KEY",  prompt: "DeepSeek API key (sk-...)" },
+    mistral:   { env: "MISTRAL_API_KEY",   prompt: "Mistral API key" },
+  };
+
+  if (provider === "ollama") {
+    // Ollama: list known local models from registry + free text input
+    const ollamaModels = Object.entries(modelRegistry)
+      .filter(([, m]) => m.provider === "ollama")
+      .map(([, m]) => m.model);
+    const ollamaHint = ollamaModels.length ? ollamaModels.join(", ") : "llama3.1, qwen2.5-coder";
     p.note(
       [
         "Make sure Ollama is running:  ollama serve",
-        "Pull a model first:           ollama pull llama4-maverick",
-        "Recommended models:",
-        "  llama4-maverick  \u2014 Llama 4, 17B MoE, multimodal, 1M ctx",
-        "  llama4-scout     \u2014 Llama 4, 17B MoE, 10M ctx",
-        "  llama3.3         \u2014 best 70B open model",
-        "  qwen2.5          \u2014 strong coder",
+        "Pull a model first:           ollama pull <model>",
+        `Known models: ${ollamaHint}`,
+        "You can use any model available in your Ollama installation.",
       ].join("\n"),
       "Ollama (local models)",
     );
     const model = guard(await p.text({
       message: "Ollama model name",
-      initialValue: "llama4-maverick",
-      placeholder: "e.g. llama4-maverick, llama3.3, qwen2.5",
+      initialValue: ollamaModels[0] || "llama3.1",
+      placeholder: `e.g. ${ollamaHint}`,
     }));
     envConfig.DEFAULT_MODEL = `ollama:${model}`;
+  } else {
+    // Cloud provider: ask for API key, then show models from registry
+    const keyInfo = providerKeys[provider];
+    if (keyInfo) {
+      const key = guard(await p.password({ message: keyInfo.prompt, validate: (v) => !v ? "Required" : undefined }));
+      envConfig[keyInfo.env] = key;
+    }
+
+    // Build model options from registry for this provider
+    const providerModels = Object.entries(modelRegistry)
+      .filter(([, m]) => m.provider === provider)
+      .map(([id, m]) => {
+        const ctx = m.contextWindow >= 1_000_000
+          ? `${(m.contextWindow / 1_000_000).toFixed(0)}M ctx`
+          : `${(m.contextWindow / 1_000).toFixed(0)}K ctx`;
+        const caps = (m.capabilities || []).filter(c => c !== "text" && c !== "tools").join(", ");
+        const price = m.costPer1kInput > 0 ? `$${m.costPer1kInput}/1k in` : "free";
+        const parts = [ctx, m.tier, caps, price].filter(Boolean);
+        return { value: id, label: m.model, hint: parts.join(" \u00b7 ") };
+      });
+
+    if (providerModels.length > 0) {
+      envConfig.DEFAULT_MODEL = guard(await p.select({
+        message: `${provider.charAt(0).toUpperCase() + provider.slice(1)} model`,
+        options: providerModels,
+      }));
+    } else {
+      // Provider not in registry — free text input
+      const model = guard(await p.text({
+        message: `${provider} model name (e.g. ${provider}:model-name)`,
+        validate: (v) => !v ? "Required" : undefined,
+      }));
+      envConfig.DEFAULT_MODEL = model.includes(":") ? model : `${provider}:${model}`;
+    }
   }
 
   p.log.success(`Provider: ${t.bold(provider)}  Model: ${t.bold(envConfig.DEFAULT_MODEL)}`);
