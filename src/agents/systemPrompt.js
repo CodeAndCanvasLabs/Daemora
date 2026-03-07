@@ -305,7 +305,7 @@ ${serverList}
 }
 
 function renderToolUsageRules() {
-  return `# Execution Rules
+  return `# Tool Usage Rules
 
 ## Workflow
 1. Read → understand before touching anything.
@@ -384,7 +384,7 @@ function renderDailyLog() {
   return `# Today's Log (${today})\n\n${dailyLog}`;
 }
 
-// renderOperationalGuidelines merged into renderToolUsageRules as "Execution Rules"
+// renderOperationalGuidelines merged into renderToolUsageRules
 
 function renderSubagentContext(taskDescription) {
   if (!taskDescription) return null;
