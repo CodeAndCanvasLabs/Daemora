@@ -197,7 +197,6 @@ ${unconfigured.map(t => `- ${t} — needs: ${TOOL_REQUIRED_KEYS[t].join(" or ")}
   return `# Available Tools
 
 All tool params are STRINGS. Pass them as an array of strings.
-Use the \`home\` and \`cwd\` from Runtime info for correct path construction. Never concatenate cwd with user home paths (e.g. ~/Desktop is home + "/Desktop", not cwd + "/Desktop").
 
 ## File Operations
 - readFile(filePath, offset?, limit?) — Read file with line numbers. Always read before editing.
@@ -423,10 +422,7 @@ function renderRuntime(meta = {}) {
   if (meta.model) parts.push(`model=${meta.model}`);
   if (meta.thinkingLevel) parts.push(`thinking=${meta.thinkingLevel}`);
   if (meta.agentId) parts.push(`agent=${meta.agentId}`);
-  // Always include home directory and working directory so the model constructs correct paths
-  const homeDir = process.env.HOME || process.env.USERPROFILE || "";
-  if (homeDir) parts.push(`home=${homeDir}`);
-  parts.push(`cwd=${process.cwd()}`);
+  if (parts.length === 0) return null;
   return `Runtime: ${parts.join(" | ")}`;
 }
 
