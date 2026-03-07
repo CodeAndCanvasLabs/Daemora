@@ -18,6 +18,8 @@ import {
   MessageSquareText,
   Bot,
   FileCode2,
+  Search,
+  Check,
 } from "lucide-react";
 
 interface AvailableVar {
@@ -117,6 +119,121 @@ function Section({
       >
         <div className="px-5 pb-5 pt-1">{children}</div>
       </div>
+    </div>
+  );
+}
+
+// ── Searchable Model Selector ────────────────────────────────────────────────
+
+function ModelSelect({
+  value,
+  onChange,
+  modelsByProvider,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  modelsByProvider: Record<string, ModelOption[]>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const q = search.toLowerCase();
+  const filtered: Record<string, ModelOption[]> = {};
+  for (const [provider, models] of Object.entries(modelsByProvider)) {
+    const matches = models.filter((m) => m.id.toLowerCase().includes(q) || provider.toLowerCase().includes(q));
+    if (matches.length > 0) filtered[provider] = matches;
+  }
+
+  const selectedLabel = value || "Same as main agent (default)";
+  const tierColor = (tier?: string) => {
+    if (!tier) return "text-gray-500";
+    if (tier === "cheap" || tier === "free") return "text-[#00ff88]";
+    if (tier === "expensive") return "text-amber-400";
+    return "text-gray-400";
+  };
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => { setOpen(!open); if (!open) setTimeout(() => inputRef.current?.focus(), 50); }}
+        className="w-full bg-slate-950/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm font-mono text-left flex items-center justify-between hover:border-slate-600/60 focus:border-[#00d9ff]/50 focus:outline-none focus:ring-1 focus:ring-[#00d9ff]/20 transition-colors"
+      >
+        <span className={value ? "text-white" : "text-gray-500"}>{selectedLabel}</span>
+        <ChevronDown className={`w-3.5 h-3.5 text-gray-500 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="absolute z-50 top-full mt-1 w-full bg-slate-950 border border-slate-700/60 rounded-xl shadow-2xl shadow-black/40 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+          {/* Search */}
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-800/60">
+            <Search className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+            <input
+              ref={inputRef}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search models..."
+              className="w-full bg-transparent text-sm font-mono text-white placeholder-gray-600 outline-none"
+            />
+            {search && (
+              <button onClick={() => setSearch("")} className="text-gray-500 hover:text-gray-300">
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+
+          {/* Options */}
+          <div className="max-h-[240px] overflow-y-auto">
+            {/* Default option */}
+            <button
+              onClick={() => { onChange(""); setOpen(false); setSearch(""); }}
+              className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-mono text-left hover:bg-slate-800/50 transition-colors ${!value ? "text-[#00d9ff]" : "text-gray-400"}`}
+            >
+              {!value && <Check className="w-3 h-3 text-[#00d9ff] shrink-0" />}
+              {value && <div className="w-3" />}
+              Same as main agent (default)
+            </button>
+
+            {Object.keys(filtered).length === 0 ? (
+              <div className="px-3 py-4 text-center text-gray-600 font-mono text-xs">No models match "{search}"</div>
+            ) : (
+              Object.entries(filtered).map(([provider, models]) => (
+                <div key={provider}>
+                  <div className="px-3 py-1.5 text-[9px] font-mono text-gray-500 uppercase tracking-widest bg-slate-900/60 sticky top-0">
+                    {provider}
+                  </div>
+                  {models.map((m) => {
+                    const isSelected = m.id === value;
+                    const modelName = m.id.split(":")[1] || m.id;
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={() => { onChange(m.id); setOpen(false); setSearch(""); }}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-mono text-left hover:bg-slate-800/50 transition-colors ${isSelected ? "text-[#00d9ff] bg-[#00d9ff]/5" : "text-gray-300"}`}
+                      >
+                        {isSelected ? <Check className="w-3 h-3 text-[#00d9ff] shrink-0" /> : <div className="w-3" />}
+                        <span className="flex-1 truncate">{modelName}</span>
+                        {m.tier && <span className={`text-[9px] uppercase tracking-wider ${tierColor(m.tier)}`}>{m.tier}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -356,22 +473,11 @@ export function Settings() {
             <label className="text-[10px] font-mono text-gray-400 uppercase mb-1.5 block tracking-wider flex items-center gap-1.5">
               <Bot className="w-3 h-3" /> Sub-Agent Model
             </label>
-            <select
-              className={inputClass + " appearance-none cursor-pointer"}
+            <ModelSelect
               value={profile.subAgentModel}
-              onChange={(e) => handleProfileChange("subAgentModel", e.target.value)}
-            >
-              <option value="">Same as main agent (default)</option>
-              {Object.entries(modelsByProvider).map(([provider, models]) => (
-                <optgroup key={provider} label={provider.charAt(0).toUpperCase() + provider.slice(1)}>
-                  {models.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.id}{m.tier ? ` — ${m.tier}` : ""}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+              onChange={(v) => handleProfileChange("subAgentModel", v)}
+              modelsByProvider={modelsByProvider}
+            />
             <p className="text-[10px] font-mono text-gray-600 mt-1.5">Model used when spawning sub-agents for parallel tasks</p>
           </div>
 
