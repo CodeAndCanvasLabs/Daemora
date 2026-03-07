@@ -197,10 +197,10 @@ ${unconfigured.map(t => `- ${t} — needs: ${TOOL_REQUIRED_KEYS[t].join(" or ")}
   return `# Available Tools
 
 All tool params are STRINGS. Pass them as an array of strings.
+Use existing conversation context first — if you already have the data from a previous tool call, web search, file read, or user message, work with that. Only call a tool again when you need fresh or missing information.
 
 ## File Operations
 Always use absolute paths. Resolve ~ and relative paths from the user's context before calling any file tool.
-- If you already read a file in this conversation, use that context — don't re-read the whole thing.
 - Read only what you need: use offset/limit to target specific line ranges instead of loading entire files.
 - Use editFile for surgical changes — it finds and replaces without needing the full file content.
 - Reserve writeFile for creating new files or when the entire file needs rewriting.
