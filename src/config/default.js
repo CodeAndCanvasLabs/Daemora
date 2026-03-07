@@ -28,7 +28,11 @@ export const config = {
   memoryPath: join(ROOT_DIR, "MEMORY.md"),
 
   // Default model (provider:model format)
-  defaultModel: process.env.DEFAULT_MODEL || "openai:gpt-4.1-mini",
+  defaultModel: process.env.DEFAULT_MODEL || "openai:gpt-5.1-mini",
+
+  // Sub-agent model — used for all sub-agents when no profile-specific model is set.
+  // Falls between profile routing (CODE_MODEL etc.) and DEFAULT_MODEL in priority.
+  subAgentModel: process.env.SUB_AGENT_MODEL || null,
 
   // Agent loop
   maxLoops: 40,

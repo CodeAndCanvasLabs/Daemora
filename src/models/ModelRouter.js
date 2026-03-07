@@ -218,11 +218,12 @@ const _profileEnvMap = {
  *   1. explicitModel (caller override)
  *   2. Per-tenant modelRoutes[profile]
  *   3. Global CODE_MODEL / RESEARCH_MODEL / WRITER_MODEL / ANALYST_MODEL env vars
- *   4. Per-tenant general model override
- *   5. DEFAULT_MODEL env var / hardcoded default
+ *   4. SUB_AGENT_MODEL (global sub-agent default)
+ *   5. Per-tenant general model override
+ *   6. DEFAULT_MODEL env var / hardcoded default
  *
  * @param {string|null} profile       - e.g. "coder", "researcher", "writer", "analyst"
- * @param {object}      tenantConfig  - resolvedConfig from TenantManager (may have .modelRoutes, .model)
+ * @param {object}      tenantConfig  - resolvedConfig from TenantManager (may have .modelRoutes, .model, .subAgentModel)
  * @param {string|null} explicitModel - Caller-supplied model override (highest priority)
  * @returns {string} Resolved model ID
  */
@@ -230,6 +231,9 @@ export function resolveModelForProfile(profile, tenantConfig = {}, explicitModel
   if (explicitModel) return explicitModel;
   if (profile && tenantConfig.modelRoutes?.[profile]) return tenantConfig.modelRoutes[profile];
   if (profile && process.env[_profileEnvMap[profile]]) return process.env[_profileEnvMap[profile]];
+  // Sub-agent model: tenant-level > env-level
+  if (tenantConfig.subAgentModel) return tenantConfig.subAgentModel;
+  if (process.env.SUB_AGENT_MODEL) return process.env.SUB_AGENT_MODEL;
   if (tenantConfig.model) return tenantConfig.model;
   return process.env.DEFAULT_MODEL || "openai:gpt-4.1-mini";
 }

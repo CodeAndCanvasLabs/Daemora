@@ -30,6 +30,7 @@ interface UserProfile {
   personality: string;
   tone: string;
   instructions: string;
+  subAgentModel: string;
 }
 
 interface CustomSkill {
@@ -49,7 +50,7 @@ export function Settings() {
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
 
-  const [profile, setProfile] = useState<UserProfile>({ name: "", personality: "", tone: "", instructions: "" });
+  const [profile, setProfile] = useState<UserProfile>({ name: "", personality: "", tone: "", instructions: "", subAgentModel: "" });
   const [profileDirty, setProfileDirty] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
@@ -78,6 +79,7 @@ export function Settings() {
           personality: profileData.personality || "",
           tone: profileData.tone || "",
           instructions: profileData.instructions || "",
+          subAgentModel: profileData.subAgentModel || "",
         });
         setCustomSkills(skillsData.skills || []);
         setMemory(memoryData.content || "");
@@ -235,6 +237,11 @@ export function Settings() {
               <label className="text-xs font-mono text-gray-400 uppercase mb-1 block">Tone</label>
               <input className={inputClass} placeholder="e.g. casual, formal" value={profile.tone} onChange={(e) => handleProfileChange("tone", e.target.value)} />
             </div>
+          </div>
+          <div>
+            <label className="text-xs font-mono text-gray-400 uppercase mb-1 block">Sub-Agent Model</label>
+            <input className={inputClass} placeholder="Same as main agent (e.g. openai:gpt-4.1-mini, anthropic:claude-haiku-4-5)" value={profile.subAgentModel} onChange={(e) => handleProfileChange("subAgentModel", e.target.value)} />
+            <p className="text-[10px] font-mono text-gray-600 mt-1">Default model for sub-agents. Leave empty to use the main agent's model. Format: provider:model</p>
           </div>
           <div>
             <label className="text-xs font-mono text-gray-400 uppercase mb-1 block">Custom Instructions</label>

@@ -2161,6 +2161,7 @@ ${line}
   ${t.cmd("config set")} ${t.dim("<KEY> <value>")}          Set an env var (e.g. OPENAI_API_KEY)
   ${t.cmd("config get")} ${t.dim("<KEY>")}                  Show an env var (masked)
   ${t.cmd("config unset")} ${t.dim("<KEY>")}                Remove an env var
+  ${t.dim("  Keys: DEFAULT_MODEL, SUB_AGENT_MODEL, CODE_MODEL, RESEARCH_MODEL ...")}
 
   ${t.cmd("daemon install")}                   Install as OS service (auto-start)
   ${t.cmd("daemon uninstall")}                 Remove OS service

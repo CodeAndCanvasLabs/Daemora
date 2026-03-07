@@ -812,11 +812,17 @@ app.get("/api/profile", (req, res) => {
 });
 
 app.put("/api/profile", (req, res) => {
-  const { name, personality, tone, instructions } = req.body;
+  const { name, personality, tone, instructions, subAgentModel } = req.body;
   const profilePath = join(config.dataDir, "user-profile.json");
-  const profile = { name: name || "", personality: personality || "", tone: tone || "", instructions: instructions || "" };
+  const profile = { name: name || "", personality: personality || "", tone: tone || "", instructions: instructions || "", subAgentModel: subAgentModel || "" };
   mkdirSync(dirname(profilePath), { recursive: true });
   writeFileSync(profilePath, JSON.stringify(profile, null, 2), "utf-8");
+  // Apply sub-agent model to runtime so it takes effect immediately
+  if (subAgentModel) {
+    process.env.SUB_AGENT_MODEL = subAgentModel;
+  } else {
+    delete process.env.SUB_AGENT_MODEL;
+  }
   res.json({ message: "Profile saved", profile });
 });
 
@@ -924,11 +930,23 @@ if (existsSync(uiPath)) {
   console.log(`[Server] Serving UI from ${uiPath}`);
 }
 
+// --- Load user profile settings on startup ---
+try {
+  const profilePath = join(config.dataDir, "user-profile.json");
+  if (existsSync(profilePath)) {
+    const p = JSON.parse(readFileSync(profilePath, "utf-8"));
+    if (p.subAgentModel && !process.env.SUB_AGENT_MODEL) {
+      process.env.SUB_AGENT_MODEL = p.subAgentModel;
+    }
+  }
+} catch { /* ignore */ }
+
 // --- Start server ---
 app.listen(config.port, async () => {
   console.log("\n--- Daemora Server ---");
   console.log(`Running on http://localhost:${config.port}`);
   console.log(`Model: ${config.defaultModel}`);
+  if (process.env.SUB_AGENT_MODEL) console.log(`Sub-agent model: ${process.env.SUB_AGENT_MODEL}`);
   console.log(`Permission tier: ${config.permissionTier}`);
   console.log(`Tools loaded: ${Object.keys(toolFunctions).join(", ")}`);
   console.log(`Total tools: ${Object.keys(toolFunctions).length}`);

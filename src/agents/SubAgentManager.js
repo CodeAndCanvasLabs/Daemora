@@ -30,6 +30,27 @@ import skillLoader from "../skills/SkillLoader.js";
 
 const MAX_CONCURRENT_SUB_AGENTS = 7;
 
+/**
+ * Resolve sub-agent model. Priority:
+ *   1. Profile-specific route (tenant modelRoutes[profile] or CODE_MODEL/etc env)
+ *   2. SUB_AGENT_MODEL (tenant-level or env-level)
+ *   3. Parent agent's model (inherit from main agent)
+ *   4. DEFAULT_MODEL
+ */
+function _resolveSubAgentModel(profile, tenantConfig, parentModel) {
+  const _profileEnvMap = { coder: "CODE_MODEL", researcher: "RESEARCH_MODEL", writer: "WRITER_MODEL", analyst: "ANALYST_MODEL" };
+  // 1. Profile-specific
+  if (profile && tenantConfig.modelRoutes?.[profile]) return tenantConfig.modelRoutes[profile];
+  if (profile && process.env[_profileEnvMap[profile]]) return process.env[_profileEnvMap[profile]];
+  // 2. Sub-agent model (tenant > env)
+  if (tenantConfig.subAgentModel) return tenantConfig.subAgentModel;
+  if (process.env.SUB_AGENT_MODEL) return process.env.SUB_AGENT_MODEL;
+  // 3. Parent's model — sub-agents default to the same model as the main agent
+  if (parentModel) return parentModel;
+  // 4. Global default
+  return config.defaultModel;
+}
+
 /** Map<agentId, { taskDescription, startedAt, parentTaskId, abortController, steerQueue }> */
 const activeSubAgents = new Map();
 
@@ -121,12 +142,12 @@ export async function spawnSubAgent(taskDescription, options = {}) {
   const agentId = uuidv4().slice(0, 8);
   const taskId  = `subagent-${agentId}`;
 
-  // ── Model resolution - priority: explicit > profile routing > parent > global default ───────
+  // ── Model resolution ────────────────────────────────────────────────────
+  // Priority: explicit > profile route > SUB_AGENT_MODEL > parent's model > DEFAULT_MODEL
   const store = tenantContext.getStore();
+  const parentModel = store?.resolvedModel || null;
   const resolvedModel = model
-    || resolveModelForProfile(profile, store?.resolvedConfig || {}, null)
-    || store?.resolvedModel
-    || config.defaultModel;
+    || _resolveSubAgentModel(profile, store?.resolvedConfig || {}, parentModel);
 
   const profileLabel = profile ? ` [${profile}]` : "";
   const modelLabel   = resolvedModel ? ` ${C.dim}(${resolvedModel})${C.reset}` : "";
