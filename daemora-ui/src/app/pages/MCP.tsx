@@ -543,7 +543,9 @@ export function MCP() {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleAction(server.name, server.enabled ? "disable" : "enable")}
-                        className={`font-mono text-[10px] uppercase ${server.enabled ? 'text-amber-500 hover:bg-amber-500/10' : 'text-[#00ff88] hover:bg-[#00ff88]/10'}`}
+                        disabled={!server.enabled && server.needsConfig}
+                        title={!server.enabled && server.needsConfig ? "Configure credentials first" : undefined}
+                        className={`font-mono text-[10px] uppercase ${server.enabled ? 'text-amber-500 hover:bg-amber-500/10' : server.needsConfig ? 'text-gray-600 cursor-not-allowed opacity-40' : 'text-[#00ff88] hover:bg-[#00ff88]/10'}`}
                       >
                         {server.enabled ? <Pause className="w-3 h-3 mr-1" /> : <Play className="w-3 h-3 mr-1" />}
                         {server.enabled ? "Suspend" : "Activate"}
