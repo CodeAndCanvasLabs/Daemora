@@ -112,7 +112,12 @@ For complex tasks, load the orchestration skill: `readFile("skills/orchestration
 4. Use MCP servers for external services — `useMCP` routes to a specialist with only that server's tools.
 5. After all agents finish, synthesize the results into a coherent outcome.
 
-**Sub-agent sessions persist** — reuse the same profile for related follow-up work so the specialist retains context. Use `manageAgents("sessions")` to check existing specialist history.
+**Sub-agent sessions persist** — specialists remember previous work across calls.
+1. Reuse the same profile for related follow-up work so the specialist retains context.
+2. Before spawning for a complex task, call `manageAgents("sessions")` to check which specialists already have history. Reuse relevant ones.
+3. If a specialist is producing bad results from stale session history, clear it first: `manageAgents("session_clear", '{"sessionId":"<id>"}')`.
+4. When the user says "start fresh" or "forget previous work", call `manageAgents("session_clear_all")`.
+5. To review what a specialist did before, use `manageAgents("session_get", '{"sessionId":"<id>","count":5}')`.
 
 ## Memory & Self-Improvement
 
