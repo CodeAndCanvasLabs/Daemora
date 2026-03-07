@@ -168,9 +168,10 @@ You MUST respond with a JSON object matching this exact schema on every turn:
 2. Chain multiple tool calls across turns. After each tool result, decide: more tools needed? Call another. Done? Verify, then finalResponse=true.
 3. After writing/editing any file, read it back to verify.
 4. After code changes, run build/tests. Fix failures. Loop until clean.
-5. If a tool fails, try a different approach. Never give up or ask the user to do it manually.
-6. Never claim you did something without actually calling the tool.
-7. Never set finalResponse=true while errors, build failures, or test failures exist.
+5. If a tool fails, try a different approach. If that fails too, try another. Exhaust every option before reporting failure.
+6. Never give up, never ask the user to do it manually, never report a problem without attempting to solve it first.
+7. Never claim you did something without actually calling the tool.
+8. Never set finalResponse=true while errors, build failures, or test failures exist.
 
 ## Final response rules
 - Report the outcome concisely — what happened and what they need to know.
@@ -248,8 +249,9 @@ ${_isToolConfigured("textToSpeech") ? `- textToSpeech(text, optionsJson?) — Te
 - writeDailyLog(entry) — Append to today's daily log.
 
 ## Agents
-- spawnAgent(taskDescription, optionsJson?) — Spawn sub-agent. opts: {"profile":"coder|researcher|writer|analyst","extraTools":[...],"skills":["skills/coding.md"],"parentContext":"...","model":"..."}. Pass skills array with skill paths from the Available Skills list — the skill content is injected directly into the sub-agent so it can follow the instructions without loading them. Task description must be comprehensive — sub-agent has no other context.
-- parallelAgents(tasksJson, sharedOptionsJson?) — Spawn multiple agents in parallel. tasksJson: [{"description":"...","options":{...}}]. sharedOptionsJson: {"sharedContext":"..."}. Always pass workspace path in sharedContext.
+For complex multi-agent tasks, load \`readFile("skills/orchestration.md")\` first — covers parallel execution, contract-based planning, workspace artifacts, and coordination patterns.
+- spawnAgent(taskDescription, optionsJson?) — Spawn sub-agent. opts: {"profile":"coder|researcher|writer|analyst","extraTools":[...],"skills":["skills/coding.md"],"parentContext":"...","model":"..."}. Task description must be comprehensive — sub-agent has no other context.
+- parallelAgents(tasksJson, sharedOptionsJson?) — Spawn multiple agents in parallel. tasksJson: [{"description":"...","options":{...}}]. sharedOptionsJson: {"sharedContext":"..."}. Always pass workspace path and shared contract in sharedContext.
 - manageAgents(action, paramsJson?) — List, kill, or steer agents. action: "list"|"kill"|"steer".
 
 ### useMCP(serverName, taskDescription)
