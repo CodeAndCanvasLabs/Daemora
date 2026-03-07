@@ -66,7 +66,7 @@ function spawnAgent(taskDescription, optionsJson) {
 }
 
 const spawnAgentDescription =
-  'spawnAgent(taskDescription: string, optionsJson?: string) - Spawn a sub-agent to handle a task independently. optionsJson: {"model":"openai:gpt-4.1-mini","tools":["readFile","searchContent"],"maxTurns":10,"parentContext":"shared spec here"}';
+  'spawnAgent(taskDescription: string, optionsJson?: string) - Spawn a sub-agent to handle a task independently. optionsJson: {"model":"openai:gpt-4.1-mini","tools":["readFile","searchContent"],"skills":["skills/coding.md","skills/brand-guidelines.md"],"parentContext":"shared spec here"}. Pass skills array with paths from the skills list to inject skill content directly into the sub-agent.';
 
 // ─── Wrap parallelAgents for the tool interface ────────────────────────────────
 function parallelAgents(tasksJson, sharedOptionsJson) {

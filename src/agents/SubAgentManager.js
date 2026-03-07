@@ -84,6 +84,7 @@ eventBus.on("supervisor:kill", ({ taskId }) => {
  * @param {number}   [options.depth]               Recursion depth (managed internally)
  * @param {string}   [options.parentTaskId]        Parent task ID for kill propagation
  * @param {string}   [options.parentContext]       Summary/context from parent agent
+ * @param {string[]} [options.skills]              Skill paths to inject (e.g. ["skills/coding.md", "skills/brand-guidelines.md"])
  * @param {string}   [options.approvalMode]        Inherited approval mode
  * @param {object}   [options.channelMeta]         Inherited channel meta for approvals
  * @returns {Promise<string>} Sub-agent's final response
@@ -101,6 +102,7 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     depth                = 0,
     parentTaskId         = null,
     parentContext        = null,
+    skills               = null,        // explicit skill paths to inject (e.g. ["skills/coding.md"])
     approvalMode         = "auto",
     channelMeta          = null,
     historyMessages      = [],     // previous session messages to prepend (persistent sub-agent sessions)
@@ -250,30 +252,57 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     }
   }
 
-  // ── Match and inject relevant skill content ─────────────────────────────
-  // Sub-agents get the top matched skill's full content injected directly
-  // so they don't waste a tool call turn on readFile to load it.
+  // ── Skill injection ─────────────────────────────────────────────────────
+  // Priority: 1) Explicit skills passed by parent  2) Semantic embedding search
+  // Both produce full skill content so the sub-agent doesn't waste a readFile turn.
   let skillContext = "";
   try {
-    const matchedSkills = skillLoader.matchSkills(taskDescription);
-    if (matchedSkills.length > 0) {
-      // Inject top 1-2 matched skills (keep context reasonable)
-      const topSkills = matchedSkills.slice(0, 2);
-      skillContext = topSkills.map(s =>
+    const injectedSkills = [];
+
+    // 1. Explicit skills — parent agent passed skill paths/names directly
+    if (skills && skills.length > 0) {
+      for (const ref of skills) {
+        const skill = skillLoader.getSkill(ref);
+        if (skill) {
+          injectedSkills.push(skill);
+        } else {
+          console.log(`[SubAgent:${agentId}] Skill not found: "${ref}"`);
+        }
+      }
+    }
+
+    // 2. Semantic embedding search — find relevant skills the parent didn't explicitly pass
+    if (injectedSkills.length === 0 && taskDescription) {
+      const semanticResult = await skillLoader.getSkillPromptsAsync(taskDescription);
+      if (semanticResult) {
+        // getSkillPromptsAsync returns formatted string with --- Skill: name --- blocks
+        skillContext = semanticResult;
+      }
+    }
+
+    // Format explicitly-passed skills
+    if (injectedSkills.length > 0) {
+      skillContext = injectedSkills.map(s =>
         `\n--- Skill: ${s.name} ---\n${s.content}\n--- End Skill ---`
       ).join("\n");
-      console.log(`[SubAgent:${agentId}] Injected ${topSkills.length} skill(s): ${topSkills.map(s => s.name).join(", ")}`);
+    }
+
+    if (injectedSkills.length > 0) {
+      console.log(`[SubAgent:${agentId}] Injected ${injectedSkills.length} skill(s) (explicit): ${injectedSkills.map(s => s.name).join(", ")}`);
+    } else if (skillContext) {
+      console.log(`[SubAgent:${agentId}] Injected skills (semantic embedding match)`);
     }
   } catch (e) {
     // Non-blocking — skills are optional
+    console.log(`[SubAgent:${agentId}] Skill injection failed (non-blocking): ${e.message}`);
   }
 
-  // ── Build initial messages (include history + optionally parent context + skills) ──
+  // ── Build initial messages (include history + parent context + skills) ──
   const initialMessages = [...historyMessages];
 
   const contextParts = [];
   if (parentContext) contextParts.push(`[Context from parent agent]:\n${parentContext}`);
-  if (skillContext) contextParts.push(`[Matched Skills — follow these instructions]:\n${skillContext}`);
+  if (skillContext) contextParts.push(`[Matched Skills — follow these instructions precisely]:\n${skillContext}`);
 
   if (contextParts.length > 0) {
     initialMessages.push({

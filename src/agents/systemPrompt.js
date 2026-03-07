@@ -247,7 +247,7 @@ ${_isToolConfigured("textToSpeech") ? `- textToSpeech(text, optionsJson?) — Te
 - writeDailyLog(entry) — Append to today's daily log.
 
 ## Agents
-- spawnAgent(taskDescription, optionsJson?) — Spawn sub-agent. opts: {"profile":"coder|researcher|writer|analyst","extraTools":[...],"parentContext":"...","model":"..."}. Task description must be comprehensive — sub-agent has no other context.
+- spawnAgent(taskDescription, optionsJson?) — Spawn sub-agent. opts: {"profile":"coder|researcher|writer|analyst","extraTools":[...],"skills":["skills/coding.md"],"parentContext":"...","model":"..."}. Pass skills array with skill paths from the Available Skills list — the skill content is injected directly into the sub-agent so it can follow the instructions without loading them. Task description must be comprehensive — sub-agent has no other context.
 - parallelAgents(tasksJson, sharedOptionsJson?) — Spawn multiple agents in parallel. tasksJson: [{"description":"...","options":{...}}]. sharedOptionsJson: {"sharedContext":"..."}. Always pass workspace path in sharedContext.
 - manageAgents(action, paramsJson?) — List, kill, or steer agents. action: "list"|"kill"|"steer".
 

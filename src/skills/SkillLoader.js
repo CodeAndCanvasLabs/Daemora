@@ -368,6 +368,34 @@ class SkillLoader {
   }
 
   /**
+   * Get a skill by name or path. Supports:
+   *   - Exact name: "coding"
+   *   - Path: "skills/coding.md", "skills/webapp-testing/SKILL.md"
+   *   - Partial path: "coding.md"
+   * Returns full skill object or null.
+   */
+  getSkill(nameOrPath) {
+    if (!this.loaded) this.load();
+    // Direct name lookup
+    if (this.skills.has(nameOrPath)) return this.skills.get(nameOrPath);
+
+    // Strip common path prefixes and .md extension for matching
+    let normalized = nameOrPath
+      .replace(/^skills\//, "")
+      .replace(/\/SKILL\.md$/i, "")
+      .replace(/\.md$/, "");
+
+    if (this.skills.has(normalized)) return this.skills.get(normalized);
+
+    // Case-insensitive fallback
+    const lower = normalized.toLowerCase();
+    for (const [key, skill] of this.skills) {
+      if (key.toLowerCase() === lower) return skill;
+    }
+    return null;
+  }
+
+  /**
    * List all loaded skills.
    */
   list() {
