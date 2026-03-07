@@ -200,9 +200,13 @@ All tool params are STRINGS. Pass them as an array of strings.
 
 ## File Operations
 Always use absolute paths. Resolve ~ and relative paths from the user's context before calling any file tool.
-- readFile(filePath, offset?, limit?) — Read file with line numbers. Always read before editing.
+- If you already read a file in this conversation, use that context — don't re-read the whole thing.
+- Read only what you need: use offset/limit to target specific line ranges instead of loading entire files.
+- Use editFile for surgical changes — it finds and replaces without needing the full file content.
+- Reserve writeFile for creating new files or when the entire file needs rewriting.
+- readFile(filePath, offset?, limit?) — Read file with line numbers. Use offset/limit to read specific sections.
 - writeFile(filePath, content) — Create or overwrite file. Content is the complete file.
-- editFile(filePath, oldString, newString) — Find-and-replace (exactly 3 params). Read file first to get exact match string.
+- editFile(filePath, oldString, newString) — Find-and-replace (exactly 3 params). Supports flexible whitespace matching.
 - applyPatch(filePath, patch) — Apply unified diff patch. Better than editFile for multi-hunk changes.
 - listDirectory(dirPath) — List files and folders with types and sizes.
 - searchFiles(pattern, directory?, optionsJson?) — Find files by name pattern. opts: {"sortBy":"modified","maxDepth":3}
