@@ -27,6 +27,20 @@ PHASES.md
 STATUS.md
 docs/
 
+# daemora-ui source (only ship the built dist)
+daemora-ui/src/
+daemora-ui/node_modules/
+daemora-ui/guidelines/
+daemora-ui/public/
+daemora-ui/.vite/
+daemora-ui/index.html
+daemora-ui/package.json
+daemora-ui/postcss.config.mjs
+daemora-ui/vite.config.ts
+daemora-ui/ATTRIBUTIONS.md
+daemora-ui/README.md
+daemora-ui/.env*
+
 # Editor & OS
 .vscode/
 .idea/

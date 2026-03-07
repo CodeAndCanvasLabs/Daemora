@@ -17,6 +17,7 @@ import daemonManager from "./daemon/DaemonManager.js";
 import secretVault from "./safety/SecretVault.js";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 import { execSync } from "child_process";
 import { randomBytes } from "crypto";
 
@@ -69,6 +70,14 @@ const [,, command, subcommand, ...rest] = process.argv;
 
 async function main() {
   switch (command) {
+    case "version":
+    case "--version":
+    case "-v": {
+      const pkg = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf-8"));
+      console.log(`daemora v${pkg.version}`);
+      break;
+    }
+
     case "start":
       // If vault exists, prompt for passphrase and inject secrets before server boot
       if (secretVault.exists()) {
@@ -2260,6 +2269,7 @@ ${line}
   ${t.cmd("cleanup set")} ${t.dim("<days>")}             Set auto-cleanup retention (0 = never)
   ${t.cmd("cleanup stats")}                    Show storage usage per directory
 
+  ${t.cmd("version")}  ${t.dim("-v --version")}             Show version
   ${t.cmd("help")}                             Show this help
 
   ${t.bold("EXAMPLES")}
