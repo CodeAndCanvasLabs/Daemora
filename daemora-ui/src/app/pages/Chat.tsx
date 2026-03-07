@@ -32,6 +32,7 @@ export function Chat() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [streamStatus, setStreamStatus] = useState<string | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const activeTaskIdRef = useRef<string | null>(sessionStorage.getItem("daemora_active_task"));
@@ -319,13 +320,14 @@ export function Chat() {
     };
   };
 
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // Scroll to bottom on new messages, loading state change, or session load
   useEffect(() => {
-    if (scrollAreaRef.current) {
-      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      if (scrollContainer) {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight;
-      }
-    }
+    // Use requestAnimationFrame to ensure DOM has rendered
+    requestAnimationFrame(() => scrollToBottom());
   }, [messages, isLoading]);
 
   const formatTime = (ts: string) => {
@@ -505,6 +507,7 @@ export function Chat() {
                       </div>
                     </div>
                   )}
+                  <div ref={messagesEndRef} />
                 </div>
               </ScrollArea>
 
