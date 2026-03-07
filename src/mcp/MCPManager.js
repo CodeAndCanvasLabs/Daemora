@@ -214,6 +214,20 @@ class MCPManager {
           }
         }
 
+        // Check args for placeholder patterns (e.g. connection strings, paths)
+        if (cfg.args && Array.isArray(cfg.args)) {
+          const hasArgPlaceholder = cfg.args.some(v =>
+            typeof v === "string" && (
+              /user:pass@/i.test(v) || /\/Users\/you\//i.test(v) || /YOUR_/i.test(v)
+              || /your-.*-here/i.test(v) || /example\.com/i.test(v) || /changeme/i.test(v)
+            )
+          );
+          if (hasArgPlaceholder) {
+            console.log(`[MCPManager] Skipping "${name}" - args contain placeholder values. Configure via UI or CLI.`);
+            return false;
+          }
+        }
+
         if (cfg.headers) {
           const expandedHeaders = Object.entries(cfg.headers).map(([k, v]) => {
             if (typeof v === "string") {
