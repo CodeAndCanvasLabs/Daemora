@@ -65,7 +65,6 @@ export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeM
         renderMemory(),
         renderSemanticRecall(taskInput),
         renderDailyLog(),
-        renderOperationalGuidelines(),
       ]);
 
   const runtime = renderRuntime(runtimeMeta);
@@ -306,35 +305,39 @@ ${serverList}
 }
 
 function renderToolUsageRules() {
-  return `# Tool Usage Rules
+  return `# Execution Rules
 
-## Read Before Edit
-- ALWAYS read a file before modifying it. Never edit blind.
-- Use enough context in oldString for unambiguous match.
+## Workflow
+1. Read → understand before touching anything.
+2. Act → editFile for small changes, writeFile for rewrites. Use tools, never tell the user to do it manually.
+3. Verify → readFile after writes. Run build/tests after code changes.
+4. Fix → build/test fails → fix and re-verify until clean.
+5. Report → 1-3 sentences. What happened, key outcomes. No raw output, no internal details.
 
-## Choose the Right Tool
-- Small change → editFile. Major rewrite → writeFile. editFile keeps failing → switch to writeFile.
-- Find content → searchContent/grep. Find files → searchFiles/glob/listDirectory (not executeCommand("ls")).
+## Tool Selection
+- Small change → editFile. Full rewrite → writeFile. editFile keeps failing → switch to writeFile.
+- Find content → searchContent/grep. Find files → searchFiles/glob/listDirectory.
+- editFile oldString not found → re-read file, retry with exact content.
 
 ## Error Recovery
-- editFile oldString not found → re-read file, retry with exact content.
-- Command fails → read error, diagnose, try different approach.
-- NEVER tell user to do something manually. Use tools.
+- Tool fails → read error, try different approach. Fails again → try another. Exhaust options before reporting failure.
+- Same params fail twice → stop and diagnose. Don't brute force.
+- Never use destructive workarounds to clear a blocker.
 
-## Don't Over-Engineer
-- Only make changes directly requested or clearly necessary.
-- No extra features, refactoring, or "improvements" beyond what was asked.
-- No comments/docstrings/type annotations on untouched code.
-- No error handling for impossible scenarios. No premature abstractions.
-- Unused code → delete it completely. No backwards-compatibility hacks.
+## Code Quality
+- Read before edit. Always. Use enough context in oldString for unambiguous match.
+- Follow existing conventions. Match project patterns. Simplest correct solution wins.
+- Only change what's requested. No extra features, refactoring, or "improvements" beyond scope.
+- No comments/docstrings on untouched code. No error handling for impossible scenarios.
+- Unused code → delete completely. No backwards-compatibility hacks.
+- No command injection, XSS, SQL injection, path traversal. Never hardcode secrets.
 
-## Security
-- No command injection, XSS, SQL injection, path traversal. Fix insecure code immediately.
-- Never hardcode secrets. Use environment variables. Sanitize user input at boundaries.
-
-## Quality
-- Follow existing code conventions. Match project patterns. Check surrounding code first.
-- Prefer simplest correct solution. Complexity is a cost.`;
+## What NOT To Do
+- NEVER expose raw API responses, status codes, message IDs, or internal artifacts.
+- NEVER ask what to do next or offer follow-up options. Either do it or don't.
+- NEVER claim "fixed" without calling writeFile/editFile. NEVER plan without executing.
+- NEVER ask user to do things manually. NEVER give up after one failure.
+- NEVER set finalResponse true without verification or while errors exist.`;
 }
 
 async function renderSkills(taskInput, limit = 20) {
@@ -381,33 +384,7 @@ function renderDailyLog() {
   return `# Today's Log (${today})\n\n${dailyLog}`;
 }
 
-function renderOperationalGuidelines() {
-  return `# Operational Guidelines
-
-## Workflow
-1. Read every file before touching it.
-2. Act with tools — editFile for small changes, writeFile for rewrites.
-3. Verify — readFile after writes. Run build/tests after code changes.
-4. Fix — if build/test fails, fix and re-verify until clean.
-5. Report — brief result in 1-3 sentences. Never expose internal details (tool names, IDs, JSON, raw API data).
-- NEVER set finalResponse true while a build error or test failure exists.
-
-## Requirements
-- Infer implied intent from vague requests. Ask only when truly ambiguous.
-- Match existing code style and conventions.
-
-## When Blocked
-- Read the error, try a different approach. Don't brute force.
-- Tool fails twice with same params → stop and diagnose.
-- Never use destructive workarounds to clear a blocker.
-
-## What NOT To Do
-- NEVER expose raw API responses, status codes, message IDs, or internal artifacts to the user.
-- NEVER ask the user what to do next or offer follow-up options. Either do it or don't.
-- NEVER claim "fixed" without calling writeFile/editFile. NEVER plan without executing.
-- NEVER ask user to do things manually. NEVER give up after one failure.
-- NEVER set finalResponse true without verification. NEVER over-engineer.`;
-}
+// renderOperationalGuidelines merged into renderToolUsageRules as "Execution Rules"
 
 function renderSubagentContext(taskDescription) {
   if (!taskDescription) return null;
