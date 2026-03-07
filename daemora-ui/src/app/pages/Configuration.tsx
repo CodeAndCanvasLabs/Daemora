@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiFetch } from "../api";
 import { Link } from "react-router";
 import { Globe, Settings as SettingsIcon, Database, Shield, Cpu, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
@@ -19,7 +20,7 @@ export function Configuration() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/config")
+    apiFetch("/api/config")
       .then((res) => res.json())
       .then((data) => {
         setConfig(data);

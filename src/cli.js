@@ -15,9 +15,10 @@ import chalk from "chalk";
 import { config } from "./config/default.js";
 import daemonManager from "./daemon/DaemonManager.js";
 import secretVault from "./safety/SecretVault.js";
-import { readFileSync, writeFileSync, existsSync } from "fs";
-import { join } from "path";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { join, dirname } from "path";
 import { execSync } from "child_process";
+import { randomBytes } from "crypto";
 
 // ── Color palette — matches Daemora UI exactly ──────────────────────────────
 const P = {
@@ -136,6 +137,10 @@ async function main() {
 
     case "config":
       handleConfig(subcommand, rest);
+      break;
+
+    case "auth":
+      handleAuth(subcommand);
       break;
 
     case "setup":
@@ -741,6 +746,39 @@ function handleConfig(action, args) {
         }
         console.log("");
       }
+      break;
+    }
+  }
+}
+
+// ── Auth (API token management) ───────────────────────────────────────────────
+
+function handleAuth(action) {
+  const tokenPath = join(config.dataDir, "auth-token");
+  const header = `\n  ${t.h("Daemora Auth")}  ${t.muted("API token management")}\n`;
+
+  switch (action) {
+    case "token": {
+      if (!existsSync(tokenPath)) {
+        console.log(`${header}  ${S.cross}  No token yet. Start the server first or run: daemora auth reset\n`);
+      } else {
+        const token = readFileSync(tokenPath, "utf-8").trim();
+        console.log(`${header}  ${t.muted("API Token:")}\n\n  ${token}\n`);
+        console.log(`  ${t.muted("Usage:")}  curl -H "Authorization: Bearer ${token.slice(0, 8)}..." http://localhost:${config.port}/api/health\n`);
+      }
+      break;
+    }
+    case "reset": {
+      const token = randomBytes(32).toString("hex");
+      mkdirSync(dirname(tokenPath), { recursive: true });
+      writeFileSync(tokenPath, token, { mode: 0o600 });
+      console.log(`${header}  ${S.check}  ${t.success("New token generated")}\n\n  ${token}\n`);
+      console.log(`  ${t.muted("Restart the server for the new token to take effect.")}\n`);
+      break;
+    }
+    default: {
+      console.log(`${header}  ${t.cmd("daemora auth token")}    Show current API token`);
+      console.log(`  ${t.cmd("daemora auth reset")}    Generate a new token\n`);
       break;
     }
   }
@@ -2156,6 +2194,9 @@ ${line}
   ${dimLine}
   ${t.cmd("start")}                            Start the agent server
   ${t.cmd("setup")}                            Interactive setup wizard
+
+  ${t.cmd("auth token")}                        Show API auth token
+  ${t.cmd("auth reset")}                        Generate a new auth token
 
   ${t.cmd("config list")}                      List all configured env vars
   ${t.cmd("config set")} ${t.dim("<KEY> <value>")}          Set an env var (e.g. OPENAI_API_KEY)

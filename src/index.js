@@ -2,6 +2,7 @@ import express from "express";
 import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { randomBytes } from "crypto";
 import { toolFunctions } from "./tools/index.js";
 import { getSession, listSessions, createSession, clearSession } from "./services/sessions.js";
 import { config } from "./config/default.js";
@@ -135,9 +136,48 @@ const originGuard = (req, res, next) => {
   res.status(403).json({ error: "Cross-origin request blocked." });
 };
 
-// Apply security to all API routes (IP + origin check)
+// --- API Token auth ---
+// Auto-generated on first start, stored on disk. Required for all /api/* requests.
+// The UI receives the token via server-injected <meta> tag (no login needed).
+// Other local tools (curl, scripts) read it from data/auth-token or pass via header.
+const AUTH_TOKEN_PATH = join(config.dataDir, "auth-token");
+
+function getOrCreateAuthToken() {
+  if (existsSync(AUTH_TOKEN_PATH)) {
+    const token = readFileSync(AUTH_TOKEN_PATH, "utf-8").trim();
+    if (token.length >= 32) return token;
+  }
+  const token = randomBytes(32).toString("hex");
+  mkdirSync(dirname(AUTH_TOKEN_PATH), { recursive: true });
+  writeFileSync(AUTH_TOKEN_PATH, token, { mode: 0o600 });
+  console.log("[Security] Generated new API auth token");
+  return token;
+}
+
+const API_TOKEN = getOrCreateAuthToken();
+
+const tokenAuth = (req, res, next) => {
+  // Health endpoint is public (monitoring/readiness probes)
+  if (req.path === "/api/health") return next();
+
+  // Check Authorization: Bearer <token> header
+  const authHeader = req.headers.authorization;
+  if (authHeader === `Bearer ${API_TOKEN}`) return next();
+
+  // Check X-Auth-Token header (simpler for scripts/curl)
+  if (req.headers["x-auth-token"] === API_TOKEN) return next();
+
+  // Check ?token= query param (for SSE/EventSource which can't set headers)
+  if (req.query.token === API_TOKEN) return next();
+
+  console.warn(`[Security] Rejected unauthenticated request: ${req.method} ${req.path}`);
+  res.status(401).json({ error: "Authentication required. Include Authorization: Bearer <token> header." });
+};
+
+// Apply security to all API routes: IP check → origin check → token auth
 app.use("/api", localOnly);
 app.use("/api", originGuard);
+app.use("/api", tokenAuth);
 
 // --- Health check ---
 app.get("/api/health", (req, res) => {
@@ -960,16 +1000,29 @@ app.get("/api/costs/today", (req, res) => {
   });
 });
 
-// --- Static UI ---
+// --- Static UI (with auth token injection) ---
 const uiPath = join(__dirname, "..", "daemora-ui", "dist");
 if (existsSync(uiPath)) {
-  app.use(express.static(uiPath));
-  // Serve index.html for all other routes (React Router support)
+  const indexHtmlPath = join(uiPath, "index.html");
+  let indexHtml = existsSync(indexHtmlPath) ? readFileSync(indexHtmlPath, "utf-8") : "";
+
+  // Inject auth token as a <meta> tag so the UI can read it without a login flow.
+  // Safe because the HTML is only served to localhost (localOnly middleware).
+  const tokenMeta = `<meta name="api-token" content="${API_TOKEN}" />`;
+  if (indexHtml && !indexHtml.includes('name="api-token"')) {
+    indexHtml = indexHtml.replace("</head>", `    ${tokenMeta}\n  </head>`);
+  }
+
+  // Serve static assets normally
+  app.use(express.static(uiPath, { index: false })); // index:false so we handle index.html ourselves
+
+  // Serve token-injected index.html for all UI routes
   app.get(/.*/, (req, res, next) => {
     if (req.path.startsWith("/api/") || req.path.startsWith("/webhooks/") || req.path.startsWith("/voice/") || req.path.startsWith("/a2a/") || req.path.startsWith("/hooks/") || req.path.startsWith("/v1/")) {
       return next();
     }
-    res.sendFile(join(uiPath, "index.html"));
+    res.setHeader("Content-Type", "text/html");
+    res.send(indexHtml);
   });
   console.log(`[Server] Serving UI from ${uiPath}`);
 }

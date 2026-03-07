@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiFetch } from "../api";
 import { Sparkles, RefreshCw, Calendar, Plus, Trash2, Loader2, Clock, Terminal } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -33,8 +34,8 @@ export function Skills() {
   const fetchData = async () => {
     try {
       const [skillsRes, schedulesRes] = await Promise.all([
-        fetch("/api/skills"),
-        fetch("/api/schedules")
+        apiFetch("/api/skills"),
+        apiFetch("/api/schedules")
       ]);
       if (skillsRes.ok) {
         const data = await skillsRes.json();
@@ -58,7 +59,7 @@ export function Skills() {
   const handleReloadSkills = async () => {
     const toastId = toast.loading("Reloading skills...");
     try {
-      const res = await fetch("/api/skills/reload", { method: "POST" });
+      const res = await apiFetch("/api/skills/reload", { method: "POST" });
       if (res.ok) {
         const data = await res.json();
         setSkills(data.skills || []);
@@ -71,7 +72,7 @@ export function Skills() {
 
   const handleDeleteSchedule = async (id: string) => {
     try {
-      const res = await fetch(`/api/schedules/${id}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/schedules/${id}`, { method: "DELETE" });
       if (res.ok) {
         toast.success("Schedule deleted");
         fetchData();
@@ -84,7 +85,7 @@ export function Skills() {
   const handleAddSchedule = async () => {
     if (!newSchedule.name || !newSchedule.cronExpression || !newSchedule.taskInput) return;
     try {
-      const res = await fetch("/api/schedules", {
+      const res = await apiFetch("/api/schedules", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newSchedule),

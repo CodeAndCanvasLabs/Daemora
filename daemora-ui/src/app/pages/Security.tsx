@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiFetch } from "../api";
 import { Shield, Lock, Unlock, AlertTriangle, Eye, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -28,8 +29,8 @@ export function Security() {
   const fetchData = async () => {
     try {
       const [vaultRes, auditRes] = await Promise.all([
-        fetch("/api/vault/status"),
-        fetch("/api/audit")
+        apiFetch("/api/vault/status"),
+        apiFetch("/api/audit")
       ]);
       if (vaultRes.ok) setVaultStatus(await vaultRes.json());
       if (auditRes.ok) setAudit(await auditRes.json());
@@ -46,7 +47,7 @@ export function Security() {
 
   const handleUnlock = async () => {
     try {
-      const res = await fetch("/api/vault/unlock", {
+      const res = await apiFetch("/api/vault/unlock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ passphrase }),
@@ -67,7 +68,7 @@ export function Security() {
 
   const handleLock = async () => {
     try {
-      const res = await fetch("/api/vault/lock", { method: "POST" });
+      const res = await apiFetch("/api/vault/lock", { method: "POST" });
       if (res.ok) {
         toast.success("Vault locked successfully");
         fetchData();

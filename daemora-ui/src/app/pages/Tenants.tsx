@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiFetch } from "../api";
 import { Users, Loader2, Trash2, Pause, Play, Pencil, RotateCcw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -38,7 +39,7 @@ export function Tenants() {
 
   const fetchTenants = async () => {
     try {
-      const res = await fetch("/api/tenants");
+      const res = await apiFetch("/api/tenants");
       if (res.ok) {
         const data = await res.json();
         setTenants(data.tenants || []);
@@ -57,7 +58,7 @@ export function Tenants() {
   const handleSuspend = async (id: string) => {
     const toastId = toast.loading("SUSPENDING TENANT...");
     try {
-      const res = await fetch(`/api/tenants/${encodeURIComponent(id)}/suspend`, {
+      const res = await apiFetch(`/api/tenants/${encodeURIComponent(id)}/suspend`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason: "Suspended via UI" }),
@@ -77,7 +78,7 @@ export function Tenants() {
   const handleUnsuspend = async (id: string) => {
     const toastId = toast.loading("UNSUSPENDING TENANT...");
     try {
-      const res = await fetch(`/api/tenants/${encodeURIComponent(id)}/unsuspend`, { method: "POST" });
+      const res = await apiFetch(`/api/tenants/${encodeURIComponent(id)}/unsuspend`, { method: "POST" });
       if (res.ok) {
         toast.success("TENANT UNSUSPENDED", { id: toastId });
         fetchTenants();
@@ -94,7 +95,7 @@ export function Tenants() {
     if (!confirm(`Delete tenant "${id}"? This cannot be undone.`)) return;
     const toastId = toast.loading("DELETING TENANT...");
     try {
-      const res = await fetch(`/api/tenants/${encodeURIComponent(id)}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/tenants/${encodeURIComponent(id)}`, { method: "DELETE" });
       if (res.ok) {
         toast.success("Tenant deleted", { id: toastId });
         fetchTenants();
@@ -146,7 +147,7 @@ export function Tenants() {
       if (editForm.maxCostPerTask !== "") body.maxCostPerTask = parseFloat(editForm.maxCostPerTask);
       if (editForm.maxDailyCost !== "") body.maxDailyCost = parseFloat(editForm.maxDailyCost);
 
-      const res = await fetch(`/api/tenants/${encodeURIComponent(editTenant.id)}`, {
+      const res = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

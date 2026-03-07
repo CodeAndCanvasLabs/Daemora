@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiFetch } from "../api";
 import { Link } from "react-router";
 import { Activity, AlertCircle, CheckCircle2, Clock, Zap, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
@@ -42,8 +43,8 @@ export function Dashboard() {
   const fetchData = async () => {
     try {
       const [healthRes, tasksRes] = await Promise.all([
-        fetch("/api/health"),
-        fetch("/api/tasks?limit=5&type=task")
+        apiFetch("/api/health"),
+        apiFetch("/api/tasks?limit=5&type=task")
       ]);
       
       if (healthRes.ok) setHealth(await healthRes.json());

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiFetch } from "../api";
 import { DollarSign, TrendingUp, AlertCircle, Loader2, Users } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Progress } from "../components/ui/progress";
@@ -29,8 +30,8 @@ export function Costs() {
   const fetchData = async () => {
     try {
       const [costRes, tenantsRes] = await Promise.all([
-        fetch("/api/costs/today"),
-        fetch("/api/tenants")
+        apiFetch("/api/costs/today"),
+        apiFetch("/api/tenants")
       ]);
       if (costRes.ok) setCost(await costRes.json());
       if (tenantsRes.ok) {

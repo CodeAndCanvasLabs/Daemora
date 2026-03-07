@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { apiFetch, apiStreamUrl } from "../api";
 import { Send, User, Loader2, Plus, Terminal, PanelLeftClose, PanelLeftOpen, ArrowUp, Paperclip, Trash2, Wrench, Brain, Bot } from "lucide-react";
 import { Textarea } from "../components/ui/textarea";
 import { Button } from "../components/ui/button";
@@ -37,7 +38,7 @@ export function Chat() {
 
   const fetchSessions = async () => {
     try {
-      const res = await fetch("/api/sessions");
+      const res = await apiFetch("/api/sessions");
       if (res.ok) {
         const data = await res.json();
         setSessions(data.sessions || []);
@@ -55,7 +56,7 @@ export function Chat() {
   const loadSession = async (id: string) => {
     setCurrentSessionId(id);
     try {
-      const res = await fetch(`/api/sessions/${id}`);
+      const res = await apiFetch(`/api/sessions/${id}`);
       if (res.ok) {
         const data = await res.json();
         setMessages(data.messages || []);
@@ -67,7 +68,7 @@ export function Chat() {
 
   const createNewSession = async () => {
     try {
-      const res = await fetch("/api/sessions", { method: "POST" });
+      const res = await apiFetch("/api/sessions", { method: "POST" });
       if (res.ok) {
         const data = await res.json();
         setCurrentSessionId(data.sessionId);
@@ -82,7 +83,7 @@ export function Chat() {
   const deleteSession = async (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation();
     try {
-      const res = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
       if (res.ok) {
         setSessions((prev) => prev.filter((s) => s.sessionId !== sessionId));
         if (currentSessionId === sessionId) {
@@ -124,7 +125,7 @@ export function Chat() {
 
     let sessionId = currentSessionId;
     if (!sessionId) {
-      const res = await fetch("/api/sessions", { method: "POST" });
+      const res = await apiFetch("/api/sessions", { method: "POST" });
       const data = await res.json();
       sessionId = data.sessionId;
       setCurrentSessionId(sessionId);
@@ -143,7 +144,7 @@ export function Chat() {
     setStreamStatus("Queuing...");
 
     try {
-      const response = await fetch("/api/chat", {
+      const response = await apiFetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ input: currentInput, sessionId }),
@@ -197,7 +198,7 @@ export function Chat() {
       sessionStorage.removeItem("daemora_active_task");
     };
 
-    const es = new EventSource(`/api/tasks/${taskId}/stream`);
+    const es = new EventSource(apiStreamUrl(`/api/tasks/${taskId}/stream`));
     eventSourceRef.current = es;
 
     es.addEventListener("task:state", (e) => {

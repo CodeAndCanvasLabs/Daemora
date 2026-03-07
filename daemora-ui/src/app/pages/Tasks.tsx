@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiFetch } from "../api";
 import { Link } from "react-router";
 import { Search, Clock, CheckCircle2, AlertCircle, Loader2, ChevronRight, ChevronDown, Bot } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
@@ -54,7 +55,7 @@ export function Tasks() {
 
   const fetchTasks = async () => {
     try {
-      const res = await fetch("/api/tasks?limit=50");
+      const res = await apiFetch("/api/tasks?limit=50");
       if (res.ok) {
         const data = await res.json();
         setTasks(data.tasks || []);
@@ -81,7 +82,7 @@ export function Tasks() {
       next.add(taskId);
       if (!childrenMap[taskId]) {
         try {
-          const res = await fetch(`/api/tasks/${taskId}/children`);
+          const res = await apiFetch(`/api/tasks/${taskId}/children`);
           if (res.ok) {
             const data = await res.json();
             setChildrenMap(prev => ({ ...prev, [taskId]: data.children || [] }));

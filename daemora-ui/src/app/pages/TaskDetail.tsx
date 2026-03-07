@@ -1,4 +1,5 @@
 import { useParams, Link } from "react-router";
+import { apiFetch, apiStreamUrl } from "../api";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Clock, DollarSign, Cpu, Loader2, AlertTriangle, Zap, GitBranch, CheckCircle2, XCircle, Bot } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -61,7 +62,7 @@ export function TaskDetail() {
     if (!id) return;
     const fetchTask = async () => {
       try {
-        const res = await fetch(`/api/tasks/${id}`);
+        const res = await apiFetch(`/api/tasks/${id}`);
         if (res.ok) {
           const data = await res.json();
           setTask(data);
@@ -76,7 +77,7 @@ export function TaskDetail() {
 
     // If task is running, set up SSE stream
     if (task?.status === "running") {
-      const es = new EventSource(`/api/tasks/${id}/stream`);
+      const es = new EventSource(apiStreamUrl(`/api/tasks/${id}/stream`));
       es.addEventListener("task:completed", (e) => {
         setTask(JSON.parse(e.data));
       });

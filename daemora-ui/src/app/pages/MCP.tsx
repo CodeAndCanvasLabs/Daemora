@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiFetch } from "../api";
 import { Play, Pause, RefreshCw, Plus, Trash2, Loader2, Globe, Cpu, AlertTriangle, Key, X, Settings } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -48,7 +49,7 @@ export function MCP() {
 
   const fetchServers = async () => {
     try {
-      const res = await fetch("/api/mcp");
+      const res = await apiFetch("/api/mcp");
       if (res.ok) {
         const data = await res.json();
         setServers(data.servers || []);
@@ -67,7 +68,7 @@ export function MCP() {
   const handleAction = async (name: string, action: "enable" | "disable" | "reload") => {
     const toastId = toast.loading(`${action === "enable" ? "Enabling" : action === "disable" ? "Disabling" : "Reloading"} ${name}...`);
     try {
-      const res = await fetch(`/api/mcp/${name}/${action}`, { method: "POST" });
+      const res = await apiFetch(`/api/mcp/${name}/${action}`, { method: "POST" });
       if (res.ok) {
         toast.success(`${name} ${action}d successfully`, { id: toastId });
         fetchServers();
@@ -83,7 +84,7 @@ export function MCP() {
   const handleDeleteServer = async (name: string) => {
     if (!confirm(`Are you sure you want to remove ${name}?`)) return;
     try {
-      const res = await fetch(`/api/mcp/${name}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/mcp/${name}`, { method: "DELETE" });
       if (res.ok) {
         toast.success(`${name} removed`);
         fetchServers();
@@ -120,7 +121,7 @@ export function MCP() {
         if (Object.keys(hdrs).length > 0) body.headers = hdrs;
       }
 
-      const res = await fetch("/api/mcp", {
+      const res = await apiFetch("/api/mcp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -166,7 +167,7 @@ export function MCP() {
       }
 
       const body = isStdio ? { env: payload } : { headers: payload };
-      const res = await fetch(`/api/mcp/${configServer.name}`, {
+      const res = await apiFetch(`/api/mcp/${configServer.name}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -177,7 +178,7 @@ export function MCP() {
         setConfigServer(null);
         setConfigValues([]);
         // Auto-enable after configuring
-        const enableRes = await fetch(`/api/mcp/${configServer.name}/enable`, { method: "POST" });
+        const enableRes = await apiFetch(`/api/mcp/${configServer.name}/enable`, { method: "POST" });
         if (enableRes.ok) {
           toast.success(`${configServer.name} activated`);
         }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiFetch } from "../api";
 import {
   Settings as SettingsIcon,
   Eye,
@@ -67,10 +68,10 @@ export function Settings() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/settings").then((r) => r.json()),
-      fetch("/api/profile").then((r) => r.json()),
-      fetch("/api/skills/custom").then((r) => r.json()),
-      fetch("/api/memory").then((r) => r.json()),
+      apiFetch("/api/settings").then((r) => r.json()),
+      apiFetch("/api/profile").then((r) => r.json()),
+      apiFetch("/api/skills/custom").then((r) => r.json()),
+      apiFetch("/api/memory").then((r) => r.json()),
     ])
       .then(([settingsData, profileData, skillsData, memoryData]) => {
         setData(settingsData);
@@ -110,7 +111,7 @@ export function Settings() {
     if (Object.keys(updates).length === 0) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/settings", {
+      const res = await apiFetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ updates }),
@@ -118,7 +119,7 @@ export function Settings() {
       if (res.ok) {
         setSaved(true);
         setDirty(false);
-        const d = await fetch("/api/settings").then((r) => r.json());
+        const d = await apiFetch("/api/settings").then((r) => r.json());
         setData(d);
         setEditValues({});
       }
@@ -134,7 +135,7 @@ export function Settings() {
   const handleProfileSave = async () => {
     setProfileSaving(true);
     try {
-      const res = await fetch("/api/profile", {
+      const res = await apiFetch("/api/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(profile),
@@ -147,13 +148,13 @@ export function Settings() {
     if (!newSkill.name || !newSkill.content) return;
     setSkillSaving(true);
     try {
-      const res = await fetch("/api/skills/custom", {
+      const res = await apiFetch("/api/skills/custom", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newSkill),
       });
       if (res.ok) {
-        const skillsRes = await fetch("/api/skills/custom").then((r) => r.json());
+        const skillsRes = await apiFetch("/api/skills/custom").then((r) => r.json());
         setCustomSkills(skillsRes.skills || []);
         setNewSkill({ name: "", description: "", triggers: "", content: "" });
         setShowNewSkill(false);
@@ -163,7 +164,7 @@ export function Settings() {
 
   const handleDeleteSkill = async (name: string) => {
     try {
-      const res = await fetch(`/api/skills/custom/${encodeURIComponent(name)}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/skills/custom/${encodeURIComponent(name)}`, { method: "DELETE" });
       if (res.ok) setCustomSkills((prev) => prev.filter((s) => s.name !== name));
     } catch { /* ignore */ }
   };
@@ -171,7 +172,7 @@ export function Settings() {
   const handleMemorySave = async () => {
     setMemorySaving(true);
     try {
-      const res = await fetch("/api/memory", {
+      const res = await apiFetch("/api/memory", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: memory }),
