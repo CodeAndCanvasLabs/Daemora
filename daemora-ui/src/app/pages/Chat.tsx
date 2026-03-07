@@ -443,8 +443,8 @@ export function Chat() {
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-hidden relative z-10 flex flex-col">
-              <ScrollArea className="flex-1" ref={scrollAreaRef}>
+            <div className="flex-1 min-h-0 relative z-10 flex flex-col">
+              <ScrollArea className="flex-1 min-h-0" ref={scrollAreaRef}>
                 <div className="max-w-6xl mx-auto py-6 px-4 sm:px-6 space-y-5">
                   {messages.map((message, i) => (
                     <div
@@ -509,7 +509,7 @@ export function Chat() {
               </ScrollArea>
 
               {/* Input Module - Pill Style */}
-              <div className="px-4 pb-4 pt-2 backdrop-blur-xl">
+              <div className="px-4 pb-4 pt-2 backdrop-blur-xl shrink-0">
                 <div className="max-w-6xl mx-auto">
                   <div className="flex items-end gap-0 bg-slate-800/60 border border-slate-700/50 rounded-full px-2 py-1.5 shadow-[0_0_30px_rgba(0,0,0,0.3)] focus-within:border-[#00d9ff]/30 transition-all">
                     <button
