@@ -52,6 +52,7 @@ export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeM
         renderMCPTools(),
         renderToolUsageRules(),
         renderSkills(taskInput, 10),
+        renderMemory(),
         renderSubagentContext(runtimeMeta.taskDescription || taskInput),
       ])
     : await Promise.all([
@@ -180,7 +181,15 @@ You MUST respond with a JSON object matching this exact schema on every turn:
 - 1-3 sentences. What happened, from the user's perspective.
 - Never dump tool output, full email bodies, API responses, status codes, message IDs, or JSON.
 - Never ask what to do next or offer follow-up options.
-- Never expose internal details (tool names, IDs, technical artifacts).`;
+- Never expose internal details (tool names, IDs, technical artifacts).
+
+## Output efficiency
+These rules apply to text responses sent to the user — NOT to tool params, sub-agent instructions, or task descriptions (those must remain detailed and complete).
+- Go straight to the point. Try the simplest approach first.
+- Lead with the answer or action, not the reasoning.
+- Skip filler words, preamble, and unnecessary transitions.
+- If you can say it in one sentence, don't use three.
+- Focus text on: decisions needing input, status updates at milestones, errors that change the plan.`;
 }
 
 function renderToolDocs() {
@@ -359,7 +368,12 @@ function renderToolUsageRules() {
 - NEVER ask what to do next or offer follow-up options. Either do it or don't.
 - NEVER claim "fixed" without calling writeFile/editFile. NEVER plan without executing.
 - NEVER ask user to do things manually. NEVER give up after one failure.
-- NEVER set finalResponse true without verification or while errors exist.`;
+- NEVER set finalResponse true without verification or while errors exist.
+
+## Context Management
+- \`<conversation-summary>\` blocks are compacted history — treat as ground truth for earlier work.
+- Don't re-do work mentioned in the summary. Continue from where it left off.
+- If context is growing long, write key decisions to memory before they get compacted.`;
 }
 
 async function renderSkills(taskInput, limit = 20) {
@@ -427,7 +441,10 @@ function renderRuntime(meta = {}) {
   if (meta.model) parts.push(`model=${meta.model}`);
   if (meta.thinkingLevel) parts.push(`thinking=${meta.thinkingLevel}`);
   if (meta.agentId) parts.push(`agent=${meta.agentId}`);
-  if (parts.length === 0) return null;
+  parts.push(`date=${new Date().toISOString().split("T")[0]}`);
+  parts.push(`os=${process.platform}/${process.arch}`);
+  parts.push(`cwd=${process.cwd()}`);
+  parts.push(`shell=${process.env.SHELL || "unknown"}`);
   return `Runtime: ${parts.join(" | ")}`;
 }
 
