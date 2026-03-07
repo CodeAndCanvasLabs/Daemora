@@ -199,6 +199,7 @@ ${unconfigured.map(t => `- ${t} — needs: ${TOOL_REQUIRED_KEYS[t].join(" or ")}
 All tool params are STRINGS. Pass them as an array of strings.
 
 ## File Operations
+Always use absolute paths. Resolve ~ and relative paths from the user's context before calling any file tool.
 - readFile(filePath, offset?, limit?) — Read file with line numbers. Always read before editing.
 - writeFile(filePath, content) — Create or overwrite file. Content is the complete file.
 - editFile(filePath, oldString, newString) — Find-and-replace (exactly 3 params). Read file first to get exact match string.
