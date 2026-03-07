@@ -465,8 +465,12 @@ export function Settings() {
     );
   }
 
+  // Keys already managed by dedicated UI controls — hide from env var sections
+  const managedKeys = new Set(["SUB_AGENT_MODEL"]);
+
   const sections: Record<string, string[]> = {};
   for (const v of data.available) {
+    if (managedKeys.has(v.key)) continue;
     if (!sections[v.section]) sections[v.section] = [];
     sections[v.section].push(v.key);
   }
@@ -712,12 +716,16 @@ export function Settings() {
       </Section>
 
       {/* ── Environment Variables ──────────────────────────────────────── */}
-      {Object.entries(sections).map(([section, keys]) => (
+      {Object.entries(sections).filter(([, keys]) => keys.length > 0).map(([section, keys]) => (
         <Section
           key={section}
           icon={section.toLowerCase().includes("key") || section.toLowerCase().includes("api") ? KeyRound : SettingsIcon}
           title={section}
-          subtitle={`${keys.length} variable${keys.length !== 1 ? "s" : ""} — ${data.vaultActive ? "sensitive keys encrypted in vault" : "stored in .env"}`}
+          subtitle={`${keys.length} variable${keys.length !== 1 ? "s" : ""}${
+            data.vaultActive && keys.some((k) => /KEY|TOKEN|SECRET|PASSWORD|PASSPHRASE|CREDENTIAL/i.test(k))
+              ? " — sensitive keys encrypted in vault"
+              : ""
+          }`}
           badge={
             keys.some((k) => data.vars[k]) ? (
               <span className="text-[9px] font-mono text-[#00ff88] bg-[#00ff88]/10 px-2 py-0.5 rounded-md border border-[#00ff88]/20">
