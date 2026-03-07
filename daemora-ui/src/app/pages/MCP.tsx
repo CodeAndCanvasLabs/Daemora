@@ -9,6 +9,11 @@ import { Input } from "../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { toast } from "sonner";
 
+interface PlaceholderArg {
+  index: number;
+  value: string;
+}
+
 interface MCPServer {
   name: string;
   enabled: boolean;
@@ -20,6 +25,7 @@ interface MCPServer {
   description?: string | null;
   envKeys?: string[];
   headerKeys?: string[];
+  placeholderArgs?: PlaceholderArg[];
   needsConfig?: boolean;
 }
 
@@ -145,7 +151,14 @@ export function MCP() {
 
   const openConfigDialog = (server: MCPServer) => {
     const keys = server.type === "stdio" ? (server.envKeys || []) : (server.headerKeys || []);
-    setConfigValues(keys.map((k) => ({ key: k, value: "" })));
+    const kvs: KVPair[] = keys.map((k) => ({ key: k, value: "" }));
+    // Add placeholder args as configurable fields (e.g. connection strings, paths)
+    if (server.placeholderArgs?.length) {
+      for (const pa of server.placeholderArgs) {
+        kvs.push({ key: `__arg_${pa.index}`, value: pa.value });
+      }
+    }
+    setConfigValues(kvs);
     setConfigServer(server);
   };
 
@@ -154,19 +167,32 @@ export function MCP() {
     setConfigSaving(true);
     try {
       const isStdio = configServer.type === "stdio";
-      const payload: Record<string, string> = {};
+      const credPayload: Record<string, string> = {};
+      const argPayload: Record<string, string> = {};
       for (const kv of configValues) {
-        if (kv.key.trim() && kv.value.trim()) {
-          payload[kv.key.trim()] = kv.value.trim();
+        if (!kv.key.trim() || !kv.value.trim()) continue;
+        if (kv.key.startsWith("__arg_")) {
+          // Arg update: key is "__arg_<index>"
+          const idx = kv.key.replace("__arg_", "");
+          argPayload[idx] = kv.value.trim();
+        } else {
+          credPayload[kv.key.trim()] = kv.value.trim();
         }
       }
-      if (Object.keys(payload).length === 0) {
+      if (Object.keys(credPayload).length === 0 && Object.keys(argPayload).length === 0) {
         toast.error("Enter at least one credential value");
         setConfigSaving(false);
         return;
       }
 
-      const body = isStdio ? { env: payload } : { headers: payload };
+      const body: any = {};
+      if (Object.keys(credPayload).length > 0) {
+        if (isStdio) body.env = credPayload;
+        else body.headers = credPayload;
+      }
+      if (Object.keys(argPayload).length > 0) {
+        body.args = argPayload;
+      }
       const res = await apiFetch(`/api/mcp/${configServer.name}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -424,22 +450,26 @@ export function MCP() {
             <p className="text-[10px] text-gray-500 uppercase tracking-wider">
               Enter credentials to enable this server. Values are saved to config/mcp.json.
             </p>
-            {configValues.map((kv, i) => (
-              <div key={i} className="space-y-1.5">
-                <label className="text-[10px] text-gray-400 uppercase">{kv.key}</label>
-                <Input
-                  type="password"
-                  value={kv.value}
-                  onChange={(e) => {
-                    const updated = [...configValues];
-                    updated[i].value = e.target.value;
-                    setConfigValues(updated);
-                  }}
-                  placeholder={`Enter ${kv.key}...`}
-                  className="bg-slate-900 border-slate-800 text-white text-xs"
-                />
-              </div>
-            ))}
+            {configValues.map((kv, i) => {
+              const isArg = kv.key.startsWith("__arg_");
+              const label = isArg ? `Connection Argument [${kv.key.replace("__arg_", "")}]` : kv.key;
+              return (
+                <div key={i} className="space-y-1.5">
+                  <label className="text-[10px] text-gray-400 uppercase">{label}</label>
+                  <Input
+                    type={isArg ? "text" : "password"}
+                    value={kv.value}
+                    onChange={(e) => {
+                      const updated = [...configValues];
+                      updated[i].value = e.target.value;
+                      setConfigValues(updated);
+                    }}
+                    placeholder={isArg ? kv.value : `Enter ${kv.key}...`}
+                    className="bg-slate-900 border-slate-800 text-white text-xs"
+                  />
+                </div>
+              );
+            })}
             {/* Allow adding extra keys */}
             {configValues.length === 0 && (
               <div className="space-y-2">
@@ -478,7 +508,7 @@ export function MCP() {
           </div>
         ) : (
           servers.map((server) => {
-            const hasCredKeys = (server.envKeys && server.envKeys.length > 0) || (server.headerKeys && server.headerKeys.length > 0);
+            const hasCredKeys = (server.envKeys && server.envKeys.length > 0) || (server.headerKeys && server.headerKeys.length > 0) || (server.placeholderArgs && server.placeholderArgs.length > 0);
 
             return (
               <Card

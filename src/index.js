@@ -587,6 +587,13 @@ app.get("/api/mcp", (req, res) => {
   const cfg = mcpManager.readConfig().mcpServers || {};
   const live = mcpManager.list();
   const isPlaceholder = (v) => !v || v.startsWith("YOUR_") || v === "" || v.startsWith("${");
+  // Detect placeholder patterns in command args (e.g. connection strings, paths with dummy values)
+  const isArgPlaceholder = (v) => {
+    if (typeof v !== "string") return false;
+    return /user:pass@/i.test(v) || /\/Users\/you\//i.test(v) || /YOUR_/i.test(v)
+      || /your-.*-here/i.test(v) || /example\.com/i.test(v) || /changeme/i.test(v)
+      || /placeholder/i.test(v) || /xxx/i.test(v);
+  };
   const servers = Object.entries(cfg)
     .filter(([k]) => !k.startsWith("_comment"))
     .map(([name, serverCfg]) => {
@@ -594,7 +601,14 @@ app.get("/api/mcp", (req, res) => {
       // Check if any env/header values are unconfigured placeholders
       const envEntries = serverCfg.env ? Object.entries(serverCfg.env) : [];
       const headerEntries = serverCfg.headers ? Object.entries(serverCfg.headers) : [];
-      const needsConfig = envEntries.some(([, v]) => isPlaceholder(v)) || headerEntries.some(([, v]) => isPlaceholder(v));
+      // Also check args for placeholder patterns
+      const args = serverCfg.args || [];
+      const placeholderArgs = args
+        .map((v, i) => isArgPlaceholder(v) ? { index: i, value: v } : null)
+        .filter(Boolean);
+      const needsConfig = envEntries.some(([, v]) => isPlaceholder(v))
+        || headerEntries.some(([, v]) => isPlaceholder(v))
+        || placeholderArgs.length > 0;
       return {
         name,
         enabled: serverCfg.enabled !== false,
@@ -606,6 +620,7 @@ app.get("/api/mcp", (req, res) => {
         description: serverCfg.description || null,
         envKeys: serverCfg.env ? Object.keys(serverCfg.env) : [],
         headerKeys: serverCfg.headers ? Object.keys(serverCfg.headers) : [],
+        placeholderArgs,
         needsConfig,
       };
     });
@@ -644,7 +659,7 @@ app.delete("/api/mcp/:name", async (req, res) => {
 // Update MCP server credentials (env vars or headers)
 app.patch("/api/mcp/:name", async (req, res) => {
   const { name } = req.params;
-  const { env, headers: hdrs } = req.body;
+  const { env, headers: hdrs, args: argUpdates } = req.body;
   try {
     const mcpConfig = mcpManager.readConfig();
     const serverCfg = mcpConfig.mcpServers?.[name];
@@ -655,6 +670,16 @@ app.patch("/api/mcp/:name", async (req, res) => {
     }
     if (hdrs && typeof hdrs === "object") {
       serverCfg.headers = { ...(serverCfg.headers || {}), ...hdrs };
+    }
+    // Support updating specific args by index (e.g. connection strings)
+    if (argUpdates && typeof argUpdates === "object") {
+      if (!serverCfg.args) serverCfg.args = [];
+      for (const [indexStr, value] of Object.entries(argUpdates)) {
+        const idx = parseInt(indexStr, 10);
+        if (!isNaN(idx) && idx >= 0 && idx < serverCfg.args.length) {
+          serverCfg.args[idx] = value;
+        }
+      }
     }
     mcpConfig.mcpServers[name] = serverCfg;
     mcpManager.writeConfig(mcpConfig);
