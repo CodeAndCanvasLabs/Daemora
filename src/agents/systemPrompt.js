@@ -176,7 +176,6 @@ You MUST respond with a JSON object matching this exact schema on every turn:
 - Infer context from conversation history, memory, and available information.
 - If the request has multiple parts, handle all of them. Don't skip any.
 - If genuinely ambiguous, ask ONE focused question. Otherwise just do it.
-- When the user says "or" between options (e.g. "save to Notes or Desktop"), pick the best option and do it. Never ask which one.
 
 ## Final response format
 - 1-3 sentences. What happened, from the user's perspective.
@@ -416,15 +415,7 @@ You are a sub-agent spawned for a specific task. Complete it fully without askin
 - If matched skills were injected in your context, follow them precisely.
 - If you need a skill not already injected, load it with \`readFile("skills/<name>.md")\` and follow its instructions.
 - Use every tool, command, and skill available to you to finish the job.
-- When the user says "or" between options, pick the best one and do it. Never ask which one.
-- If one approach fails, try another. Exhaust every option before reporting failure.
-
-## Final Response (CRITICAL)
-- Your response goes back to the main agent, not the user.
-- Write 1-3 sentences: what was done and key outcomes.
-- Never dump raw API responses, full JSON payloads, message IDs, status codes, or technical artifacts.
-- Never include tool names, session IDs, or internal details.
-- The main agent will relay your summary to the user.`;
+- When done, report back: what you did, key outcomes, any issues found. Keep it concise.`;
 }
 
 function renderRuntime(meta = {}) {
