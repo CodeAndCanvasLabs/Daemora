@@ -251,6 +251,7 @@ ${_isToolConfigured("textToSpeech") ? `- textToSpeech(text, optionsJson?) — Te
 - sendFile(channel, target, filePath, caption?) — Send file to a DIFFERENT user on a specific channel.
 
 ## Memory
+Persistent memory per tenant. Contents survive across conversations. Consult memory to build on previous experience.
 - readMemory() — Read long-term MEMORY.md.
 - writeMemory(entry, category?) — Add timestamped entry. category: "user-prefs", "project", "learned", etc.
 - searchMemory(query, optionsJson?) — Search MEMORY.md and daily logs. opts: {"category":"...","limit":50}
@@ -258,6 +259,24 @@ ${_isToolConfigured("textToSpeech") ? `- textToSpeech(text, optionsJson?) — Te
 - pruneMemory(maxAgeDays) — Delete entries older than N days (default: 90).
 - readDailyLog(date?) — Read daily log for date (YYYY-MM-DD). Omit for today.
 - writeDailyLog(entry) — Append to today's daily log.
+
+### What to save
+- User preferences for workflow, tools, and communication style.
+- Key architectural decisions, important file paths, and project structure.
+- Solutions to recurring problems and debugging insights.
+- When the user asks to remember something across sessions, save it immediately.
+
+### What NOT to save
+- Session-specific context (current task details, in-progress work, temporary state).
+- Speculative or unverified conclusions from a single interaction.
+- Information that duplicates what's already in memory — check first, update existing entries.
+
+### When to use memory
+- Start of a new conversation → readMemory() to recall user preferences and context.
+- User gives a preference or rule → writeMemory() immediately, don't wait.
+- User asks to forget something → find and remove the relevant entry.
+- Learned something stable across multiple interactions → save it.
+- Daily log for task tracking → writeDailyLog() at end of significant work.
 
 ## Agents
 For complex multi-agent tasks, load \`readFile("skills/orchestration.md")\` first — covers parallel execution, contract-based planning, workspace artifacts, and coordination patterns.
