@@ -871,14 +871,23 @@ app.get("/api/settings", (req, res) => {
     }
   }
 
-  // Mask values for security
+  // Merge vault secrets (if unlocked) — vault takes priority
+  const vaultActive = secretVault.isUnlocked();
+  if (vaultActive) {
+    const vaultSecrets = secretVault.getAsEnv();
+    for (const key of Object.keys(vaultSecrets)) {
+      envVars[key] = vaultSecrets[key]; // vault overrides .env
+    }
+  }
+
+  // Uniform masking — never leak any characters
   const masked = {};
   for (const [key, val] of Object.entries(envVars)) {
     if (!val) { masked[key] = ""; continue; }
-    masked[key] = val.length <= 4 ? "****" : val.slice(0, 4) + "*".repeat(Math.min(val.length - 4, 20));
+    masked[key] = "••••••••";
   }
 
-  res.json({ vars: masked, available });
+  res.json({ vars: masked, available, vaultActive });
 });
 
 app.put("/api/settings", (req, res) => {
@@ -887,25 +896,52 @@ app.put("/api/settings", (req, res) => {
     return res.status(400).json({ error: "updates object is required" });
   }
 
-  const envPath = join(__dirname, "..", ".env");
-  let content = existsSync(envPath) ? readFileSync(envPath, "utf-8") : "";
+  const vaultActive = secretVault.isUnlocked();
+  const sensitivePattern = /KEY|TOKEN|SECRET|PASSWORD|PASSPHRASE|CREDENTIAL/i;
+
+  // Separate sensitive vs non-sensitive
+  const envUpdates = {};
+  const vaultUpdates = {};
 
   for (const [key, value] of Object.entries(updates)) {
-    // Validate key format (alphanumeric + underscore only)
     if (!/^[A-Z][A-Z0-9_]*$/.test(key)) continue;
-    const regex = new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}=.*$`, "m");
-    if (regex.test(content)) {
-      content = content.replace(regex, `${key}=${value}`);
+    if (vaultActive && sensitivePattern.test(key)) {
+      vaultUpdates[key] = value;
     } else {
-      content = content.trimEnd() + `\n${key}=${value}\n`;
+      envUpdates[key] = value;
     }
-    // Also update process.env so changes take effect without restart
+    // Always update process.env so changes take effect immediately
     process.env[key] = value;
   }
 
-  writeFileSync(envPath, content, "utf-8");
+  // Write non-sensitive (or all if vault locked) to .env
+  if (Object.keys(envUpdates).length > 0 || (!vaultActive && Object.keys(vaultUpdates).length === 0)) {
+    const allEnvUpdates = vaultActive ? envUpdates : { ...envUpdates, ...vaultUpdates };
+    const envPath = join(__dirname, "..", ".env");
+    let content = existsSync(envPath) ? readFileSync(envPath, "utf-8") : "";
+    for (const [key, value] of Object.entries(allEnvUpdates)) {
+      const regex = new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}=.*$`, "m");
+      if (regex.test(content)) {
+        content = content.replace(regex, `${key}=${value}`);
+      } else {
+        content = content.trimEnd() + `\n${key}=${value}\n`;
+      }
+    }
+    writeFileSync(envPath, content, "utf-8");
+  }
 
-  res.json({ message: `Updated ${Object.keys(updates).length} variable(s)`, updated: Object.keys(updates) });
+  // Write sensitive keys to vault
+  if (vaultActive && Object.keys(vaultUpdates).length > 0) {
+    for (const [key, value] of Object.entries(vaultUpdates)) {
+      secretVault.set(key, value);
+    }
+  }
+
+  const stored = vaultActive
+    ? { env: Object.keys(envUpdates), vault: Object.keys(vaultUpdates) }
+    : { env: Object.keys(updates).filter(k => /^[A-Z][A-Z0-9_]*$/.test(k)) };
+
+  res.json({ message: `Updated ${Object.keys(updates).length} variable(s)`, stored });
 });
 
 // --- User Profile endpoints ---
