@@ -483,7 +483,7 @@ export function Settings() {
     "w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-gray-600 focus:border-[#00d9ff]/50 focus:outline-none focus:ring-1 focus:ring-[#00d9ff]/20 transition-colors";
 
   return (
-    <div className="space-y-5 pb-10 max-w-5xl mx-auto">
+    <div className="space-y-5 pb-10">
       {/* Header */}
       <div className="mb-8">
         <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">Settings</h2>
