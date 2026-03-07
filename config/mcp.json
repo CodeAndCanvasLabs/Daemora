@@ -131,15 +131,9 @@
       "command": "npx",
       "args": [
         "-y",
-        "@modelcontextprotocol/server-sequentialthinking"
+        "@modelcontextprotocol/server-sequential-thinking"
       ],
       "enabled": false
-    },
-    "Umar": {
-      "enabled": false,
-      "url": "https://api.example.com/sse",
-      "transport": "sse",
-      "description": "kajshdkjahskdhaskdh"
     }
   }
 }
