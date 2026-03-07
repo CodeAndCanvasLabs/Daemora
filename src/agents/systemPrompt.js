@@ -200,9 +200,11 @@ Use existing conversation context first — if you already have the data from a 
 
 ## File Operations
 Always use absolute paths. Resolve ~ and relative paths from the user's context before calling any file tool.
-- Read only what you need: use offset/limit to target specific line ranges instead of loading entire files.
-- Use editFile for surgical changes — it finds and replaces without needing the full file content.
-- Reserve writeFile for creating new files or when the entire file needs rewriting.
+- Don't re-read files already in context. If you already read a file, use that content — only re-read if you need fresh state after an edit.
+- Read only what you need: use offset/limit to target specific sections, not the entire file.
+- editFile for surgical changes — finds and replaces without needing the full file content. Preferred for most edits.
+- applyPatch for multi-hunk changes — better than multiple editFile calls.
+- writeFile only for new files or full rewrites. Never writeFile to change a few lines.
 - readFile(filePath, offset?, limit?) — Read file with line numbers. Use offset/limit to read specific sections.
 - writeFile(filePath, content) — Create or overwrite file. Content is the complete file.
 - editFile(filePath, oldString, newString) — Find-and-replace (exactly 3 params). Supports flexible whitespace matching.
