@@ -434,7 +434,7 @@ async function handleMCP(action, args) {
           }));
           if (needsEnv) {
             serverConfig.env = {};
-            p.log.info(`  Tip: use \${MY_VAR} to reference existing env vars instead of pasting secrets`);
+            pi.log.info(`  Tip: use \${MY_VAR} to reference existing env vars instead of pasting secrets`);
             let more = true;
             while (more) {
               const key = pGuard(await pi.text({
@@ -2276,8 +2276,11 @@ ${line}
   ${t.dim("$")} daemora mcp list
   ${t.dim("$")} daemora mcp add github npx -y @modelcontextprotocol/server-github
   ${t.dim("$")} daemora mcp env github GITHUB_PERSONAL_ACCESS_TOKEN ghp_...
-  ${t.dim("$")} daemora mcp add notion http://localhost:3100/mcp
-  ${t.dim("$")} daemora mcp add myserver http://localhost:3100/sse --sse
+  ${t.dim("$")} daemora mcp env notion NOTION_TOKEN ntn_...
+  ${t.dim("$")} daemora mcp env stripe STRIPE_SECRET_KEY sk_live_...
+  ${t.dim("$")} daemora mcp enable notion
+  ${t.dim("$")} daemora mcp add myserver https://api.example.com/mcp
+  ${t.dim("$")} daemora mcp add mysse https://api.example.com/sse --sse
   ${t.dim("$")} daemora mcp remove github
   ${t.dim("$")} daemora mcp add                   (interactive - prompts for everything)
   ${t.dim("$")} daemora mcp reload github         (reconnects live if agent running)
