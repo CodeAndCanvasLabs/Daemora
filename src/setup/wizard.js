@@ -7,7 +7,7 @@ import { banner, stepHeader, kv, summaryTable, completeBanner, t, S } from "./th
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, "..", "..");
-const TOTAL_STEPS = 10;
+const TOTAL_STEPS = 11;
 const OLLAMA_EMBED_MODEL = "all-minilm";
 
 /**
@@ -633,8 +633,110 @@ export async function runSetupWizard() {
   })];
   p.log.success(`Channels: ${t.bold(activeChannels.join(", "))}`);
 
-  // ━━━ Step 6: Daemon ━━━
-  stepHeader(6, TOTAL_STEPS, "Daemon Mode");
+  // ━━━ Step 6: Tool API Keys (optional) ━━━
+  stepHeader(6, TOTAL_STEPS, "Tool API Keys");
+
+  p.note(
+    [
+      "Some built-in tools need their own API keys to work.",
+      "You can skip this now and add keys later via: daemora config set <KEY> <value>",
+      "",
+      `  ${S.info}  generateImage / textToSpeech / transcribeAudio → OPENAI_API_KEY`,
+      `  ${S.info}  textToSpeech (premium voices) → ELEVENLABS_API_KEY`,
+      `  ${S.info}  googlePlaces → GOOGLE_PLACES_API_KEY`,
+      `  ${S.info}  calendar (Google) → GOOGLE_CALENDAR_API_KEY`,
+      `  ${S.info}  database → DATABASE_URL / MYSQL_URL`,
+      `  ${S.info}  notification (ntfy) → NTFY_TOPIC + NTFY_TOKEN`,
+      `  ${S.info}  notification (pushover) → PUSHOVER_API_TOKEN + PUSHOVER_USER_KEY`,
+      `  ${S.info}  philipsHue → HUE_BRIDGE_IP + HUE_API_KEY`,
+    ].join("\n"),
+    "Optional Tool Credentials"
+  );
+
+  const toolKeys = guard(await p.multiselect({
+    message: "Configure tool API keys?  (space = toggle, enter = confirm)",
+    required: false,
+    options: [
+      { value: "openai_tools",  label: "OpenAI (images, TTS, transcription)", hint: "OPENAI_API_KEY — skip if already set as main provider" },
+      { value: "elevenlabs",    label: "ElevenLabs TTS",                      hint: "Premium voice synthesis" },
+      { value: "google_places", label: "Google Places",                       hint: "Location search & details" },
+      { value: "google_cal",    label: "Google Calendar",                     hint: "Calendar read/write" },
+      { value: "database",      label: "Database",                            hint: "PostgreSQL / MySQL connection" },
+      { value: "ntfy",          label: "Ntfy notifications",                  hint: "Push notifications via ntfy.sh" },
+      { value: "pushover",      label: "Pushover notifications",              hint: "Push notifications via Pushover" },
+      { value: "hue",           label: "Philips Hue",                         hint: "Smart light control" },
+      { value: "none",          label: "Skip for now",                        hint: "Add later via daemora config set" },
+    ],
+  }));
+
+  if (toolKeys.includes("openai_tools") && !envConfig.OPENAI_API_KEY) {
+    const key = guard(await p.password({ message: "OpenAI API key (for images, TTS, transcription)" }));
+    if (key) envConfig.OPENAI_API_KEY = key;
+  }
+
+  if (toolKeys.includes("elevenlabs")) {
+    const key = guard(await p.password({ message: "ElevenLabs API key" }));
+    if (key) envConfig.ELEVENLABS_API_KEY = key;
+  }
+
+  if (toolKeys.includes("google_places")) {
+    const key = guard(await p.password({ message: "Google Places API key" }));
+    if (key) envConfig.GOOGLE_PLACES_API_KEY = key;
+  }
+
+  if (toolKeys.includes("google_cal")) {
+    const key = guard(await p.password({ message: "Google Calendar API key" }));
+    if (key) envConfig.GOOGLE_CALENDAR_API_KEY = key;
+    const calId = guard(await p.text({ message: "Calendar ID", initialValue: "primary" }));
+    if (calId) envConfig.GOOGLE_CALENDAR_ID = calId;
+  }
+
+  if (toolKeys.includes("database")) {
+    p.note(
+      "Format: postgresql://user:pass@host:5432/db  or  mysql://user:pass@host:3306/db",
+      "Database URL"
+    );
+    const dbUrl = guard(await p.text({ message: "Database URL (PostgreSQL or MySQL)" }));
+    if (dbUrl) {
+      if (dbUrl.startsWith("mysql")) envConfig.MYSQL_URL = dbUrl;
+      else envConfig.DATABASE_URL = dbUrl;
+    }
+  }
+
+  if (toolKeys.includes("ntfy")) {
+    envConfig.NTFY_URL   = guard(await p.text({ message: "Ntfy server URL", initialValue: "https://ntfy.sh" }));
+    envConfig.NTFY_TOPIC = guard(await p.text({ message: "Ntfy topic name" }));
+    const ntfyToken = guard(await p.password({ message: "Ntfy access token (optional)" }));
+    if (ntfyToken) envConfig.NTFY_TOKEN = ntfyToken;
+  }
+
+  if (toolKeys.includes("pushover")) {
+    envConfig.PUSHOVER_API_TOKEN = guard(await p.password({ message: "Pushover API token" }));
+    envConfig.PUSHOVER_USER_KEY  = guard(await p.password({ message: "Pushover user key" }));
+  }
+
+  if (toolKeys.includes("hue")) {
+    p.note(
+      [
+        "Find bridge IP: check your router or use the Hue app.",
+        "Get API key: press the bridge button, then run:",
+        '  curl -X POST http://<bridge-ip>/api -d \'{"devicetype":"daemora"}\'',
+      ].join("\n"),
+      "Philips Hue Setup"
+    );
+    envConfig.HUE_BRIDGE_IP = guard(await p.text({ message: "Hue Bridge IP" }));
+    envConfig.HUE_API_KEY   = guard(await p.password({ message: "Hue API key" }));
+  }
+
+  const toolCount = toolKeys.filter(k => k !== "none").length;
+  if (toolCount > 0) {
+    p.log.success(`${toolCount} tool integration(s) configured`);
+  } else {
+    p.log.info("No tool keys configured. Add later via: daemora config set <KEY> <value>");
+  }
+
+  // ━━━ Step 7: Daemon ━━━
+  stepHeader(7, TOTAL_STEPS, "Daemon Mode");
 
   p.note(
     [
@@ -663,7 +765,7 @@ export async function runSetupWizard() {
   p.log.success(`Daemon: ${t.bold(daemonMode ? "Enabled" : "Disabled")}`);
 
   // ━━━ Step 7: Data Cleanup ━━━
-  stepHeader(7, TOTAL_STEPS, "Data Cleanup");
+  stepHeader(8, TOTAL_STEPS, "Data Cleanup");
 
   const cleanupDays = guard(await p.select({
     message: "Auto-delete old tasks, logs & sessions after how many days?",
@@ -680,7 +782,7 @@ export async function runSetupWizard() {
   p.log.success(`Cleanup: ${t.bold(cleanupDays === "0" ? "Never" : cleanupDays + " days")}`);
 
   // ━━━ Step 8: MCP Servers ━━━
-  stepHeader(8, TOTAL_STEPS, "MCP Tool Servers");
+  stepHeader(9, TOTAL_STEPS, "MCP Tool Servers");
 
   p.note(
     [
@@ -974,7 +1076,7 @@ export async function runSetupWizard() {
   }
 
   // ━━━ Step 8: Secret Vault ━━━
-  stepHeader(9, TOTAL_STEPS, "Secret Vault");
+  stepHeader(10, TOTAL_STEPS, "Secret Vault");
 
   p.note(
     [
@@ -1061,7 +1163,7 @@ export async function runSetupWizard() {
   }
 
   // ━━━ Step 10: Multi-Tenant Mode ━━━
-  stepHeader(10, TOTAL_STEPS, "Multi-Tenant Mode");
+  stepHeader(11, TOTAL_STEPS, "Multi-Tenant Mode");
 
   let multiTenantMode = "personal";
 
@@ -1125,6 +1227,7 @@ export async function runSetupWizard() {
     "WhatsApp": ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_WHATSAPP_FROM"],
     "Email": ["EMAIL_USER", "EMAIL_PASSWORD", "EMAIL_IMAP_HOST", "EMAIL_SMTP_HOST"],
     "Daemon": ["DAEMON_MODE", "HEARTBEAT_INTERVAL_MINUTES"],
+    "Tool Keys": ["ELEVENLABS_API_KEY", "GOOGLE_PLACES_API_KEY", "GOOGLE_CALENDAR_API_KEY", "GOOGLE_CALENDAR_ID", "DATABASE_URL", "MYSQL_URL", "NTFY_URL", "NTFY_TOPIC", "NTFY_TOKEN", "PUSHOVER_API_TOKEN", "PUSHOVER_USER_KEY", "HUE_BRIDGE_IP", "HUE_API_KEY"],
     "Multi-Tenant": ["MULTI_TENANT_ENABLED", "AUTO_REGISTER_TENANTS", "TENANT_ISOLATE_FILESYSTEM", "DAEMORA_TENANT_KEY"],
   };
 
