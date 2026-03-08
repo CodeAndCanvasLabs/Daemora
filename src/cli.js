@@ -871,8 +871,16 @@ function handleSandbox(action, args) {
         console.error(`\n  ${S.cross}  Usage: daemora sandbox add ${t.dim("<absolute-path>")}\n`);
         process.exit(1);
       }
-      if (!newPath.startsWith("/") && !newPath.match(/^[A-Za-z]:\\/)) {
+      if (!newPath.startsWith("/") && !newPath.match(/^[A-Za-z]:[\\\/]/)) {
         console.error(`\n  ${S.cross}  Path must be absolute (start with / or C:\\)\n`);
+        process.exit(1);
+      }
+      if (/[\x00-\x1f]/.test(newPath) || newPath.includes("\0")) {
+        console.error(`\n  ${S.cross}  Path must not contain control characters or null bytes.\n`);
+        process.exit(1);
+      }
+      if (/(^|[\\/])\.\.([\\/]|$)/.test(newPath)) {
+        console.error(`\n  ${S.cross}  Path must not contain ".." traversal.\n`);
         process.exit(1);
       }
       const updated = [...new Set([...allowedPaths, newPath])];
@@ -907,6 +915,10 @@ function handleSandbox(action, args) {
       const [blockPath] = args;
       if (!blockPath) {
         console.error(`\n  ${S.cross}  Usage: daemora sandbox block ${t.dim("<absolute-path>")}\n`);
+        process.exit(1);
+      }
+      if (/[\x00-\x1f]/.test(blockPath) || /(^|[\\/])\.\.([\\/]|$)/.test(blockPath)) {
+        console.error(`\n  ${S.cross}  Invalid path — no control characters or ".." traversal allowed.\n`);
         process.exit(1);
       }
       const updated = [...new Set([...blockedPaths, blockPath])];
@@ -972,15 +984,24 @@ async function handleTenant(action, args) {
   const port = process.env.PORT || "8081";
   const base = `http://localhost:${port}`;
 
+  // Read auth token for API calls
+  const tokenPath = join(config.dataDir, "auth-token");
+  const authToken = existsSync(tokenPath) ? readFileSync(tokenPath, "utf-8").trim() : "";
+
   async function apiCall(method, path, body) {
     const { default: http } = await import("http");
+    // Ensure path starts with /api/
+    const apiPath = path.startsWith("/api/") ? path : `/api${path}`;
     return new Promise((resolve, reject) => {
       const opts = {
         hostname: "localhost",
         port: parseInt(port),
-        path,
+        path: apiPath,
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(authToken ? { "Authorization": `Bearer ${authToken}` } : {}),
+        },
       };
       const req = http.request(opts, (res) => {
         let data = "";

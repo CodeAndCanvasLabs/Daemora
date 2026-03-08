@@ -134,8 +134,31 @@ class TenantManager {
           throw new Error(`${field} must be an array`);
         }
         for (const p of updates[field]) {
-          if (typeof p !== "string" || (!p.startsWith("/") && !/^[A-Za-z]:\\/.test(p))) {
+          if (typeof p !== "string") {
+            throw new Error(`${field} must contain strings`);
+          }
+          // Must be absolute — Unix (/...) or Windows (C:\...)
+          const isUnixAbs = p.startsWith("/");
+          const isWinAbs = /^[A-Za-z]:[\\\/]/.test(p);
+          if (!isUnixAbs && !isWinAbs) {
             throw new Error(`${field} must contain absolute paths (got "${p}")`);
+          }
+          // Block null bytes (path injection)
+          if (p.includes("\0")) {
+            throw new Error(`${field} must not contain null bytes`);
+          }
+          // Block path traversal via /../ or \..\ sequences
+          const normalized = p.replace(/\\/g, "/");
+          if (/(^|\/)\.\.(\/|$)/.test(normalized)) {
+            throw new Error(`${field} must not contain ".." path traversal (got "${p}")`);
+          }
+          // Max length — OS limits are typically 260 (Win) or 4096 (Unix)
+          if (p.length > 4096) {
+            throw new Error(`${field} path too long (max 4096 chars)`);
+          }
+          // Block control characters (0x00-0x1F except nothing — all blocked)
+          if (/[\x00-\x1f]/.test(p)) {
+            throw new Error(`${field} must not contain control characters`);
           }
         }
       }

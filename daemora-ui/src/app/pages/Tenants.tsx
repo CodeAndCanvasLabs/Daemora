@@ -129,16 +129,28 @@ export function Tenants() {
     if (!editTenant) return;
     const toastId = toast.loading("UPDATING TENANT...");
     const splitList = (s: string) => s ? s.split(",").map((v: string) => v.trim()).filter(Boolean) : [];
+    const validatePaths = (paths: string[], label: string): string | null => {
+      for (const p of paths) {
+        if (!p.startsWith("/") && !/^[A-Za-z]:[\\\/]/.test(p)) return `${label}: "${p}" must be an absolute path`;
+        if (/\.\.[\\/]/.test(p)) return `${label}: "${p}" must not contain ".." traversal`;
+      }
+      return null;
+    };
     try {
       let modelRoutes = {};
       try { modelRoutes = JSON.parse(editForm.modelRoutes || "{}"); } catch { /* ignore */ }
+
+      const allowedPaths = splitList(editForm.allowedPaths);
+      const blockedPaths = splitList(editForm.blockedPaths);
+      const pathErr = validatePaths(allowedPaths, "Allowed Paths") || validatePaths(blockedPaths, "Blocked Paths");
+      if (pathErr) { toast.error(pathErr, { id: toastId }); return; }
 
       const body: Record<string, any> = {
         defaultModel: editForm.defaultModel || undefined,
         plan: editForm.plan,
         notes: editForm.notes || undefined,
-        allowedPaths: splitList(editForm.allowedPaths),
-        blockedPaths: splitList(editForm.blockedPaths),
+        allowedPaths,
+        blockedPaths,
         allowedTools: splitList(editForm.allowedTools),
         blockedTools: splitList(editForm.blockedTools),
         mcpServers: splitList(editForm.mcpServers),
