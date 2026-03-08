@@ -1251,46 +1251,44 @@ export async function runSetupWizard() {
   const spin = p.spinner();
   spin.start("Writing configuration");
 
-  const envLines = [
-    "# Daemora Configuration",
-    `# Generated on ${new Date().toISOString()}`,
-    "",
-  ];
+  const envPath = join(ROOT_DIR, ".env");
+  const examplePath = join(ROOT_DIR, ".env.example");
 
-  const categories = {
-    "AI Model": ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "XAI_API_KEY", "DEEPSEEK_API_KEY", "MISTRAL_API_KEY", "DEFAULT_MODEL"],
-    "Server": ["PORT"],
-    "Safety": ["PERMISSION_TIER", "MAX_COST_PER_TASK", "MAX_DAILY_COST"],
-    "Filesystem": ["ALLOWED_PATHS", "BLOCKED_PATHS", "RESTRICT_COMMANDS"],
-    "Telegram": ["TELEGRAM_BOT_TOKEN"],
-    "WhatsApp": ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_WHATSAPP_FROM"],
-    "Email (Resend)": ["RESEND_API_KEY", "RESEND_FROM"],
-    "Email (IMAP/SMTP)": ["EMAIL_USER", "EMAIL_PASSWORD", "EMAIL_IMAP_HOST", "EMAIL_SMTP_HOST"],
-    "Voice Calls": ["TWILIO_PHONE_FROM", "VOICE_WEBHOOK_BASE_URL"],
-    "Daemon": ["DAEMON_MODE", "HEARTBEAT_INTERVAL_MINUTES"],
-    "Tool Keys": ["ELEVENLABS_API_KEY", "GOOGLE_PLACES_API_KEY", "GOOGLE_CALENDAR_API_KEY", "GOOGLE_CALENDAR_ID", "DATABASE_URL", "MYSQL_URL", "NTFY_URL", "NTFY_TOPIC", "NTFY_TOKEN", "PUSHOVER_API_TOKEN", "PUSHOVER_USER_KEY", "HUE_BRIDGE_IP", "HUE_API_KEY", "SONOS_SPEAKER_IP"],
-    "Multi-Tenant": ["MULTI_TENANT_ENABLED", "AUTO_REGISTER_TENANTS", "TENANT_ISOLATE_FILESYSTEM", "DAEMORA_TENANT_KEY"],
-  };
-
-  for (const [category, keys] of Object.entries(categories)) {
-    const entries = keys.filter((k) => envConfig[k] !== undefined);
-    if (entries.length > 0) {
-      envLines.push(`# === ${category} ===`);
-      for (const key of entries) envLines.push(`${key}=${envConfig[key]}`);
-      envLines.push("");
+  // Copy .env.example → .env as the base (preserves all comments, sections, docs)
+  // Then patch in user-configured values
+  let envContent;
+  if (existsSync(examplePath)) {
+    envContent = readFileSync(examplePath, "utf-8");
+    // Patch each configured key into the template
+    for (const [key, value] of Object.entries(envConfig)) {
+      if (value === undefined) continue;
+      // Match KEY=anything (including empty) on its own line
+      const regex = new RegExp(`^${key}=.*$`, "m");
+      if (regex.test(envContent)) {
+        envContent = envContent.replace(regex, `${key}=${value}`);
+      } else {
+        // Key not in template — append at end
+        envContent += `\n${key}=${value}`;
+      }
     }
+  } else {
+    // Fallback: no .env.example available (shouldn't happen, but be safe)
+    const envLines = [
+      "# Daemora Configuration",
+      `# Generated on ${new Date().toISOString()}`,
+      "",
+    ];
+    for (const [key, value] of Object.entries(envConfig)) {
+      if (value !== undefined) envLines.push(`${key}=${value}`);
+    }
+    envContent = envLines.join("\n") + "\n";
   }
 
   if (vaultPassphrase) {
-    envLines.push("# API keys encrypted in data/.vault.enc");
-    envLines.push("");
+    envContent += "\n# API keys encrypted in data/.vault.enc\n";
   }
-  envLines.push("# === A2A ===");
-  envLines.push("A2A_ENABLED=false");
-  envLines.push("");
 
-  const envPath = join(ROOT_DIR, ".env");
-  writeFileSync(envPath, envLines.join("\n"), "utf-8");
+  writeFileSync(envPath, envContent, "utf-8");
 
   // Install daemon if requested
   if (daemonMode) {
