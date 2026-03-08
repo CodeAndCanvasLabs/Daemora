@@ -1,11 +1,19 @@
 # Daemora
 
-**A fully autonomous, self-hosted AI agent - production-secure, multi-tenant, multi-channel.**
+<p align="center">
+  <img src="public/image.png" alt="Daemora — Autonomous AI Agent" width="100%" />
+</p>
 
-[![npm](https://img.shields.io/npm/v/daemora?color=black&label=npm)](https://npmjs.com/package/daemora)
-[![license](https://img.shields.io/badge/license-AGPL--3.0-black)](LICENSE)
-[![node](https://img.shields.io/badge/node-20%2B-black)](https://nodejs.org)
-[![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-black)](#)
+<p align="center">
+  <strong>A fully autonomous, self-hosted AI agent — production-secure, multi-tenant, multi-channel.</strong>
+</p>
+
+<p align="center">
+  <a href="https://npmjs.com/package/daemora"><img src="https://img.shields.io/npm/v/daemora?color=black&label=npm" alt="npm" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-black" alt="license" /></a>
+  <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-20%2B-black" alt="node" /></a>
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-black" alt="platform" />
+</p>
 
 Daemora runs on your own machine. It connects to your messaging apps, accepts tasks in plain language, executes them autonomously with 51 built-in tools across 20 channels, and reports back - without you watching over it.
 
