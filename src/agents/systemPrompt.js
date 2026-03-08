@@ -438,15 +438,23 @@ You are a sub-agent spawned for a specific task. Complete it fully without askin
 }
 
 function renderRuntime(meta = {}) {
+  const now = new Date();
+  const date = now.toISOString().split("T")[0];
+  const time = now.toTimeString().split(" ")[0];
+  const year = now.getFullYear();
   const parts = [];
-  if (meta.model) parts.push(`model=${meta.model}`);
-  if (meta.thinkingLevel) parts.push(`thinking=${meta.thinkingLevel}`);
-  if (meta.agentId) parts.push(`agent=${meta.agentId}`);
-  parts.push(`date=${new Date().toISOString().split("T")[0]}`);
-  parts.push(`os=${process.platform}/${process.arch}`);
-  parts.push(`cwd=${process.cwd()}`);
-  parts.push(`shell=${process.env.SHELL || "unknown"}`);
-  return `Runtime: ${parts.join(" | ")}`;
+  if (meta.model) parts.push(`Model: ${meta.model}`);
+  if (meta.thinkingLevel) parts.push(`Thinking: ${meta.thinkingLevel}`);
+  if (meta.agentId) parts.push(`Agent: ${meta.agentId}`);
+  return `# Environment
+
+- Current Date: ${date}
+- Current Time: ${time}
+- Current Year: ${year}
+- OS: ${process.platform}/${process.arch}
+- Shell: ${process.env.SHELL || "unknown"}
+- CWD: ${process.cwd()}
+${parts.length > 0 ? parts.map(p => `- ${p}`).join("\n") + "\n" : ""}`;
 }
 
 export const systemPrompt = { role: "system", content: "" };
