@@ -1,14 +1,23 @@
 import { config as loadEnv } from "dotenv";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { existsSync, copyFileSync } from "fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, "..", "..");
 
+// Auto-create .env from .env.example if it doesn't exist yet.
+// This ensures npm-installed users get a working .env on first run.
+const envPath = join(ROOT_DIR, ".env");
+const examplePath = join(ROOT_DIR, ".env.example");
+if (!existsSync(envPath) && existsSync(examplePath)) {
+  copyFileSync(examplePath, envPath);
+}
+
 // Load .env from the module's install directory (ROOT_DIR), not process.cwd().
 // This ensures `daemora start` always picks up the config written by `daemora setup`,
 // regardless of which directory the user runs the command from.
-loadEnv({ path: join(ROOT_DIR, ".env"), quiet: true });
+loadEnv({ path: envPath, quiet: true });
 
 export const config = {
   // Server
