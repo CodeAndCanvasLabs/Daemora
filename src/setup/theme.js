@@ -57,6 +57,7 @@ export const S = {
   bolt:    chalk.hex(P.cyan)("●"),
   eye:     chalk.hex(P.red)("◉"),
   star:    chalk.hex(P.amber)("★"),
+  info:    chalk.hex(P.teal)("◆"),
 };
 
 // ─── Gradient helpers ──────────────────────────────────────────────────────

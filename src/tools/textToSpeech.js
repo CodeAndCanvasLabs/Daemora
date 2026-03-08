@@ -17,6 +17,7 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import filesystemGuard from "../safety/FilesystemGuard.js";
 import { getTenantTmpDir } from "./_paths.js";
+import tenantContext from "../tenants/TenantContext.js";
 const OPENAI_CHAR_LIMIT = 4096;
 const ELEVENLABS_CHAR_LIMIT = 5000;
 
@@ -30,7 +31,10 @@ export async function textToSpeech(text, optionsJson) {
     const provider = opts.provider?.toLowerCase() || "openai";
 
     // Prefer ElevenLabs if key is present and provider not forced
-    if (provider === "elevenlabs" || (provider === "auto" && process.env.ELEVENLABS_API_KEY)) {
+    const _store = tenantContext.getStore();
+    const _keys = _store?.apiKeys || {};
+    const hasElevenLabs = _keys.ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY;
+    if (provider === "elevenlabs" || (provider === "auto" && hasElevenLabs)) {
       return await _elevenLabs(text.trim(), opts);
     }
 
@@ -43,12 +47,16 @@ export async function textToSpeech(text, optionsJson) {
 // ── OpenAI TTS ────────────────────────────────────────────────────────────────
 
 async function _openAI(text, opts) {
-  if (!process.env.OPENAI_API_KEY) {
+  const store = tenantContext.getStore();
+  const apiKeys = store?.apiKeys || {};
+  const apiKey = apiKeys.OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
     return "Error: textToSpeech requires OPENAI_API_KEY";
   }
 
   const { default: OpenAI } = await import("openai");
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const client = new OpenAI({ apiKey });
 
   const voice  = opts.voice  || "nova";    // nova = clear, neutral, works great for most use cases
   const speed  = Math.max(0.25, Math.min(4.0, parseFloat(opts.speed  || "1.0")));
@@ -82,7 +90,9 @@ async function _openAI(text, opts) {
 // ── ElevenLabs TTS ────────────────────────────────────────────────────────────
 
 async function _elevenLabs(text, opts) {
-  const apiKey = process.env.ELEVENLABS_API_KEY;
+  const store = tenantContext.getStore();
+  const tenantKeys = store?.apiKeys || {};
+  const apiKey = tenantKeys.ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {
     return "Error: provider=elevenlabs requires ELEVENLABS_API_KEY";
   }
