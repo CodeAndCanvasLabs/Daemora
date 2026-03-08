@@ -342,6 +342,15 @@ export async function runSetupWizard() {
     envConfig.TWILIO_ACCOUNT_SID    = guard(await p.password({ message: "Twilio Account SID" }));
     envConfig.TWILIO_AUTH_TOKEN     = guard(await p.password({ message: "Twilio Auth Token" }));
     envConfig.TWILIO_WHATSAPP_FROM  = guard(await p.text({ message: "WhatsApp From number", initialValue: "whatsapp:+14155238886" }));
+
+    const enableVoice = guard(await p.confirm({
+      message: "Enable voice calls? (needs a voice-capable Twilio number + public URL)",
+      initialValue: false,
+    }));
+    if (enableVoice) {
+      envConfig.TWILIO_PHONE_FROM       = guard(await p.text({ message: "Twilio voice-capable phone number (e.g. +1234567890)" }));
+      envConfig.VOICE_WEBHOOK_BASE_URL  = guard(await p.text({ message: "Public URL for voice webhooks (e.g. https://abc123.ngrok.io)" }));
+    }
   }
 
   if (channels.includes("discord")) {
@@ -378,22 +387,47 @@ export async function runSetupWizard() {
   }
 
   if (channels.includes("email")) {
-    p.note(
-      [
-        "Gmail setup:",
-        "1. Google Account › Security › 2-Step Verification → enable",
-        "2. Google Account › Security › App Passwords → Mail → create",
-        "3. Use the 16-char app password below (NOT your Gmail password)",
-        "",
-        "For other providers: change IMAP/SMTP hosts below.",
-        "Optional: EMAIL_ALLOWLIST=alice@example.com,bob@example.com",
-      ].join("\n"),
-      "Email Setup"
-    );
-    envConfig.EMAIL_USER      = guard(await p.text({ message: "Email address" }));
-    envConfig.EMAIL_PASSWORD  = guard(await p.password({ message: "App password" }));
-    envConfig.EMAIL_IMAP_HOST = guard(await p.text({ message: "IMAP host", initialValue: "imap.gmail.com" }));
-    envConfig.EMAIL_SMTP_HOST = guard(await p.text({ message: "SMTP host", initialValue: "smtp.gmail.com" }));
+    const emailMethod = guard(await p.select({
+      message: "Email sending method",
+      options: [
+        { value: "resend", label: "Resend (easiest)",       hint: "Just an API key, no SMTP config" },
+        { value: "gmail",  label: "Gmail IMAP/SMTP",        hint: "Full inbox read + send via Gmail app password" },
+        { value: "both",   label: "Both (Resend + Gmail)",  hint: "Resend for sending, Gmail for reading inbox" },
+      ],
+    }));
+
+    if (emailMethod === "resend" || emailMethod === "both") {
+      p.note(
+        [
+          "1. Sign up free at https://resend.com",
+          "2. API Keys → Create API Key",
+          "3. Domains → add your sending domain (or use shared domain for testing)",
+        ].join("\n"),
+        "Resend Setup"
+      );
+      envConfig.RESEND_API_KEY = guard(await p.password({ message: "Resend API key (re_...)" }));
+      envConfig.RESEND_FROM   = guard(await p.text({ message: "From address", placeholder: "you@yourdomain.com" }));
+    }
+
+    if (emailMethod === "gmail" || emailMethod === "both") {
+      p.note(
+        [
+          "Gmail setup:",
+          "1. Google Account › Security › 2-Step Verification → enable",
+          "2. Google Account › Security › App Passwords → Mail → create",
+          "3. Use the 16-char app password below (NOT your Gmail password)",
+          "",
+          "For other providers: change IMAP/SMTP hosts below.",
+        ].join("\n"),
+        "Gmail IMAP/SMTP Setup"
+      );
+      envConfig.EMAIL_USER      = guard(await p.text({ message: "Email address" }));
+      envConfig.EMAIL_PASSWORD  = guard(await p.password({ message: "App password" }));
+      envConfig.EMAIL_IMAP_HOST = guard(await p.text({ message: "IMAP host", initialValue: "imap.gmail.com" }));
+      envConfig.EMAIL_SMTP_HOST = guard(await p.text({ message: "SMTP host", initialValue: "smtp.gmail.com" }));
+    }
+
+    p.log.info("Optional: EMAIL_ALLOWLIST=alice@example.com,bob@example.com");
   }
 
   if (channels.includes("line")) {
@@ -665,6 +699,7 @@ export async function runSetupWizard() {
       { value: "ntfy",          label: "Ntfy notifications",                  hint: "Push notifications via ntfy.sh" },
       { value: "pushover",      label: "Pushover notifications",              hint: "Push notifications via Pushover" },
       { value: "hue",           label: "Philips Hue",                         hint: "Smart light control" },
+      { value: "sonos",         label: "Sonos speaker",                       hint: "Music / audio control" },
       { value: "none",          label: "Skip for now",                        hint: "Add later via daemora config set" },
     ],
   }));
@@ -726,6 +761,10 @@ export async function runSetupWizard() {
     );
     envConfig.HUE_BRIDGE_IP = guard(await p.text({ message: "Hue Bridge IP" }));
     envConfig.HUE_API_KEY   = guard(await p.password({ message: "Hue API key" }));
+  }
+
+  if (toolKeys.includes("sonos")) {
+    envConfig.SONOS_SPEAKER_IP = guard(await p.text({ message: "Sonos speaker IP address" }));
   }
 
   const toolCount = toolKeys.filter(k => k !== "none").length;
@@ -1225,9 +1264,11 @@ export async function runSetupWizard() {
     "Filesystem": ["ALLOWED_PATHS", "BLOCKED_PATHS", "RESTRICT_COMMANDS"],
     "Telegram": ["TELEGRAM_BOT_TOKEN"],
     "WhatsApp": ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_WHATSAPP_FROM"],
-    "Email": ["EMAIL_USER", "EMAIL_PASSWORD", "EMAIL_IMAP_HOST", "EMAIL_SMTP_HOST"],
+    "Email (Resend)": ["RESEND_API_KEY", "RESEND_FROM"],
+    "Email (IMAP/SMTP)": ["EMAIL_USER", "EMAIL_PASSWORD", "EMAIL_IMAP_HOST", "EMAIL_SMTP_HOST"],
+    "Voice Calls": ["TWILIO_PHONE_FROM", "VOICE_WEBHOOK_BASE_URL"],
     "Daemon": ["DAEMON_MODE", "HEARTBEAT_INTERVAL_MINUTES"],
-    "Tool Keys": ["ELEVENLABS_API_KEY", "GOOGLE_PLACES_API_KEY", "GOOGLE_CALENDAR_API_KEY", "GOOGLE_CALENDAR_ID", "DATABASE_URL", "MYSQL_URL", "NTFY_URL", "NTFY_TOPIC", "NTFY_TOKEN", "PUSHOVER_API_TOKEN", "PUSHOVER_USER_KEY", "HUE_BRIDGE_IP", "HUE_API_KEY"],
+    "Tool Keys": ["ELEVENLABS_API_KEY", "GOOGLE_PLACES_API_KEY", "GOOGLE_CALENDAR_API_KEY", "GOOGLE_CALENDAR_ID", "DATABASE_URL", "MYSQL_URL", "NTFY_URL", "NTFY_TOPIC", "NTFY_TOKEN", "PUSHOVER_API_TOKEN", "PUSHOVER_USER_KEY", "HUE_BRIDGE_IP", "HUE_API_KEY", "SONOS_SPEAKER_IP"],
     "Multi-Tenant": ["MULTI_TENANT_ENABLED", "AUTO_REGISTER_TENANTS", "TENANT_ISOLATE_FILESYSTEM", "DAEMORA_TENANT_KEY"],
   };
 
