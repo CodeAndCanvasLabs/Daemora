@@ -1,3 +1,4 @@
+// Settings page — agent identity, skills, memory, API keys, and environment config
 import { useEffect, useState, useRef } from "react";
 import { apiFetch } from "../api";
 import {
