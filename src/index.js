@@ -821,6 +821,32 @@ app.delete("/api/tenants/:id", (req, res) => {
   res.json({ message: "Tenant deleted" });
 });
 
+// --- Tenant API keys ---
+app.get("/api/tenants/:id/apikeys", (req, res) => {
+  const id = decodeURIComponent(req.params.id);
+  const keys = tenantManager.listApiKeyNames(id);
+  res.json({ keys });
+});
+
+app.put("/api/tenants/:id/apikeys/:keyName", (req, res) => {
+  const id = decodeURIComponent(req.params.id);
+  const keyName = decodeURIComponent(req.params.keyName);
+  const { value } = req.body || {};
+  if (!value || typeof value !== "string" || value.length < 4) {
+    return res.status(400).json({ error: "value is required (min 4 chars)" });
+  }
+  tenantManager.setApiKey(id, keyName, value);
+  res.json({ message: `API key ${keyName} saved` });
+});
+
+app.delete("/api/tenants/:id/apikeys/:keyName", (req, res) => {
+  const id = decodeURIComponent(req.params.id);
+  const keyName = decodeURIComponent(req.params.keyName);
+  const deleted = tenantManager.deleteApiKey(id, keyName);
+  if (!deleted) return res.status(404).json({ error: "Key not found" });
+  res.json({ message: `API key ${keyName} deleted` });
+});
+
 // --- Exec approvals ---
 app.get("/api/approvals", (req, res) => {
   res.json({ approvals: execApproval.listPending(), mode: execApproval.mode });

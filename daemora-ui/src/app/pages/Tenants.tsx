@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
-import { Users, Loader2, Trash2, Pause, Play, Pencil, RotateCcw } from "lucide-react";
+import { Users, Loader2, Trash2, Pause, Play, Pencil, RotateCcw, Key, Plus, X, Eye, EyeOff } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -36,6 +36,11 @@ export function Tenants() {
   const [isLoading, setIsLoading] = useState(true);
   const [editTenant, setEditTenant] = useState<Tenant | null>(null);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
+  const [apiKeyNames, setApiKeyNames] = useState<string[]>([]);
+  const [newKeyName, setNewKeyName] = useState("");
+  const [newKeyValue, setNewKeyValue] = useState("");
+  const [showKeyValue, setShowKeyValue] = useState(false);
+  const [keySaving, setKeySaving] = useState(false);
 
   const fetchTenants = async () => {
     try {
@@ -108,6 +113,66 @@ export function Tenants() {
     }
   };
 
+  const fetchApiKeys = async (tenantId: string) => {
+    try {
+      const res = await apiFetch(`/api/tenants/${encodeURIComponent(tenantId)}/apikeys`);
+      if (res.ok) {
+        const data = await res.json();
+        setApiKeyNames(data.keys || []);
+      }
+    } catch { setApiKeyNames([]); }
+  };
+
+  const handleAddApiKey = async () => {
+    if (!editTenant || !newKeyName.trim() || !newKeyValue.trim()) {
+      toast.error("Key name and value are required");
+      return;
+    }
+    if (newKeyValue.length < 4) {
+      toast.error("Key value must be at least 4 characters");
+      return;
+    }
+    setKeySaving(true);
+    try {
+      const res = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/apikeys/${encodeURIComponent(newKeyName.trim())}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: newKeyValue }),
+      });
+      if (res.ok) {
+        toast.success(`${newKeyName.trim()} saved`);
+        setNewKeyName("");
+        setNewKeyValue("");
+        setShowKeyValue(false);
+        fetchApiKeys(editTenant.id);
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Failed to save key");
+      }
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setKeySaving(false);
+    }
+  };
+
+  const handleDeleteApiKey = async (keyName: string) => {
+    if (!editTenant) return;
+    try {
+      const res = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/apikeys/${encodeURIComponent(keyName)}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        toast.success(`${keyName} deleted`);
+        fetchApiKeys(editTenant.id);
+      } else {
+        toast.error("Failed to delete key");
+      }
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
   const openEdit = (tenant: Tenant) => {
     setEditTenant(tenant);
     setEditForm({
@@ -123,6 +188,10 @@ export function Tenants() {
       modelRoutes: JSON.stringify(tenant.modelRoutes || {}, null, 2),
       notes: tenant.notes || "",
     });
+    setNewKeyName("");
+    setNewKeyValue("");
+    setShowKeyValue(false);
+    fetchApiKeys(tenant.id);
   };
 
   const handleSaveEdit = async () => {
@@ -422,6 +491,78 @@ export function Tenants() {
                 placeholder='{"code": "gpt-4o", "research": "claude-3.5-sonnet"}'
                 className="bg-slate-900 border-slate-800 text-white text-xs font-mono min-h-[60px]"
               />
+            </div>
+
+            {/* API Keys */}
+            <div className="space-y-3 p-4 bg-slate-800/30 border border-slate-800 rounded-xl">
+              <div className="flex items-center gap-2">
+                <Key className="w-3.5 h-3.5 text-[#ffaa00]" />
+                <label className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">API Keys (Encrypted)</label>
+              </div>
+
+              {/* Existing keys */}
+              {apiKeyNames.length > 0 ? (
+                <div className="space-y-1.5">
+                  {apiKeyNames.map((name) => (
+                    <div key={name} className="flex items-center justify-between px-3 py-1.5 bg-slate-900/50 border border-slate-800 rounded-lg">
+                      <span className="text-[10px] font-mono text-[#00ff88]">{name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-mono text-gray-600">••••••••</span>
+                        <button
+                          onClick={() => handleDeleteApiKey(name)}
+                          className="text-red-500/50 hover:text-red-500 transition-colors"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[10px] text-gray-600 font-mono italic">No API keys configured — uses global keys</p>
+              )}
+
+              {/* Add new key */}
+              <div className="space-y-2 pt-1">
+                <Select value={newKeyName} onValueChange={setNewKeyName}>
+                  <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-[10px] font-mono h-8">
+                    <SelectValue placeholder="Select key to add..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                    {["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "ELEVENLABS_API_KEY"].filter(k => !apiKeyNames.includes(k)).map((k) => (
+                      <SelectItem key={k} value={k} className="text-[10px] font-mono">{k}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {newKeyName && (
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Input
+                        type={showKeyValue ? "text" : "password"}
+                        value={newKeyValue}
+                        onChange={(e) => setNewKeyValue(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleAddApiKey()}
+                        placeholder="sk-..."
+                        className="bg-slate-900 border-slate-800 text-white text-xs h-8 pr-8 font-mono"
+                      />
+                      <button
+                        onClick={() => setShowKeyValue(!showKeyValue)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                      >
+                        {showKeyValue ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                    <Button
+                      onClick={handleAddApiKey}
+                      disabled={keySaving || !newKeyValue}
+                      size="sm"
+                      className="bg-[#ffaa00]/15 text-[#ffaa00] border border-[#ffaa00]/30 hover:bg-[#ffaa00]/25 h-8 px-3"
+                    >
+                      {keySaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">
