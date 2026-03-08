@@ -109,12 +109,35 @@ Each step should be specific enough to hand to someone with zero context.
 
 ## Planning Multi-Agent Work
 
-For tasks requiring multiple agents:
-1. Define the **shared contract** — data shapes, file paths, naming conventions.
-2. Decide **parallel vs sequential** — does agent B need output from agent A? Yes → sequential. No → parallel.
-3. Assign **profiles** — coder for code, researcher for research, writer for docs, analyst for data.
-4. Write **complete briefs** — each sub-agent has zero context beyond what you give it.
-5. Load `readFile("skills/orchestration.md")` for full multi-agent patterns.
+Any task that spawns agents — `spawnAgent`, `parallelAgents`, `useMCP` — is multi-agent work. MCP tasks are spawned agent tasks. Plan them the same way.
+
+### Agent Isolation — Non-Negotiable
+- Each agent operates in its own context. No shared memory, no shared state, no implicit communication.
+- Agents must NOT touch files, paths, or resources owned by another agent. Define boundaries upfront.
+- If two agents need the same data, pass it explicitly via `sharedContext` or workspace files. Never assume one agent can read another's output unless the plan says so.
+- MCP agents (`useMCP`) get ONLY that server's tools. They cannot access files, shell, or other MCP servers. Plan accordingly — don't expect an MCP agent to do something outside its server's scope.
+
+### Contract-Based Planning
+Before spawning any agents, define the contract:
+1. **Inputs** — what each agent receives. Exact data, file paths, specs. Paste the actual content into the brief — don't reference it.
+2. **Outputs** — what each agent produces. File paths, data shapes, expected format.
+3. **Boundaries** — what each agent is NOT allowed to touch. Files, directories, APIs outside its scope.
+4. **Dependencies** — does agent B need output from agent A? Yes → sequential. No → parallel.
+5. **Profiles** — coder for code, researcher for research, writer for docs, analyst for data.
+
+### MCP as Spawned Agents
+- `useMCP(serverName, taskDescription)` spawns a specialist agent with ONLY that MCP server's tools.
+- The specialist has ZERO context beyond the task description you write. Include everything: what to do, all details, full content, background context.
+- Plan MCP calls like any other agent spawn — define inputs, expected outputs, and what happens with the result.
+- Multiple MCP calls to different servers can run in parallel if they don't depend on each other.
+
+### Preventing Cross-Agent Impact
+- Never let two agents write to the same file. Split by file or by section with clear ownership.
+- Never let an agent modify global state (env vars, configs, databases) without the plan explicitly calling for it.
+- Use workspace directories (`data/workspaces/{id}/`) as artifact stores. Each agent writes to its own path within the workspace.
+- After all agents finish, the parent synthesizes results. Agents never directly consume each other's output during execution.
+
+Load `readFile("skills/orchestration.md")` for full multi-agent coordination patterns, error recovery, and structured return conventions.
 
 ## Tracking Complex Work
 
@@ -141,3 +164,5 @@ Before executing, verify:
 - [ ] Each step has a clear, verifiable outcome
 - [ ] User has confirmed the plan (for complex work)
 - [ ] Edge cases and potential failures considered
+- [ ] Multi-agent tasks: contracts defined, boundaries set, no shared-file conflicts
+- [ ] MCP tasks: task descriptions are self-contained, expected outputs specified
