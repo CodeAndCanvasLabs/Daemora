@@ -20,7 +20,7 @@
     "test:coverage": "vitest run --coverage",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
-    "postinstall": "npx playwright install chromium 2>/dev/null || true",
+    "postinstall": "npx playwright install chromium || exit 0",
     "prepublishOnly": "pnpm --filter daemora-ui build"
   },
   "keywords": [
