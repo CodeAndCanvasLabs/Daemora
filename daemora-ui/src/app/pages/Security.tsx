@@ -252,7 +252,7 @@ export function Security() {
       {/* Header */}
       <div>
         <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">Security</h2>
-        <p className="text-gray-400 font-mono text-sm tracking-widest">VAULT & AUDIT LOG</p>
+        <p className="text-gray-400 font-mono text-sm tracking-widest">VAULT · AUDIT · PERMISSIONS · SANDBOX</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -405,17 +405,14 @@ export function Security() {
       {/* Permission & Sandbox */}
       <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm shadow-xl">
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <FolderOpen className="w-6 h-6 text-[#ffaa00]" />
-              <div>
-                <CardTitle className="text-white uppercase tracking-tight">Permission & Sandbox</CardTitle>
-                <CardDescription className="text-gray-500 font-mono text-[10px] uppercase">
-                  FILESYSTEM ACCESS & TOOL PERMISSIONS
-                </CardDescription>
-              </div>
+          <div className="flex items-center gap-3">
+            <FolderOpen className="w-6 h-6 text-[#ffaa00]" />
+            <div>
+              <CardTitle className="text-white uppercase tracking-tight">Permission & Sandbox</CardTitle>
+              <CardDescription className="text-gray-500 font-mono text-[10px] uppercase">
+                GLOBAL DEFAULTS — PER-TENANT OVERRIDES ON TENANTS PAGE
+              </CardDescription>
             </div>
-            <SaveBtn dirty={secDirty} saving={secSaving} saved={secSaved} onSave={handleSaveSettings} />
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -430,7 +427,7 @@ export function Security() {
               </div>
               <Select value={permissionTier} onValueChange={(v) => { setPermissionTier(v); markDirty(); }}>
                 <SelectTrigger className="w-[160px] bg-slate-950 border-slate-700 text-white font-mono text-[10px] uppercase h-8">
-                  <SelectValue />
+                  <SelectValue placeholder="STANDARD" />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-950 border-slate-700">
                   {Object.entries(TIER_INFO).map(([key, info]) => (
@@ -445,7 +442,10 @@ export function Security() {
 
           {/* Filesystem Sandbox */}
           <div className="p-4 bg-slate-800/30 border border-slate-800 rounded-xl space-y-4">
-            <h4 className="text-xs font-mono text-white uppercase tracking-wider">Filesystem Sandbox</h4>
+            <div>
+              <h4 className="text-xs font-mono text-white uppercase tracking-wider">Filesystem Sandbox</h4>
+              <p className="text-[10px] text-gray-500 font-mono mt-0.5">Global path rules — tenants can override on the Tenants page</p>
+            </div>
 
             {/* Allowed Paths */}
             <div className="space-y-2">
@@ -510,17 +510,14 @@ export function Security() {
       {/* Multi-Tenant Mode */}
       <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm shadow-xl">
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Users className="w-6 h-6 text-[#7C6AFF]" />
-              <div>
-                <CardTitle className="text-white uppercase tracking-tight">Multi-Tenant Mode</CardTitle>
-                <CardDescription className="text-gray-500 font-mono text-[10px] uppercase">
-                  TENANT ISOLATION & REGISTRATION
-                </CardDescription>
-              </div>
+          <div className="flex items-center gap-3">
+            <Users className="w-6 h-6 text-[#7C6AFF]" />
+            <div>
+              <CardTitle className="text-white uppercase tracking-tight">Multi-Tenant Mode</CardTitle>
+              <CardDescription className="text-gray-500 font-mono text-[10px] uppercase">
+                TENANT ISOLATION & REGISTRATION
+              </CardDescription>
             </div>
-            <SaveBtn dirty={secDirty} saving={secSaving} saved={secSaved} onSave={handleSaveSettings} />
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -568,6 +565,13 @@ export function Security() {
           )}
         </CardContent>
       </Card>
+
+      {/* Global Save Button */}
+      {(secDirty || secSaved) && (
+        <div className="flex justify-end">
+          <SaveBtn dirty={secDirty} saving={secSaving} saved={secSaved} onSave={handleSaveSettings} />
+        </div>
+      )}
     </div>
   );
 }
