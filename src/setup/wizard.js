@@ -774,7 +774,7 @@ export async function runSetupWizard() {
     p.log.info("No tool keys configured. Add later via: daemora config set <KEY> <value>");
   }
 
-  // ━━━ Step 7: Daemon ━━━
+  // ━━━ Step 7: Daemon Mode ━━━
   stepHeader(7, TOTAL_STEPS, "Daemon Mode");
 
   p.note(
@@ -803,7 +803,7 @@ export async function runSetupWizard() {
 
   p.log.success(`Daemon: ${t.bold(daemonMode ? "Enabled" : "Disabled")}`);
 
-  // ━━━ Step 7: Data Cleanup ━━━
+  // ━━━ Step 8: Data Cleanup ━━━
   stepHeader(8, TOTAL_STEPS, "Data Cleanup");
 
   const cleanupDays = guard(await p.select({
@@ -820,7 +820,7 @@ export async function runSetupWizard() {
 
   p.log.success(`Cleanup: ${t.bold(cleanupDays === "0" ? "Never" : cleanupDays + " days")}`);
 
-  // ━━━ Step 8: MCP Servers ━━━
+  // ━━━ Step 9: MCP Servers ━━━
   stepHeader(9, TOTAL_STEPS, "MCP Tool Servers");
 
   p.note(
@@ -1114,7 +1114,7 @@ export async function runSetupWizard() {
     p.log.info("No MCP servers configured. Use `daemora mcp add` anytime to add one.");
   }
 
-  // ━━━ Step 8: Secret Vault ━━━
+  // ━━━ Step 10: Secret Vault ━━━
   stepHeader(10, TOTAL_STEPS, "Secret Vault");
 
   p.note(

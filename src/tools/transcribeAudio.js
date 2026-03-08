@@ -12,6 +12,7 @@ import { join, extname, basename } from "node:path";
 import OpenAI from "openai";
 import filesystemGuard from "../safety/FilesystemGuard.js";
 import { getTenantTmpDir } from "./_paths.js";
+import tenantContext from "../tenants/TenantContext.js";
 
 const SUPPORTED_EXTENSIONS = new Set([
   ".mp3", ".mp4", ".mpeg", ".mpga", ".m4a", ".wav", ".webm", ".ogg", ".oga", ".flac"
@@ -24,7 +25,10 @@ export async function transcribeAudio(audioPath, prompt) {
   try {
     if (!audioPath) return "Error: audioPath is required";
 
-    if (!process.env.OPENAI_API_KEY) {
+    const _store = tenantContext.getStore();
+    const _keys = _store?.apiKeys || {};
+    const apiKey = _keys.OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    if (!apiKey) {
       return "Error: transcribeAudio requires OPENAI_API_KEY (uses OpenAI Whisper API)";
     }
 
@@ -63,7 +67,7 @@ export async function transcribeAudio(audioPath, prompt) {
       return `Error: Unsupported audio format: ${ext}. Supported: ${[...SUPPORTED_EXTENSIONS].join(", ")}`;
     }
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const openai = new OpenAI({ apiKey });
 
     const transcription = await openai.audio.transcriptions.create({
       file: createReadStream(localPath),

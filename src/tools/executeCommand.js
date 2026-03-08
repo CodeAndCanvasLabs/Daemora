@@ -96,7 +96,6 @@ export async function executeCommand(cmd, optionsJson) {
 
   // ── Docker sandbox mode — route through container ──
   if (config.sandbox?.mode === "docker" && dockerSandbox.isAvailable() && !background) {
-    const store = tenantContext.getStore();
     const scope = config.sandbox.docker?.scope === "shared" ? "shared" : (store?.sessionId || "shared");
     return dockerSandbox.exec(scope, cmd, { timeout, cwd });
   }

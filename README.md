@@ -87,19 +87,21 @@ Unlike cloud AI assistants, nothing leaves your infrastructure except the tokens
                                   └──────────────────────────────┘
 ```
 
-### Security Architecture (10 Layers)
+### Security Architecture (12 Layers)
 
 ```
-  LAYER 1  Permission Tiers ───── minimal / standard / full
-  LAYER 2  Filesystem Sandbox ─── ALLOWED_PATHS · BLOCKED_PATHS · hardcoded blocks
-  LAYER 3  Secret Vault ────────── AES-256-GCM · scrypt key derivation · passphrase on start
-  LAYER 4  Channel Allowlists ─── per-channel user ID whitelist
-  LAYER 5  A2A Security ────────── bearer token · agent allowlist · rate limiting
-  LAYER 6  Audit Trail ─────────── append-only JSONL · secrets redacted · tenantId tagged
-  LAYER 7  Supervisor Agent ────── runaway loop detection · cost overruns · dangerous patterns
-  LAYER 8  Input Sanitisation ─── untrusted-input wrapping · prompt injection detection
-  LAYER 9  Multi-Tenant Isolation ─ AsyncLocalStorage · no cross-tenant data leakage
-  LAYER 10 Security Audit CLI ─── daemora doctor · 8 checks · scored output
+  LAYER 1   Permission Tiers ────── minimal / standard / full
+  LAYER 2   Filesystem Sandbox ──── ALLOWED_PATHS · BLOCKED_PATHS · hardcoded blocks · per-tenant workspace isolation
+  LAYER 3   Secret Vault ─────────── AES-256-GCM · scrypt key derivation · passphrase on start
+  LAYER 4   Channel Allowlists ──── per-channel user ID whitelist
+  LAYER 5   A2A Security ─────────── bearer token · agent allowlist · rate limiting
+  LAYER 6   Audit Trail ──────────── append-only JSONL · secrets redacted · tenantId tagged
+  LAYER 7   Supervisor Agent ─────── runaway loop detection · cost overruns · dangerous patterns
+  LAYER 8   Input Sanitisation ──── untrusted-input wrapping · prompt injection detection
+  LAYER 9   Multi-Tenant Isolation ─ AsyncLocalStorage · no cross-tenant data leakage
+  LAYER 10  Security Audit CLI ──── daemora doctor · 8 checks · scored output
+  LAYER 11  Command Guard ─────────── blocks env dumps · .env reads · credential exfil · CLI privilege escalation
+  LAYER 12  Tool Filesystem Guard ── all 18 file-touching tools enforce checkRead/checkWrite
 ```
 
 ---
@@ -218,7 +220,7 @@ sequenceDiagram
 
 ```bash
 npm install -g daemora
-daemora setup      # interactive wizard (9 steps) - models, channels, cleanup, vault, MCP
+daemora setup      # interactive wizard (11 steps) - models, channels, tools, cleanup, vault, MCP, multi-tenant
 daemora start      # start the agent
 ```
 
@@ -319,7 +321,8 @@ Enable only what you need. Each channel supports `{CHANNEL}_ALLOWLIST` and `{CHA
 | **WhatsApp** | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` |
 | **Discord** | `DISCORD_BOT_TOKEN` |
 | **Slack** | `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN` |
-| **Email** | `EMAIL_USER`, `EMAIL_PASSWORD`, `EMAIL_IMAP_HOST`, `EMAIL_SMTP_HOST` |
+| **Email (Resend)** | `RESEND_API_KEY`, `RESEND_FROM` |
+| **Email (IMAP/SMTP)** | `EMAIL_USER`, `EMAIL_PASSWORD`, `EMAIL_IMAP_HOST`, `EMAIL_SMTP_HOST` |
 | **LINE** | `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_CHANNEL_SECRET` |
 | **Signal** | `SIGNAL_CLI_PATH`, `SIGNAL_PHONE_NUMBER` |
 | **Microsoft Teams** | `TEAMS_APP_ID`, `TEAMS_APP_PASSWORD` |
@@ -351,6 +354,11 @@ PERMISSION_TIER=standard           # minimal | standard | full
 ALLOWED_PATHS=/home/user/work      # Sandbox: restrict file access to these directories
 BLOCKED_PATHS=/home/user/.secrets  # Always block these, even inside allowed paths
 RESTRICT_COMMANDS=true             # Block shell commands referencing paths outside sandbox
+
+# Multi-tenant mode
+MULTI_TENANT_ENABLED=true          # Enable per-user isolation
+AUTO_REGISTER_TENANTS=true         # Auto-create tenants on first message
+TENANT_ISOLATE_FILESYSTEM=true     # Tenant temp files → data/tenants/{id}/workspace/
 
 # Per-tenant API key encryption (required for production multi-tenant mode)
 # Generate: openssl rand -hex 32
@@ -473,6 +481,13 @@ daemora tenant plan telegram:123 pro
 # Store a tenant's own OpenAI key (AES-256-GCM encrypted at rest)
 daemora tenant apikey set telegram:123 OPENAI_API_KEY sk-their-key
 
+# Manage per-tenant workspace paths
+daemora tenant workspace telegram:123                  # Show workspace paths
+daemora tenant workspace telegram:123 add /home/user   # Add to allowedPaths
+daemora tenant workspace telegram:123 remove /home/user
+daemora tenant workspace telegram:123 block /secrets   # Add to blockedPaths
+daemora tenant workspace telegram:123 unblock /secrets
+
 # Suspend a user
 daemora tenant suspend telegram:123 "Exceeded usage policy"
 ```
@@ -483,7 +498,7 @@ Per-tenant isolation:
 |---|---|
 | Memory | `data/tenants/{id}/MEMORY.md` - never shared across users |
 | Sessions | Persistent per-user sessions + per-sub-agent sessions (`userId--coder`, `userId--researcher`) |
-| Filesystem | `allowedPaths` and `blockedPaths` scoped per user |
+| Filesystem | `allowedPaths` and `blockedPaths` scoped per user. `TENANT_ISOLATE_FILESYSTEM=true` → temp files in `data/tenants/{id}/workspace/` |
 | API keys | AES-256-GCM encrypted; passed through call stack, never via `process.env` |
 | Cost tracking | Per-tenant daily cost recorded in audit log |
 | MCP servers | `mcpServers` field restricts which servers a tenant can call |
@@ -504,7 +519,9 @@ daemora doctor
 | Feature | Description |
 |---|---|
 | **Permission tiers** | `minimal` / `standard` / `full` - controls which tools the agent can call |
-| **Filesystem sandbox** | Directory scoping via `ALLOWED_PATHS`, hardcoded blocks for `.ssh`, `.env`, `.aws` |
+| **Filesystem sandbox** | Directory scoping via `ALLOWED_PATHS`, hardcoded blocks for `.ssh`, `.env`, `.aws`. All 18 file-touching tools enforce FilesystemGuard |
+| **Tenant workspace isolation** | `TENANT_ISOLATE_FILESYSTEM=true` → each tenant's temp files go to `data/tenants/{id}/workspace/` |
+| **Command guard** | Blocks env dumps, `.env` reads, credential exfiltration, CLI privilege escalation (daemora/aegis commands) |
 | **Secret vault** | AES-256-GCM encrypted secrets, passphrase required on start |
 | **Channel allowlists** | Per-channel user ID whitelist - blocks unknown senders |
 | **Secret scanning** | Redacts API keys and tokens from tool output before the model sees them |
@@ -599,6 +616,11 @@ daemora tenant unsuspend <id>    Unsuspend a tenant
 daemora tenant apikey set <id> <KEY> <value>   Store per-tenant API key (encrypted)
 daemora tenant apikey delete <id> <KEY>        Remove a per-tenant API key
 daemora tenant apikey list <id>                List stored key names (values never shown)
+daemora tenant workspace <id>                  Show workspace paths (allowed + blocked)
+daemora tenant workspace <id> add <path>       Add directory to tenant's allowedPaths
+daemora tenant workspace <id> remove <path>    Remove from allowedPaths
+daemora tenant workspace <id> block <path>     Add to tenant's blockedPaths
+daemora tenant workspace <id> unblock <path>   Remove from blockedPaths
 
 daemora cleanup                  Run data cleanup now (uses configured retention)
 daemora cleanup stats            Show storage usage (tasks, sessions, audit, costs)

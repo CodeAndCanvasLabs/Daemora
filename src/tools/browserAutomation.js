@@ -17,6 +17,7 @@ import { join, basename } from "path";
 import { mkdirSync, existsSync } from "fs";
 import { config } from "../config/default.js";
 import filesystemGuard from "../safety/FilesystemGuard.js";
+import { getTenantTmpDir } from "./_paths.js";
 
 let browser = null;
 let browserContext = null;
@@ -420,7 +421,7 @@ export async function browserAction(action, param1, param2) {
       case "screenshot": {
         const p = await ensureBrowser();
         const opts = { fullPage: false };
-        let path = `/tmp/screenshot-${Date.now()}.png`;
+        let path = join(getTenantTmpDir("daemora-browser"), `screenshot-${Date.now()}.png`);
 
         if (param1 && param1.startsWith("/")) {
           path = param1;
@@ -446,7 +447,7 @@ export async function browserAction(action, param1, param2) {
       }
 
       case "pdf": {
-        const path = param1 || `/tmp/page-${Date.now()}.pdf`;
+        const path = param1 || join(getTenantTmpDir("daemora-browser"), `page-${Date.now()}.pdf`);
         const pc = filesystemGuard.checkWrite(path);
         if (!pc.allowed) return `Error: ${pc.reason}`;
         await currentPage().pdf({ path, format: "A4", printBackground: true });

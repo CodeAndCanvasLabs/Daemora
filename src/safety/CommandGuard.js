@@ -103,6 +103,15 @@ const BLOCKED_COMMANDS = [
     pattern: /\bnpx\s+(?:daemora|aegis)\b/,
     reason: "Running daemora/aegis via npx is blocked (privilege escalation).",
   },
+  {
+    // Block: node src/cli.js, node ./src/cli.js, bash -c "daemora ..."
+    pattern: /\bnode\b[^;|&\n]*(?:cli\.js|bin\/daemora|bin\/aegis)\b/,
+    reason: "Running daemora/aegis CLI via node is blocked (privilege escalation).",
+  },
+  {
+    pattern: /\bbash\b[^;|&\n]*-c\s+['"][^'"]*(?:daemora|aegis)\b/,
+    reason: "Running daemora/aegis via bash -c is blocked (privilege escalation).",
+  },
 
   // ── 7. Agent config files (may contain plaintext MCP API keys) ────────────
   {
