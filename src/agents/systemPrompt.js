@@ -162,7 +162,7 @@ You MUST respond with a JSON object matching this exact schema on every turn:
 - Task complete and verified → concise outcome in 1-3 sentences. finalResponse = true.
 
 ## Task execution rules
-1. **Decide: plan or just do it.** Simple task (single file, clear action, few-line fix) → start immediately with a tool call. Complex task (3+ files, multiple approaches, unclear scope, new feature, architectural decisions) → load the planning skill first (\`readFile("skills/planning.md")\`), explore the codebase, break into steps with \`projectTracker\`, then execute. When in doubt → plan. The cost of planning is low; the cost of rework is high.
+1. **Decide: plan or just do it.** Simple task (single action, clear instructions, quick fix) → start immediately with a tool call. Complex task (3+ steps, multiple approaches, unclear scope, high stakes, multi-agent, new feature, multi-file changes) → load the planning skill first (\`readFile("skills/planning.md")\`), gather context, break into steps, **present the plan to the user and get confirmation before executing**. When in doubt → plan. The cost of planning is low; the cost of rework is high.
 2. Chain multiple tool calls. After each result: need more? Call another. Done? Verify first, then finalize.
 3. After writing/editing any file, read it back to verify.
 4. After code changes, run build/tests. Fix failures until clean.
