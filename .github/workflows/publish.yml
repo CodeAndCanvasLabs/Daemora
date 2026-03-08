@@ -3,6 +3,13 @@ name: Publish to npm
 on:
   workflow_dispatch:
     inputs:
+      branch:
+        description: 'Branch to publish from'
+        type: choice
+        options:
+          - main
+          - dev
+        default: main
       dry_run:
         description: 'Dry run — show what would be published without actually publishing'
         type: boolean
@@ -23,6 +30,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -46,7 +55,7 @@ jobs:
         run: |
           PKG_VERSION=$(node -p "require('./package.json').version")
           REF_TYPE="${{ github.ref_type }}"
-          BRANCH="${{ github.ref_name }}"
+          BRANCH="${{ inputs.branch }}"
 
           if [[ "$REF_TYPE" == "tag" ]]; then
             # Explicit tag (e.g. v1.2.3 or v1.2.3-rc.1) — always publish as latest
@@ -66,7 +75,7 @@ jobs:
               echo "channel=stable"       >> $GITHUB_OUTPUT
             fi
 
-          elif [[ "$BRANCH" == "beta" || "$BRANCH" == "next" ]]; then
+          elif [[ "$BRANCH" == "dev" || "$BRANCH" == "beta" || "$BRANCH" == "next" ]]; then
             # Pre-release branches — append date + short SHA so every commit gets a unique version
             SHORT_SHA=$(git rev-parse --short=7 HEAD)
             DATE=$(date -u +%Y%m%d)
