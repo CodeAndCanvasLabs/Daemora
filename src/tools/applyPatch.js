@@ -5,6 +5,7 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { existsSync } from "node:fs";
+import filesystemGuard from "../safety/FilesystemGuard.js";
 
 /**
  * Parse a unified diff string into an array of hunks.
@@ -105,6 +106,11 @@ function applyHunk(fileLines, hunk, offset) {
 
 export function applyPatch(filePath, patch) {
   try {
+    const readCheck = filesystemGuard.checkRead(filePath);
+    if (!readCheck.allowed) return `Error: ${readCheck.reason}`;
+    const writeCheck = filesystemGuard.checkWrite(filePath);
+    if (!writeCheck.allowed) return `Error: ${writeCheck.reason}`;
+
     if (!existsSync(filePath)) {
       return `Error: File not found: ${filePath}`;
     }

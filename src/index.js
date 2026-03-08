@@ -784,8 +784,12 @@ app.get("/api/tenants/:id", (req, res) => {
 
 app.patch("/api/tenants/:id", (req, res) => {
   const id = decodeURIComponent(req.params.id);
-  const updated = tenantManager.set(id, req.body);
-  res.json(updated);
+  try {
+    const updated = tenantManager.set(id, req.body);
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 app.post("/api/tenants/:id/suspend", (req, res) => {

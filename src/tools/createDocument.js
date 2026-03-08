@@ -1,5 +1,6 @@
 import { writeFileSync, mkdirSync, readFileSync } from "fs";
 import { dirname } from "path";
+import filesystemGuard from "../safety/FilesystemGuard.js";
 
 /**
  * Create Document - creates Markdown, text, PDF, or DOCX documents.
@@ -14,6 +15,9 @@ export async function createDocument(filePath, content, format) {
   if (!filePath || !content) {
     return "Error: filePath and content are required.";
   }
+
+  const writeCheck = filesystemGuard.checkWrite(filePath);
+  if (!writeCheck.allowed) return `Error: ${writeCheck.reason}`;
 
   try {
     mkdirSync(dirname(filePath), { recursive: true });

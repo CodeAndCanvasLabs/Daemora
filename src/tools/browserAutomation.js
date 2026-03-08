@@ -13,9 +13,10 @@
  * - Localhost allowed, private ranges blocked
  */
 
-import { join } from "path";
+import { join, basename } from "path";
 import { mkdirSync, existsSync } from "fs";
 import { config } from "../config/default.js";
+import filesystemGuard from "../safety/FilesystemGuard.js";
 
 let browser = null;
 let browserContext = null;
@@ -428,6 +429,8 @@ export async function browserAction(action, param1, param2) {
           try {
             const locator = await getLocator(p, param1);
             path = param2 || path;
+            const sc = filesystemGuard.checkWrite(path);
+            if (!sc.allowed) return `Error: ${sc.reason}`;
             await locator.screenshot({ path });
             return `Element screenshot saved: ${path}`;
           } catch {
@@ -435,6 +438,8 @@ export async function browserAction(action, param1, param2) {
             path = param1;
           }
         }
+        const sc2 = filesystemGuard.checkWrite(path);
+        if (!sc2.allowed) return `Error: ${sc2.reason}`;
         if (param2 === "full") opts.fullPage = true;
         await p.screenshot({ path, ...opts });
         return `Screenshot saved: ${path}`;
@@ -442,6 +447,8 @@ export async function browserAction(action, param1, param2) {
 
       case "pdf": {
         const path = param1 || `/tmp/page-${Date.now()}.pdf`;
+        const pc = filesystemGuard.checkWrite(path);
+        if (!pc.allowed) return `Error: ${pc.reason}`;
         await currentPage().pdf({ path, format: "A4", printBackground: true });
         return `PDF saved: ${path}`;
       }
@@ -638,9 +645,13 @@ export async function browserAction(action, param1, param2) {
           page.waitForEvent("download", { timeout: 30000 }),
           (await getLocator(page, param1)).click(),
         ]);
-        const path = join(downloadDir, download.suggestedFilename());
-        await download.saveAs(path);
-        return `Downloaded: ${path} (${download.suggestedFilename()})`;
+        // Sanitize filename — strip path traversal, use only basename
+        const safeName = basename(download.suggestedFilename()).replace(/[^a-zA-Z0-9._-]/g, "_") || "download";
+        const dlPath = join(downloadDir, safeName);
+        const dc = filesystemGuard.checkWrite(dlPath);
+        if (!dc.allowed) return `Error: ${dc.reason}`;
+        await download.saveAs(dlPath);
+        return `Downloaded: ${dlPath} (${safeName})`;
       }
 
       // ── Viewport ────────────────────────────────────────────────────────

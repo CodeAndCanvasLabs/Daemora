@@ -11,12 +11,16 @@
 import tenantContext from "../tenants/TenantContext.js";
 import channelRegistry from "../channels/index.js";
 import { existsSync, statSync } from "node:fs";
+import filesystemGuard from "../safety/FilesystemGuard.js";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 
 export async function replyWithFile(filePath, caption) {
   try {
     if (!filePath) return "Error: filePath is required.";
+
+    const readCheck = filesystemGuard.checkRead(filePath);
+    if (!readCheck.allowed) return `Error: ${readCheck.reason}`;
 
     if (!existsSync(filePath)) {
       return `Error: File not found: ${filePath}`;

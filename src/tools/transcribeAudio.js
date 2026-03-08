@@ -9,8 +9,9 @@
  */
 import { createReadStream, writeFileSync, existsSync } from "node:fs";
 import { join, extname, basename } from "node:path";
-import { tmpdir } from "node:os";
 import OpenAI from "openai";
+import filesystemGuard from "../safety/FilesystemGuard.js";
+import { getTenantTmpDir } from "./_paths.js";
 
 const SUPPORTED_EXTENSIONS = new Set([
   ".mp3", ".mp4", ".mpeg", ".mpga", ".m4a", ".wav", ".webm", ".ogg", ".oga", ".flac"
@@ -32,7 +33,7 @@ export async function transcribeAudio(audioPath, prompt) {
     // Download if URL
     if (audioPath.startsWith("https://") || audioPath.startsWith("http://")) {
       const ext = extname(new URL(audioPath).pathname) || ".ogg";
-      const tmpPath = join(tmpdir(), `audio-${Date.now()}${ext}`);
+      const tmpPath = join(getTenantTmpDir("daemora-audio"), `audio-${Date.now()}${ext}`);
 
       const res = await fetch(audioPath, { signal: AbortSignal.timeout(30000) });
       if (!res.ok) return `Error downloading audio: HTTP ${res.status}`;
@@ -40,6 +41,12 @@ export async function transcribeAudio(audioPath, prompt) {
       const buffer = await res.arrayBuffer();
       writeFileSync(tmpPath, Buffer.from(buffer));
       localPath = tmpPath;
+    }
+
+    // Guard read access for local files (not downloaded URLs — those are already in tenant workspace)
+    if (!audioPath.startsWith("http")) {
+      const rc = filesystemGuard.checkRead(localPath);
+      if (!rc.allowed) return `Error: ${rc.reason}`;
     }
 
     if (!existsSync(localPath)) {

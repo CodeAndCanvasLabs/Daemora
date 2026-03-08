@@ -15,14 +15,19 @@ import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, statSync } from "node:fs";
 import { platform } from "node:os";
 import { join } from "node:path";
+import filesystemGuard from "../safety/FilesystemGuard.js";
+import { getTenantTmpDir } from "./_paths.js";
 
 export function screenCapture(optionsJson) {
   try {
     const opts = optionsJson ? JSON.parse(optionsJson) : {};
-    const outputDir = opts.outputDir || "/tmp";
+    const outputDir = opts.outputDir || getTenantTmpDir("daemora-captures");
     const region    = opts.region;                   // { x, y, width, height } - screenshot only
     const mode      = (opts.mode || "screenshot").toLowerCase();
     const duration  = parseInt(opts.duration || "10", 10); // seconds - video only
+
+    const wc = filesystemGuard.checkWrite(outputDir);
+    if (!wc.allowed) return `Error: ${wc.reason}`;
 
     if (!existsSync(outputDir)) {
       mkdirSync(outputDir, { recursive: true });

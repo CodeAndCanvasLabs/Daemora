@@ -127,6 +127,20 @@ class TenantManager {
    * Update tenant config (partial update - only provided keys are changed).
    */
   set(tenantId, updates) {
+    // Validate path arrays before applying
+    for (const field of ["allowedPaths", "blockedPaths"]) {
+      if (updates[field] !== undefined) {
+        if (!Array.isArray(updates[field])) {
+          throw new Error(`${field} must be an array`);
+        }
+        for (const p of updates[field]) {
+          if (typeof p !== "string" || (!p.startsWith("/") && !/^[A-Za-z]:\\/.test(p))) {
+            throw new Error(`${field} must contain absolute paths (got "${p}")`);
+          }
+        }
+      }
+    }
+
     const tenants = this._load();
     if (!tenants[tenantId]) {
       tenants[tenantId] = _defaultTenant(tenantId);

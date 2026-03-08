@@ -1285,9 +1285,100 @@ async function handleTenant(action, args) {
       break;
     }
 
+    case "workspace": {
+      // daemora tenant workspace <tenantId>                 — show paths
+      // daemora tenant workspace <tenantId> add <path>      — add to allowedPaths
+      // daemora tenant workspace <tenantId> remove <path>   — remove from allowedPaths
+      // daemora tenant workspace <tenantId> block <path>    — add to blockedPaths
+      // daemora tenant workspace <tenantId> unblock <path>  — remove from blockedPaths
+      const [tenantId, wsAction, wsPath] = args;
+      if (!tenantId) {
+        console.error(`\n  ${S.cross}  Usage: daemora tenant workspace ${t.dim("<tenantId> [add|remove|block|unblock] [path]")}\n`);
+        process.exit(1);
+      }
+
+      const { default: tm } = await import("./tenants/TenantManager.js");
+      const tenant = tm.get(tenantId);
+      if (!tenant) {
+        console.error(`\n  ${S.cross}  Tenant "${tenantId}" not found.\n`);
+        process.exit(1);
+      }
+
+      if (!wsAction) {
+        // Show current workspace paths
+        console.log(header);
+        console.log(`  ${S.bar}  Tenant         ${t.bold(tenantId)}`);
+        console.log(`  ${S.bar}  Workspace      ${t.dim(tm.getWorkspace(tenantId))}`);
+        const allowed = tenant.allowedPaths || [];
+        const blocked = tenant.blockedPaths || [];
+        if (allowed.length > 0) {
+          console.log(`  ${S.bar}  Allowed paths:`);
+          for (const p of allowed) console.log(`  ${S.bar}    ${S.check}  ${p}`);
+        } else {
+          console.log(`  ${S.bar}  Allowed paths  ${t.muted("(none — uses global or workspace default)")}`);
+        }
+        if (blocked.length > 0) {
+          console.log(`  ${S.bar}  Blocked paths:`);
+          for (const p of blocked) console.log(`  ${S.bar}    ${S.cross}  ${p}`);
+        } else {
+          console.log(`  ${S.bar}  Blocked paths  ${t.muted("(none)")}`);
+        }
+        console.log("");
+        break;
+      }
+
+      // Validate path is absolute
+      if (["add", "remove", "block", "unblock"].includes(wsAction)) {
+        if (!wsPath) {
+          console.error(`\n  ${S.cross}  Usage: daemora tenant workspace ${tenantId} ${wsAction} ${t.dim("<absolute-path>")}\n`);
+          process.exit(1);
+        }
+        if (!wsPath.startsWith("/") && !/^[A-Za-z]:\\/.test(wsPath)) {
+          console.error(`\n  ${S.cross}  Path must be absolute (start with / or C:\\)\n`);
+          process.exit(1);
+        }
+      }
+
+      try {
+        if (wsAction === "add") {
+          const updated = [...new Set([...(tenant.allowedPaths || []), wsPath])];
+          tm.set(tenantId, { allowedPaths: updated });
+          console.log(`\n${header}  ${S.check}  ${t.bold(wsPath)} added to allowedPaths for ${t.bold(tenantId)}\n`);
+        } else if (wsAction === "remove") {
+          const updated = (tenant.allowedPaths || []).filter(p => p !== wsPath);
+          if (updated.length === (tenant.allowedPaths || []).length) {
+            console.error(`\n  ${S.cross}  "${wsPath}" not found in allowedPaths.\n`);
+            process.exit(1);
+          }
+          tm.set(tenantId, { allowedPaths: updated });
+          console.log(`\n${header}  ${S.check}  ${t.bold(wsPath)} removed from allowedPaths for ${t.bold(tenantId)}\n`);
+        } else if (wsAction === "block") {
+          const updated = [...new Set([...(tenant.blockedPaths || []), wsPath])];
+          tm.set(tenantId, { blockedPaths: updated });
+          console.log(`\n${header}  ${S.check}  ${t.bold(wsPath)} added to blockedPaths for ${t.bold(tenantId)}\n`);
+        } else if (wsAction === "unblock") {
+          const updated = (tenant.blockedPaths || []).filter(p => p !== wsPath);
+          if (updated.length === (tenant.blockedPaths || []).length) {
+            console.error(`\n  ${S.cross}  "${wsPath}" not found in blockedPaths.\n`);
+            process.exit(1);
+          }
+          tm.set(tenantId, { blockedPaths: updated });
+          console.log(`\n${header}  ${S.check}  ${t.bold(wsPath)} removed from blockedPaths for ${t.bold(tenantId)}\n`);
+        } else {
+          console.error(`\n  ${S.cross}  Unknown workspace action: ${wsAction}`);
+          console.log(`  ${t.muted("Usage:")} daemora tenant workspace ${t.dim("<id> [add|remove|block|unblock] <path>")}\n`);
+          process.exit(1);
+        }
+      } catch (err) {
+        console.error(`\n  ${S.cross}  ${err.message}\n`);
+        process.exit(1);
+      }
+      break;
+    }
+
     default:
       console.error(`\n  ${S.cross}  Unknown tenant command: ${action || "(none)"}`);
-      console.log(`  ${t.muted("Usage:")} daemora tenant ${t.dim("[list|show|set|plan|suspend|unsuspend|reset|delete|apikey|channel]")}\n`);
+      console.log(`  ${t.muted("Usage:")} daemora tenant ${t.dim("[list|show|set|plan|suspend|unsuspend|reset|delete|apikey|channel|workspace]")}\n`);
       process.exit(1);
   }
 }
@@ -2193,6 +2284,11 @@ ${line}
   ${t.cmd("tenant channel unset")} ${t.dim("<id> <key>")}  Remove a channel credential
   ${t.cmd("tenant channel list")} ${t.dim("<id>")}         List stored channel credential keys
   ${t.muted("  channel keys: email  email_password  resend_api_key  resend_from")}
+  ${t.cmd("tenant workspace")} ${t.dim("<id>")}             Show workspace + allowed/blocked paths
+  ${t.cmd("tenant workspace")} ${t.dim("<id> add <path>")}  Add path to tenant's allowedPaths
+  ${t.cmd("tenant workspace")} ${t.dim("<id> remove <path>")}  Remove from allowedPaths
+  ${t.cmd("tenant workspace")} ${t.dim("<id> block <path>")}   Add to blockedPaths
+  ${t.cmd("tenant workspace")} ${t.dim("<id> unblock <path>")} Remove from blockedPaths
 
   ${t.cmd("channels")}                          List all 19 supported channels + setup status
   ${t.cmd("models")}                            List all model providers + task-type routing
@@ -2247,6 +2343,9 @@ ${line}
   ${t.dim("$")} daemora tenant channel set telegram:123 email_password xxxx-xxxx-xxxx-xxxx
   ${t.dim("$")} daemora tenant channel list telegram:123
   ${t.dim("$")} daemora tenant channel unset telegram:123 email_password
+  ${t.dim("$")} daemora tenant workspace telegram:123
+  ${t.dim("$")} daemora tenant workspace telegram:123 add /home/user/projects
+  ${t.dim("$")} daemora tenant workspace telegram:123 block /home/user/private
   ${t.dim("$")} daemora doctor
 `);
 }

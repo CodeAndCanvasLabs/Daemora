@@ -56,7 +56,10 @@ export async function executeCommand(cmd, optionsJson) {
   // ──────────────────────────────────────────────────────────────────────────
 
   // ── Filesystem scope enforcement ───────────────────────────────────────────
-  const allowedPaths = config.filesystem?.allowedPaths || [];
+  // Prefer per-tenant resolved config (set by TaskRunner), fall back to global
+  const store = tenantContext.getStore();
+  const resolvedConfig = store?.resolvedConfig;
+  const allowedPaths = resolvedConfig?.allowedPaths || config.filesystem?.allowedPaths || [];
   if (allowedPaths.length > 0) {
     // Always check that the cwd is inside an allowed directory
     const cwdGuard = filesystemGuard.checkRead(cwd);

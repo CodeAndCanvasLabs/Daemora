@@ -15,6 +15,7 @@
  */
 import channelRegistry from "../channels/index.js";
 import { existsSync, statSync } from "node:fs";
+import filesystemGuard from "../safety/FilesystemGuard.js";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB - most platforms limit around this
 
@@ -23,6 +24,9 @@ export async function sendFile(channel, target, filePath, caption) {
     if (!channel) return "Error: channel is required";
     if (!target)  return "Error: target is required (chat ID, user ID, phone, or email)";
     if (!filePath) return "Error: filePath is required";
+
+    const readCheck = filesystemGuard.checkRead(filePath);
+    if (!readCheck.allowed) return `Error: ${readCheck.reason}`;
 
     if (!existsSync(filePath)) {
       return `Error: File not found: ${filePath}`;

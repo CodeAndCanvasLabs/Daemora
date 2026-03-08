@@ -15,9 +15,8 @@
 
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
-
-const TMP_DIR = join(tmpdir(), "daemora-tts");
+import filesystemGuard from "../safety/FilesystemGuard.js";
+import { getTenantTmpDir } from "./_paths.js";
 const OPENAI_CHAR_LIMIT = 4096;
 const ELEVENLABS_CHAR_LIMIT = 5000;
 
@@ -56,14 +55,14 @@ async function _openAI(text, opts) {
   const format = opts.format || "mp3";     // mp3 | opus | aac | flac
   const model  = opts.hd === false ? "tts-1" : "tts-1-hd"; // tts-1-hd = better quality
 
-  mkdirSync(TMP_DIR, { recursive: true });
+  const ttsDir = getTenantTmpDir("daemora-tts");
 
   // Split into chunks if text exceeds API limit
   const chunks = _splitText(text, OPENAI_CHAR_LIMIT);
 
   if (chunks.length === 1) {
     const response = await client.audio.speech.create({ model, voice, input: chunks[0], speed, response_format: format });
-    const filePath = join(TMP_DIR, `speech-${Date.now()}.${format}`);
+    const filePath = join(ttsDir, `speech-${Date.now()}.${format}`);
     writeFileSync(filePath, Buffer.from(await response.arrayBuffer()));
     return `Audio saved to: ${filePath}`;
   }
@@ -72,7 +71,7 @@ async function _openAI(text, opts) {
   const paths = [];
   for (let i = 0; i < chunks.length; i++) {
     const response = await client.audio.speech.create({ model, voice, input: chunks[i], speed, response_format: format });
-    const filePath = join(TMP_DIR, `speech-${Date.now()}-part${i + 1}.${format}`);
+    const filePath = join(ttsDir, `speech-${Date.now()}-part${i + 1}.${format}`);
     writeFileSync(filePath, Buffer.from(await response.arrayBuffer()));
     paths.push(filePath);
   }
@@ -115,8 +114,8 @@ async function _elevenLabs(text, opts) {
     return `Error: ElevenLabs API returned HTTP ${res.status}${body ? `: ${body.slice(0, 200)}` : ""}`;
   }
 
-  mkdirSync(TMP_DIR, { recursive: true });
-  const filePath = join(TMP_DIR, `speech-eleven-${Date.now()}.mp3`);
+  const ttsDir = getTenantTmpDir("daemora-tts");
+  const filePath = join(ttsDir, `speech-eleven-${Date.now()}.mp3`);
   writeFileSync(filePath, Buffer.from(await res.arrayBuffer()));
   return `Audio saved to: ${filePath}`;
 }

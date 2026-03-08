@@ -92,7 +92,19 @@ const BLOCKED_COMMANDS = [
     pattern: /\b(?:cat|less|more|head|tail)\b[^;|&\n]*(?:id_rsa|id_ed25519|id_ecdsa|\.pem|\.key)\b/i,
     reason: "Reading private key files via shell is blocked.",
   },
-  // ── 6. Agent config files (may contain plaintext MCP API keys) ────────────
+  // ── 6. Daemora CLI privilege escalation ──────────────────────────────────
+  // Agent must NEVER run daemora/aegis CLI commands — they can modify tenant
+  // config, workspace paths, API keys, sandbox rules, etc.
+  {
+    pattern: /(?:^|[;&|`]\s*)(?:daemora|aegis)\b/,
+    reason: "Running daemora/aegis CLI commands from within the agent is blocked (privilege escalation).",
+  },
+  {
+    pattern: /\bnpx\s+(?:daemora|aegis)\b/,
+    reason: "Running daemora/aegis via npx is blocked (privilege escalation).",
+  },
+
+  // ── 7. Agent config files (may contain plaintext MCP API keys) ────────────
   {
     // config/mcp.json contains GITHUB_TOKEN, Bearer tokens, etc. in plaintext
     pattern: /\b(?:cat|less|more|head|tail|bat|jq|python|node)\b[^;|&\n]*config[\/\\]mcp\.json/i,

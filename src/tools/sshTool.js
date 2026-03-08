@@ -7,8 +7,8 @@
 import { execFileSync } from "node:child_process";
 import { writeFileSync, unlinkSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { randomBytes } from "node:crypto";
+import { getTenantTmpDir } from "./_paths.js";
 
 export async function sshTool(action, paramsJson) {
   if (!action) return "Error: action required. Valid: exec, upload, download, tunnel";
@@ -97,7 +97,7 @@ export async function sshTool(action, paramsJson) {
 
   if (action === "keygen") {
     // Generate a new SSH key pair for the agent's use
-    const keyDir = join(tmpdir(), `daemora-ssh-${randomBytes(4).toString("hex")}`);
+    const keyDir = join(getTenantTmpDir("daemora-ssh"), `keygen-${randomBytes(4).toString("hex")}`);
     mkdirSync(keyDir, { recursive: true });
     const keyFile = join(keyDir, "id_ed25519");
     try {

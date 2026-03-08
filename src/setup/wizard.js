@@ -7,7 +7,7 @@ import { banner, stepHeader, kv, summaryTable, completeBanner, t, S } from "./th
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, "..", "..");
-const TOTAL_STEPS = 9;
+const TOTAL_STEPS = 10;
 const OLLAMA_EMBED_MODEL = "all-minilm";
 
 /**
@@ -1060,6 +1060,52 @@ export async function runSetupWizard() {
     p.log.info("Vault skipped. API keys will be stored in .env (plaintext).");
   }
 
+  // ━━━ Step 10: Multi-Tenant Mode ━━━
+  stepHeader(10, TOTAL_STEPS, "Multi-Tenant Mode");
+
+  let multiTenantMode = "personal";
+
+  p.note(
+    `  ${S.info}  Personal  — single user, global config (default)\n` +
+    `  ${S.info}  Multi-Tenant — per-user isolation, cost limits, model overrides`,
+    "Deployment mode"
+  );
+
+  const mtChoice = guard(await p.select({
+    message: "How will you use Daemora?",
+    options: [
+      { value: "personal",    label: "Personal",     hint: "Single user, no tenant isolation" },
+      { value: "multitenant", label: "Multi-Tenant",  hint: "Multiple users via channels, per-user config" },
+    ],
+  }));
+
+  if (mtChoice === "multitenant") {
+    multiTenantMode = "multitenant";
+    envConfig.MULTI_TENANT_ENABLED = "true";
+
+    const autoReg = guard(await p.confirm({
+      message: "Auto-register tenants on first message?",
+      initialValue: true,
+    }));
+    envConfig.AUTO_REGISTER_TENANTS = autoReg ? "true" : "false";
+
+    const isolateFs = guard(await p.confirm({
+      message: "Isolate each tenant's filesystem? (recommended for shared deployments)",
+      initialValue: true,
+    }));
+    envConfig.TENANT_ISOLATE_FILESYSTEM = isolateFs ? "true" : "false";
+
+    const setKey = guard(await p.confirm({
+      message: "Generate a tenant encryption key? (encrypts per-tenant API keys at rest)",
+      initialValue: true,
+    }));
+    if (setKey) {
+      const { randomBytes: rb } = await import("crypto");
+      envConfig.DAEMORA_TENANT_KEY = rb(16).toString("hex");
+      p.log.success(`${S.check}  DAEMORA_TENANT_KEY generated (32 hex chars)`);
+    }
+  }
+
   // ━━━ Write Config ━━━
   const spin = p.spinner();
   spin.start("Writing configuration");
@@ -1079,6 +1125,7 @@ export async function runSetupWizard() {
     "WhatsApp": ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_WHATSAPP_FROM"],
     "Email": ["EMAIL_USER", "EMAIL_PASSWORD", "EMAIL_IMAP_HOST", "EMAIL_SMTP_HOST"],
     "Daemon": ["DAEMON_MODE", "HEARTBEAT_INTERVAL_MINUTES"],
+    "Multi-Tenant": ["MULTI_TENANT_ENABLED", "AUTO_REGISTER_TENANTS", "TENANT_ISOLATE_FILESYSTEM", "DAEMORA_TENANT_KEY"],
   };
 
   for (const [category, keys] of Object.entries(categories)) {
@@ -1139,6 +1186,9 @@ export async function runSetupWizard() {
     ["Daemon",      daemonMode ? t.success("Enabled") : t.muted("Disabled")],
     ["MCP Servers", allEnabled.length > 0 ? t.bold(allEnabled.join(", ")) : t.muted("None")],
     ["Vault",       vaultPassphrase ? t.success("Encrypted") : t.warning("Plaintext (.env)")],
+    ["Multi-Tenant", multiTenantMode === "multitenant"
+      ? (envConfig.TENANT_ISOLATE_FILESYSTEM === "true" ? t.success("Enabled (isolated)") : t.accent("Enabled"))
+      : t.muted("Disabled (personal)")],
   ]);
 
   // ━━━ Next Steps ━━━

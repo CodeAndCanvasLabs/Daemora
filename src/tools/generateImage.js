@@ -4,8 +4,9 @@
  */
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 import tenantContext from "../tenants/TenantContext.js";
+import filesystemGuard from "../safety/FilesystemGuard.js";
+import { getTenantTmpDir } from "./_paths.js";
 
 export async function generateImage(prompt, optionsJson) {
   if (!prompt) return "Error: prompt is required.";
@@ -48,13 +49,16 @@ export async function generateImage(prompt, optionsJson) {
     if (images.length === 0) return "Error: No images returned.";
 
     const saved = [];
-    const dir = join(tmpdir(), "daemora-images");
-    mkdirSync(dir, { recursive: true });
+    const dir = getTenantTmpDir("daemora-images");
 
     for (let i = 0; i < images.length; i++) {
       const b64 = images[i].b64_json;
       const revised = images[i].revised_prompt || prompt;
       const filePath = outputPath || join(dir, `image-${Date.now()}-${i}.png`);
+      if (outputPath) {
+        const wc = filesystemGuard.checkWrite(outputPath);
+        if (!wc.allowed) return `Error: ${wc.reason}`;
+      }
       writeFileSync(filePath, Buffer.from(b64, "base64"));
       saved.push({ path: filePath, revisedPrompt: revised });
     }
