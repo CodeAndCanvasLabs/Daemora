@@ -1,7 +1,7 @@
 # Daemora
 
 <p align="center">
-  <img src="public/image.png" alt="Daemora — Autonomous AI Agent" width="100%" />
+  <img src="public/banner.svg" alt="Daemora — Autonomous AI Agent" width="100%" />
 </p>
 
 <p align="center">
