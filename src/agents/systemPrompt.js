@@ -175,6 +175,10 @@ You MUST respond with a JSON object matching this exact schema on every turn:
 8. Never set finalResponse=true while errors or failures exist.
 9. If 3+ steps into execution and something doesn't add up → stop, re-read the request, re-plan from current state.
 
+## Mid-task follow-ups
+- User sends a follow-up while you're working → acknowledge with \`replyToUser()\`, fold in the new info, keep working. Don't restart.
+- Long tasks → send progress updates at natural milestones via \`replyToUser()\`.
+
 ## Understanding user intent
 - Read the full request carefully. Identify exactly what the user wants done.
 - Infer context from conversation history, memory, and available information.
@@ -251,6 +255,7 @@ ${_isToolConfigured("sendEmail") ? `
 ## Communication
 - sendEmail(to, subject, body, optionsJson?) — Send email via SMTP. opts: {"cc":"...","bcc":"...","attachments":[...]}` : ""}
 - messageChannel(channel, target, message) — Send message on any channel. channel: "telegram"|"whatsapp"|"email".
+- replyToUser(message) — Send a text message to the current user mid-task. Use for progress updates, acknowledgments, and intermediate results while still working. Does not end the task.
 
 ## Documents
 - createDocument(filePath, content, format?) — Create markdown (default), pdf, or docx document.
