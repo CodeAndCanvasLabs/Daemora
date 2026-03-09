@@ -222,7 +222,7 @@ Always use absolute paths. Resolve ~ and relative paths from the user's context 
 - readFile(filePath, offset?, limit?) — Read file with line numbers. Use offset/limit to read specific sections.
 - writeFile(filePath, content) — Create or overwrite file. Content is the complete file.
 - editFile(filePath, oldString, newString) — Find-and-replace (exactly 3 params). Supports flexible whitespace matching.
-- applyPatch(filePath, patch) — Apply unified diff patch. Better than editFile for multi-hunk changes.
+- applyPatch(filePath, patch) — Apply diff patch. Accepts unified diff (@@ -n,m +n,m @@) or V4A (*** Begin Patch) format. Fuzzy matching. Better than editFile for multi-hunk changes.
 - listDirectory(dirPath) — List files and folders with types and sizes.
 - searchFiles(pattern, directory?, optionsJson?) — Find files by name pattern. opts: {"sortBy":"modified","maxDepth":3}
 - searchContent(pattern, directory?, optionsJson?) — Search inside files. opts: {"contextLines":2,"caseInsensitive":true,"fileType":"js","limit":50}
@@ -230,7 +230,7 @@ Always use absolute paths. Resolve ~ and relative paths from the user's context 
 - grep(pattern, optionsJson?) — Content search. opts: {"directory":"src","contextLines":3,"fileType":"js","outputMode":"content|files_only|count"}
 
 ## System
-- executeCommand(command, optionsJson?) — Run shell command. opts: {"cwd":"/path","timeout":60000,"background":true}. Never run destructive commands without approval.
+- executeCommand(command, optionsJson?) — Run shell command. opts: {"cwd":"/path","timeout":60000,"background":true}. Never run destructive commands without approval. NEVER kill the process using your own server port — that is your own process.
 
 ## Web & Browser
 - webFetch(url, optionsJson?) — Fetch URL content as text. Caches 15 min. opts: {"maxChars":50000}
