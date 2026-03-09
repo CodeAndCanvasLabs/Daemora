@@ -31,93 +31,71 @@ export const permissionTiers = {
     name: "Standard",
     description: "Agent can read + write files, run commands, use browser, and manage memory.",
     allowedTools: [
-      // All minimal tools
-      "readFile",
-      "listDirectory",
-      "searchFiles",
-      "searchContent",
-      "glob",
-      "grep",
-      "webFetch",
-      "webSearch",
-      "readMemory",
-      "readDailyLog",
-      "searchMemory",
-      "listMemoryCategories",
-      "imageAnalysis",
-      // Write tools
-      "writeFile",
-      "editFile",
-      "applyPatch",
-      "createDocument",
+      // File operations
+      "readFile", "writeFile", "editFile", "listDirectory",
+      "searchFiles", "searchContent", "glob", "grep", "applyPatch",
+      // System
       "executeCommand",
-      "browserAction",
-      // Memory writes
-      "writeMemory",
-      "writeDailyLog",
-      "pruneMemory",
-      // Screen
-      "screenCapture",
-      "replyWithFile",
-      "sendFile",
+      // Web & browser
+      "webFetch", "webSearch", "browserAction",
+      // Communication (no sendEmail/messageChannel — those are full-only)
+      "sendFile", "replyWithFile", "replyToUser",
       // Media
-      "transcribeAudio",
-      "textToSpeech",
-      // Task management & agents
-      "taskManager",
-      "spawnAgent",
-      "parallelAgents",
-      "manageAgents",
-      "useMCP",
-      // Project tracking
-      "projectTracker",
-      // MCP inspection (read-only - no side effects)
-      "manageMCP",
+      "transcribeAudio", "textToSpeech",
+      // Documents
+      "createDocument",
+      // Vision & screen
+      "imageAnalysis", "screenCapture",
+      // Memory
+      "readMemory", "writeMemory", "readDailyLog", "writeDailyLog",
+      "searchMemory", "pruneMemory", "listMemoryCategories",
+      // Agents & teams
+      "spawnAgent", "parallelAgents", "manageAgents",
+      "teamTask",
+      // MCP
+      "manageMCP", "useMCP",
+      // Project & task tracking
+      "projectTracker", "taskManager",
     ],
   },
   full: {
     name: "Full Access",
     description: "Unrestricted access to all tools including email, messaging, sub-agents, and scheduling.",
     allowedTools: [
-      // All standard tools
-      "readFile",
-      "listDirectory",
-      "searchFiles",
-      "searchContent",
-      "glob",
-      "grep",
-      "webFetch",
-      "webSearch",
-      "readMemory",
-      "readDailyLog",
-      "searchMemory",
-      "listMemoryCategories",
-      "imageAnalysis",
-      "writeFile",
-      "editFile",
-      "applyPatch",
-      "createDocument",
+      // File operations
+      "readFile", "writeFile", "editFile", "listDirectory",
+      "searchFiles", "searchContent", "glob", "grep", "applyPatch",
+      // System
       "executeCommand",
-      "browserAction",
-      "writeMemory",
-      "writeDailyLog",
-      "pruneMemory",
-      "screenCapture",
-      "replyWithFile",
-      // Full-only: communication
-      "sendEmail",
-      "messageChannel",
-      // Full-only: agents
-      "spawnAgent",
-      "parallelAgents",
-      "delegateToAgent",
-      "manageAgents",
-      "manageMCP",
-      "useMCP",
-      // Full-only: automation
+      // Web & browser
+      "webFetch", "webSearch", "browserAction",
+      // Communication
+      "sendEmail", "messageChannel", "sendFile", "replyWithFile", "replyToUser",
+      // Media
+      "transcribeAudio", "textToSpeech",
+      // Documents
+      "createDocument",
+      // Vision & screen
+      "imageAnalysis", "screenCapture",
+      // Memory
+      "readMemory", "writeMemory", "readDailyLog", "writeDailyLog",
+      "searchMemory", "pruneMemory", "listMemoryCategories",
+      // Agents & teams
+      "spawnAgent", "parallelAgents", "delegateToAgent", "manageAgents",
+      "teamTask",
+      // MCP
+      "manageMCP", "useMCP",
+      // Project & task tracking
+      "projectTracker", "taskManager",
+      // Automation
       "cron",
-      // Project tracking
-      "projectTracker",
+      // Voice
+      "makeVoiceCall",
+      // Phase 24
+      "generateImage", "readPDF", "gitTool", "clipboard",
+      "notification", "iMessageTool", "calendar", "contacts",
+      "sshTool", "database",
+      "googlePlaces", "philipsHue", "sonos",
     ],
   },
 };
