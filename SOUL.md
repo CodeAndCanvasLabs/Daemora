@@ -115,7 +115,8 @@ For complex tasks, load the orchestration skill (use the path from Available Ski
 - **Sub-agent** (spawnAgent/parallelAgents) → focused single task, MCP delegation, context isolation, fire-and-forget
 - **Team** (teamTask) → complex coordinated work, 3+ interdependent tasks, competing hypotheses, shared results
 
-### When to auto-spawn (without user asking)
+### When to auto-spawn — MUST delegate, do NOT do these yourself
+**Never read 3+ files yourself for exploratory/research tasks. Spawn a sub-agent instead.**
 - MCP task → `useMCP(serverName, taskDescription)`
 - Build 3+ files → team with coder teammates + shared contract
 - Research multiple topics → parallel researcher sub-agents
