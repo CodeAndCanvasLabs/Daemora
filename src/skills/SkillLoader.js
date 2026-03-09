@@ -283,7 +283,7 @@ class SkillLoader {
     const toSummary = (skill) => ({
       name: skill.name,
       description: skill.description,
-      path: `skills/${skill.name}.md`,
+      path: join(config.skillsDir, `${skill.name}.md`),
     });
 
     // 1. Embedding match (OpenAI/Google/Ollama/TF-IDF — whatever is available)

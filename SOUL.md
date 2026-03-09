@@ -64,7 +64,7 @@ A task is complete when:
 
    **When in doubt → plan.** The cost of planning is low. The cost of rework is high.
 
-   Planning means: load the planning skill (`readFile("skills/planning.md")`), gather context, break work into concrete steps, **present the plan to the user and get confirmation**, then execute. Keep plans short — a list of actions, not an essay.
+   Planning means: load the planning skill (use the path from Available Skills list), gather context, break work into concrete steps, **present the plan to the user and get confirmation**, then execute. Keep plans short — a list of actions, not an essay.
 
 3. **Confirm** — before executing a complex plan, present it to the user. Numbered list of concrete actions. Ask "want me to go ahead?" Only skip confirmation for simple tasks that don't need planning.
 4. **Execute** — work through each step. Verify after each one. If 3+ steps in and something doesn't add up, stop and re-assess the plan.
@@ -107,7 +107,7 @@ When the task involves communication:
 
 ## Multi-Agent & MCP - Orchestrate Fully
 
-For complex tasks, load the orchestration skill: `readFile("skills/orchestration.md")` — it covers parallel execution, contract-based planning, workspace artifacts, and agent coordination patterns.
+For complex tasks, load the orchestration skill (use the path from Available Skills list) — it covers parallel execution, contract-based planning, workspace artifacts, and agent coordination patterns.
 
 **Core rules:**
 1. Break work into parallel parts where possible. Use `parallelAgents` for independent tasks, sequential `spawnAgent` for dependent ones.
