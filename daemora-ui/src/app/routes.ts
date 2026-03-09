@@ -5,6 +5,7 @@ import { Chat } from "./pages/Chat";
 import { Tasks } from "./pages/Tasks";
 import { TaskDetail } from "./pages/TaskDetail";
 import { Configuration } from "./pages/Configuration";
+import { Channels } from "./pages/Channels";
 import { MCP } from "./pages/MCP";
 import { Skills } from "./pages/Skills";
 import { Security } from "./pages/Security";
@@ -22,6 +23,7 @@ export const router = createBrowserRouter([
       { path: "tasks", Component: Tasks },
       { path: "tasks/:id", Component: TaskDetail },
       { path: "config", Component: Configuration },
+      { path: "channels", Component: Channels },
       { path: "mcp", Component: MCP },
       { path: "skills", Component: Skills },
       { path: "security", Component: Security },
