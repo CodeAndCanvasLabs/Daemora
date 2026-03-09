@@ -119,6 +119,8 @@ export const defaultSubAgentTools = [
   // Project tracking
   "projectTracker",
   "taskManager",
+  // Communication (mid-task)
+  "replyToUser",
   // MCP (via specialist agent - no direct mcp__ tools)
   "manageMCP",
   "useMCP",

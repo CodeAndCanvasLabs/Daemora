@@ -79,7 +79,7 @@ async function main() {
       break;
     }
 
-    case "start":
+    case "start": {
       // If vault exists, prompt for passphrase and inject secrets before server boot
       if (secretVault.exists()) {
         const { password } = await import("@clack/prompts");
@@ -102,8 +102,28 @@ async function main() {
           console.log(`\n  ${S.arrow}  Skipped vault. Starting without secrets.\n`);
         }
       }
+
+      // Block start if no AI provider is configured
+      // Check: at least one provider key or Ollama host must be set
+      const providerKeys = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "OLLAMA_HOST"];
+      const hasProvider = providerKeys.some(k => {
+        const v = process.env[k];
+        return v && v.trim() && !v.includes("your_") && !v.includes("sk-xxx");
+      });
+      if (!hasProvider) {
+        console.log(`\n  ${S.cross}  ${t.error("No AI provider configured.")}`);
+        console.log(`\n  Daemora needs at least one AI provider to run.`);
+        console.log(`  Run ${t.cmd("daemora setup")} to configure your provider and API keys.\n`);
+        console.log(`  ${t.dim("Or set one manually:")}`);
+        console.log(`    ${t.dim("export OPENAI_API_KEY=sk-...")}`)
+        console.log(`    ${t.dim("export ANTHROPIC_API_KEY=sk-...")}`)
+        console.log(`    ${t.dim("export OLLAMA_HOST=http://localhost:11434")}\n`);
+        process.exit(1);
+      }
+
       await import("./index.js");
       break;
+    }
 
     case "daemon":
       handleDaemon(subcommand);
