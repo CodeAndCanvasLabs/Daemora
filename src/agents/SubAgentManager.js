@@ -128,9 +128,11 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     approvalMode         = "auto",
     channelMeta          = null,
     steerQueue: externalSteerQueue = null,  // external steerQueue for TeamManager injection
-    historyMessages      = [],     // previous session messages to prepend (persistent sub-agent sessions)
+    historyMessages: initialHistoryMessages = [],     // previous session messages to prepend (persistent sub-agent sessions)
     returnFullResult     = false,  // return {text, messages, cost} instead of just text
   } = options;
+
+  let historyMessages = initialHistoryMessages;
 
   const maxDepth = 3;
   if (depth >= maxDepth) {
