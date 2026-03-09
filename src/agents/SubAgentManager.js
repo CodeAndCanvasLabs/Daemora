@@ -252,6 +252,8 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     steerQueue,
   });
 
+  console.log(`[SubAgent:${agentId}] Spawned (profile: ${profile || "default"}, depth: ${depth}, model: ${model || "inherit"}) — ${taskDescription.slice(0, 80)}`);
+
   eventBus.emitEvent("agent:spawned", {
     agentId,
     taskId,
