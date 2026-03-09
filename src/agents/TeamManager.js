@@ -178,6 +178,7 @@ export function spawnTeammate(teamId, teammateId, { context } = {}) {
 
   teammate.status = "running";
   teammate.spawnedAt = Date.now();
+  console.log(`[Team:${team.name}] Spawning teammate "${teammateId}" (profile: ${teammate.profile || "default"})`);
 
   const prompt = _buildTeammatePrompt(team, teammate);
   const parentContext = context ? `${prompt}\n\n## Additional Context\n${context}` : prompt;
