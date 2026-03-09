@@ -40,6 +40,13 @@ export async function executeCommand(cmd, optionsJson) {
     cwd = resolved;
   }
 
+  // ── Self-protection: never kill Daemora's own process ──
+  const ownPid = String(process.pid);
+  const pidsInCmd = cmd.match(/\bkill\b.*/) ? (cmd.match(/\b\d{2,}\b/g) || []) : [];
+  if (pidsInCmd.includes(ownPid)) {
+    return `Command blocked: refusing to kill Daemora's own process (PID ${ownPid}).`;
+  }
+
   // ── Command security guard (always runs, regardless of filesystem config) ──
   const cmdCheck = checkCommand(cmd);
   if (!cmdCheck.allowed) {
