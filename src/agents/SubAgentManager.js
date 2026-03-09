@@ -108,6 +108,7 @@ eventBus.on("supervisor:kill", ({ taskId }) => {
  * @param {string[]} [options.skills]              Skill paths to inject (e.g. ["skills/coding.md", "skills/brand-guidelines.md"])
  * @param {string}   [options.approvalMode]        Inherited approval mode
  * @param {object}   [options.channelMeta]         Inherited channel meta for approvals
+ * @param {string[]} [options.steerQueue]           External steerQueue array (for TeamManager injection). If provided, used instead of creating a new one.
  * @returns {Promise<string>} Sub-agent's final response
  */
 export async function spawnSubAgent(taskDescription, options = {}) {
@@ -126,6 +127,7 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     skills               = null,        // explicit skill paths to inject (e.g. ["skills/coding.md"])
     approvalMode         = "auto",
     channelMeta          = null,
+    steerQueue: externalSteerQueue = null,  // external steerQueue for TeamManager injection
     historyMessages      = [],     // previous session messages to prepend (persistent sub-agent sessions)
     returnFullResult     = false,  // return {text, messages, cost} instead of just text
   } = options;
@@ -240,7 +242,7 @@ export async function spawnSubAgent(taskDescription, options = {}) {
 
   // ── Coordination primitives ───────────────────────────────────────────────
   const abortController = new AbortController();
-  const steerQueue      = [];   // Shared mutable array - push here to steer the agent
+  const steerQueue      = externalSteerQueue || [];   // Use external queue (TeamManager) or create new
 
   activeSubAgents.set(agentId, {
     taskDescription,

@@ -292,10 +292,26 @@ Persistent memory per tenant. Contents survive across conversations. Consult mem
 - Daily log for task tracking → writeDailyLog() at end of significant work.
 
 ## Agents
-For complex multi-agent tasks, load \`readFile("${_skillPath("orchestration")}")\` first — covers parallel execution, contract-based planning, workspace artifacts, and coordination patterns.
+For complex multi-agent tasks, load \`readFile("${_skillPath("orchestration")}")\` first — covers sub-agents, teams, contract-based planning, workspace artifacts, and coordination patterns.
 - spawnAgent(taskDescription, optionsJson?) — Spawn sub-agent. opts: {"profile":"coder|researcher|writer|analyst","extraTools":[...],"skills":["${_skillPath("coding")}"],"parentContext":"...","model":"..."}. Pass skills array with skill paths from the Available Skills list — the skill content is injected directly into the sub-agent so it can follow the instructions without loading them. Task description must be comprehensive — sub-agent has no other context.
-- parallelAgents(tasksJson, sharedOptionsJson?) — Spawn multiple agents in parallel. tasksJson: [{"description":"...","options":{...}}]. sharedOptionsJson: {"sharedContext":"..."}. Always pass workspace path and shared contract in sharedContext.
+- parallelAgents(tasksJson, sharedOptionsJson?) — Spawn multiple agents in parallel. tasksJson: [{"description":"...","options":{...}}]. sharedOptionsJson: {"sharedContext":"..."}. CRITICAL: Always pass sharedContext with workspace path and shared contract.
 - manageAgents(action, paramsJson?) — List, kill, or steer agents. action: "list"|"kill"|"steer".
+
+### Auto-spawn triggers — do these without being asked
+- MCP task → useMCP(serverName, taskDescription)
+- Build 3+ files → team with coder teammates + shared contract
+- Research multiple topics → parallel researcher sub-agents
+- Review/audit code → read-only researcher sub-agent
+- Frontend + backend → team with parallel coders
+- Debug unclear root cause → team with competing hypothesis investigators
+- Verbose output (test runs, log analysis) → sub-agent to isolate from main context
+
+### Profile selection
+- Code task → profile:"coder". Research → "researcher". Docs → "writer". Data → "analyst".
+- No profile → 27-tool safe default. Add extraTools when profile is almost right but needs one more.
+
+### Mandatory structured brief
+Every spawn/teammate instruction must include: TASK, CONTEXT, FILES, SPEC, CONSTRAINTS, OUTPUT.
 
 ### useMCP(serverName, taskDescription)
 Delegate a task to a specialist agent for the named MCP server.
@@ -308,6 +324,17 @@ Delegate a task to a specialist agent for the named MCP server.
 
 - manageMCP(action, paramsJson?) — Inspect MCP servers. action: "list"|"status"|"tools". opts: {"server":"github"}
 - delegateToAgent(agentUrl, taskInput) — Delegate to external agent via A2A protocol.
+
+## Agent Teams
+Use teams when multiple agents need shared tasks, messaging, and coordination.
+- teamTask(action, paramsJson?) — Full team management. Actions: createTeam, addTeammate, spawnTeammate, spawnAll, addTask, claim, complete, failTask, listTasks, claimable, sendMessage, broadcast, readMail, mailHistory, status, disband.
+
+### When to use which
+- Sub-agents (spawnAgent/parallelAgents) → independent tasks, MCP delegation, fire-and-forget, context isolation
+- Teams (teamTask) → interdependent tasks, agents need to share results, claim/lock mechanics, 3+ coordinated agents
+
+### Team workflow
+createTeam → addTeammate(s) with profiles/instructions → addTask(s) with blockedBy deps → spawnAll → monitor via status/readMail → disband when done
 
 ## Task & Project Management
 - taskManager(action, paramsJson?) — Create/update/list tasks with hierarchy. Actions: createTask, updateTask, listTasks, getTask.
@@ -437,7 +464,25 @@ You are a sub-agent spawned for a specific task. Complete it fully without askin
 - If matched skills were injected in your context, follow them precisely.
 - If you need a skill not already injected, load it with \`readFile("<path from Available Skills list>")\` and follow its instructions.
 - Use every tool, command, and skill available to you to finish the job.
-- When done, report back: what you did, key outcomes, any issues found. Keep it concise.`;
+- Prefer doing work yourself — minimize spawning further sub-agents unless genuinely needed for parallelism.
+- Write verbose output (logs, test results, analysis) to workspace files. Return only a summary.
+
+## Structured Return
+End every response with:
+\`\`\`
+DONE: One sentence describing what was accomplished
+FILES: paths to files created or modified
+CONTRACT: Key interfaces, exports, API endpoints produced (if applicable)
+ERRORS: Any failures, caveats, or unresolved issues
+\`\`\`
+Omit sections that don't apply.
+
+## Team Awareness
+If you are a team member (your prompt includes "You are a Team Member"), follow the team workflow loop:
+1. Check claimable tasks → claim → work → complete → check mail → repeat
+2. Communicate with teammates via sendMessage/broadcast when sharing results they need
+3. Never work on unclaimed tasks. Claim before working.
+4. Complete or fail every claimed task — never leave tasks hanging.`;
 }
 
 function renderRuntime(meta = {}) {
