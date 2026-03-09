@@ -48,3 +48,78 @@ code, pre, .font-mono {
 .prose-invert strong {
   color: #f0f0f3;
 }
+
+.prose-invert h1,
+.prose-invert h2,
+.prose-invert h3,
+.prose-invert h4 {
+  color: #f1f5f9;
+  font-weight: 600;
+  margin-top: 1.25em;
+  margin-bottom: 0.5em;
+}
+
+.prose-invert h1 { font-size: 1.25em; }
+.prose-invert h2 { font-size: 1.125em; }
+.prose-invert h3 { font-size: 1em; }
+
+.prose-invert ul,
+.prose-invert ol {
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+
+.prose-invert ul { list-style-type: disc; }
+.prose-invert ol { list-style-type: decimal; }
+
+.prose-invert li {
+  margin: 0.25em 0;
+}
+
+.prose-invert li::marker {
+  color: #64748b;
+}
+
+.prose-invert blockquote {
+  border-left: 3px solid #00d9ff;
+  padding-left: 1em;
+  margin: 0.75em 0;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.prose-invert hr {
+  border-color: #334155;
+  margin: 1em 0;
+}
+
+.prose-invert table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75em 0;
+}
+
+.prose-invert th,
+.prose-invert td {
+  border: 1px solid #334155;
+  padding: 0.375em 0.75em;
+  text-align: left;
+}
+
+.prose-invert th {
+  background-color: #1e293b;
+  color: #f1f5f9;
+  font-weight: 600;
+}
+
+.prose-invert p {
+  margin: 0.5em 0;
+}
+
+.prose-invert p:first-child {
+  margin-top: 0;
+}
+
+.prose-invert p:last-child {
+  margin-bottom: 0;
+}
