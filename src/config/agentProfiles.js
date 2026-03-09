@@ -30,6 +30,7 @@ export const agentProfiles = {
     "readMemory", "writeMemory", "searchMemory",
     "imageAnalysis",    // analyze charts, diagrams, screenshots, visual data
     "useMCP",           // query external sources (GitHub, Notion, Linear, etc.)
+    "teamTask",         // team coordination (shared tasks, messaging)
   ],
 
   /**
@@ -48,6 +49,7 @@ export const agentProfiles = {
     "readMemory", "writeMemory", "searchMemory",  // learn and apply project conventions
     "projectTracker",   // track sub-tasks within complex coding work
     "useMCP",
+    "teamTask",         // team coordination (shared tasks, messaging)
   ],
 
   /**
@@ -62,6 +64,7 @@ export const agentProfiles = {
     "webFetch", "webSearch",
     "createDocument",
     "readMemory", "writeMemory", "searchMemory",
+    "teamTask",         // team coordination (shared tasks, messaging)
   ],
 
   /**
@@ -77,6 +80,7 @@ export const agentProfiles = {
     "imageAnalysis",    // analyze charts, graphs, visual data
     "createDocument",   // produce analysis reports
     "readMemory", "writeMemory", "searchMemory",
+    "teamTask",         // team coordination (shared tasks, messaging)
   ],
 
 };
@@ -118,4 +122,6 @@ export const defaultSubAgentTools = [
   // MCP (via specialist agent - no direct mcp__ tools)
   "manageMCP",
   "useMCP",
+  // Agent Teams
+  "teamTask",
 ];
