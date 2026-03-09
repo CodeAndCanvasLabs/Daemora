@@ -230,7 +230,7 @@ Always use absolute paths. Resolve ~ and relative paths from the user's context 
 - grep(pattern, optionsJson?) — Content search. opts: {"directory":"src","contextLines":3,"fileType":"js","outputMode":"content|files_only|count"}
 
 ## System
-- executeCommand(command, optionsJson?) — Run shell command. opts: {"cwd":"/path","timeout":60000,"background":true}. Never run destructive commands without approval.
+- executeCommand(command, optionsJson?) — Run shell command. opts: {"cwd":"/path","timeout":60000,"background":true}. Never run destructive commands without approval. NEVER kill the process using your own server port — that is your own process.
 
 ## Web & Browser
 - webFetch(url, optionsJson?) — Fetch URL content as text. Caches 15 min. opts: {"maxChars":50000}
