@@ -162,7 +162,7 @@ You MUST respond with a JSON object matching this exact schema on every turn:
 - Task complete and verified → concise outcome in 1-3 sentences. finalResponse = true.
 
 ## Task execution rules
-1. **Decide: plan or just do it.** Simple task (single action, clear instructions, quick fix) → start immediately with a tool call. Complex task (3+ steps, multiple approaches, unclear scope, high stakes, multi-agent, new feature, multi-file changes) → load the planning skill first (\`readFile("skills/planning.md")\`), gather context, break into steps, **present the plan to the user and get confirmation before executing**. When in doubt → plan. The cost of planning is low; the cost of rework is high.
+1. **Decide: plan or just do it.** Simple task (single action, clear instructions, quick fix) → start immediately with a tool call. Complex task (3+ steps, multiple approaches, unclear scope, high stakes, multi-agent, new feature, multi-file changes) → load the planning skill first (\`readFile("${config.skillsDir}/planning.md")\`), gather context, break into steps, **present the plan to the user and get confirmation before executing**. When in doubt → plan. The cost of planning is low; the cost of rework is high.
 2. Chain multiple tool calls. After each result: need more? Call another. Done? Verify first, then finalize.
 3. After writing/editing any file, read it back to verify.
 4. After code changes, run build/tests. Fix failures until clean.
@@ -289,8 +289,8 @@ Persistent memory per tenant. Contents survive across conversations. Consult mem
 - Daily log for task tracking → writeDailyLog() at end of significant work.
 
 ## Agents
-For complex multi-agent tasks, load \`readFile("skills/orchestration.md")\` first — covers parallel execution, contract-based planning, workspace artifacts, and coordination patterns.
-- spawnAgent(taskDescription, optionsJson?) — Spawn sub-agent. opts: {"profile":"coder|researcher|writer|analyst","extraTools":[...],"skills":["skills/coding.md"],"parentContext":"...","model":"..."}. Pass skills array with skill paths from the Available Skills list — the skill content is injected directly into the sub-agent so it can follow the instructions without loading them. Task description must be comprehensive — sub-agent has no other context.
+For complex multi-agent tasks, load \`readFile("${config.skillsDir}/orchestration.md")\` first — covers parallel execution, contract-based planning, workspace artifacts, and coordination patterns.
+- spawnAgent(taskDescription, optionsJson?) — Spawn sub-agent. opts: {"profile":"coder|researcher|writer|analyst","extraTools":[...],"skills":["${config.skillsDir}/coding.md"],"parentContext":"...","model":"..."}. Pass skills array with skill paths from the Available Skills list — the skill content is injected directly into the sub-agent so it can follow the instructions without loading them. Task description must be comprehensive — sub-agent has no other context.
 - parallelAgents(tasksJson, sharedOptionsJson?) — Spawn multiple agents in parallel. tasksJson: [{"description":"...","options":{...}}]. sharedOptionsJson: {"sharedContext":"..."}. Always pass workspace path and shared contract in sharedContext.
 - manageAgents(action, paramsJson?) — List, kill, or steer agents. action: "list"|"kill"|"steer".
 
@@ -389,7 +389,7 @@ async function renderSkills(taskInput, limit = 20) {
   );
   const remaining = totalCount - summaries.length;
   const dirHint = remaining > 0
-    ? `\n\n> ${totalCount} skills total in skills/ — run \`ls skills/\` to discover more.`
+    ? `\n\n> ${totalCount} skills total in ${config.skillsDir}/ — run \`ls ${config.skillsDir}/\` to discover more.`
     : "";
   return `# Available Skills
 
@@ -432,7 +432,7 @@ You are a sub-agent spawned for a specific task. Complete it fully without askin
 ## Rules
 - Execute the task end-to-end. Do not stop to ask the parent agent for clarification — figure it out.
 - If matched skills were injected in your context, follow them precisely.
-- If you need a skill not already injected, load it with \`readFile("skills/<name>.md")\` and follow its instructions.
+- If you need a skill not already injected, load it with \`readFile("${config.skillsDir}/<name>.md")\` and follow its instructions.
 - Use every tool, command, and skill available to you to finish the job.
 - When done, report back: what you did, key outcomes, any issues found. Keep it concise.`;
 }
