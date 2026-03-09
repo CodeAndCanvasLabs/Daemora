@@ -12,12 +12,14 @@ import {
   Fingerprint,
   Users,
   Settings,
+  Radio,
 } from "lucide-react";
 
 const navItems = [
   { path: "/", label: "Dashboard", icon: CircuitBoard },
   { path: "/chat", label: "Chat", icon: Terminal },
   { path: "/tasks", label: "Tasks", icon: Skull },
+  { path: "/channels", label: "Channels", icon: Radio },
   { path: "/mcp", label: "MCP", icon: Network },
   { path: "/skills", label: "Skills", icon: Flame },
   { path: "/config", label: "Config", icon: SlidersHorizontal },

@@ -326,27 +326,30 @@ Enable only what you need. Each channel supports `{CHANNEL}_ALLOWLIST` and `{CHA
 | Channel | Required Env Vars |
 |---|---|
 | **Telegram** | `TELEGRAM_BOT_TOKEN` |
-| **WhatsApp** | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` |
+| **WhatsApp** | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` |
 | **Discord** | `DISCORD_BOT_TOKEN` |
 | **Slack** | `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN` |
-| **Email (Resend)** | `RESEND_API_KEY`, `RESEND_FROM` |
-| **Email (IMAP/SMTP)** | `EMAIL_USER`, `EMAIL_PASSWORD`, `EMAIL_IMAP_HOST`, `EMAIL_SMTP_HOST` |
+| **Email** | `EMAIL_USER`, `EMAIL_PASSWORD` |
 | **LINE** | `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_CHANNEL_SECRET` |
-| **Signal** | `SIGNAL_CLI_PATH`, `SIGNAL_PHONE_NUMBER` |
+| **Signal** | `SIGNAL_CLI_URL`, `SIGNAL_PHONE_NUMBER` |
 | **Microsoft Teams** | `TEAMS_APP_ID`, `TEAMS_APP_PASSWORD` |
-| **Google Chat** | `GOOGLE_CHAT_CREDENTIALS_PATH`, `GOOGLE_CHAT_SPACE_ID` |
-| **Matrix** | `MATRIX_HOMESERVER_URL`, `MATRIX_ACCESS_TOKEN`, `MATRIX_USER_ID` |
-| **Mattermost** | `MATTERMOST_URL`, `MATTERMOST_BOT_TOKEN` |
+| **Google Chat** | `GOOGLE_CHAT_SERVICE_ACCOUNT` |
+| **Matrix** | `MATRIX_HOMESERVER_URL`, `MATRIX_ACCESS_TOKEN` |
+| **Mattermost** | `MATTERMOST_URL`, `MATTERMOST_TOKEN` |
 | **Twitch** | `TWITCH_BOT_USERNAME`, `TWITCH_OAUTH_TOKEN`, `TWITCH_CHANNEL` |
-| **IRC** | `IRC_SERVER`, `IRC_NICKNAME`, `IRC_CHANNEL` |
-| **iMessage** | `IMESSAGE_APPLESCRIPT_ENABLED=true` (macOS only) |
+| **IRC** | `IRC_SERVER`, `IRC_NICK` |
+| **iMessage** | `IMESSAGE_ENABLED=true` (macOS only) |
 | **Feishu** | `FEISHU_APP_ID`, `FEISHU_APP_SECRET` |
-| **Zalo** | `ZALO_APP_ID`, `ZALO_SECRET_KEY`, `ZALO_ACCESS_TOKEN` |
-| **Nextcloud** | `NEXTCLOUD_URL`, `NEXTCLOUD_USERNAME`, `NEXTCLOUD_PASSWORD` |
-| **BlueBubbles** | `BLUEBUBBLES_SERVER_URL`, `BLUEBUBBLES_PASSWORD` |
+| **Zalo** | `ZALO_APP_ID`, `ZALO_ACCESS_TOKEN` |
+| **Nextcloud** | `NEXTCLOUD_URL`, `NEXTCLOUD_USER`, `NEXTCLOUD_PASSWORD` |
+| **BlueBubbles** | `BLUEBUBBLES_URL`, `BLUEBUBBLES_PASSWORD` |
 | **Nostr** | `NOSTR_PRIVATE_KEY` |
 
-Run `daemora channels` for full setup instructions per channel.
+```bash
+daemora channels             # List all channels + setup status
+daemora channels add         # Configure a new channel interactively
+daemora channels add discord # Configure a specific channel directly
+```
 
 ### Cost Limits
 
@@ -629,6 +632,10 @@ daemora tenant workspace <id> add <path>       Add directory to tenant's allowed
 daemora tenant workspace <id> remove <path>    Remove from allowedPaths
 daemora tenant workspace <id> block <path>     Add to tenant's blockedPaths
 daemora tenant workspace <id> unblock <path>   Remove from blockedPaths
+
+daemora channels                 List all channels + setup status
+daemora channels add             Configure a new channel interactively
+daemora channels add <name>      Configure a specific channel directly
 
 daemora cleanup                  Run data cleanup now (uses configured retention)
 daemora cleanup stats            Show storage usage (tasks, sessions, audit, costs)

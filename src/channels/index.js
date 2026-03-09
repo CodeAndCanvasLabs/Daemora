@@ -25,6 +25,7 @@ import { NostrChannel } from "./NostrChannel.js";
 
 import { config } from "../config/default.js";
 import eventBus from "../core/EventBus.js";
+import { CHANNEL_DEFS } from "./channelDefs.js";
 
 /**
  * Channel Registry - manages all input channels.
@@ -396,27 +397,11 @@ class ChannelRegistry {
    * Returns all supported channel names (including unconfigured ones).
    */
   static getSupportedChannels() {
-    return [
-      { name: "telegram",    env: "TELEGRAM_BOT_TOKEN",                         desc: "Telegram bot" },
-      { name: "whatsapp",    env: "TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN",     desc: "WhatsApp via Twilio" },
-      { name: "discord",     env: "DISCORD_BOT_TOKEN",                          desc: "Discord bot" },
-      { name: "slack",       env: "SLACK_BOT_TOKEN + SLACK_APP_TOKEN",          desc: "Slack Socket Mode bot" },
-      { name: "email",       env: "EMAIL_USER + EMAIL_PASSWORD",                desc: "Email (IMAP/SMTP)" },
-      { name: "line",        env: "LINE_CHANNEL_ACCESS_TOKEN + LINE_CHANNEL_SECRET", desc: "LINE messaging" },
-      { name: "signal",      env: "SIGNAL_CLI_URL + SIGNAL_PHONE_NUMBER",       desc: "Signal via signal-cli" },
-      { name: "teams",       env: "TEAMS_APP_ID + TEAMS_APP_PASSWORD",          desc: "Microsoft Teams Bot Framework" },
-      { name: "googlechat",  env: "GOOGLE_CHAT_SERVICE_ACCOUNT",                desc: "Google Chat service account" },
-      { name: "matrix",      env: "MATRIX_HOMESERVER_URL + MATRIX_ACCESS_TOKEN", desc: "Matrix (Element) protocol" },
-      { name: "mattermost",  env: "MATTERMOST_URL + MATTERMOST_TOKEN",          desc: "Mattermost WebSocket bot" },
-      { name: "twitch",      env: "TWITCH_BOT_USERNAME + TWITCH_OAUTH_TOKEN + TWITCH_CHANNEL", desc: "Twitch chat commands" },
-      { name: "irc",         env: "IRC_SERVER + IRC_NICK",                      desc: "IRC (any server)" },
-      { name: "imessage",    env: "IMESSAGE_ENABLED=true (macOS only)",         desc: "iMessage via AppleScript" },
-      { name: "feishu",      env: "FEISHU_APP_ID + FEISHU_APP_SECRET",          desc: "Feishu / Lark" },
-      { name: "zalo",        env: "ZALO_APP_ID + ZALO_ACCESS_TOKEN",            desc: "Zalo (Vietnam)" },
-      { name: "nextcloud",   env: "NEXTCLOUD_URL + NEXTCLOUD_USER + NEXTCLOUD_PASSWORD", desc: "Nextcloud Talk" },
-      { name: "bluebubbles", env: "BLUEBUBBLES_URL + BLUEBUBBLES_PASSWORD",     desc: "BlueBubbles iMessage relay" },
-      { name: "nostr",       env: "NOSTR_PRIVATE_KEY",                          desc: "Nostr decentralized protocol" },
-    ];
+    return CHANNEL_DEFS.map(ch => ({
+      name: ch.name,
+      env: ch.envRequired.map(e => e.split("=")[0]).join(" + "),
+      desc: ch.desc,
+    }));
   }
 }
 
