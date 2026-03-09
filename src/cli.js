@@ -20,6 +20,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
 import { randomBytes } from "crypto";
+import { CHANNEL_DEFS, isChannelConfigured } from "./channels/channelDefs.js";
 
 // ── Color palette — matches Daemora UI exactly ──────────────────────────────
 const P = {
@@ -1614,288 +1615,13 @@ async function handleCleanup(subcommand, rest) {
 
 // ─── Channels ─────────────────────────────────────────────────────────────────
 
-const CHANNEL_DEFS = [
-  {
-    name: "telegram", label: "Telegram", desc: "Bot via @BotFather",
-    envRequired: ["TELEGRAM_BOT_TOKEN"],
-    envOptional: [
-      ["TELEGRAM_ALLOWLIST",  "Comma-separated chat IDs allowed to message the bot. Empty = open."],
-      ["TELEGRAM_MODEL",      "Model override for this channel (e.g. anthropic:claude-sonnet-4-6)"],
-    ],
-    setup: [
-      "1. Open Telegram → search @BotFather",
-      "2. Send /newbot and follow the prompts",
-      "3. Copy the token (format: 123456789:ABCdef...)",
-    ],
-    tenantKey: "telegram",
-  },
-  {
-    name: "whatsapp", label: "WhatsApp", desc: "Via Twilio (sandbox or dedicated number)",
-    envRequired: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"],
-    envOptional: [
-      ["TWILIO_WHATSAPP_FROM",  "Sending number (default: whatsapp:+14155238886 sandbox)"],
-      ["WHATSAPP_ALLOWLIST",    "Comma-separated phone numbers allowed (+1234567890)"],
-      ["WHATSAPP_MODEL",        "Model override for this channel"],
-    ],
-    setup: [
-      "1. Sign up at https://console.twilio.com",
-      "2. Copy Account SID + Auth Token from the dashboard",
-      "3. Messaging › Try it out › WhatsApp → join sandbox",
-    ],
-    tenantKey: "whatsapp",
-  },
-  {
-    name: "discord", label: "Discord", desc: "Bot via Discord Developer Portal",
-    envRequired: ["DISCORD_BOT_TOKEN"],
-    envOptional: [
-      ["DISCORD_ALLOWLIST", "Comma-separated Discord user snowflake IDs"],
-      ["DISCORD_MODEL",     "Model override for this channel"],
-    ],
-    setup: [
-      "1. https://discord.com/developers/applications → New Application → Bot",
-      "2. Reset Token → copy it",
-      "3. Enable 'Message Content Intent' under Privileged Intents",
-      "4. OAuth2 URL Generator → bot scope → Send Messages, Read Message History",
-      "5. Invite bot to your server with the generated URL",
-    ],
-    tenantKey: "discord",
-  },
-  {
-    name: "slack", label: "Slack", desc: "Socket Mode bot",
-    envRequired: ["SLACK_BOT_TOKEN", "SLACK_APP_TOKEN"],
-    envOptional: [
-      ["SLACK_ALLOWLIST", "Comma-separated Slack user IDs (Uxxxxxxxxx)"],
-      ["SLACK_MODEL",     "Model override for this channel"],
-    ],
-    setup: [
-      "1. https://api.slack.com/apps → Create New App → From scratch",
-      "2. Socket Mode → Enable → App-Level Token (xapp-...) → copy as SLACK_APP_TOKEN",
-      "3. OAuth & Permissions → Bot Scopes: chat:write, im:history, app_mentions:read",
-      "4. Install to workspace → Bot Token (xoxb-...) → copy as SLACK_BOT_TOKEN",
-    ],
-    tenantKey: "slack",
-  },
-  {
-    name: "email", label: "Email", desc: "Gmail IMAP/SMTP (reads + sends)",
-    envRequired: ["EMAIL_USER", "EMAIL_PASSWORD"],
-    envOptional: [
-      ["EMAIL_IMAP_HOST",  "IMAP host (default: imap.gmail.com)"],
-      ["EMAIL_SMTP_HOST",  "SMTP host (default: smtp.gmail.com)"],
-      ["EMAIL_ALLOWLIST",  "Comma-separated allowed sender emails"],
-      ["EMAIL_MODEL",      "Model override for this channel"],
-      ["RESEND_API_KEY",   "Alternative: Resend.com API key for sending only"],
-      ["RESEND_FROM",      "Resend from address (e.g. you@yourdomain.com)"],
-    ],
-    setup: [
-      "Gmail: Google Account › Security › 2-Step Verification → enable",
-      "Then: Security › App Passwords → Mail → create 16-char password",
-      "Use that app password as EMAIL_PASSWORD (NOT your Gmail password)",
-    ],
-    tenantKey: "email",
-  },
-  {
-    name: "line", label: "LINE", desc: "LINE Messaging API",
-    envRequired: ["LINE_CHANNEL_ACCESS_TOKEN", "LINE_CHANNEL_SECRET"],
-    envOptional: [
-      ["LINE_ALLOWLIST", "Comma-separated LINE user IDs (Uxxxxxxxxxx)"],
-      ["LINE_MODEL",     "Model override for this channel"],
-    ],
-    setup: [
-      "1. https://developers.line.biz → Create Provider → Messaging API channel",
-      "2. Basic settings → Channel Secret",
-      "3. Messaging API → Channel Access Token (long-lived) → Issue",
-      "4. Webhook URL: https://your-server/webhooks/line",
-    ],
-    tenantKey: "line",
-  },
-  {
-    name: "signal", label: "Signal", desc: "signal-cli REST daemon",
-    envRequired: ["SIGNAL_CLI_URL", "SIGNAL_PHONE_NUMBER"],
-    envOptional: [
-      ["SIGNAL_ALLOWLIST", "Comma-separated phone numbers (+1234567890)"],
-      ["SIGNAL_MODEL",     "Model override for this channel"],
-    ],
-    setup: [
-      "Install signal-cli: https://github.com/AsamK/signal-cli",
-      "Register: signal-cli -u +1234567890 register",
-      "Verify:   signal-cli -u +1234567890 verify <code>",
-      "Daemon:   signal-cli -u +1234567890 daemon --http 127.0.0.1:8080",
-    ],
-    tenantKey: "signal",
-  },
-  {
-    name: "teams", label: "Microsoft Teams", desc: "Azure Bot Framework",
-    envRequired: ["TEAMS_APP_ID", "TEAMS_APP_PASSWORD"],
-    envOptional: [
-      ["TEAMS_ALLOWLIST", "Comma-separated Teams user IDs or AAD object IDs"],
-      ["TEAMS_MODEL",     "Model override for this channel"],
-    ],
-    setup: [
-      "1. https://portal.azure.com → Create an Azure Bot",
-      "2. Configuration → Messaging endpoint: https://your-server/webhooks/teams",
-      "3. Copy App ID  +  Manage Password → New client secret",
-      "4. Channels → Add Microsoft Teams",
-    ],
-    tenantKey: "teams",
-  },
-  {
-    name: "googlechat", label: "Google Chat", desc: "Google Cloud service account",
-    envRequired: ["GOOGLE_CHAT_SERVICE_ACCOUNT"],
-    envOptional: [
-      ["GOOGLE_CHAT_PROJECT_NUMBER", "GCP project number"],
-      ["GOOGLE_CHAT_ALLOWLIST",      "Comma-separated Google user IDs or emails"],
-      ["GOOGLE_CHAT_MODEL",          "Model override for this channel"],
-    ],
-    setup: [
-      "1. GCP Console → Enable 'Google Chat API'",
-      "2. IAM → Service Accounts → Create → download JSON key",
-      "3. Chat API → Configuration → Bot URL: https://your-server/webhooks/googlechat",
-      "4. Paste entire JSON key as one line into GOOGLE_CHAT_SERVICE_ACCOUNT",
-    ],
-    tenantKey: "googlechat",
-  },
-  {
-    name: "matrix", label: "Matrix", desc: "Element / matrix.org protocol",
-    envRequired: ["MATRIX_HOMESERVER_URL", "MATRIX_ACCESS_TOKEN"],
-    envOptional: [
-      ["MATRIX_BOT_USER_ID", "Bot user ID (e.g. @daemora:matrix.org)"],
-    ],
-    setup: [
-      "1. Create bot account on matrix.org or your homeserver",
-      "2. Get access token:",
-      "   POST /_matrix/client/v3/login",
-      "   {\"type\":\"m.login.password\",\"user\":\"@bot:matrix.org\",\"password\":\"...\"}",
-      "3. Copy 'access_token' from response",
-    ],
-    tenantKey: "matrix",
-  },
-  {
-    name: "mattermost", label: "Mattermost", desc: "WebSocket bot",
-    envRequired: ["MATTERMOST_URL", "MATTERMOST_TOKEN"],
-    envOptional: [
-      ["MATTERMOST_BOT_USER_ID",  "Bot user ID"],
-      ["MATTERMOST_BOT_USERNAME", "Bot username (default: daemora-bot)"],
-    ],
-    setup: [
-      "1. System Console → Integrations → Bot Accounts → Enable",
-      "2. Integrations → Bot Accounts → Add Bot Account",
-      "3. Copy the bot token shown after creation",
-      "4. Find bot user ID: GET /api/v4/users/me  (Authorization: Bearer <token>)",
-    ],
-    tenantKey: "mattermost",
-  },
-  {
-    name: "twitch", label: "Twitch", desc: "Chat commands (!ask prefix)",
-    envRequired: ["TWITCH_BOT_USERNAME", "TWITCH_OAUTH_TOKEN", "TWITCH_CHANNEL"],
-    envOptional: [
-      ["TWITCH_COMMAND_PREFIX", "Command prefix (default: !ask)"],
-    ],
-    setup: [
-      "1. Create a Twitch account for your bot",
-      "2. Get OAuth token at https://twitchapps.com/tmi/ (authorize as bot account)",
-      "3. Copy the oauth:... token",
-    ],
-    tenantKey: "twitch",
-  },
-  {
-    name: "irc", label: "IRC", desc: "Any IRC network — no external packages",
-    envRequired: ["IRC_SERVER", "IRC_NICK"],
-    envOptional: [
-      ["IRC_PORT",     "Port (default: 6667)"],
-      ["IRC_CHANNEL",  "Channel to join (e.g. #mychannel)"],
-      ["IRC_PASSWORD", "NickServ password"],
-    ],
-    setup: [
-      "Popular networks: irc.libera.chat  irc.freenode.net  irc.oftc.net",
-      "Uses raw TCP — no npm packages needed.",
-    ],
-    tenantKey: "irc",
-  },
-  {
-    name: "imessage", label: "iMessage", desc: "macOS only — AppleScript polling",
-    envRequired: ["IMESSAGE_ENABLED=true"],
-    envOptional: [
-      ["IMESSAGE_POLL_INTERVAL_MS", "Poll interval in ms (default: 5000)"],
-      ["IMESSAGE_ALLOWLIST",        "Comma-separated phone numbers or iCloud emails"],
-    ],
-    setup: [
-      "macOS only. Messages app must be open and signed in.",
-      "System Preferences › Privacy & Security › Accessibility → allow Terminal",
-      "Set IMESSAGE_ENABLED=true in your .env",
-    ],
-    tenantKey: "imessage",
-  },
-  {
-    name: "feishu", label: "Feishu / Lark", desc: "Bytedance enterprise messaging",
-    envRequired: ["FEISHU_APP_ID", "FEISHU_APP_SECRET"],
-    envOptional: [
-      ["FEISHU_VERIFICATION_TOKEN", "Webhook verification token"],
-      ["FEISHU_PORT",               "Webhook port (default: 3004)"],
-    ],
-    setup: [
-      "1. https://open.feishu.cn/app → Create App",
-      "2. Credentials & Basic Info → App ID + App Secret",
-      "3. Add capability: Bot",
-      "4. Event Subscriptions → webhook: https://your-server/channels/feishu",
-      "5. Subscribe to: im.message.receive_v1",
-    ],
-    tenantKey: "feishu",
-  },
-  {
-    name: "zalo", label: "Zalo", desc: "Vietnam — 75M+ users",
-    envRequired: ["ZALO_APP_ID", "ZALO_ACCESS_TOKEN"],
-    envOptional: [
-      ["ZALO_APP_SECRET", "Zalo App Secret"],
-      ["ZALO_PORT",       "Webhook port (default: 3005)"],
-    ],
-    setup: [
-      "1. Register Official Account at https://oa.zalo.me",
-      "2. Create app at https://developers.zalo.me → API Tools",
-      "3. Get access token via OAuth",
-      "4. Webhook: https://your-server/channels/zalo",
-    ],
-    tenantKey: "zalo",
-  },
-  {
-    name: "nextcloud", label: "Nextcloud Talk", desc: "Self-hosted collaboration",
-    envRequired: ["NEXTCLOUD_URL", "NEXTCLOUD_USER", "NEXTCLOUD_PASSWORD"],
-    envOptional: [
-      ["NEXTCLOUD_ROOM_TOKEN", "Talk room token (from /call/<token> in URL)"],
-    ],
-    setup: [
-      "1. Nextcloud → Profile → Settings → Security",
-      "2. Devices & Sessions → create App Password for the bot account",
-      "3. Find room token in Talk URL: /call/<room-token>",
-    ],
-    tenantKey: "nextcloud",
-  },
-  {
-    name: "bluebubbles", label: "BlueBubbles", desc: "iMessage relay server (Mac required)",
-    envRequired: ["BLUEBUBBLES_URL", "BLUEBUBBLES_PASSWORD"],
-    envOptional: [],
-    setup: [
-      "1. Install BlueBubbles on a Mac signed into iMessage",
-      "   https://bluebubbles.app",
-      "2. Settings → Server → copy Server URL + Password",
-    ],
-    tenantKey: "bluebubbles",
-  },
-  {
-    name: "nostr", label: "Nostr", desc: "Decentralized protocol — NIP-04 encrypted DMs",
-    envRequired: ["NOSTR_PRIVATE_KEY"],
-    envOptional: [
-      ["NOSTR_RELAYS", "Comma-separated relay WSS URLs"],
-    ],
-    setup: [
-      "Generate private key:  openssl rand -hex 32",
-      "Share the bot's npub (public key) so users can DM it.",
-      "Default relays: relay.damus.io, nos.lol, relay.nostr.band",
-    ],
-    tenantKey: "nostr",
-  },
-];
+async function handleChannels(sub) {
+  if (sub === "add") {
+    await handleChannelAdd(rest[0]);
+    return;
+  }
 
-async function handleChannels() {
+  // Default: info viewer
   const { select, isCancel } = await import("@clack/prompts");
   const w = 67;
   const line    = chalk.hex(P.cyan)("━".repeat(w));
@@ -1989,8 +1715,113 @@ async function handleChannels() {
     console.log(`\n${rowLine}\n`);
   }
 
-  console.log(`  ${S.arrow}  ${chalk.hex(P.teal)("daemora setup")}  to configure channels interactively`);
+  console.log(`  ${S.arrow}  ${chalk.hex(P.teal)("daemora channels add")}  to configure a new channel interactively`);
   console.log(`  ${S.arrow}  Edit ${chalk.hex(P.teal)(".env")} and restart to apply changes\n`);
+}
+
+
+// ─── Channel Add ─────────────────────────────────────────────────────────────
+
+async function handleChannelAdd(channelName) {
+  const p = await import("@clack/prompts");
+  const w = 67;
+  const rowLine = chalk.hex(P.border)("─".repeat(w));
+
+  let ch;
+  if (channelName) {
+    ch = CHANNEL_DEFS.find(c => c.name === channelName.toLowerCase());
+    if (!ch) {
+      console.log(`\n  ${S.cross}  Unknown channel: ${chalk.bold(channelName)}`);
+      console.log(`  ${S.arrow}  Available: ${CHANNEL_DEFS.map(c => t.accent(c.name)).join(", ")}\n`);
+      return;
+    }
+  } else {
+    // Interactive channel selection
+    const options = CHANNEL_DEFS.map(c => {
+      const configured = isChannelConfigured(c);
+      const badge = configured ? chalk.hex(P.green)("✔") : chalk.hex(P.border)("○");
+      return {
+        value: c.name,
+        label: `${badge}  ${(configured ? chalk.bold.hex(P.teal) : chalk.hex(P.dim))(c.label.padEnd(20))}  ${chalk.hex(P.muted)(c.desc)}`,
+      };
+    });
+
+    const choice = await p.select({
+      message: chalk.hex(P.cyan)("Select a channel to configure"),
+      options,
+    });
+    if (p.isCancel(choice)) return;
+    ch = CHANNEL_DEFS.find(c => c.name === choice);
+    if (!ch) return;
+  }
+
+  // Platform check (e.g. iMessage = macOS only)
+  if (ch.platformCheck && process.platform !== ch.platformCheck) {
+    console.log(`\n  ${S.cross}  ${ch.label} requires ${ch.platformCheck}. Current platform: ${process.platform}\n`);
+    return;
+  }
+
+  const configured = isChannelConfigured(ch);
+  console.log(`\n${rowLine}`);
+  console.log(`  ${configured ? chalk.hex(P.green)("✔ configured") : chalk.hex(P.amber)("○ not configured")}  ${chalk.bold.hex(P.cyan)(ch.label)}  ${chalk.hex(P.muted)(ch.desc)}`);
+  console.log(rowLine);
+
+  // Show setup instructions
+  p.note(ch.setup.join("\n"), `${ch.label} Setup`);
+
+  // Prompt for each env var
+  if (!ch.prompts || ch.prompts.length === 0) {
+    console.log(`  ${S.arrow}  No credentials needed — just set env vars in .env\n`);
+    return;
+  }
+
+  const values = {};
+  for (const prompt of ch.prompts) {
+    const opts = { message: prompt.label };
+    if (prompt.initialValue) opts.initialValue = prompt.initialValue;
+    if (prompt.placeholder) opts.placeholder = prompt.placeholder;
+
+    let val;
+    if (prompt.type === "password") {
+      val = await p.password(opts);
+    } else {
+      val = await p.text(opts);
+    }
+    if (p.isCancel(val)) return;
+    if (val) values[prompt.key] = val;
+  }
+
+  // Handle subFlows (optional feature toggles)
+  if (ch.subFlows) {
+    for (const flow of ch.subFlows) {
+      const enable = await p.confirm({ message: flow.confirm, initialValue: false });
+      if (p.isCancel(enable)) return;
+      if (enable) {
+        for (const prompt of flow.prompts) {
+          const opts = { message: prompt.label };
+          if (prompt.initialValue) opts.initialValue = prompt.initialValue;
+          if (prompt.placeholder) opts.placeholder = prompt.placeholder;
+          const val = prompt.type === "password" ? await p.password(opts) : await p.text(opts);
+          if (p.isCancel(val)) return;
+          if (val) values[prompt.key] = val;
+        }
+      }
+    }
+  }
+
+  // Write all values to .env
+  let written = 0;
+  for (const [key, value] of Object.entries(values)) {
+    writeEnvKey(key, value);
+    written++;
+  }
+
+  if (written > 0) {
+    console.log(`\n  ${S.check}  ${chalk.bold.hex(P.green)(ch.label)} configured — ${written} env var(s) written to .env`);
+    console.log(`  ${S.arrow}  Restart Daemora to activate: ${t.cmd("daemora start")}\n`);
+  } else {
+    console.log(`\n  ${S.arrow}  No values entered. Nothing written.\n`);
+  }
 }
 
 
@@ -2312,6 +2143,7 @@ ${line}
   ${t.cmd("tenant workspace")} ${t.dim("<id> unblock <path>")} Remove from blockedPaths
 
   ${t.cmd("channels")}                          List all 19 supported channels + setup status
+  ${t.cmd("channels add")} ${t.dim("[name]")}               Configure a new channel interactively
   ${t.cmd("models")}                            List all model providers + task-type routing
   ${t.cmd("tools")} ${t.dim("[filter]")}                    List all 50 built-in tools (filter by name/category)
 

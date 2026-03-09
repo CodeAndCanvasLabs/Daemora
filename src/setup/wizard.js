@@ -4,6 +4,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import secretVault from "../safety/SecretVault.js";
 import { banner, stepHeader, kv, summaryTable, completeBanner, t, S } from "./theme.js";
+import { CHANNEL_DEFS } from "../channels/channelDefs.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, "..", "..");
@@ -284,381 +285,53 @@ export async function runSetupWizard() {
 
   const channels = guard(await p.multiselect({
     message: "Enable channels  (space = toggle, enter = confirm)",
-    options: [
-      { value: "telegram",    label: "Telegram",       hint: "Bot via @BotFather — easiest to set up" },
-      { value: "whatsapp",    label: "WhatsApp",        hint: "Via Twilio sandbox" },
-      { value: "discord",     label: "Discord",         hint: "Bot via Discord Developer Portal" },
-      { value: "slack",       label: "Slack",           hint: "Socket Mode bot" },
-      { value: "email",       label: "Email",           hint: "Gmail IMAP/SMTP or any provider" },
-      { value: "line",        label: "LINE",            hint: "LINE Messaging API" },
-      { value: "signal",      label: "Signal",          hint: "Requires signal-cli daemon" },
-      { value: "teams",       label: "Microsoft Teams", hint: "Azure Bot Framework" },
-      { value: "googlechat",  label: "Google Chat",     hint: "Service account" },
-      { value: "matrix",      label: "Matrix",          hint: "Element / matrix.org" },
-      { value: "mattermost",  label: "Mattermost",      hint: "Self-hosted or cloud" },
-      { value: "twitch",      label: "Twitch",          hint: "Chat commands with !ask prefix" },
-      { value: "irc",         label: "IRC",             hint: "Any IRC network (Libera, Freenode, ...)" },
-      { value: "imessage",    label: "iMessage",        hint: "macOS only — AppleScript polling" },
-      { value: "feishu",      label: "Feishu / Lark",   hint: "Bytedance enterprise messaging" },
-      { value: "zalo",        label: "Zalo",            hint: "Vietnam — 75M+ users" },
-      { value: "nextcloud",   label: "Nextcloud Talk",  hint: "Self-hosted collaboration" },
-      { value: "bluebubbles", label: "BlueBubbles",     hint: "iMessage relay server on a Mac" },
-      { value: "nostr",       label: "Nostr",           hint: "Decentralized protocol — NIP-04 DMs" },
-    ],
+    options: CHANNEL_DEFS.map(ch => ({
+      value: ch.name,
+      label: ch.label,
+      hint: ch.desc,
+    })),
     required: false,
   }));
 
-  // ── Per-channel credential collection ─────────────────────────────────────
+  // ── Per-channel credential collection (generic loop over CHANNEL_DEFS) ────
 
-  if (channels.includes("telegram")) {
-    p.note(
-      [
-        "1. Open Telegram → search @BotFather",
-        "2. Send /newbot, follow the prompts",
-        "3. Copy the bot token  (format: 123456789:ABCdef...)",
-        "",
-        "Optional later — add to .env:",
-        "  TELEGRAM_ALLOWLIST=123456,987654   (comma-separated chat IDs)",
-        "  TELEGRAM_MODEL=anthropic:claude-sonnet-4-6",
-      ].join("\n"),
-      "Telegram Setup"
-    );
-    const token = guard(await p.password({ message: "Telegram bot token" }));
-    if (token) envConfig.TELEGRAM_BOT_TOKEN = token;
-  }
+  for (const ch of CHANNEL_DEFS) {
+    if (!channels.includes(ch.name)) continue;
 
-  if (channels.includes("whatsapp")) {
-    p.note(
-      [
-        "1. Sign up at https://console.twilio.com",
-        "2. Copy Account SID + Auth Token from the dashboard",
-        "3. Messaging › Try it out › WhatsApp → join sandbox",
-        "4. Sandbox number is pre-filled below (change if you have a dedicated number)",
-        "",
-        "Optional: WHATSAPP_ALLOWLIST=+1234567890,+9876543210",
-      ].join("\n"),
-      "WhatsApp / Twilio Setup"
-    );
-    envConfig.TWILIO_ACCOUNT_SID    = guard(await p.password({ message: "Twilio Account SID" }));
-    envConfig.TWILIO_AUTH_TOKEN     = guard(await p.password({ message: "Twilio Auth Token" }));
-    envConfig.TWILIO_WHATSAPP_FROM  = guard(await p.text({ message: "WhatsApp From number", initialValue: "whatsapp:+14155238886" }));
-
-    const enableVoice = guard(await p.confirm({
-      message: "Enable voice calls? (needs a voice-capable Twilio number + public URL)",
-      initialValue: false,
-    }));
-    if (enableVoice) {
-      envConfig.TWILIO_PHONE_FROM       = guard(await p.text({ message: "Twilio voice-capable phone number (e.g. +1234567890)" }));
-      envConfig.VOICE_WEBHOOK_BASE_URL  = guard(await p.text({ message: "Public URL for voice webhooks (e.g. https://abc123.ngrok.io)" }));
-    }
-  }
-
-  if (channels.includes("discord")) {
-    p.note(
-      [
-        "1. Go to https://discord.com/developers/applications",
-        "2. New Application → Bot → Add Bot → Reset Token → copy token",
-        "3. Enable 'Message Content Intent' under Privileged Gateway Intents",
-        "4. OAuth2 › URL Generator → bot scope → Send Messages, Read Message History",
-        "5. Invite bot to your server with the generated URL",
-        "",
-        "Optional: DISCORD_ALLOWLIST=123456789,987654321  (Discord user snowflake IDs)",
-      ].join("\n"),
-      "Discord Bot Setup"
-    );
-    const token = guard(await p.password({ message: "Discord bot token" }));
-    if (token) envConfig.DISCORD_BOT_TOKEN = token;
-  }
-
-  if (channels.includes("slack")) {
-    p.note(
-      [
-        "1. Go to https://api.slack.com/apps → Create New App → From scratch",
-        "2. Socket Mode → Enable → create App-Level Token (xapp-...) → copy as App Token",
-        "3. OAuth & Permissions → Bot Token Scopes: chat:write, im:history, app_mentions:read",
-        "4. Install to workspace → copy Bot Token (xoxb-...)",
-        "",
-        "Optional: SLACK_ALLOWLIST=U01234567,U09876543  (Slack user IDs)",
-      ].join("\n"),
-      "Slack Setup"
-    );
-    envConfig.SLACK_BOT_TOKEN = guard(await p.password({ message: "Slack Bot Token (xoxb-...)" }));
-    envConfig.SLACK_APP_TOKEN = guard(await p.password({ message: "Slack App Token (xapp-...)" }));
-  }
-
-  if (channels.includes("email")) {
-    const emailMethod = guard(await p.select({
-      message: "Email sending method",
-      options: [
-        { value: "resend", label: "Resend (easiest)",       hint: "Just an API key, no SMTP config" },
-        { value: "gmail",  label: "Gmail IMAP/SMTP",        hint: "Full inbox read + send via Gmail app password" },
-        { value: "both",   label: "Both (Resend + Gmail)",  hint: "Resend for sending, Gmail for reading inbox" },
-      ],
-    }));
-
-    if (emailMethod === "resend" || emailMethod === "both") {
-      p.note(
-        [
-          "1. Sign up free at https://resend.com",
-          "2. API Keys → Create API Key",
-          "3. Domains → add your sending domain (or use shared domain for testing)",
-        ].join("\n"),
-        "Resend Setup"
-      );
-      envConfig.RESEND_API_KEY = guard(await p.password({ message: "Resend API key (re_...)" }));
-      envConfig.RESEND_FROM   = guard(await p.text({ message: "From address", placeholder: "you@yourdomain.com" }));
+    // Platform check (e.g. iMessage = macOS only)
+    if (ch.platformCheck && process.platform !== ch.platformCheck) {
+      p.log.warn(`${ch.label} requires ${ch.platformCheck}. Skipping.`);
+      continue;
     }
 
-    if (emailMethod === "gmail" || emailMethod === "both") {
-      p.note(
-        [
-          "Gmail setup:",
-          "1. Google Account › Security › 2-Step Verification → enable",
-          "2. Google Account › Security › App Passwords → Mail → create",
-          "3. Use the 16-char app password below (NOT your Gmail password)",
-          "",
-          "For other providers: change IMAP/SMTP hosts below.",
-        ].join("\n"),
-        "Gmail IMAP/SMTP Setup"
-      );
-      envConfig.EMAIL_USER      = guard(await p.text({ message: "Email address" }));
-      envConfig.EMAIL_PASSWORD  = guard(await p.password({ message: "App password" }));
-      envConfig.EMAIL_IMAP_HOST = guard(await p.text({ message: "IMAP host", initialValue: "imap.gmail.com" }));
-      envConfig.EMAIL_SMTP_HOST = guard(await p.text({ message: "SMTP host", initialValue: "smtp.gmail.com" }));
+    // Show setup instructions
+    p.note(ch.setup.join("\n"), `${ch.label} Setup`);
+
+    // Prompt for each env var
+    for (const prompt of (ch.prompts || [])) {
+      const opts = { message: prompt.label };
+      if (prompt.initialValue) opts.initialValue = prompt.initialValue;
+      if (prompt.placeholder) opts.placeholder = prompt.placeholder;
+
+      const val = guard(prompt.type === "password" ? await p.password(opts) : await p.text(opts));
+      if (val) envConfig[prompt.key] = val;
     }
 
-    p.log.info("Optional: EMAIL_ALLOWLIST=alice@example.com,bob@example.com");
-  }
-
-  if (channels.includes("line")) {
-    p.note(
-      [
-        "1. Go to https://developers.line.biz → Create a Provider",
-        "2. Create a Messaging API channel",
-        "3. Basic settings → Channel Secret",
-        "4. Messaging API → Channel Access Token (long-lived) → Issue",
-        "5. Set webhook URL to: https://your-server/webhooks/line",
-      ].join("\n"),
-      "LINE Setup"
-    );
-    envConfig.LINE_CHANNEL_ACCESS_TOKEN = guard(await p.password({ message: "LINE Channel Access Token" }));
-    envConfig.LINE_CHANNEL_SECRET       = guard(await p.password({ message: "LINE Channel Secret" }));
-  }
-
-  if (channels.includes("signal")) {
-    p.note(
-      [
-        "Requires signal-cli running as a REST daemon:",
-        "  npm install -g signal-cli  (or download from GitHub)",
-        "  signal-cli -u +1234567890 register",
-        "  signal-cli -u +1234567890 verify <code>",
-        "  signal-cli -u +1234567890 daemon --http 127.0.0.1:8080",
-        "",
-        "Optional: SIGNAL_ALLOWLIST=+1234567890,+0987654321",
-      ].join("\n"),
-      "Signal Setup"
-    );
-    envConfig.SIGNAL_CLI_URL     = guard(await p.text({ message: "signal-cli REST URL", initialValue: "http://127.0.0.1:8080" }));
-    envConfig.SIGNAL_PHONE_NUMBER = guard(await p.text({ message: "Your Signal phone number (+1234567890)" }));
-  }
-
-  if (channels.includes("teams")) {
-    p.note(
-      [
-        "1. Go to https://portal.azure.com → Create an Azure Bot",
-        "2. Configuration → set messaging endpoint: https://your-server/webhooks/teams",
-        "3. Copy App ID from Configuration",
-        "4. Manage Password → New client secret → copy value",
-        "5. Channels → Add Microsoft Teams",
-      ].join("\n"),
-      "Microsoft Teams Setup"
-    );
-    envConfig.TEAMS_APP_ID       = guard(await p.text({ message: "Teams App ID (UUID)" }));
-    envConfig.TEAMS_APP_PASSWORD = guard(await p.password({ message: "Teams App Password (client secret)" }));
-  }
-
-  if (channels.includes("googlechat")) {
-    p.note(
-      [
-        "1. Google Cloud Console → Enable 'Google Chat API'",
-        "2. IAM → Service Accounts → Create → download JSON key",
-        "3. Chat API → Configuration → Bot URL: https://your-server/webhooks/googlechat",
-        "4. Paste the ENTIRE JSON key file contents as one line below",
-      ].join("\n"),
-      "Google Chat Setup"
-    );
-    envConfig.GOOGLE_CHAT_SERVICE_ACCOUNT = guard(await p.text({ message: "Service account JSON (one line)" }));
-    envConfig.GOOGLE_CHAT_PROJECT_NUMBER  = guard(await p.text({ message: "Google Cloud project number" }));
-  }
-
-  if (channels.includes("matrix")) {
-    p.note(
-      [
-        "1. Create a bot account on matrix.org or your homeserver",
-        "2. Get access token:  POST /_matrix/client/v3/login",
-        "   Body: {\"type\":\"m.login.password\",\"user\":\"@bot:matrix.org\",\"password\":\"...\"}",
-        "3. Copy 'access_token' from the response",
-      ].join("\n"),
-      "Matrix Setup"
-    );
-    envConfig.MATRIX_HOMESERVER_URL = guard(await p.text({ message: "Homeserver URL", initialValue: "https://matrix.org" }));
-    envConfig.MATRIX_ACCESS_TOKEN   = guard(await p.password({ message: "Bot access token" }));
-    envConfig.MATRIX_BOT_USER_ID    = guard(await p.text({ message: "Bot user ID (e.g. @daemora:matrix.org)" }));
-  }
-
-  if (channels.includes("mattermost")) {
-    p.note(
-      [
-        "1. System Console → Integrations → Bot Accounts → Enable",
-        "2. Integrations → Bot Accounts → Add Bot Account",
-        "3. Copy the bot token shown after creation",
-        "4. Find bot user ID: GET /api/v4/users/me  (Authorization: Bearer <token>)",
-      ].join("\n"),
-      "Mattermost Setup"
-    );
-    envConfig.MATTERMOST_URL         = guard(await p.text({ message: "Mattermost URL", placeholder: "https://your-mattermost.example.com" }));
-    envConfig.MATTERMOST_TOKEN       = guard(await p.password({ message: "Bot token" }));
-    envConfig.MATTERMOST_BOT_USER_ID = guard(await p.text({ message: "Bot user ID (optional)", initialValue: "" }));
-  }
-
-  if (channels.includes("twitch")) {
-    p.note(
-      [
-        "1. Create a Twitch account for your bot",
-        "2. Get OAuth token: https://twitchapps.com/tmi/",
-        "   (authorize with your BOT account, not your main account)",
-        "3. Copy the oauth:... token",
-        "",
-        "Users trigger the bot with: !ask <message>",
-        "Change prefix with: TWITCH_COMMAND_PREFIX=!ai",
-      ].join("\n"),
-      "Twitch Setup"
-    );
-    envConfig.TWITCH_BOT_USERNAME = guard(await p.text({ message: "Bot Twitch username" }));
-    envConfig.TWITCH_OAUTH_TOKEN  = guard(await p.password({ message: "OAuth token (oauth:...)" }));
-    envConfig.TWITCH_CHANNEL      = guard(await p.text({ message: "Channel to join (without #)" }));
-  }
-
-  if (channels.includes("irc")) {
-    p.note(
-      [
-        "Connects to any IRC network. No external packages — uses raw TCP.",
-        "Popular networks: irc.libera.chat  irc.freenode.net  irc.oftc.net",
-        "",
-        "Optional: IRC_PASSWORD=<nickserv-password>",
-      ].join("\n"),
-      "IRC Setup"
-    );
-    envConfig.IRC_SERVER  = guard(await p.text({ message: "IRC server", initialValue: "irc.libera.chat" }));
-    envConfig.IRC_PORT    = guard(await p.text({ message: "IRC port", initialValue: "6667" }));
-    envConfig.IRC_NICK    = guard(await p.text({ message: "Bot nick", initialValue: "daemora-bot" }));
-    envConfig.IRC_CHANNEL = guard(await p.text({ message: "Channel to join (e.g. #mychannel)" }));
-    const ircPass = guard(await p.password({ message: "NickServ password (optional, leave blank)" }));
-    if (ircPass) envConfig.IRC_PASSWORD = ircPass;
-  }
-
-  if (channels.includes("imessage")) {
-    if (process.platform !== "darwin") {
-      p.log.warn("iMessage requires macOS. Skipping.");
-    } else {
-      p.note(
-        [
-          "Polls iMessages via AppleScript — macOS only.",
-          "Requires: Messages app open + Accessibility permissions granted to Terminal",
-          "",
-          "System Preferences › Privacy & Security › Accessibility → allow Terminal",
-          "",
-          "Optional: IMESSAGE_ALLOWLIST=+1234567890,user@icloud.com",
-        ].join("\n"),
-        "iMessage Setup"
-      );
-      envConfig.IMESSAGE_ENABLED          = "true";
-      envConfig.IMESSAGE_POLL_INTERVAL_MS = "5000";
+    // Handle subFlows (optional feature toggles like WhatsApp voice)
+    if (ch.subFlows) {
+      for (const flow of ch.subFlows) {
+        const enable = guard(await p.confirm({ message: flow.confirm, initialValue: false }));
+        if (enable) {
+          for (const prompt of flow.prompts) {
+            const opts = { message: prompt.label };
+            if (prompt.initialValue) opts.initialValue = prompt.initialValue;
+            if (prompt.placeholder) opts.placeholder = prompt.placeholder;
+            const val = guard(prompt.type === "password" ? await p.password(opts) : await p.text(opts));
+            if (val) envConfig[prompt.key] = val;
+          }
+        }
+      }
     }
-  }
-
-  if (channels.includes("feishu")) {
-    p.note(
-      [
-        "1. Go to https://open.feishu.cn/app → Create App",
-        "2. Credentials & Basic Info → copy App ID and App Secret",
-        "3. Add capability: Bot",
-        "4. Event Subscriptions → set webhook: https://your-server/channels/feishu",
-        "5. Add events: im.message.receive_v1",
-      ].join("\n"),
-      "Feishu / Lark Setup"
-    );
-    envConfig.FEISHU_APP_ID            = guard(await p.text({ message: "Feishu App ID" }));
-    envConfig.FEISHU_APP_SECRET        = guard(await p.password({ message: "Feishu App Secret" }));
-    envConfig.FEISHU_VERIFICATION_TOKEN = guard(await p.password({ message: "Verification token (optional)", }));
-  }
-
-  if (channels.includes("zalo")) {
-    p.note(
-      [
-        "1. Register Official Account at https://oa.zalo.me",
-        "2. Create app at https://developers.zalo.me → API Tools",
-        "3. Copy App ID and App Secret",
-        "4. Get access token via OAuth",
-        "5. Set webhook: https://your-server/channels/zalo",
-      ].join("\n"),
-      "Zalo Setup"
-    );
-    envConfig.ZALO_APP_ID      = guard(await p.text({ message: "Zalo App ID" }));
-    envConfig.ZALO_APP_SECRET  = guard(await p.password({ message: "Zalo App Secret" }));
-    envConfig.ZALO_ACCESS_TOKEN = guard(await p.password({ message: "Zalo Access Token" }));
-  }
-
-  if (channels.includes("nextcloud")) {
-    p.note(
-      [
-        "1. Log into Nextcloud → Profile icon → Settings → Security",
-        "2. Devices & Sessions → create App Password for the bot account",
-        "3. Find the room token in Talk URL: /call/<room-token>",
-      ].join("\n"),
-      "Nextcloud Talk Setup"
-    );
-    envConfig.NEXTCLOUD_URL          = guard(await p.text({ message: "Nextcloud URL", placeholder: "https://cloud.example.com" }));
-    envConfig.NEXTCLOUD_USER         = guard(await p.text({ message: "Bot username", initialValue: "daemora-bot" }));
-    envConfig.NEXTCLOUD_PASSWORD     = guard(await p.password({ message: "App password" }));
-    envConfig.NEXTCLOUD_ROOM_TOKEN   = guard(await p.text({ message: "Room token (from Talk URL)" }));
-  }
-
-  if (channels.includes("bluebubbles")) {
-    p.note(
-      [
-        "BlueBubbles is an iMessage relay server that runs on a Mac.",
-        "Download: https://bluebubbles.app",
-        "",
-        "1. Install BlueBubbles on a Mac that is signed into iMessage",
-        "2. Settings → Server → copy Server URL and Password",
-        "3. The URL is usually http://192.168.x.x:1234 on your LAN",
-      ].join("\n"),
-      "BlueBubbles Setup"
-    );
-    envConfig.BLUEBUBBLES_URL      = guard(await p.text({ message: "BlueBubbles server URL", placeholder: "http://192.168.1.100:1234" }));
-    envConfig.BLUEBUBBLES_PASSWORD = guard(await p.password({ message: "BlueBubbles server password" }));
-  }
-
-  if (channels.includes("nostr")) {
-    p.note(
-      [
-        "Nostr is a decentralized protocol. The bot receives NIP-04 encrypted DMs.",
-        "",
-        "Generate a private key:",
-        "  openssl rand -hex 32",
-        "",
-        "Default relays are pre-filled. Add/remove as needed.",
-        "Share your bot's npub (public key) so users can DM it.",
-      ].join("\n"),
-      "Nostr Setup"
-    );
-    envConfig.NOSTR_PRIVATE_KEY = guard(await p.password({ message: "Nostr private key (hex, 64 chars)" }));
-    const relaysRaw = guard(await p.text({
-      message: "Relay URLs (comma-separated)",
-      initialValue: "wss://relay.damus.io,wss://nos.lol,wss://relay.nostr.band",
-    }));
-    envConfig.NOSTR_RELAYS = relaysRaw;
   }
 
   const activeChannels = ["HTTP", ...channels.map((c) => {

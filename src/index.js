@@ -15,6 +15,7 @@ import supervisor from "./agents/Supervisor.js";
 import { getActiveSubAgentCount, listActiveAgents } from "./agents/SubAgentManager.js";
 import eventBus from "./core/EventBus.js";
 import channelRegistry from "./channels/index.js";
+import { CHANNEL_DEFS, isChannelConfigured } from "./channels/channelDefs.js";
 import skillLoader from "./skills/SkillLoader.js";
 import mcpManager from "./mcp/MCPManager.js";
 import auditLog from "./safety/AuditLog.js";
@@ -542,6 +543,25 @@ app.post("/webhooks/line", express.raw({ type: "application/json" }), async (req
 // --- Channels endpoint ---
 app.get("/api/channels", (req, res) => {
   res.json({ channels: channelRegistry.list() });
+});
+
+app.get("/api/channels/defs", (req, res) => {
+  const running = channelRegistry.list();
+  const runningMap = Object.fromEntries(running.map(ch => [ch.name, ch.running]));
+  res.json({
+    channels: CHANNEL_DEFS.map(ch => ({
+      name: ch.name,
+      label: ch.label,
+      desc: ch.desc,
+      tenantKey: ch.tenantKey,
+      envRequired: ch.envRequired,
+      envOptional: ch.envOptional,
+      setup: ch.setup,
+      prompts: ch.prompts,
+      configured: isChannelConfigured(ch),
+      running: !!runningMap[ch.name],
+    })),
+  });
 });
 
 // --- Skills endpoint ---
