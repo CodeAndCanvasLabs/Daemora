@@ -139,7 +139,7 @@ export async function runAgentLoop({
         const combined = userFollowUps.join("\n\n");
         messages.push({
           role: "user",
-          content: `[User follow-up while you are mid-task. Acknowledge via replyToUser(), fold in their input, keep working. Do not restart.]\n\n${combined}`,
+          content: `[User sent a follow-up message while you are working. Acknowledge it — use replyToUser() to send a brief acknowledgment or progress update, then incorporate their input into your current work. Do NOT stop or restart — continue working with the new information folded in.]\n\n${combined}`,
         });
       }
     }
