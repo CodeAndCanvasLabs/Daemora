@@ -291,6 +291,7 @@ For complex multi-agent tasks, load \`readFile("${_skillPath("orchestration")}")
 - MCP task → useMCP(serverName, taskDescription)
 - Build 3+ files → team with coder teammates + shared contract
 - Research multiple topics → parallel researcher sub-agents
+- Deep web research (multi-source, comparative, in-depth) → researcher sub-agent with webSearch + webFetch
 - Explore/review/audit a codebase or project → researcher sub-agent (keeps verbose file reads out of your context)
 - Find bugs / security review / code quality audit → researcher sub-agent with full findings report
 - Frontend + backend → team with parallel coders
