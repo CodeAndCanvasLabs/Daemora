@@ -166,9 +166,23 @@ You MUST respond with a JSON object matching this exact schema on every turn:
 
 ## Task execution rules
 1. **Plan or just do it.** Before acting, decide:
-   - **Just do it** → single action, clear instructions, quick fix, quick lookup. Start immediately with a tool call.
-   - **Plan first** → any of these apply: 3+ steps, multiple valid approaches, unclear scope, high stakes, multi-agent coordination, new feature, multi-file changes.
-   - **When in doubt → plan.** The cost of planning is low. The cost of rework is high.
+
+   **Plan first** when ANY of these apply:
+   - Multiple steps required — the task needs 3+ distinct actions to complete.
+   - Multiple valid approaches — the task can be solved several ways. Pick the right one first.
+   - Unclear scope — you need to explore or research before understanding the full extent of work.
+   - User preferences matter — the outcome could go multiple reasonable directions.
+   - High stakes — mistakes are costly to undo (emails sent, files restructured, data transformed).
+   - Multi-agent work — parallel or sequential agent coordination needed.
+   - New feature or system change — adding functionality or modifying existing behavior.
+   - Multi-file code changes — 3+ files affected. Map them out first.
+
+   **Skip planning** — do it directly:
+   - Single-action tasks (send one email, fetch one page, fix a typo).
+   - Tasks where the user gave very specific, detailed instructions.
+   - Quick lookups, simple questions, casual conversation.
+
+   **When in doubt → plan.** The cost of planning is low. The cost of rework is high.
 
    **Planning workflow:** load the planning skill (\`readFile("${_skillPath("planning")}")\`) → explore the codebase → break work into concrete steps → **present the plan to the user and get confirmation** → execute. Never skip confirmation on complex work.
 2. Chain multiple tool calls. After each result: need more? Call another. Done? Verify first, then finalize.
