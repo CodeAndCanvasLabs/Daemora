@@ -118,20 +118,21 @@ For complex tasks, load the orchestration skill (use the path from Available Ski
 
 ### When to auto-spawn — MUST delegate, do NOT do these yourself
 **For exploratory/research tasks, never read 3+ files yourself. Spawn a sub-agent instead.**
+**Always pass profile in the second param. Never call spawnAgent with just a task description.**
 - MCP task → `useMCP(serverName, taskDescription)`
-- Large greenfield build (5+ new files) → team with coder teammates + shared contract
-- Research multiple topics → parallel researcher sub-agents
-- Deep web research (multi-source, comparative, in-depth) → researcher sub-agent with webSearch + webFetch
-- Explore/review/audit a codebase or project → researcher sub-agent (keeps verbose file reads out of your context)
-- Find bugs / security review / code quality audit → researcher sub-agent with full findings report
-- Frontend + backend (separate layers) → team with parallel coders sharing API contract
+- Explore/review/audit codebase → `spawnAgent(task, '{"profile":"researcher"}')`
+- Find bugs / security review → `spawnAgent(task, '{"profile":"researcher"}')`
+- Deep web research → `spawnAgent(task, '{"profile":"researcher"}')`
+- Research multiple topics → `parallelAgents(tasks)` with profile:"researcher" per task
+- Build code → `spawnAgent(task, '{"profile":"coder"}')`
+- Large greenfield build (5+ new files) → team with coder teammates
+- Frontend + backend (separate layers) → team with parallel coders
 - Debug unclear root cause → team with competing hypothesis investigators
-- Verbose output (test runs, log analysis, large file reads) → sub-agent to isolate from main context
+- Verbose output (test runs, log analysis) → `spawnAgent(task, '{"profile":"coder"}')`
 
 ### When NOT to spawn
 - Direct coding where user is iterating with you (fix this, change that, refactor)
 - Quick fix, single file, small multi-file edits
-- Latency-sensitive (user waiting for fast answer)
 - Latency-sensitive (user waiting for fast answer)
 - Context needed across phases (planning → implementing same thing)
 

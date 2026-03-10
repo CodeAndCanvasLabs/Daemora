@@ -46,15 +46,16 @@ function _isToolConfigured(toolName) {
  * @param {object} [runtimeMeta] - Optional metadata for runtime line { model, agentId, thinkingLevel }
  */
 export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeMeta = {}) {
+  const availableTools = runtimeMeta.availableTools || null;  // tool names the agent actually has
   const sections = promptMode === "minimal"
     ? await Promise.all([
         renderSoul(),
         renderUserProfile(),
         renderResponseFormat(),
-        renderToolDocs(),
+        renderToolDocs(availableTools),
         renderMCPTools(),
         renderToolUsageRules(),
-        renderSkills(taskInput, 15),
+        renderSkills(taskInput, 30),
         renderMemory(),
         renderSubagentContext(runtimeMeta.taskDescription || taskInput),
       ])
@@ -62,7 +63,7 @@ export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeM
         renderSoul(),
         renderUserProfile(),
         renderResponseFormat(),
-        renderToolDocs(),
+        renderToolDocs(availableTools),
         renderMCPTools(),
         renderToolUsageRules(),
         renderSkills(taskInput),
@@ -288,22 +289,27 @@ For complex multi-agent tasks, load \`readFile("${_skillPath("orchestration")}")
 - manageAgents(action, paramsJson?) — List, kill, or steer agents. action: "list"|"kill"|"steer".
 
 ### Auto-spawn triggers — MUST delegate these, do NOT do them yourself
-- MCP task → useMCP(serverName, taskDescription)
-- Large greenfield build (5+ new files) → team with coder teammates + shared contract
-- Research multiple topics → parallel researcher sub-agents
-- Deep web research (multi-source, comparative, in-depth) → researcher sub-agent with webSearch + webFetch
-- Explore/review/audit a codebase or project → researcher sub-agent (keeps verbose file reads out of your context)
-- Find bugs / security review / code quality audit → researcher sub-agent with full findings report
+Always pass the second param with profile. Never call spawnAgent with just a task description.
+- MCP task → \`useMCP(serverName, taskDescription)\`
+- Explore/review/audit codebase → \`spawnAgent(task, '{"profile":"researcher"}')\`
+- Find bugs / security review → \`spawnAgent(task, '{"profile":"researcher"}')\`
+- Deep web research → \`spawnAgent(task, '{"profile":"researcher"}')\`
+- Research multiple topics → \`parallelAgents(tasks, '{"sharedContext":"..."}')\` with profile:"researcher" per task
+- Build code → \`spawnAgent(task, '{"profile":"coder"}')\`
+- Large greenfield build (5+ new files) → team with coder teammates
 - Frontend + backend (separate layers) → team with parallel coders
 - Debug unclear root cause → team with competing hypothesis investigators
-- Verbose output (test runs, log analysis, large file reads) → sub-agent to isolate from main context
+- Verbose output (test runs, log analysis, large file reads) → \`spawnAgent(task, '{"profile":"coder"}')\`
 
-### Profile selection
-- Code task → profile:"coder". Research → "researcher". Docs → "writer". Data → "analyst".
-- No profile → 27-tool safe default. Add extraTools when profile is almost right but needs one more.
+### Profiles
+- **coder** — file ops, shell, browser, screen, memory (16 tools)
+- **researcher** — file reads, web, search, write findings, memory (13 tools)
+- **writer** — file ops, web, docs, memory (9 tools)
+- **analyst** — file ops, web, shell, vision, docs, memory (12 tools)
+- No profile → 27-tool default. Add extraTools: \`{"profile":"researcher","extraTools":["executeCommand"]}\`
 
 ### Mandatory structured brief
-Every spawn/teammate instruction must include: TASK, CONTEXT, FILES, SPEC, CONSTRAINTS, OUTPUT.
+Every spawn/teammate task description must include: TASK, CONTEXT, FILES, SPEC, CONSTRAINTS, OUTPUT.
 
 ### useMCP(serverName, taskDescription)
 Delegate a task to a specialist agent for the named MCP server.
