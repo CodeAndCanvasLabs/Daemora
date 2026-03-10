@@ -54,7 +54,7 @@ export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeM
         renderToolDocs(),
         renderMCPTools(),
         renderToolUsageRules(),
-        renderSkills(taskInput, 10),
+        renderSkills(taskInput, 15),
         renderMemory(),
         renderSubagentContext(runtimeMeta.taskDescription || taskInput),
       ])
@@ -373,7 +373,7 @@ function renderToolUsageRules() {
 - If context is growing long, write key decisions to memory before they get compacted.`;
 }
 
-async function renderSkills(taskInput, limit = 20) {
+async function renderSkills(taskInput, limit = 30) {
   const totalCount = skillLoader.list().length;
   if (totalCount === 0) return "";
 
