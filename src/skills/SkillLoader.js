@@ -302,7 +302,7 @@ class SkillLoader {
           scored.sort((a, b) => b.score - a.score);
           const top = scored.slice(0, limit);
           if (top.length > 0) {
-            console.log(`[SkillLoader] Ranked top ${top.length}/${this.skills.size} skills (embedding)`);
+            console.log(`[SkillLoader] Ranked top ${top.length}/${this.skills.size} skills (embedding): [${top.map(s => s.skill.name).join(", ")}]`);
             return top.map((s) => toSummary(s.skill));
           }
         }
@@ -314,7 +314,7 @@ class SkillLoader {
         const matchedNames = new Set(keywordMatched.map((s) => s.name));
         const rest = [...this.skills.values()].filter((s) => !matchedNames.has(s.name));
         const combined = [...keywordMatched, ...rest].slice(0, limit);
-        console.log(`[SkillLoader] Ranked top ${combined.length}/${this.skills.size} skills (keyword)`);
+        console.log(`[SkillLoader] Ranked top ${combined.length}/${this.skills.size} skills (keyword): [${combined.map(s => s.name).join(", ")}]`);
         return combined.map(toSummary);
       }
     }

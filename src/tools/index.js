@@ -43,6 +43,8 @@ import { taskManager, taskManagerDescription } from "./taskManager.js";
 import { manageMCP, manageMCPDescription } from "./manageMCP.js";
 import { useMCP, useMCPDescription } from "./useMCP.js";
 import { makeVoiceCall, makeVoiceCallDescription } from "./makeVoiceCall.js";
+import { teamTask, teamTaskDescription } from "./teamTool.js";
+import { replyToUser, replyToUserDescription } from "./replyToUser.js";
 
 // ─── Phase 24 tools ────────────────────────────────────────────────────────────
 import { generateImage, generateImageDescription } from "./generateImage.js";
@@ -108,6 +110,7 @@ export const toolFunctions = {
   messageChannel,
   sendFile,
   replyWithFile,
+  replyToUser,
   transcribeAudio,
   textToSpeech,
   // Documents
@@ -138,6 +141,8 @@ export const toolFunctions = {
   useMCP,
   // Voice
   makeVoiceCall,
+  // Agent Teams
+  teamTask,
   // Phase 24: Image & document
   generateImage,
   readPDF,
@@ -183,6 +188,7 @@ export const toolDescriptions = [
   messageChannelDescription,
   sendFileDescription,
   replyWithFileDescription,
+  replyToUserDescription,
   transcribeAudioDescription,
   textToSpeechDescription,
   // Documents
@@ -213,6 +219,8 @@ export const toolDescriptions = [
   useMCPDescription,
   // Voice
   makeVoiceCallDescription,
+  // Agent Teams
+  teamTaskDescription,
   // Phase 24: Image & document
   generateImageDescription,
   readPDFDescription,
