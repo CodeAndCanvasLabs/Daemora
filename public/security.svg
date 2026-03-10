@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 560" font-family="'Segoe UI', system-ui, -apple-system, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="100%" stop-color="#161b22"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="560" fill="url(#bg)" rx="12"/>
+
+  <text x="400" y="36" text-anchor="middle" fill="#e6edf3" font-size="18" font-weight="700">12-Layer Security Architecture</text>
+
+  <!-- Layer rows -->
+  <g transform="translate(60, 52)">
+    <!-- Layer 1 -->
+    <rect x="0" y="0" width="680" height="36" rx="6" fill="#1a2332" stroke="#f85149" stroke-width="1.2"/>
+    <text x="12" y="23" fill="#f85149" font-size="11" font-weight="700">LAYER 1</text>
+    <text x="90" y="23" fill="#e6edf3" font-size="12" font-weight="600">Permission Tiers</text>
+    <text x="680" y="23" text-anchor="end" fill="#8b949e" font-size="11">minimal · standard · full</text>
+
+    <!-- Layer 2 -->
+    <rect x="0" y="40" width="680" height="36" rx="6" fill="#1a2332" stroke="#f0883e" stroke-width="1.2"/>
+    <text x="12" y="63" fill="#f0883e" font-size="11" font-weight="700">LAYER 2</text>
+    <text x="90" y="63" fill="#e6edf3" font-size="12" font-weight="600">Filesystem Sandbox</text>
+    <text x="680" y="63" text-anchor="end" fill="#8b949e" font-size="10">ALLOWED_PATHS · BLOCKED_PATHS · hardcoded blocks · per-tenant isolation</text>
+
+    <!-- Layer 3 -->
+    <rect x="0" y="80" width="680" height="36" rx="6" fill="#1a2332" stroke="#d29922" stroke-width="1.2"/>
+    <text x="12" y="103" fill="#d29922" font-size="11" font-weight="700">LAYER 3</text>
+    <text x="90" y="103" fill="#e6edf3" font-size="12" font-weight="600">Secret Vault</text>
+    <text x="680" y="103" text-anchor="end" fill="#8b949e" font-size="11">AES-256-GCM · scrypt key derivation · passphrase on start</text>
+
+    <!-- Layer 4 -->
+    <rect x="0" y="120" width="680" height="36" rx="6" fill="#1a2332" stroke="#3fb950" stroke-width="1.2"/>
+    <text x="12" y="143" fill="#3fb950" font-size="11" font-weight="700">LAYER 4</text>
+    <text x="90" y="143" fill="#e6edf3" font-size="12" font-weight="600">Channel Allowlists</text>
+    <text x="680" y="143" text-anchor="end" fill="#8b949e" font-size="11">per-channel user ID whitelist</text>
+
+    <!-- Layer 5 -->
+    <rect x="0" y="160" width="680" height="36" rx="6" fill="#1a2332" stroke="#58a6ff" stroke-width="1.2"/>
+    <text x="12" y="183" fill="#58a6ff" font-size="11" font-weight="700">LAYER 5</text>
+    <text x="90" y="183" fill="#e6edf3" font-size="12" font-weight="600">A2A Security</text>
+    <text x="680" y="183" text-anchor="end" fill="#8b949e" font-size="11">bearer token · agent allowlist · rate limiting</text>
+
+    <!-- Layer 6 -->
+    <rect x="0" y="200" width="680" height="36" rx="6" fill="#1a2332" stroke="#2f81f7" stroke-width="1.2"/>
+    <text x="12" y="223" fill="#2f81f7" font-size="11" font-weight="700">LAYER 6</text>
+    <text x="90" y="223" fill="#e6edf3" font-size="12" font-weight="600">Audit Trail</text>
+    <text x="680" y="223" text-anchor="end" fill="#8b949e" font-size="11">append-only JSONL · secrets redacted · tenantId tagged</text>
+
+    <!-- Layer 7 -->
+    <rect x="0" y="240" width="680" height="36" rx="6" fill="#1a2332" stroke="#8957e5" stroke-width="1.2"/>
+    <text x="12" y="263" fill="#8957e5" font-size="11" font-weight="700">LAYER 7</text>
+    <text x="90" y="263" fill="#e6edf3" font-size="12" font-weight="600">Supervisor Agent</text>
+    <text x="680" y="263" text-anchor="end" fill="#8b949e" font-size="11">runaway loop detection · cost overruns · dangerous patterns</text>
+
+    <!-- Layer 8 -->
+    <rect x="0" y="280" width="680" height="36" rx="6" fill="#1a2332" stroke="#d2a8ff" stroke-width="1.2"/>
+    <text x="12" y="303" fill="#d2a8ff" font-size="11" font-weight="700">LAYER 8</text>
+    <text x="90" y="303" fill="#e6edf3" font-size="12" font-weight="600">Input Sanitisation</text>
+    <text x="680" y="303" text-anchor="end" fill="#8b949e" font-size="11">untrusted-input wrapping · prompt injection detection</text>
+
+    <!-- Layer 9 -->
+    <rect x="0" y="320" width="680" height="36" rx="6" fill="#1a2332" stroke="#3fb950" stroke-width="1.2"/>
+    <text x="12" y="343" fill="#3fb950" font-size="11" font-weight="700">LAYER 9</text>
+    <text x="90" y="343" fill="#e6edf3" font-size="12" font-weight="600">Multi-Tenant Isolation</text>
+    <text x="680" y="343" text-anchor="end" fill="#8b949e" font-size="11">AsyncLocalStorage · no cross-tenant data leakage</text>
+
+    <!-- Layer 10 -->
+    <rect x="0" y="360" width="680" height="36" rx="6" fill="#1a2332" stroke="#58a6ff" stroke-width="1.2"/>
+    <text x="12" y="383" fill="#58a6ff" font-size="11" font-weight="700">LAYER 10</text>
+    <text x="95" y="383" fill="#e6edf3" font-size="12" font-weight="600">Security Audit CLI</text>
+    <text x="680" y="383" text-anchor="end" fill="#8b949e" font-size="11">daemora doctor · 8 checks · scored output</text>
+
+    <!-- Layer 11 -->
+    <rect x="0" y="400" width="680" height="36" rx="6" fill="#1a2332" stroke="#f0883e" stroke-width="1.2"/>
+    <text x="12" y="423" fill="#f0883e" font-size="11" font-weight="700">LAYER 11</text>
+    <text x="95" y="423" fill="#e6edf3" font-size="12" font-weight="600">Command Guard</text>
+    <text x="680" y="423" text-anchor="end" fill="#8b949e" font-size="11">blocks env dumps · .env reads · credential exfil · CLI escalation</text>
+
+    <!-- Layer 12 -->
+    <rect x="0" y="440" width="680" height="36" rx="6" fill="#1a2332" stroke="#f85149" stroke-width="1.2"/>
+    <text x="12" y="463" fill="#f85149" font-size="11" font-weight="700">LAYER 12</text>
+    <text x="95" y="463" fill="#e6edf3" font-size="12" font-weight="600">Tool Filesystem Guard</text>
+    <text x="680" y="463" text-anchor="end" fill="#8b949e" font-size="11">all 18 file-touching tools enforce checkRead/checkWrite</text>
+  </g>
+</svg>
