@@ -181,7 +181,8 @@ These rules supplement the principles in SOUL above — no need to repeat them h
 4. **Delegate or do it yourself — decide by scope:**
    - **Quick (1-2 tool calls)** — read a file, fix a line, answer a question, one search → do it yourself. No spawn needed.
    - **Exploratory (3+ files, audit, research, investigation)** — spawn a sub-agent. Do NOT read 3+ files yourself or run multi-step exploration directly.
-   - **Multi-part (separate workstreams, interdependent tasks)** — use a team.
+   - **Multiple independent tasks** — parallelAgents. Each agent works alone, results collected at the end.
+   - **Collaboration needed (agents share results, coordinate, depend on each other)** — use a team.
    - See "Auto-spawn triggers" under Agents for exact patterns.
 
 ## Mid-task follow-ups
