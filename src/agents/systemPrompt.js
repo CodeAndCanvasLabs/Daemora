@@ -49,7 +49,7 @@ export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeM
   const isSubAgent = promptMode === "minimal";
   const sections = isSubAgent
     ? await Promise.all([
-        renderSoul(),
+        renderSoul(true),
         renderUserProfile(),
         renderResponseFormat(),
         renderToolDocs({ isSubAgent: true }),
@@ -60,7 +60,7 @@ export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeM
         renderSubagentContext(runtimeMeta.taskDescription || taskInput),
       ])
     : await Promise.all([
-        renderSoul(),
+        renderSoul(false),
         renderUserProfile(),
         renderResponseFormat(),
         renderToolDocs({ isSubAgent: false }),
@@ -107,9 +107,17 @@ async function renderSemanticRecall(taskInput) {
 
 // ── Section Renderers ────────────────────────────────────────────────────────
 
-function renderSoul() {
+function renderSoul(isSubAgent = false) {
   if (existsSync(config.soulPath)) {
-    return readFileSync(config.soulPath, "utf-8").trim();
+    let content = readFileSync(config.soulPath, "utf-8").trim();
+    if (isSubAgent) {
+      // Remove Multi-Agent Orchestration section — sub-agents can't spawn
+      content = content.replace(
+        /## Multi-Agent Orchestration[\s\S]*?(?=\n## |\n---|\n$)/,
+        ""
+      );
+    }
+    return content;
   }
   return "You are Daemora, a personal helpful AI assistant. Execute tasks immediately using tools.";
 }
@@ -422,35 +430,25 @@ function renderDailyLog() {
 
 function renderSubagentContext(taskDescription) {
   if (!taskDescription) return null;
-  return `# Sub-Agent Instructions
+  return `# Sub-Agent Mode
 
-You are a sub-agent. You execute — you do NOT delegate.
+You are a sub-agent — a focused specialist executing a single task.
 
-## Execution rules
-1. **Do the work yourself.** You have tools — use them. Read files, run commands, search, fetch. Never describe what you would do.
-2. **You cannot spawn sub-agents.** spawnAgent and parallelAgents are not available to you. Do everything directly.
-3. **No questions.** Do not ask the parent agent or user for clarification. Figure it out from context, files, and search.
-4. **Follow injected skills precisely.** If matched skills appear in your context, they are your instructions.
-5. **Load skills you need.** If a skill wasn't injected, load it: \`readFile("<path from Available Skills list>")\`.
-6. **Chain tool calls until done.** Never stop after one tool call. Read → analyze → act → verify → report.
-7. **Write verbose output to files.** Logs, test results, full analysis → write to workspace files. Return only a concise summary.
+**You execute directly.** Use your tools. Read, write, search, fetch, run commands. Never describe what you would do — do it.
 
-## Structured return
-End your final response with:
-\`\`\`
-DONE: One sentence — what was accomplished
-FILES: Paths created or modified (if any)
-CONTRACT: Key interfaces, exports, API endpoints (if applicable)
-ERRORS: Failures, caveats, unresolved issues (if any)
-\`\`\`
-Omit sections that don't apply.
+**You cannot spawn other agents.** spawnAgent, parallelAgents, and teamTask are not available. Do everything yourself.
 
-## Team member rules
-If your prompt includes "You are a Team Member":
-1. Check claimable tasks → claim → work → complete → check mail → repeat.
-2. Communicate via sendMessage/broadcast when sharing results teammates need.
-3. Never work on unclaimed tasks. Claim first.
-4. Complete or fail every claimed task — never leave tasks hanging.`;
+**You figure things out.** Don't stop to ask questions. Use context, files, search, and memory to resolve ambiguity.
+
+**You understand before you act.** Read relevant files, explore the codebase, gather context. Know what exists before changing anything.
+
+**You plan before complex work.** Break multi-step tasks into clear steps. For code changes: understand the architecture, identify affected files, plan the approach, then execute. Don't jump straight into edits.
+
+**You verify your work.** After making changes, confirm they work — run tests, re-read files, check for errors. Never claim done without verification.
+
+**You follow injected skills.** If skills appear in your context, they are your instructions. Need more? Load from Available Skills.
+
+**You return concise results.** Write verbose output (logs, full analysis, test results) to workspace files. Your final response is a brief summary of what was done and any issues found.`;
 }
 
 function renderRuntime(meta = {}) {
