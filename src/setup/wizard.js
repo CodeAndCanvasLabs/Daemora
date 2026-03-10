@@ -160,6 +160,36 @@ export async function runSetupWizard() {
 
   p.log.success(`Provider: ${t.bold(provider)}  Model: ${t.bold(envConfig.DEFAULT_MODEL)}`);
 
+  // ── Sub-Agent Model (optional) ──
+  const wantSubModel = guard(await p.confirm({
+    message: "Use a different (cheaper/faster) model for sub-agents?",
+    initialValue: true,
+  }));
+
+  if (wantSubModel) {
+    // Only show models from the selected provider
+    const subModelOptions = Object.entries(modelRegistry)
+      .filter(([id, m]) => m.provider === provider && id !== envConfig.DEFAULT_MODEL)
+      .map(([id, m]) => {
+        const ctx = m.contextWindow >= 1_000_000
+          ? `${(m.contextWindow / 1_000_000).toFixed(0)}M ctx`
+          : `${(m.contextWindow / 1_000).toFixed(0)}K ctx`;
+        const price = m.costPer1kInput > 0 ? `$${m.costPer1kInput}/1k in` : "free";
+        return { value: id, label: m.model, hint: `${ctx} · ${m.tier} · ${price}` };
+      })
+      .sort((a, b) => (modelRegistry[a.value]?.costPer1kInput || 0) - (modelRegistry[b.value]?.costPer1kInput || 0));
+
+    if (subModelOptions.length > 0) {
+      envConfig.SUB_AGENT_MODEL = guard(await p.select({
+        message: "Sub-agent model (used for spawned agents, MCP specialists, team members)",
+        options: subModelOptions,
+      }));
+      p.log.success(`Sub-agent model: ${t.bold(envConfig.SUB_AGENT_MODEL)}`);
+    } else {
+      p.log.info(`No other ${provider} models available. Sub-agents will use the main model.`);
+    }
+  }
+
   // ━━━ Step 2: Server ━━━
   stepHeader(2, TOTAL_STEPS, "Server Configuration");
 
@@ -993,6 +1023,7 @@ export async function runSetupWizard() {
   summaryTable("Configuration Summary", [
     ["Provider",    t.bold(provider)],
     ["Model",       t.bold(envConfig.DEFAULT_MODEL)],
+    ["Sub-agent",   envConfig.SUB_AGENT_MODEL ? t.bold(envConfig.SUB_AGENT_MODEL) : t.muted("Same as main")],
     ["Port",        t.bold(port)],
     ["Permissions", t.bold(envConfig.PERMISSION_TIER)],
     ["Budget",      `$${maxTask}/task, $${maxDaily}/day`],

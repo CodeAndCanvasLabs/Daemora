@@ -60,7 +60,7 @@ class Scheduler {
    * @param {string} [options.model] - Model to use
    * @param {string} [options.name] - Human-readable name
    */
-  create({ cronExpression, taskInput, channel, model, name }) {
+  create({ cronExpression, taskInput, channel, channelMeta, model, name }) {
     if (!cron.validate(cronExpression)) {
       throw new Error(`Invalid cron expression: ${cronExpression}`);
     }
@@ -72,6 +72,7 @@ class Scheduler {
       cronExpression,
       taskInput,
       channel: channel || "scheduler",
+      channelMeta: channelMeta || null,
       model: model || null,
       enabled: true,
       createdAt: new Date().toISOString(),
@@ -179,6 +180,7 @@ class Scheduler {
     taskQueue.enqueue({
       input: schedule.taskInput,
       channel: schedule.channel,
+      channelMeta: schedule.channelMeta || null,
       model: schedule.model,
       sessionId: null,
       priority: 3, // Scheduled tasks get slightly higher priority
