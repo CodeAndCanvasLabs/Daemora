@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-black" alt="platform" />
 </p>
 
-Daemora runs on your own machine. It connects to your messaging apps, accepts tasks in plain language, executes them autonomously with 51 built-in tools across 20 channels, and reports back - without you watching over it.
+Daemora runs on your own machine. It connects to your messaging apps, accepts tasks in plain language, executes them autonomously with 54 built-in tools across 20 channels, and reports back — without you watching over it.
 
 Unlike cloud AI assistants, nothing leaves your infrastructure except the tokens you intentionally send to model APIs. You own the data, the keys, and the security boundary.
 
@@ -28,199 +28,42 @@ Unlike cloud AI assistants, nothing leaves your infrastructure except the tokens
 | **Code** | Write, edit, run, test, and debug code across multiple files. Takes screenshots of UIs to verify output. Fixes failing tests. Ships working software. |
 | **Research** | Search the web, read pages, analyse images, cross-reference sources, write reports. Spawns parallel sub-agents for speed. |
 | **Automation** | Schedule recurring tasks via cron. Monitor repos, inboxes, or APIs. React to events. Runs while you sleep. |
-| **Communicate** | Send emails, Telegram messages, Slack posts, Discord messages - autonomously. Screenshots, files, and media sent directly back to you via `replyWithFile`. |
-| **Tools** | Connect to any MCP server - create Notion pages, open GitHub issues, update Linear tasks, manage Shopify products, query databases. |
-| **Multi-Agent** | Spawn parallel sub-agents (researcher + coder + writer working simultaneously). Each inherits the parent's model and API keys. Persistent sessions - specialists remember context across tasks. |
+| **Communicate** | Send emails, Telegram messages, Slack posts, Discord messages — autonomously. Screenshots, files, and media sent directly back to you via `replyWithFile`. |
+| **Tools** | Connect to any MCP server — create Notion pages, open GitHub issues, update Linear tasks, manage Shopify products, query databases. |
+| **Multi-Agent** | Spawn parallel sub-agents (researcher + coder + writer working simultaneously). Create agent teams with shared task lists, dependencies, and inter-agent messaging. |
 | **Multi-Tenant** | Run one instance for your whole team. Per-user memory, cost caps, tool allowlists, filesystem isolation, and encrypted API keys. |
 
 ---
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      INPUT CHANNELS (20)                        │
-│  Telegram · WhatsApp · Discord · Slack · Email · LINE ·         │
-│  Signal · Teams · Google Chat · Matrix · Mattermost · Twitch ·  │
-│  IRC · iMessage · Feishu · Zalo · Nextcloud · BlueBubbles ·     │
-│  Nostr · HTTP                                                   │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    MULTI-TENANT LAYER                           │
-│  TenantManager + TenantContext (AsyncLocalStorage)              │
-│  Per-user: model, tools, MCP servers, filesystem, cost caps,    │
-│  encrypted API keys, isolated memory, channel context           │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                       TASK QUEUE                                │
-│  Priority queue · Per-session serialisation                     │
-│  Steer/inject: follow-up messages injected into running loop    │
-│  Cost budget check · Tenant suspension check                    │
-│  Persistent sessions · Auto-cleanup (configurable retention)    │
-└───────────────────────────┬─────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      AGENT LOOP                                 │
-│  Vercel AI SDK (generateText + tool_use)                        │
-│  System prompt: SOUL.md + memory + daily log + task context     │
-│  Model: OpenAI · Anthropic · Google · Ollama (local)            │
-│  Context compaction when approaching model limits               │
-└──────────────┬─────────────────────────────────┬────────────────┘
-               │                                 │
-               ▼                                 ▼
-┌──────────────────────────┐      ┌──────────────────────────────┐
-│   BUILT-IN TOOLS (51)    │      │        SUB-AGENTS            │
-│  File I/O · Shell        │      │  spawnAgent · parallelAgents │
-│  Web · Browser           │      │  delegateToAgent             │
-│  Email · Messaging       │      │  Profiles: coder / researcher│
-│  Vision · TTS · PDF      │      │  / writer / analyst          │
-│  Memory · Documents      │      │  Persistent sessions (--sep) │
-│  Cron · Agents · MCP     │      │  Inherit model + API keys    │
-│  Git · SSH · Database    │      │  Max depth: 3  Max: 7 agents │
-│  Calendar · IoT          │      │  Task-type model routing     │
-└──────────────────────────┘      └──────────────┬───────────────┘
-                                                 │
-                                                 ▼
-                                  ┌──────────────────────────────┐
-                                  │       MCP SERVERS            │
-                                  │  Per-server specialist agent │
-                                  │  GitHub · Notion · Linear    │
-                                  │  Slack · Postgres · Puppeteer│
-                                  │  stdio / HTTP / SSE          │
-                                  └──────────────────────────────┘
-```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/CodeAndCanvasLabs/Daemora/main/public/architecture.svg" alt="Daemora Architecture" width="100%" />
+</p>
 
 ### Security Architecture (12 Layers)
 
-```
-  LAYER 1   Permission Tiers ────── minimal / standard / full
-  LAYER 2   Filesystem Sandbox ──── ALLOWED_PATHS · BLOCKED_PATHS · hardcoded blocks · per-tenant workspace isolation
-  LAYER 3   Secret Vault ─────────── AES-256-GCM · scrypt key derivation · passphrase on start
-  LAYER 4   Channel Allowlists ──── per-channel user ID whitelist
-  LAYER 5   A2A Security ─────────── bearer token · agent allowlist · rate limiting
-  LAYER 6   Audit Trail ──────────── append-only JSONL · secrets redacted · tenantId tagged
-  LAYER 7   Supervisor Agent ─────── runaway loop detection · cost overruns · dangerous patterns
-  LAYER 8   Input Sanitisation ──── untrusted-input wrapping · prompt injection detection
-  LAYER 9   Multi-Tenant Isolation ─ AsyncLocalStorage · no cross-tenant data leakage
-  LAYER 10  Security Audit CLI ──── daemora doctor · 8 checks · scored output
-  LAYER 11  Command Guard ─────────── blocks env dumps · .env reads · credential exfil · CLI privilege escalation
-  LAYER 12  Tool Filesystem Guard ── all 18 file-touching tools enforce checkRead/checkWrite
-```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/CodeAndCanvasLabs/Daemora/main/public/security.svg" alt="12-Layer Security Architecture" width="100%" />
+</p>
 
----
+### Task Lifecycle — Message to Response
 
-## Sequence Diagrams
+<p align="center">
+  <img src="https://raw.githubusercontent.com/CodeAndCanvasLabs/Daemora/main/public/task-lifecycle.svg" alt="Task Lifecycle" width="100%" />
+</p>
 
-### Task Lifecycle - from message to response
+### Multi-Agent — Parallel Sub-Agents + Teams
 
-```mermaid
-sequenceDiagram
-    actor User as User (Telegram)
-    participant Ch as Channel
-    participant TQ as TaskQueue
-    participant TC as TenantContext
-    participant AL as AgentLoop
-    participant T  as Tools
-    participant MC as MCP Server
+<p align="center">
+  <img src="https://raw.githubusercontent.com/CodeAndCanvasLabs/Daemora/main/public/multi-agent.svg" alt="Multi-Agent Architecture" width="100%" />
+</p>
 
-    User->>Ch: "Fix the auth bug and open a PR"
-    Ch->>TQ: enqueue(task, sessionId, channelMeta)
-    Ch-->>User: ⏳ reaction
+### Steer/Inject — Follow-up Mid-Task
 
-    TQ->>TC: run({ tenant, model, apiKeys, sessionId, channelMeta })
-    TC->>AL: runAgentLoop(systemPrompt, messages)
-
-    AL->>T: readFile("src/auth.js")
-    T-->>AL: file contents
-
-    AL->>T: editFile("src/auth.js", patch)
-    T-->>AL: success
-
-    AL->>T: executeCommand("npm test")
-    T-->>AL: all tests passing
-
-    AL->>MC: useMCP("github", "open a PR for this fix")
-    MC-->>AL: PR #42 created
-
-    AL-->>TC: "Fixed auth bug, opened PR #42"
-    TC-->>Ch: task complete
-    Ch->>User: "Fixed. PR #42 is open ✅"
-    Ch-->>User: ✅ reaction
-```
-
----
-
-### Multi-Agent - parallel sub-agents
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant AL as AgentLoop (Main)
-    participant SM as SubAgentManager
-    participant SS as Session Store
-    participant R  as Researcher Agent
-    participant W  as Writer Agent
-    participant C  as Coder Agent
-
-    User->>AL: "Research top 5 competitors, write a report, save it to docs/"
-
-    AL->>SM: parallelAgents([researcher × 5, writer])
-    SM->>SS: load persistent sessions (user123--researcher, user123--writer)
-
-    par Concurrent execution
-        SM->>R: spawn(profile=researcher, "Competitor A")
-        R->>R: webSearch + webFetch
-        R-->>AL: notes on Competitor A
-    and
-        SM->>R: spawn(profile=researcher, "Competitor B")
-        R->>R: webSearch + webFetch
-        R-->>AL: notes on Competitor B
-    and
-        SM->>W: spawn(profile=writer, "draft outline")
-        W->>W: structure + draft
-        W-->>AL: draft report
-    end
-
-    SM->>SS: save sub-agent sessions to disk
-
-    AL->>C: spawnAgent(profile=coder, "save report to docs/competitors.md")
-    C->>C: writeFile("docs/competitors.md")
-    C-->>AL: done
-
-    AL->>User: "Report saved → docs/competitors.md"
-```
-
----
-
-### Steer/Inject - follow-up message mid-task
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant TQ as TaskQueue
-    participant TR as TaskRunner
-    participant AL as AgentLoop
-
-    User->>TQ: "Fix the login bug"
-    TQ->>TR: dequeue task-1
-    TR->>AL: runAgentLoop(task-1)
-    Note over AL: tool call: readFile("auth.js") ...
-
-    User->>TQ: "Also fix the signup form while you're at it"
-    Note over TR: Session already active - inject, don't queue
-    TR->>AL: steerQueue.push(user message)
-    TR->>TQ: merge(task-2) - silent complete, no duplicate reply
-
-    Note over AL: drains steerQueue between tool calls
-    AL->>AL: both tasks now in context
-
-    AL-->>User: "Fixed login bug AND signup form validation ✅"
-```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/CodeAndCanvasLabs/Daemora/main/public/steer-inject.svg" alt="Steer/Inject Flow" width="100%" />
+</p>
 
 ---
 
@@ -290,21 +133,19 @@ MISTRAL_API_KEY=...
 DEFAULT_MODEL=openai:gpt-4.1-mini
 ```
 
-**7 providers, 10+ models:**
+**7 providers, 59+ models** — including:
 
-| Model ID | Description |
+| Provider | Models |
 |---|---|
-| `openai:gpt-4.1` | Most capable OpenAI model |
-| `openai:gpt-4.1-mini` | Fast and cheap - good default |
-| `openai:o3-mini` | Reasoning-optimised |
-| `anthropic:claude-opus-4-6` | Best for complex reasoning |
-| `anthropic:claude-sonnet-4-6` | Balanced - great for code |
-| `anthropic:claude-haiku-4-5` | Fastest Anthropic model |
-| `google:gemini-2.0-flash` | Fastest Google model |
-| `xai:grok-4` | xAI flagship |
-| `deepseek:deepseek-chat` | DeepSeek V3 |
-| `mistral:mistral-large-2512` | Mistral flagship |
-| `ollama:llama3` | Local - no API key needed |
+| **OpenAI** | `gpt-5.4`, `gpt-5.2`, `gpt-5.1`, `gpt-5`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `o4-mini`, `o3`, `o3-mini`, `o1`, `gpt-5.3-codex`, `gpt-5.1-codex` |
+| **Anthropic** | `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-sonnet-4-5`, `claude-haiku-4-5` |
+| **Google** | `gemini-3.1-pro-preview`, `gemini-3-pro-preview`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.0-flash` |
+| **xAI** | `grok-4`, `grok-3-beta`, `grok-3-mini-beta` |
+| **DeepSeek** | `deepseek-chat`, `deepseek-reasoner` |
+| **Mistral** | `mistral-large-latest`, `codestral-latest`, `mistral-small-latest` |
+| **Ollama** | `llama3`, `llama3.1`, `qwen2.5-coder` — local, no API key needed |
+
+Use format `provider:model-id` (e.g. `openai:gpt-5.2`, `anthropic:claude-sonnet-4-6`). Supports dynamic passthrough for any model ID your provider accepts.
 
 ### Task-Type Model Routing (optional)
 
@@ -312,12 +153,13 @@ Route different task types to the best model automatically:
 
 ```env
 CODE_MODEL=anthropic:claude-sonnet-4-6
-RESEARCH_MODEL=google:gemini-2.0-flash
+RESEARCH_MODEL=google:gemini-2.5-flash
 WRITER_MODEL=openai:gpt-4.1
 ANALYST_MODEL=openai:gpt-4.1
+SUB_AGENT_MODEL=openai:gpt-4.1-mini    # default model for all sub-agents
 ```
 
-When a sub-agent is spawned with `profile: "coder"`, it automatically uses `CODE_MODEL`. Sub-agents without an explicit model inherit from their parent.
+When a sub-agent is spawned with `profile: "coder"`, it automatically uses `CODE_MODEL`. Sub-agents without a profile route fall back to `SUB_AGENT_MODEL`, then the parent's model, then `DEFAULT_MODEL`.
 
 ### Channels (20)
 
@@ -417,7 +259,7 @@ daemora mcp remove github     # Remove permanently
 
 ## Built-in Tools
 
-51 tools the agent uses autonomously:
+54 tools the agent uses autonomously:
 
 | Category | Tools |
 |---|---|
@@ -426,19 +268,65 @@ daemora mcp remove github     # Remove permanently
 | **Shell** | executeCommand (foreground + background) |
 | **Web** | webFetch, webSearch, browserAction (navigate, click, fill, screenshot) |
 | **Vision** | imageAnalysis, screenCapture |
-| **Communication** | sendEmail, messageChannel, sendFile, replyWithFile, makeVoiceCall, transcribeAudio, textToSpeech |
+| **Communication** | sendEmail, messageChannel, sendFile, replyWithFile, replyToUser, makeVoiceCall, transcribeAudio, textToSpeech |
 | **Documents** | createDocument (Markdown, PDF, DOCX), readPDF |
 | **Memory** | readMemory, writeMemory, searchMemory, pruneMemory, readDailyLog, writeDailyLog, listMemoryCategories |
-| **Agents** | spawnAgent, parallelAgents, delegateToAgent, manageAgents |
+| **Agents** | spawnAgent, parallelAgents, delegateToAgent, manageAgents, teamTask |
 | **MCP** | useMCP, manageMCP |
 | **Scheduling** | cron (add, list, run, update, delete) |
-| **Tracking** | projectTracker |
+| **Tracking** | projectTracker, taskManager |
 | **Dev Tools** | gitTool (status, diff, commit, branch, log, stash), sshTool, database |
 | **Media** | generateImage (DALL-E / Stable Diffusion) |
 | **System** | clipboard, notification, calendar, contacts |
 | **IoT** | philipsHue, sonos |
 | **Apple** | iMessageTool (macOS only) |
 | **Location** | googlePlaces |
+
+---
+
+## Agent Teams
+
+Teams enable coordinated multi-agent collaboration with shared task lists, dependency tracking, and inter-agent messaging. Use teams when agents need to coordinate — use `parallelAgents` when they don't.
+
+### Team Lifecycle
+
+```
+createTeam("feature-sprint")
+  → addTeammate({ profile: "coder", instructions: "..." })
+  → addTeammate({ profile: "researcher" })
+  → addTeammate({ profile: "writer" })
+  → addTask({ title: "Research API options", ... })
+  → addTask({ title: "Implement chosen API", blockedBy: ["task-1"] })
+  → addTask({ title: "Write docs", blockedBy: ["task-2"] })
+  → spawnAll()
+  → teammates claim tasks, work, complete, message each other
+  → disbandTeam()
+```
+
+### Capabilities
+
+| Feature | Description |
+|---|---|
+| **Shared Task List** | `addTask` with `blockedBy` dependency tracking. Teammates `claim` → `complete` or `fail` tasks. |
+| **Inter-Agent Messaging** | `sendMessage(to, message)` for direct, `broadcast(message)` for all. Teammates read mail between tool calls. |
+| **Dependency Tracking** | Tasks with unmet `blockedBy` deps are not claimable. Automatically unblocked when deps complete. |
+| **Status Monitoring** | `getTeamStatus` returns full state — teammates, tasks, messages. |
+
+### When to Use
+
+| Scenario | Use |
+|---|---|
+| 5 independent web searches | `parallelAgents` — no coordination needed |
+| Research → implement → document pipeline | **Team** — tasks depend on each other |
+| Coder + reviewer need to discuss approach | **Team** — inter-agent messaging |
+| Translate a doc into 3 languages | `parallelAgents` — independent, no coordination |
+
+### Limits
+
+- Max 5 teams per tenant
+- Max 10 teammates per team
+- Max 7 concurrent sub-agents
+- Max nesting depth: 3
 
 ---
 
@@ -465,7 +353,7 @@ Always follow this order when deploying:
 6. Notify the user with the live URL
 ```
 
-**21 built-in skills** cover: coding, research, email, weather, Spotify, Obsidian, Apple Notes, Apple Reminders, Things, Trello, Tmux, PDF, image generation, video frames, health checks, GIF search, webcam capture, and more.
+**47 built-in skills** cover: coding, research, email, weather, Spotify, Obsidian, Apple Notes, Apple Reminders, Things, Trello, Tmux, PDF, image generation, video frames, health checks, GIF search, webcam capture, documents (PDF/DOCX/XLSX/PPTX), data analysis, DevOps, API development, browser automation, planning, orchestration, and more.
 
 ---
 
@@ -507,16 +395,16 @@ Per-tenant isolation:
 
 | Isolation | Mechanism |
 |---|---|
-| Memory | `data/tenants/{id}/MEMORY.md` - never shared across users |
+| Memory | `data/tenants/{id}/MEMORY.md` — never shared across users |
 | Sessions | Persistent per-user sessions + per-sub-agent sessions (`userId--coder`, `userId--researcher`) |
 | Filesystem | `allowedPaths` and `blockedPaths` scoped per user. `TENANT_ISOLATE_FILESYSTEM=true` → temp files in `data/tenants/{id}/workspace/` |
 | API keys | AES-256-GCM encrypted; passed through call stack, never via `process.env` |
 | Cost tracking | Per-tenant daily cost recorded in audit log |
 | MCP servers | `mcpServers` field restricts which servers a tenant can call |
 | Tools | `tools` allowlist limits which tools the agent can use for this user |
-| Channel context | `channelMeta` auto-carried in TenantContext - tools like `replyWithFile` send files back without LLM knowing channel details |
+| Channel context | `channelMeta` auto-carried in TenantContext — tools like `replyWithFile` send files back without LLM knowing channel details |
 
-All isolation runs via `AsyncLocalStorage` - concurrent tasks from different users cannot read each other's context.
+All isolation runs via `AsyncLocalStorage` — concurrent tasks from different users cannot read each other's context.
 
 ---
 
@@ -529,21 +417,21 @@ daemora doctor
 
 | Feature | Description |
 |---|---|
-| **Permission tiers** | `minimal` / `standard` / `full` - controls which tools the agent can call |
+| **Permission tiers** | `minimal` / `standard` / `full` — controls which tools the agent can call |
 | **Filesystem sandbox** | Directory scoping via `ALLOWED_PATHS`, hardcoded blocks for `.ssh`, `.env`, `.aws`. All 18 file-touching tools enforce FilesystemGuard |
 | **Tenant workspace isolation** | `TENANT_ISOLATE_FILESYSTEM=true` → each tenant's temp files go to `data/tenants/{id}/workspace/` |
 | **Command guard** | Blocks env dumps, `.env` reads, credential exfiltration, CLI privilege escalation (daemora/aegis commands) |
 | **Secret vault** | AES-256-GCM encrypted secrets, passphrase required on start |
-| **Channel allowlists** | Per-channel user ID whitelist - blocks unknown senders |
+| **Channel allowlists** | Per-channel user ID whitelist — blocks unknown senders |
 | **Secret scanning** | Redacts API keys and tokens from tool output before the model sees them |
 | **Dynamic redaction** | Per-tenant API keys are also redacted from all tool outputs |
 | **Supervisor agent** | Detects runaway loops, cost overruns, `rm -rf`, `curl | bash` patterns |
-| **Audit log** | Every tool call logged to `data/audit/` - append-only JSONL, secrets stripped |
+| **Audit log** | Every tool call logged to `data/audit/` — append-only JSONL, secrets stripped |
 | **Input sanitisation** | User messages wrapped in `<untrusted-input>` tags; prompt injection patterns flagged |
 | **A2A security** | Agent-to-agent protocol: bearer token, agent allowlist, rate limiting |
-| **Tenant isolation** | AsyncLocalStorage - no cross-tenant data leakage in concurrent requests |
-| **Per-tenant API key isolation** | Keys never touch `process.env` - passed through call stack only |
-| **Git rollback** | Snapshot before write operations - undo with `git stash pop` |
+| **Tenant isolation** | AsyncLocalStorage — no cross-tenant data leakage in concurrent requests |
+| **Per-tenant API key isolation** | Keys never touch `process.env` — passed through call stack only |
+| **Git rollback** | Snapshot before write operations — undo with `git stash pop` |
 
 ---
 
@@ -670,7 +558,7 @@ curl http://localhost:8081/tenants
 curl http://localhost:8081/mcp
 ```
 
-> POST /chat and POST /tasks (unauthenticated task submission) are disabled by default - use a channel (Telegram, Slack, etc.) instead.
+> POST /chat and POST /tasks (unauthenticated task submission) are disabled by default — use a channel (Telegram, Slack, etc.) instead.
 
 ---
 
@@ -701,16 +589,16 @@ Use nginx or Caddy as a reverse proxy for HTTPS if exposing the API port.
 
 | Layer | Technology |
 |---|---|
-| Runtime | Node.js 20+ - ES modules, no build step |
-| AI SDK | Vercel AI SDK (`ai`) - model-agnostic, 25+ providers |
+| Runtime | Node.js 20+ — ES modules, no build step |
+| AI SDK | Vercel AI SDK (`ai`) — model-agnostic, 25+ providers |
 | Models | OpenAI, Anthropic, Google Gemini, xAI, DeepSeek, Mistral, Ollama (local) |
 | Testing | Vitest (unit + integration), Playwright (E2E) |
-| MCP | `@modelcontextprotocol/sdk` - stdio, HTTP, SSE |
+| MCP | `@modelcontextprotocol/sdk` — stdio, HTTP, SSE |
 | Channels | grammy, twilio, discord.js, @slack/bolt, nodemailer/imap, botbuilder, google-auth-library |
 | Scheduling | node-cron |
-| Vault | Node.js `crypto` built-in - AES-256-GCM + scrypt, no binary deps |
-| Sandbox | Node.js tool-level path enforcement - no Docker required |
-| Storage | File-based (Markdown + JSON) - no database |
+| Vault | Node.js `crypto` built-in — AES-256-GCM + scrypt, no binary deps |
+| Sandbox | Node.js tool-level path enforcement — no Docker required |
+| Storage | File-based (Markdown + JSON) — no database |
 
 ---
 
@@ -721,16 +609,17 @@ Daemora was built in response to OpenClaw's security weaknesses. Key differences
 | Feature | Daemora | OpenClaw |
 |---|---|---|
 | Multi-tenant isolation | Full (AsyncLocalStorage) | None |
-| Per-tenant memory | Isolated per user | Shared - User A sees User B's memories |
+| Per-tenant memory | Isolated per user | Shared — User A sees User B's memories |
 | Per-tenant API keys | AES-256-GCM, call stack only | None |
 | Filesystem sandbox | Directory scoping + blocklist | None |
 | Secret vault | AES-256-GCM encrypted | Plaintext `.env` only |
 | Audit log | Full, per-tenant, secrets stripped | Partial |
 | Security audit | `daemora doctor` (8 checks, scored) | None |
+| Agent teams | Shared tasks, deps, messaging | None |
 | A2A protocol | Auth + allowlist + rate limiting | None |
 | Supervisor agent | Built-in | Manual |
 | Task-type model routing | CODE_MODEL / RESEARCH_MODEL / etc. | None |
-| Sub-agent model inheritance | Inherits parent model | Falls back to default |
+| Sub-agent model routing | SUB_AGENT_MODEL + profile routing + parent inheritance | Falls back to default |
 | Setup | `npm install -g daemora && daemora start` | Complex multi-step with Docker/WSL |
 | Codebase size | ~26k LOC, no build | 80k+ LOC, TypeScript build |
 
@@ -769,7 +658,7 @@ Contributions are welcome. Please open an issue before submitting large PRs.
 
 ## License
 
-**AGPL-3.0** - Daemora is open source. If you modify Daemora and distribute it, or run it as a network service, you must open-source your changes under AGPL-3.0.
+**AGPL-3.0** — Daemora is open source. If you modify Daemora and distribute it, or run it as a network service, you must open-source your changes under AGPL-3.0.
 
 See [LICENSE](LICENSE) for the full text.
 

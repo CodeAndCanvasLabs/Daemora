@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 340" font-family="'Segoe UI', system-ui, -apple-system, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="100%" stop-color="#161b22"/>
+    </linearGradient>
+    <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#58a6ff"/></marker>
+    <marker id="arrO" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#f0883e"/></marker>
+    <marker id="arrG" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#3fb950"/></marker>
+  </defs>
+
+  <rect width="780" height="340" fill="url(#bg)" rx="12"/>
+
+  <text x="390" y="34" text-anchor="middle" fill="#e6edf3" font-size="18" font-weight="700">Steer/Inject - Follow-up Mid-Task</text>
+
+  <!-- Timeline -->
+  <!-- Step 1: User sends task -->
+  <rect x="40" y="60" width="130" height="40" rx="8" fill="#1a2332" stroke="#58a6ff" stroke-width="1.5"/>
+  <text x="105" y="78" text-anchor="middle" fill="#58a6ff" font-size="11" font-weight="600">User</text>
+  <text x="105" y="92" text-anchor="middle" fill="#8b949e" font-size="9">"Fix login bug"</text>
+
+  <line x1="170" y1="80" x2="210" y2="80" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <rect x="212" y="60" width="110" height="40" rx="8" fill="#1a2332" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="267" y="84" text-anchor="middle" fill="#3fb950" font-size="11" font-weight="600">TaskQueue</text>
+
+  <line x1="322" y1="80" x2="362" y2="80" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arrG)"/>
+
+  <rect x="364" y="60" width="110" height="40" rx="8" fill="#1a2332" stroke="#f0883e" stroke-width="1.5"/>
+  <text x="419" y="84" text-anchor="middle" fill="#f0883e" font-size="11" font-weight="600">AgentLoop</text>
+
+  <line x1="474" y1="80" x2="510" y2="80" stroke="#f0883e" stroke-width="1.5" marker-end="url(#arrO)"/>
+
+  <!-- Working indicator -->
+  <rect x="512" y="56" width="200" height="48" rx="8" fill="#1a2332" stroke="#30363d" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="612" y="78" text-anchor="middle" fill="#8b949e" font-size="10">readFile("auth.js") ...</text>
+  <text x="612" y="94" text-anchor="middle" fill="#8b949e" font-size="10">editFile("auth.js", patch) ...</text>
+
+  <!-- Step 2: User sends follow-up -->
+  <rect x="40" y="130" width="200" height="40" rx="8" fill="#1a2332" stroke="#d2a8ff" stroke-width="1.5"/>
+  <text x="140" y="148" text-anchor="middle" fill="#d2a8ff" font-size="11" font-weight="600">User (while agent is working)</text>
+  <text x="140" y="162" text-anchor="middle" fill="#8b949e" font-size="9">"Also fix the signup form"</text>
+
+  <line x1="240" y1="150" x2="277" y2="150" stroke="#d2a8ff" stroke-width="1.5"/>
+  <defs><marker id="arrPu" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#d2a8ff"/></marker></defs>
+
+  <!-- Decision point -->
+  <rect x="280" y="130" width="160" height="40" rx="8" fill="#1a2332" stroke="#f0883e" stroke-width="1.5"/>
+  <text x="360" y="148" text-anchor="middle" fill="#f0883e" font-size="10" font-weight="600">Session active → inject</text>
+  <text x="360" y="162" text-anchor="middle" fill="#8b949e" font-size="9">don't queue separately</text>
+
+  <!-- Inject arrow -->
+  <line x1="440" y1="150" x2="480" y2="150" stroke="#f0883e" stroke-width="1.5" marker-end="url(#arrO)"/>
+
+  <!-- steerQueue -->
+  <rect x="482" y="130" width="130" height="40" rx="8" fill="#1a2332" stroke="#f0883e" stroke-width="1.5"/>
+  <text x="547" y="154" text-anchor="middle" fill="#f0883e" font-size="11" font-weight="600">steerQueue.push</text>
+
+  <!-- Drain between tool calls -->
+  <path d="M 547,170 L 547,210 L 419,210 L 419,230" fill="none" stroke="#f0883e" stroke-width="1.5" marker-end="url(#arrO)"/>
+  <text x="500" y="202" text-anchor="middle" fill="#8b949e" font-size="9">drained between tool calls</text>
+
+  <!-- AgentLoop with both tasks -->
+  <rect x="334" y="232" width="170" height="48" rx="8" fill="#1a2332" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="419" y="254" text-anchor="middle" fill="#3fb950" font-size="11" font-weight="600">AgentLoop</text>
+  <text x="419" y="270" text-anchor="middle" fill="#8b949e" font-size="9">both tasks now in context</text>
+
+  <!-- Result -->
+  <line x1="334" y1="256" x2="40" y2="300" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arrG)"/>
+
+  <rect x="40" y="292" width="670" height="36" rx="8" fill="#1a2332" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="375" y="315" text-anchor="middle" fill="#3fb950" font-size="12" font-weight="600">"Fixed login bug AND signup form validation"</text>
+</svg>
