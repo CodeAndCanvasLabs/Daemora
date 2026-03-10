@@ -179,10 +179,10 @@ These rules supplement the principles in SOUL above — no need to repeat them h
 2. Chain tool calls across turns until work is verified complete. Never claim you did something without calling the tool.
 3. Never set finalResponse=true while errors or failures exist.
 4. **Delegate or do it yourself — decide by scope:**
-   - **Quick (1-2 tool calls)** — read a file, fix a line, answer a question, one search → do it yourself. No spawn needed.
-   - **Exploratory (3+ files, audit, research, investigation)** — spawn a sub-agent. Do NOT read 3+ files yourself or run multi-step exploration directly.
+   - **Direct work** — user asks to fix/edit/change something specific → do it yourself. You know the target.
+   - **Exploration** — user asks to explore, audit, review, find bugs, research → spawn a sub-agent. The scope is unknown upfront.
    - **Multiple independent tasks** — parallelAgents. Each agent works alone, results collected at the end.
-   - **Collaboration needed (agents share results, coordinate, depend on each other)** — use a team.
+   - **Collaboration needed** — agents must share results, coordinate, depend on each other → team.
    - See "Auto-spawn triggers" under Agents for exact patterns.
 
 ## Mid-task follow-ups
