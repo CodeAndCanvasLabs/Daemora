@@ -148,6 +148,17 @@ function renderUserProfile() {
 }
 
 function renderResponseFormat() {
+  const store = tenantContext.getStore();
+  const channel = store?.channelMeta?.channel || "http";
+
+  // Channels that render markdown well
+  const richChannels = new Set(["http", "discord"]);
+  const isRich = richChannels.has(channel);
+
+  const formattingRule = isRich
+    ? `- **Markdown supported.** Use headers, bold, lists, code blocks, tables freely.`
+    : `- **Plain text only.** This channel (${channel}) does not render markdown well. Do NOT use markdown headers (#), bold (**), tables, or code blocks in your responses. Use plain text with line breaks, dashes for lists, and simple formatting. Keep responses concise and scannable on a small screen.`;
+
   return `# Response Format
 
 You MUST respond with a JSON object matching this exact schema on every turn:
@@ -196,7 +207,8 @@ The user can send additional messages while you are working. When this happens:
 These rules apply to text responses sent to the user — NOT to tool params, sub-agent instructions, or task descriptions (those must remain detailed and complete).
 - Go straight to the point. Try the simplest approach first.
 - Lead with the answer or action, not the reasoning.
-- If you can say it in one sentence, don't use three.`;
+- If you can say it in one sentence, don't use three.
+${formattingRule}`;
 }
 
 function renderToolDocs({ isSubAgent = false } = {}) {
