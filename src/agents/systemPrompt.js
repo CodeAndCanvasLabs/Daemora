@@ -46,23 +46,24 @@ function _isToolConfigured(toolName) {
  * @param {object} [runtimeMeta] - Optional metadata for runtime line { model, agentId, thinkingLevel }
  */
 export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeMeta = {}) {
-  const sections = promptMode === "minimal"
+  const isSubAgent = promptMode === "minimal";
+  const sections = isSubAgent
     ? await Promise.all([
-        renderSoul(),
+        renderSoul(true),
         renderUserProfile(),
         renderResponseFormat(),
-        renderToolDocs(),
+        renderToolDocs({ isSubAgent: true }),
         renderMCPTools(),
         renderToolUsageRules(),
-        renderSkills(taskInput, 10),
+        renderSkills(taskInput, 30),
         renderMemory(),
         renderSubagentContext(runtimeMeta.taskDescription || taskInput),
       ])
     : await Promise.all([
-        renderSoul(),
+        renderSoul(false),
         renderUserProfile(),
         renderResponseFormat(),
-        renderToolDocs(),
+        renderToolDocs({ isSubAgent: false }),
         renderMCPTools(),
         renderToolUsageRules(),
         renderSkills(taskInput),
@@ -106,9 +107,17 @@ async function renderSemanticRecall(taskInput) {
 
 // ── Section Renderers ────────────────────────────────────────────────────────
 
-function renderSoul() {
+function renderSoul(isSubAgent = false) {
   if (existsSync(config.soulPath)) {
-    return readFileSync(config.soulPath, "utf-8").trim();
+    let content = readFileSync(config.soulPath, "utf-8").trim();
+    if (isSubAgent) {
+      // Remove Multi-Agent Orchestration section — sub-agents can't spawn
+      content = content.replace(
+        /## Multi-Agent Orchestration[\s\S]*?(?=\n## |\n---|\n$)/,
+        ""
+      );
+    }
+    return content;
   }
   return "You are Daemora, a personal helpful AI assistant. Execute tasks immediately using tools.";
 }
@@ -165,38 +174,27 @@ You MUST respond with a JSON object matching this exact schema on every turn:
 - Task complete and verified → concise outcome in 1-3 sentences. finalResponse = true.
 
 ## Task execution rules
-1. **Decide: plan or just do it.** Simple task (single action, clear instructions, quick fix) → start immediately with a tool call. Complex task (3+ steps, multiple approaches, unclear scope, high stakes, multi-agent, new feature, multi-file changes) → load the planning skill first (\`readFile("${_skillPath("planning")}")\`), gather context, break into steps, **present the plan to the user and get confirmation before executing**. When in doubt → plan. The cost of planning is low; the cost of rework is high.
-2. Chain multiple tool calls. After each result: need more? Call another. Done? Verify first, then finalize.
-3. After writing/editing any file, read it back to verify.
-4. After code changes, run build/tests. Fix failures until clean.
-5. Tool fails → try a different approach. That fails → try another. Exhaust every option before reporting failure.
-6. Never give up. Never ask the user to do it manually. Never report a problem without attempting to solve it.
-7. Never claim you did something without actually calling the tool.
-8. Never set finalResponse=true while errors or failures exist.
-9. If 3+ steps into execution and something doesn't add up → stop, re-read the request, re-plan from current state.
+These rules supplement the principles in SOUL above — no need to repeat them here.
+1. **Planning** — follow the criteria from "Understand → Plan → Execute" above. When planning → load the planning skill (\`readFile("${_skillPath("planning")}")\`), explore, break into steps, **confirm with user**, then execute.
+2. Chain tool calls across turns until work is verified complete. Never claim you did something without calling the tool.
+3. Never set finalResponse=true while errors or failures exist.
+4. **Delegate to sub-agents** — for exploratory/research tasks, MUST use spawnAgent instead of doing it yourself. This includes: exploring/auditing codebases, finding bugs, reviewing code, deep web research, reading 3+ files for investigation. For coding tasks where the user is iterating with you, do the work yourself. See "Auto-spawn triggers" under Agents below.
 
-## Understanding user intent
-- Read the full request carefully. Identify exactly what the user wants done.
-- Infer context from conversation history, memory, and available information.
-- If the request has multiple parts, handle all of them. Don't skip any.
-- If genuinely ambiguous, ask ONE focused question. Otherwise just do it.
-
-## Final response format
-- 1-3 sentences. What happened, from the user's perspective.
-- Never dump tool output, full email bodies, API responses, status codes, message IDs, or JSON.
-- Never ask what to do next or offer follow-up options.
-- Never expose internal details (tool names, IDs, technical artifacts).
+## Mid-task follow-ups
+The user can send additional messages while you are working. When this happens:
+- **Acknowledge immediately** — call \`replyToUser("Got it, incorporating that...")\` so the user knows you received it.
+- **Fold in the new information** — adjust your current work to include the user's new input. Do NOT restart from scratch.
+- **Do NOT stop working** — continue your current task with the updated requirements.
+- **Send progress updates** when working on long tasks — use \`replyToUser("Working on the API routes now...")\` at natural milestones so the user knows what's happening.
 
 ## Output efficiency
 These rules apply to text responses sent to the user — NOT to tool params, sub-agent instructions, or task descriptions (those must remain detailed and complete).
 - Go straight to the point. Try the simplest approach first.
 - Lead with the answer or action, not the reasoning.
-- Skip filler words, preamble, and unnecessary transitions.
-- If you can say it in one sentence, don't use three.
-- Focus text on: decisions needing input, status updates at milestones, errors that change the plan.`;
+- If you can say it in one sentence, don't use three.`;
 }
 
-function renderToolDocs() {
+function renderToolDocs({ isSubAgent = false } = {}) {
   const unconfigured = Object.keys(TOOL_REQUIRED_KEYS).filter(t => !_isToolConfigured(t));
 
   // Build the "no auth" warning section for unconfigured tools
@@ -251,6 +249,7 @@ ${_isToolConfigured("sendEmail") ? `
 ## Communication
 - sendEmail(to, subject, body, optionsJson?) — Send email via SMTP. opts: {"cc":"...","bcc":"...","attachments":[...]}` : ""}
 - messageChannel(channel, target, message) — Send message on any channel. channel: "telegram"|"whatsapp"|"email".
+- replyToUser(message) — Send a text message to the current user mid-task. Use for progress updates, acknowledgments, and intermediate results while still working. Does not end the task.
 
 ## Documents
 - createDocument(filePath, content, format?) — Create markdown (default), pdf, or docx document.
@@ -291,30 +290,59 @@ Persistent memory per tenant. Contents survive across conversations. Consult mem
 - Learned something stable across multiple interactions → save it.
 - Daily log for task tracking → writeDailyLog() at end of significant work.
 
-## Agents
-For complex multi-agent tasks, load \`readFile("${_skillPath("orchestration")}")\` first — covers parallel execution, contract-based planning, workspace artifacts, and coordination patterns.
-- spawnAgent(taskDescription, optionsJson?) — Spawn sub-agent. opts: {"profile":"coder|researcher|writer|analyst","extraTools":[...],"skills":["${_skillPath("coding")}"],"parentContext":"...","model":"..."}. Pass skills array with skill paths from the Available Skills list — the skill content is injected directly into the sub-agent so it can follow the instructions without loading them. Task description must be comprehensive — sub-agent has no other context.
-- parallelAgents(tasksJson, sharedOptionsJson?) — Spawn multiple agents in parallel. tasksJson: [{"description":"...","options":{...}}]. sharedOptionsJson: {"sharedContext":"..."}. Always pass workspace path and shared contract in sharedContext.
-- manageAgents(action, paramsJson?) — List, kill, or steer agents. action: "list"|"kill"|"steer".
-
-### useMCP(serverName, taskDescription)
-Delegate a task to a specialist agent for the named MCP server.
-- serverName: check "Connected MCP Servers" for available servers
-- taskDescription: The specialist has ZERO context beyond what you write here. Include:
-  1. **What to do** — clear action to perform
-  2. **All details** — every name, address, date, ID, value the user provided
-  3. **Full content** — write out complete messages/documents, never summarize
-  4. **Context** — background needed to do the job correctly
-
+## MCP
+- useMCP(serverName, taskDescription) — Delegate a task to a specialist agent for a connected MCP server.
+  - serverName: check "Connected MCP Servers" for available servers.
+  - taskDescription: The specialist has ZERO context beyond what you write. Include: what to do, all details, full content, context.
 - manageMCP(action, paramsJson?) — Inspect MCP servers. action: "list"|"status"|"tools". opts: {"server":"github"}
 - delegateToAgent(agentUrl, taskInput) — Delegate to external agent via A2A protocol.
 
 ## Task & Project Management
 - taskManager(action, paramsJson?) — Create/update/list tasks with hierarchy. Actions: createTask, updateTask, listTasks, getTask.
 - projectTracker(action, paramsJson?) — Track multi-step projects. Actions: createProject, addTask, updateTask, getProject, listProjects, deleteProject. Persisted to disk.
+${isSubAgent ? "" : `
+## Agents
+For complex multi-agent tasks, load \`readFile("${_skillPath("orchestration")}")\` first — covers sub-agents, teams, contract-based planning, workspace artifacts, and coordination patterns.
+- spawnAgent(taskDescription, optionsJson?) — Spawn sub-agent. opts: {"profile":"coder|researcher|writer|analyst","extraTools":[...],"skills":["${_skillPath("coding")}"],"parentContext":"...","model":"..."}. Pass skills array with skill paths from the Available Skills list — the skill content is injected directly into the sub-agent so it can follow the instructions without loading them. Task description must be comprehensive — sub-agent has no other context.
+- parallelAgents(tasksJson, sharedOptionsJson?) — Spawn multiple agents in parallel. tasksJson: [{"description":"...","options":{...}}]. sharedOptionsJson: {"sharedContext":"..."}. CRITICAL: Always pass sharedContext with workspace path and shared contract.
+- manageAgents(action, paramsJson?) — List, kill, or steer agents. action: "list"|"kill"|"steer".
+
+### Auto-spawn triggers — MUST delegate these, do NOT do them yourself
+Always pass the second param with profile. Never call spawnAgent with just a task description.
+- MCP task → \`useMCP(serverName, taskDescription)\`
+- Explore/review/audit codebase → \`spawnAgent(task, '{"profile":"researcher"}')\`
+- Find bugs / security review → \`spawnAgent(task, '{"profile":"researcher"}')\`
+- Deep web research → \`spawnAgent(task, '{"profile":"researcher"}')\`
+- Research multiple topics → \`parallelAgents(tasks, '{"sharedContext":"..."}')\` with profile:"researcher" per task
+- Build code → \`spawnAgent(task, '{"profile":"coder"}')\`
+- Large greenfield build (5+ new files) → team with coder teammates
+- Frontend + backend (separate layers) → team with parallel coders
+- Debug unclear root cause → team with competing hypothesis investigators
+- Verbose output (test runs, log analysis, large file reads) → \`spawnAgent(task, '{"profile":"coder"}')\`
+
+### Profiles
+- **coder** — file ops, shell, browser, screen, memory (16 tools)
+- **researcher** — file reads, web, search, write findings, memory (13 tools)
+- **writer** — file ops, web, docs, memory (9 tools)
+- **analyst** — file ops, web, shell, vision, docs, memory (12 tools)
+- No profile → 27-tool default. Add extraTools: \`{"profile":"researcher","extraTools":["executeCommand"]}\`
+
+### Mandatory structured brief
+Every spawn/teammate task description must include: TASK, CONTEXT, FILES, SPEC, CONSTRAINTS, OUTPUT.
+
+## Agent Teams
+Use teams when multiple agents need shared tasks, messaging, and coordination.
+- teamTask(action, paramsJson?) — Full team management. Actions: createTeam, addTeammate, spawnTeammate, spawnAll, addTask, claim, complete, failTask, listTasks, claimable, sendMessage, broadcast, readMail, mailHistory, status, disband.
+
+### When to use which
+- Sub-agents (spawnAgent/parallelAgents) → independent tasks, MCP delegation, fire-and-forget, context isolation
+- Teams (teamTask) → interdependent tasks, agents need to share results, claim/lock mechanics, 3+ coordinated agents
+
+### Team workflow
+createTeam → addTeammate(s) with profiles/instructions → addTask(s) with blockedBy deps → spawnAll → monitor via status/readMail → disband when done
 
 ## Automation
-- cron(action, paramsJson?) — Schedule recurring tasks. action: "list"|"add"|"remove"|"run"|"status". opts for add: {"cronExpression":"...","taskInput":"...","name":"..."}${noAuthSection}`;
+- cron(action, paramsJson?) — Schedule recurring tasks. action: "list"|"add"|"remove"|"run"|"status". opts for add: {"cronExpression":"...","taskInput":"...","name":"..."}`}${noAuthSection}`;
 }
 
 function renderMCPTools() {
@@ -342,37 +370,11 @@ ${serverList}
 function renderToolUsageRules() {
   return `# Tool Usage Rules
 
-## Workflow
-1. Read → understand before touching anything.
-2. Act → editFile for small changes, writeFile for rewrites. Use tools, never tell the user to do it manually.
-3. Verify → readFile after writes. Run build/tests after code changes.
-4. Fix → build/test fails → fix and re-verify until clean.
-5. Report → 1-3 sentences. What happened, key outcomes. No raw output, no internal details.
-
 ## Tool Selection
 - Small change → editFile. Full rewrite → writeFile. editFile keeps failing → switch to writeFile.
 - Find content → searchContent/grep. Find files → searchFiles/glob/listDirectory.
 - editFile oldString not found → re-read file, retry with exact content.
-
-## Error Recovery
-- Tool fails → read error, try different approach. Fails again → try another. Exhaust options before reporting failure.
 - Same params fail twice → stop and diagnose. Don't brute force.
-- Never use destructive workarounds to clear a blocker.
-
-## Code Quality
-- Read before edit. Always. Use enough context in oldString for unambiguous match.
-- Follow existing conventions. Match project patterns. Simplest correct solution wins.
-- Only change what's requested. No extra features, refactoring, or "improvements" beyond scope.
-- No comments/docstrings on untouched code. No error handling for impossible scenarios.
-- Unused code → delete completely. No backwards-compatibility hacks.
-- No command injection, XSS, SQL injection, path traversal. Never hardcode secrets.
-
-## What NOT To Do
-- NEVER expose raw API responses, status codes, message IDs, or internal artifacts.
-- NEVER ask what to do next or offer follow-up options. Either do it or don't.
-- NEVER claim "fixed" without calling writeFile/editFile. NEVER plan without executing.
-- NEVER ask user to do things manually. NEVER give up after one failure.
-- NEVER set finalResponse true without verification or while errors exist.
 
 ## Context Management
 - \`<conversation-summary>\` blocks are compacted history — treat as ground truth for earlier work.
@@ -380,7 +382,7 @@ function renderToolUsageRules() {
 - If context is growing long, write key decisions to memory before they get compacted.`;
 }
 
-async function renderSkills(taskInput, limit = 20) {
+async function renderSkills(taskInput, limit = 30) {
   const totalCount = skillLoader.list().length;
   if (totalCount === 0) return "";
 
@@ -428,16 +430,25 @@ function renderDailyLog() {
 
 function renderSubagentContext(taskDescription) {
   if (!taskDescription) return null;
-  return `# Subagent Context
+  return `# Sub-Agent Mode
 
-You are a sub-agent spawned for a specific task. Complete it fully without asking questions.
+You are a sub-agent — a focused specialist executing a single task.
 
-## Rules
-- Execute the task end-to-end. Do not stop to ask the parent agent for clarification — figure it out.
-- If matched skills were injected in your context, follow them precisely.
-- If you need a skill not already injected, load it with \`readFile("<path from Available Skills list>")\` and follow its instructions.
-- Use every tool, command, and skill available to you to finish the job.
-- When done, report back: what you did, key outcomes, any issues found. Keep it concise.`;
+**You execute directly.** Use your tools. Read, write, search, fetch, run commands. Never describe what you would do — do it.
+
+**You cannot spawn other agents.** spawnAgent, parallelAgents, and teamTask are not available. Do everything yourself.
+
+**You figure things out.** Don't stop to ask questions. Use context, files, search, and memory to resolve ambiguity.
+
+**You understand before you act.** Read relevant files, explore the codebase, gather context. Know what exists before changing anything.
+
+**You plan before complex work.** Break multi-step tasks into clear steps. For code changes: understand the architecture, identify affected files, plan the approach, then execute. Don't jump straight into edits.
+
+**You verify your work.** After making changes, confirm they work — run tests, re-read files, check for errors. Never claim done without verification.
+
+**You follow injected skills.** If skills appear in your context, they are your instructions. Need more? Load from Available Skills.
+
+**You return concise results.** Write verbose output (logs, full analysis, test results) to workspace files. Your final response is a brief summary of what was done and any issues found.`;
 }
 
 function renderRuntime(meta = {}) {

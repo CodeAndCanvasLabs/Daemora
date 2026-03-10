@@ -109,9 +109,26 @@ export function Chat() {
     // Reconnect to active task stream if we remounted while a task was running
     const pendingTaskId = sessionStorage.getItem("daemora_active_task");
     if (pendingTaskId) {
-      setIsLoading(true);
-      setStreamStatus("Reconnecting...");
-      connectToStream(pendingTaskId);
+      // Verify the task is still running before reconnecting
+      apiFetch(`/api/tasks/${pendingTaskId}`)
+        .then((res) => res.ok ? res.json() : null)
+        .then((task) => {
+          if (task && (task.status === "pending" || task.status === "running")) {
+            setIsLoading(true);
+            setStreamStatus("Reconnecting...");
+            connectToStream(pendingTaskId);
+          } else {
+            // Task completed, failed, or doesn't exist — clean up stale reference
+            sessionStorage.removeItem("daemora_active_task");
+            // Reload session to get final messages if task completed while away
+            if (task?.status === "completed" && sessionIdRef.current) {
+              loadSession(sessionIdRef.current);
+            }
+          }
+        })
+        .catch(() => {
+          sessionStorage.removeItem("daemora_active_task");
+        });
     }
   }, []);
 
@@ -309,12 +326,15 @@ export function Chat() {
       eventSourceRef.current = null;
     });
 
+    let errorCount = 0;
     es.onerror = () => {
-      // EventSource will auto-reconnect on transient errors.
-      // Only clean up if the connection is fully closed.
-      if (es.readyState === EventSource.CLOSED) {
+      errorCount++;
+      if (es.readyState === EventSource.CLOSED || errorCount >= 3) {
+        // Connection fully closed or too many retries — clean up
+        clearActiveTask();
         setIsLoading(false);
         setStreamStatus(null);
+        es.close();
         eventSourceRef.current = null;
       }
     };

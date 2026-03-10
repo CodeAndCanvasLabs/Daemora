@@ -108,6 +108,7 @@ eventBus.on("supervisor:kill", ({ taskId }) => {
  * @param {string[]} [options.skills]              Skill paths to inject (e.g. ["skills/coding.md", "skills/brand-guidelines.md"])
  * @param {string}   [options.approvalMode]        Inherited approval mode
  * @param {object}   [options.channelMeta]         Inherited channel meta for approvals
+ * @param {string[]} [options.steerQueue]           External steerQueue array (for TeamManager injection). If provided, used instead of creating a new one.
  * @returns {Promise<string>} Sub-agent's final response
  */
 export async function spawnSubAgent(taskDescription, options = {}) {
@@ -126,9 +127,12 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     skills               = null,        // explicit skill paths to inject (e.g. ["skills/coding.md"])
     approvalMode         = "auto",
     channelMeta          = null,
-    historyMessages      = [],     // previous session messages to prepend (persistent sub-agent sessions)
+    steerQueue: externalSteerQueue = null,  // external steerQueue for TeamManager injection
+    historyMessages: initialHistoryMessages = [],     // previous session messages to prepend (persistent sub-agent sessions)
     returnFullResult     = false,  // return {text, messages, cost} instead of just text
   } = options;
+
+  let historyMessages = initialHistoryMessages;
 
   const maxDepth = 3;
   if (depth >= maxDepth) {
@@ -199,48 +203,17 @@ export async function spawnSubAgent(taskDescription, options = {}) {
       if (toolFunctions[name]) agentTools[name] = toolFunctions[name];
     }
 
-    // Inject depth-aware spawnAgent and parallelAgents at next depth level.
-    // These are NOT in any profile - they're always injected dynamically so
-    // depth propagation is always correct regardless of profile used.
-    if (depth + 1 < maxDepth) {
-      agentTools.spawnAgent = (desc, opts) => {
-        const parsedOpts = typeof opts === "string" ? JSON.parse(opts) : (opts || {});
-        return spawnSubAgent(desc, {
-          ...parsedOpts,
-          depth: depth + 1,
-          parentTaskId: taskId,
-          channelMeta,
-          approvalMode,
-          model: parsedOpts.model || resolvedModel,  // inherit parent model if not explicitly set
-        });
-      };
-
-      // Wrap parallelAgents to correctly propagate depth.
-      // Without this, parallel agents spawned by sub-agents would get depth=0
-      // (the default), allowing infinite nesting and defeating the depth limit.
-      agentTools.parallelAgents = (tasksJson, sharedOptionsJson) => {
-        const tasks = typeof tasksJson === "string" ? JSON.parse(tasksJson) : (tasksJson || []);
-        const sharedOpts = typeof sharedOptionsJson === "string"
-          ? JSON.parse(sharedOptionsJson)
-          : (sharedOptionsJson || {});
-        const tasksWithDepth = tasks.map((t) => ({
-          ...t,
-          options: {
-            ...(t.options || {}),
-            depth:       depth + 1,
-            parentTaskId: t.options?.parentTaskId || taskId,
-            channelMeta:  t.options?.channelMeta  || channelMeta,
-            approvalMode: t.options?.approvalMode  || approvalMode,
-          },
-        }));
-        return spawnParallelAgents(tasksWithDepth, sharedOpts);
-      };
-    }
+    // Sub-agents NEVER get spawnAgent or parallelAgents.
+    // Allowing sub-agents to spawn creates unpredictable delegation chains
+    // where each agent re-delegates instead of doing the work.
+    // Only the main agent orchestrates. Sub-agents execute.
+    delete agentTools.spawnAgent;
+    delete agentTools.parallelAgents;
   }
 
   // ── Coordination primitives ───────────────────────────────────────────────
   const abortController = new AbortController();
-  const steerQueue      = [];   // Shared mutable array - push here to steer the agent
+  const steerQueue      = externalSteerQueue || [];   // Use external queue (TeamManager) or create new
 
   activeSubAgents.set(agentId, {
     taskDescription,
@@ -249,6 +222,8 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     abortController,
     steerQueue,
   });
+
+  console.log(`[SubAgent:${agentId}] Spawned (profile: ${profile || "default"}, depth: ${depth}, model: ${model || "inherit"}) — ${taskDescription.slice(0, 80)}`);
 
   eventBus.emitEvent("agent:spawned", {
     agentId,

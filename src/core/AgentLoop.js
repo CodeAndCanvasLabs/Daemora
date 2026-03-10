@@ -113,17 +113,34 @@ export async function runAgentLoop({
     // objects { type: "user", content } for live follow-up messages injected
     // from the same session while this loop is mid-flight.
     if (steerQueue?.length > 0) {
+      // Collect all user follow-ups to batch them into one injection
+      const userFollowUps = [];
+      const steeringMessages = [];
+
       while (steerQueue.length > 0) {
         const item = steerQueue.shift();
         if (item && typeof item === "object" && item.type === "user") {
-          // User sent a follow-up mid-task - inject as a natural user turn
           console.log(`[AgentLoop] User follow-up injected: "${item.content.slice(0, 80)}"`);
-          messages.push({ role: "user", content: item.content });
+          userFollowUps.push(item.content);
         } else {
           const text = typeof item === "string" ? item : JSON.stringify(item);
           console.log(`[AgentLoop] Steering instruction received: "${text.slice(0, 80)}"`);
-          messages.push({ role: "user", content: `[Supervisor instruction]: ${text}` });
+          steeringMessages.push(text);
         }
+      }
+
+      // Inject steering messages (supervisor/parent/team)
+      for (const text of steeringMessages) {
+        messages.push({ role: "user", content: `[Supervisor instruction]: ${text}` });
+      }
+
+      // Inject user follow-ups with framing so the model acknowledges them naturally
+      if (userFollowUps.length > 0) {
+        const combined = userFollowUps.join("\n\n");
+        messages.push({
+          role: "user",
+          content: `[User sent a follow-up message while you are working. Acknowledge it — use replyToUser() to send a brief acknowledgment or progress update, then incorporate their input into your current work. Do NOT stop or restart — continue working with the new information folded in.]\n\n${combined}`,
+        });
       }
     }
 

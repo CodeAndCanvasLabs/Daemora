@@ -10,7 +10,7 @@
  *   { profile: "researcher", extraTools: ["writeFile"] }  - preset + additions
  *   { tools: ["readFile", "webSearch"] }         - explicit list (overrides profile)
  *
- * spawnAgent and parallelAgents are injected dynamically based on depth - not in profiles.
+ * spawnAgent and parallelAgents are NOT available to sub-agents — only the main agent orchestrates.
  */
 
 export const agentProfiles = {
@@ -30,6 +30,7 @@ export const agentProfiles = {
     "readMemory", "writeMemory", "searchMemory",
     "imageAnalysis",    // analyze charts, diagrams, screenshots, visual data
     "useMCP",           // query external sources (GitHub, Notion, Linear, etc.)
+    "teamTask",         // team coordination (shared tasks, messaging)
   ],
 
   /**
@@ -48,6 +49,7 @@ export const agentProfiles = {
     "readMemory", "writeMemory", "searchMemory",  // learn and apply project conventions
     "projectTracker",   // track sub-tasks within complex coding work
     "useMCP",
+    "teamTask",         // team coordination (shared tasks, messaging)
   ],
 
   /**
@@ -62,6 +64,7 @@ export const agentProfiles = {
     "webFetch", "webSearch",
     "createDocument",
     "readMemory", "writeMemory", "searchMemory",
+    "teamTask",         // team coordination (shared tasks, messaging)
   ],
 
   /**
@@ -77,6 +80,7 @@ export const agentProfiles = {
     "imageAnalysis",    // analyze charts, graphs, visual data
     "createDocument",   // produce analysis reports
     "readMemory", "writeMemory", "searchMemory",
+    "teamTask",         // team coordination (shared tasks, messaging)
   ],
 
 };
@@ -93,7 +97,7 @@ export const agentProfiles = {
  *   - manageAgents  - sub-agents shouldn't kill/steer other agents
  *   - delegateToAgent - A2A from sub-agents is unpredictable
  *
- * spawnAgent and parallelAgents are NOT listed here - they are injected
+ * spawnAgent and parallelAgents are NOT available to sub-agents - they are removed
  * dynamically into sub-agents by SubAgentManager based on recursion depth.
  */
 export const defaultSubAgentTools = [
@@ -115,7 +119,11 @@ export const defaultSubAgentTools = [
   // Project tracking
   "projectTracker",
   "taskManager",
+  // Communication (mid-task)
+  "replyToUser",
   // MCP (via specialist agent - no direct mcp__ tools)
   "manageMCP",
   "useMCP",
+  // Agent Teams
+  "teamTask",
 ];
