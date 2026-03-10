@@ -203,43 +203,12 @@ export async function spawnSubAgent(taskDescription, options = {}) {
       if (toolFunctions[name]) agentTools[name] = toolFunctions[name];
     }
 
-    // Inject depth-aware spawnAgent and parallelAgents at next depth level.
-    // These are NOT in any profile - they're always injected dynamically so
-    // depth propagation is always correct regardless of profile used.
-    if (depth + 1 < maxDepth) {
-      agentTools.spawnAgent = (desc, opts) => {
-        const parsedOpts = typeof opts === "string" ? JSON.parse(opts) : (opts || {});
-        return spawnSubAgent(desc, {
-          ...parsedOpts,
-          depth: depth + 1,
-          parentTaskId: taskId,
-          channelMeta,
-          approvalMode,
-          model: parsedOpts.model || resolvedModel,  // inherit parent model if not explicitly set
-        });
-      };
-
-      // Wrap parallelAgents to correctly propagate depth.
-      // Without this, parallel agents spawned by sub-agents would get depth=0
-      // (the default), allowing infinite nesting and defeating the depth limit.
-      agentTools.parallelAgents = (tasksJson, sharedOptionsJson) => {
-        const tasks = typeof tasksJson === "string" ? JSON.parse(tasksJson) : (tasksJson || []);
-        const sharedOpts = typeof sharedOptionsJson === "string"
-          ? JSON.parse(sharedOptionsJson)
-          : (sharedOptionsJson || {});
-        const tasksWithDepth = tasks.map((t) => ({
-          ...t,
-          options: {
-            ...(t.options || {}),
-            depth:       depth + 1,
-            parentTaskId: t.options?.parentTaskId || taskId,
-            channelMeta:  t.options?.channelMeta  || channelMeta,
-            approvalMode: t.options?.approvalMode  || approvalMode,
-          },
-        }));
-        return spawnParallelAgents(tasksWithDepth, sharedOpts);
-      };
-    }
+    // Sub-agents NEVER get spawnAgent or parallelAgents.
+    // Allowing sub-agents to spawn creates unpredictable delegation chains
+    // where each agent re-delegates instead of doing the work.
+    // Only the main agent orchestrates. Sub-agents execute.
+    delete agentTools.spawnAgent;
+    delete agentTools.parallelAgents;
   }
 
   // ── Coordination primitives ───────────────────────────────────────────────

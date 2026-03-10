@@ -10,7 +10,7 @@
  *   { profile: "researcher", extraTools: ["writeFile"] }  - preset + additions
  *   { tools: ["readFile", "webSearch"] }         - explicit list (overrides profile)
  *
- * spawnAgent and parallelAgents are injected dynamically based on depth - not in profiles.
+ * spawnAgent and parallelAgents are NOT available to sub-agents — only the main agent orchestrates.
  */
 
 export const agentProfiles = {
@@ -97,7 +97,7 @@ export const agentProfiles = {
  *   - manageAgents  - sub-agents shouldn't kill/steer other agents
  *   - delegateToAgent - A2A from sub-agents is unpredictable
  *
- * spawnAgent and parallelAgents are NOT listed here - they are injected
+ * spawnAgent and parallelAgents are NOT available to sub-agents - they are removed
  * dynamically into sub-agents by SubAgentManager based on recursion depth.
  */
 export const defaultSubAgentTools = [
