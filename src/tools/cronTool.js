@@ -13,6 +13,7 @@
  *   run     - trigger a schedule immediately (regardless of cron timing)
  */
 import scheduler from "../scheduler/Scheduler.js";
+import tenantContext from "../tenants/TenantContext.js";
 
 export function cron(action, paramsJson) {
   try {
@@ -43,14 +44,19 @@ export function cron(action, paramsJson) {
       case "add": {
         if (!params.cronExpression) return 'Error: cronExpression is required. Example: "0 9 * * *" for daily at 9am.';
         if (!params.taskInput) return "Error: taskInput is required - the task/message to send when triggered.";
+        // Auto-inherit channel + channelMeta from current context
+        const store = tenantContext.getStore();
+        const channel = params.channel || store?.channelMeta?.channel || "scheduler";
+        const channelMeta = store?.channelMeta || null;
         const schedule = scheduler.create({
           cronExpression: params.cronExpression,
           taskInput: params.taskInput,
           name: params.name,
-          channel: params.channel,
+          channel,
+          channelMeta,
           model: params.model,
         });
-        return `Schedule created: "${schedule.name}" | ${schedule.cronExpression} | ID: ${schedule.id.slice(0, 8)}`;
+        return `Schedule created: "${schedule.name}" | ${schedule.cronExpression} | channel: ${channel} | ID: ${schedule.id.slice(0, 8)}`;
       }
 
       case "update": {
