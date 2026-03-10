@@ -167,28 +167,17 @@ export async function runSetupWizard() {
   }));
 
   if (wantSubModel) {
-    // Show smaller/cheaper models from same provider, plus cross-provider options
+    // Only show models from the selected provider
     const subModelOptions = Object.entries(modelRegistry)
-      .filter(([id, m]) => {
-        // Prefer same provider, but show all
-        if (id === envConfig.DEFAULT_MODEL) return false; // exclude the main model
-        return true;
-      })
+      .filter(([id, m]) => m.provider === provider && id !== envConfig.DEFAULT_MODEL)
       .map(([id, m]) => {
         const ctx = m.contextWindow >= 1_000_000
           ? `${(m.contextWindow / 1_000_000).toFixed(0)}M ctx`
           : `${(m.contextWindow / 1_000).toFixed(0)}K ctx`;
         const price = m.costPer1kInput > 0 ? `$${m.costPer1kInput}/1k in` : "free";
-        const sameProvider = m.provider === provider ? "" : ` (needs ${m.provider} key)`;
-        return { value: id, label: m.model, hint: `${ctx} · ${m.tier} · ${price}${sameProvider}` };
+        return { value: id, label: m.model, hint: `${ctx} · ${m.tier} · ${price}` };
       })
-      // Sort: same provider first, then by cost
-      .sort((a, b) => {
-        const aProvider = modelRegistry[a.value]?.provider === provider ? 0 : 1;
-        const bProvider = modelRegistry[b.value]?.provider === provider ? 0 : 1;
-        if (aProvider !== bProvider) return aProvider - bProvider;
-        return (modelRegistry[a.value]?.costPer1kInput || 0) - (modelRegistry[b.value]?.costPer1kInput || 0);
-      });
+      .sort((a, b) => (modelRegistry[a.value]?.costPer1kInput || 0) - (modelRegistry[b.value]?.costPer1kInput || 0));
 
     if (subModelOptions.length > 0) {
       envConfig.SUB_AGENT_MODEL = guard(await p.select({
@@ -196,6 +185,8 @@ export async function runSetupWizard() {
         options: subModelOptions,
       }));
       p.log.success(`Sub-agent model: ${t.bold(envConfig.SUB_AGENT_MODEL)}`);
+    } else {
+      p.log.info(`No other ${provider} models available. Sub-agents will use the main model.`);
     }
   }
 
