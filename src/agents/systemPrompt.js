@@ -46,13 +46,13 @@ function _isToolConfigured(toolName) {
  * @param {object} [runtimeMeta] - Optional metadata for runtime line { model, agentId, thinkingLevel }
  */
 export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeMeta = {}) {
-  const availableTools = runtimeMeta.availableTools || null;  // tool names the agent actually has
-  const sections = promptMode === "minimal"
+  const isSubAgent = promptMode === "minimal";
+  const sections = isSubAgent
     ? await Promise.all([
         renderSoul(),
         renderUserProfile(),
         renderResponseFormat(),
-        renderToolDocs(availableTools),
+        renderToolDocs({ isSubAgent: true }),
         renderMCPTools(),
         renderToolUsageRules(),
         renderSkills(taskInput, 30),
@@ -63,7 +63,7 @@ export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeM
         renderSoul(),
         renderUserProfile(),
         renderResponseFormat(),
-        renderToolDocs(availableTools),
+        renderToolDocs({ isSubAgent: false }),
         renderMCPTools(),
         renderToolUsageRules(),
         renderSkills(taskInput),
@@ -186,7 +186,7 @@ These rules apply to text responses sent to the user — NOT to tool params, sub
 - If you can say it in one sentence, don't use three.`;
 }
 
-function renderToolDocs() {
+function renderToolDocs({ isSubAgent = false } = {}) {
   const unconfigured = Object.keys(TOOL_REQUIRED_KEYS).filter(t => !_isToolConfigured(t));
 
   // Build the "no auth" warning section for unconfigured tools
@@ -282,6 +282,17 @@ Persistent memory per tenant. Contents survive across conversations. Consult mem
 - Learned something stable across multiple interactions → save it.
 - Daily log for task tracking → writeDailyLog() at end of significant work.
 
+## MCP
+- useMCP(serverName, taskDescription) — Delegate a task to a specialist agent for a connected MCP server.
+  - serverName: check "Connected MCP Servers" for available servers.
+  - taskDescription: The specialist has ZERO context beyond what you write. Include: what to do, all details, full content, context.
+- manageMCP(action, paramsJson?) — Inspect MCP servers. action: "list"|"status"|"tools". opts: {"server":"github"}
+- delegateToAgent(agentUrl, taskInput) — Delegate to external agent via A2A protocol.
+
+## Task & Project Management
+- taskManager(action, paramsJson?) — Create/update/list tasks with hierarchy. Actions: createTask, updateTask, listTasks, getTask.
+- projectTracker(action, paramsJson?) — Track multi-step projects. Actions: createProject, addTask, updateTask, getProject, listProjects, deleteProject. Persisted to disk.
+${isSubAgent ? "" : `
 ## Agents
 For complex multi-agent tasks, load \`readFile("${_skillPath("orchestration")}")\` first — covers sub-agents, teams, contract-based planning, workspace artifacts, and coordination patterns.
 - spawnAgent(taskDescription, optionsJson?) — Spawn sub-agent. opts: {"profile":"coder|researcher|writer|analyst","extraTools":[...],"skills":["${_skillPath("coding")}"],"parentContext":"...","model":"..."}. Pass skills array with skill paths from the Available Skills list — the skill content is injected directly into the sub-agent so it can follow the instructions without loading them. Task description must be comprehensive — sub-agent has no other context.
@@ -311,18 +322,6 @@ Always pass the second param with profile. Never call spawnAgent with just a tas
 ### Mandatory structured brief
 Every spawn/teammate task description must include: TASK, CONTEXT, FILES, SPEC, CONSTRAINTS, OUTPUT.
 
-### useMCP(serverName, taskDescription)
-Delegate a task to a specialist agent for the named MCP server.
-- serverName: check "Connected MCP Servers" for available servers
-- taskDescription: The specialist has ZERO context beyond what you write here. Include:
-  1. **What to do** — clear action to perform
-  2. **All details** — every name, address, date, ID, value the user provided
-  3. **Full content** — write out complete messages/documents, never summarize
-  4. **Context** — background needed to do the job correctly
-
-- manageMCP(action, paramsJson?) — Inspect MCP servers. action: "list"|"status"|"tools". opts: {"server":"github"}
-- delegateToAgent(agentUrl, taskInput) — Delegate to external agent via A2A protocol.
-
 ## Agent Teams
 Use teams when multiple agents need shared tasks, messaging, and coordination.
 - teamTask(action, paramsJson?) — Full team management. Actions: createTeam, addTeammate, spawnTeammate, spawnAll, addTask, claim, complete, failTask, listTasks, claimable, sendMessage, broadcast, readMail, mailHistory, status, disband.
@@ -334,12 +333,8 @@ Use teams when multiple agents need shared tasks, messaging, and coordination.
 ### Team workflow
 createTeam → addTeammate(s) with profiles/instructions → addTask(s) with blockedBy deps → spawnAll → monitor via status/readMail → disband when done
 
-## Task & Project Management
-- taskManager(action, paramsJson?) — Create/update/list tasks with hierarchy. Actions: createTask, updateTask, listTasks, getTask.
-- projectTracker(action, paramsJson?) — Track multi-step projects. Actions: createProject, addTask, updateTask, getProject, listProjects, deleteProject. Persisted to disk.
-
 ## Automation
-- cron(action, paramsJson?) — Schedule recurring tasks. action: "list"|"add"|"remove"|"run"|"status". opts for add: {"cronExpression":"...","taskInput":"...","name":"..."}${noAuthSection}`;
+- cron(action, paramsJson?) — Schedule recurring tasks. action: "list"|"add"|"remove"|"run"|"status". opts for add: {"cronExpression":"...","taskInput":"...","name":"..."}`}${noAuthSection}`;
 }
 
 function renderMCPTools() {
@@ -427,33 +422,34 @@ function renderDailyLog() {
 
 function renderSubagentContext(taskDescription) {
   if (!taskDescription) return null;
-  return `# Subagent Context
+  return `# Sub-Agent Instructions
 
-You are a sub-agent spawned for a specific task. Complete it fully without asking questions.
+You are a sub-agent. You execute — you do NOT delegate.
 
-## Rules
-- Execute the task end-to-end. Do not stop to ask the parent agent for clarification — figure it out.
-- If matched skills were injected in your context, follow them precisely.
-- If you need a skill not already injected, load it with \`readFile("<path from Available Skills list>")\` and follow its instructions.
-- Use every tool, command, and skill available to you to finish the job.
-- Prefer doing work yourself — minimize spawning further sub-agents unless genuinely needed for parallelism.
-- Write verbose output (logs, test results, analysis) to workspace files. Return only a summary.
+## Execution rules
+1. **Do the work yourself.** You have tools — use them. Read files, run commands, search, fetch. Never describe what you would do.
+2. **You cannot spawn sub-agents.** spawnAgent and parallelAgents are not available to you. Do everything directly.
+3. **No questions.** Do not ask the parent agent or user for clarification. Figure it out from context, files, and search.
+4. **Follow injected skills precisely.** If matched skills appear in your context, they are your instructions.
+5. **Load skills you need.** If a skill wasn't injected, load it: \`readFile("<path from Available Skills list>")\`.
+6. **Chain tool calls until done.** Never stop after one tool call. Read → analyze → act → verify → report.
+7. **Write verbose output to files.** Logs, test results, full analysis → write to workspace files. Return only a concise summary.
 
-## Structured Return
-End every response with:
+## Structured return
+End your final response with:
 \`\`\`
-DONE: One sentence describing what was accomplished
-FILES: paths to files created or modified
-CONTRACT: Key interfaces, exports, API endpoints produced (if applicable)
-ERRORS: Any failures, caveats, or unresolved issues
+DONE: One sentence — what was accomplished
+FILES: Paths created or modified (if any)
+CONTRACT: Key interfaces, exports, API endpoints (if applicable)
+ERRORS: Failures, caveats, unresolved issues (if any)
 \`\`\`
 Omit sections that don't apply.
 
-## Team Awareness
-If you are a team member (your prompt includes "You are a Team Member"), follow the team workflow loop:
-1. Check claimable tasks → claim → work → complete → check mail → repeat
-2. Communicate with teammates via sendMessage/broadcast when sharing results they need
-3. Never work on unclaimed tasks. Claim before working.
+## Team member rules
+If your prompt includes "You are a Team Member":
+1. Check claimable tasks → claim → work → complete → check mail → repeat.
+2. Communicate via sendMessage/broadcast when sharing results teammates need.
+3. Never work on unclaimed tasks. Claim first.
 4. Complete or fail every claimed task — never leave tasks hanging.`;
 }
 
