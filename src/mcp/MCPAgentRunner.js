@@ -1,6 +1,21 @@
 import { spawnSubAgent } from "../agents/SubAgentManager.js";
 import mcpManager from "./MCPManager.js";
+import { toolFunctions } from "../tools/index.js";
 import { createSession, getSession, setMessages } from "../services/sessions.js";
+
+/**
+ * Base tools injected into every MCP specialist agent alongside their server tools.
+ * Without these, the agent can't research, read files, or write results.
+ */
+const MCP_BASE_TOOLS = [
+  "readFile", "writeFile", "editFile", "listDirectory",
+  "searchFiles", "searchContent", "glob", "grep",
+  "executeCommand",
+  "webFetch", "webSearch",
+  "createDocument",
+  "replyToUser",
+  "teamTask",
+];
 
 /**
  * MCP Agent Runner - spawns specialist sub-agents for individual MCP servers.
@@ -42,13 +57,33 @@ Respond with a JSON object on every turn:
 
 # Available Tools
 
+## MCP Tools (${serverName})
+
 ${toolDocs}
+
+## Base Tools
+You also have standard tools for research, file operations, and output:
+- readFile(filePath, offset?, limit?) — Read file contents
+- writeFile(filePath, content) — Create or overwrite file
+- editFile(filePath, oldString, newString) — Find-and-replace in file
+- listDirectory(dirPath) — List files and folders
+- searchFiles(pattern, directory?) — Find files by name
+- searchContent(pattern, directory?) — Search inside files
+- glob(pattern, directory?) — Glob file search
+- grep(pattern, optionsJson?) — Content search
+- executeCommand(command, optionsJson?) — Run shell command
+- webFetch(url, optionsJson?) — Fetch URL content as text
+- webSearch(query, optionsJson?) — Search the web
+- createDocument(filePath, content, format?) — Create markdown, pdf, or docx
+- replyToUser(message) — Send progress update to user mid-task
 
 # How to Call MCP Tools
 
 All MCP tool params must be passed as a single JSON string (the first and only argument):
   tool_name: "mcp__${serverName}__someToolName"
   params: ['{"param1":"value1","param2":"value2"}']
+
+Base tools use regular string params (array of strings), not JSON.
 
 # Rules - You Own This Task
 
@@ -57,6 +92,7 @@ All MCP tool params must be passed as a single JSON string (the first and only a
 - **Never ask for clarification.** You have everything you need in the task description. Make reasonable decisions and proceed.
 - **Handle errors yourself.** If a tool call fails, read the error, adjust your approach, try again. Do not give up and report failure unless you have exhausted all approaches.
 - **Be thorough.** If the task says "update all tasks in a project", update all of them. If it says "research X", gather enough detail to be useful. Don't do a half job.
+- **Use base tools for research.** webSearch and webFetch for gathering data, readFile/writeFile for reading and saving, createDocument for reports. MCP tools are for the ${serverName} service specifically.
 - **End with a concise summary.** When done, set finalResponse true. Write 1-3 sentences: what was done and key outcomes. Never dump raw API responses, full JSON payloads, message IDs, status codes, or technical artifacts. The main agent will relay your response to the user.`,
   };
 }
@@ -125,9 +161,16 @@ export async function runMCPAgent(serverName, taskDescription, options = {}) {
     `[MCPAgentRunner] Spawning specialist for "${serverName}" (${Object.keys(serverTools).length} tools)`
   );
 
+  // Merge base tools with MCP server tools so the agent can research, read files, etc.
+  const baseTools = {};
+  for (const name of MCP_BASE_TOOLS) {
+    if (toolFunctions[name]) baseTools[name] = toolFunctions[name];
+  }
+  const mergedTools = { ...baseTools, ...serverTools };
+
   const fullResult = await spawnSubAgent(taskDescription, {
     ...restOptions,
-    toolOverride: serverTools,
+    toolOverride: mergedTools,
     systemPromptOverride,
     depth: 1,
     historyMessages,
