@@ -31,6 +31,7 @@ import { runCleanup } from "./services/cleanup.js";
 import webhookHandler from "./webhooks/WebhookHandler.js";
 import execApproval from "./safety/ExecApproval.js";
 import openaiCompat from "./api/openai-compat.js";
+import { msgText } from "./utils/msgText.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -307,7 +308,7 @@ app.get("/api/sessions", (req, res) => {
     return {
       sessionId: s.sessionId,
       createdAt: s.createdAt,
-      lastMessage: s.messages.length > 0 ? s.messages[s.messages.length - 1].content.slice(0, 50) : "Empty chat",
+      lastMessage: s.messages.length > 0 ? msgText(s.messages[s.messages.length - 1].content).slice(0, 50) || "Empty chat" : "Empty chat",
       messageCount: s.messages.length
     };
   }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -325,11 +326,13 @@ app.get("/api/sessions/:id", (req, res) => {
   if (!session) {
     return res.status(404).json({ error: "Session not found" });
   }
-  // Filter out any leaked tool_call / tool_result messages
+  // Filter out any leaked tool_call / tool_result messages and normalize content
   const cleanMessages = (session.messages || []).filter(msg => {
-    if (!msg.content || typeof msg.content !== "string") return false;
     if (msg.role !== "user" && msg.role !== "assistant") return false;
-    const trimmed = msg.content.trimStart();
+    const text = msgText(msg.content);
+    if (!text) return false;
+    msg.content = text;
+    const trimmed = text.trimStart();
     if (trimmed.startsWith("{")) {
       try {
         const parsed = JSON.parse(trimmed);

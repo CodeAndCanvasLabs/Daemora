@@ -9,43 +9,34 @@ import tenantManager from "../tenants/TenantManager.js";
 import tenantContext from "../tenants/TenantContext.js";
 import inputSanitizer from "../safety/InputSanitizer.js";
 import eventBus from "./EventBus.js";
+import { msgText } from "../utils/msgText.js";
 
 /**
  * Filter out internal tool call/result JSON from messages before saving to session.
  * Keeps only clean user text and assistant text that users should see.
  */
-function filterCleanMessages(messages) {
+export function filterCleanMessages(messages) {
   return messages.filter(msg => {
-    // Skip tool-call and tool-result messages (native tool calling format)
     if (msg.role === "tool") return false;
     if (msg.role === "assistant" && Array.isArray(msg.content)) {
-      // Assistant messages with tool-call parts — skip
-      const hasToolCall = msg.content.some(p => p.type === "tool-call");
-      if (hasToolCall) return false;
+      if (msg.content.some(p => p.type === "tool-call")) return false;
     }
 
-    // Keep assistant text messages (string or array with text parts)
     if (msg.role === "assistant") {
-      if (typeof msg.content === "string") return true;
-      // SDK may return content as [{ type: "text", text: "..." }] — extract it
-      if (Array.isArray(msg.content)) {
-        const textParts = msg.content.filter(p => p.type === "text");
-        if (textParts.length > 0) {
-          // Flatten to plain string for clean session storage
-          msg.content = textParts.map(p => p.text).join("");
-          return true;
-        }
-      }
-      return false;
+      const text = msgText(msg.content);
+      if (!text) return false;
+      msg.content = text;
+      return true;
     }
 
-    // Keep user messages (but filter internal injections)
     if (msg.role === "user") {
-      if (typeof msg.content !== "string") return false;
-      if (msg.content.startsWith("[Supervisor instruction]:")) return false;
-      if (msg.content.startsWith("[System:")) return false;
-      if (msg.content.startsWith("[User follow-up while you are working")) return false;
-      if (msg.content.includes("You have used") && msg.content.includes("iterations")) return false;
+      const text = msgText(msg.content);
+      if (!text) return false;
+      msg.content = text;
+      if (text.startsWith("[Supervisor instruction]:")) return false;
+      if (text.startsWith("[System:")) return false;
+      if (text.startsWith("[User follow-up while you are working")) return false;
+      if (text.includes("You have used") && text.includes("iterations")) return false;
       return true;
     }
 

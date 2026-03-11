@@ -11,6 +11,7 @@ import supervisor from "../agents/Supervisor.js";
 import gitRollback from "../safety/GitRollback.js";
 import { validateToolParams, getSchemaToolNames } from "../tools/schemas.js";
 import toolSchemas from "../tools/schemas.js";
+import { msgText } from "../utils/msgText.js";
 
 /**
  * Core agent loop - uses Vercel AI SDK native tool calling.
@@ -188,7 +189,7 @@ export async function runAgentLoop({
 
   console.log(`\n--- AGENT LOOP STARTED ---`);
   console.log(`Model: ${resolvedModelId}`);
-  console.log(`User message: "${msgs[msgs.length - 1]?.content?.slice(0, 120)}"`);
+  console.log(`User message: "${msgText(msgs[msgs.length - 1]?.content).slice(0, 120)}"`);;
   console.log(`Conversation history: ${msgs.length} message(s)`);
 
   // ── Inject steering messages before the call ──

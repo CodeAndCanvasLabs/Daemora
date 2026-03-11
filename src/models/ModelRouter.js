@@ -204,47 +204,15 @@ export function resolveThinkingConfig(modelId, level = "auto") {
   return null;
 }
 
-// ── Task-Type Model Routing ────────────────────────────────────────────────────
-
-const _profileEnvMap = {
-  coder:      "CODE_MODEL",
-  researcher: "RESEARCH_MODEL",
-  writer:     "WRITER_MODEL",
-  analyst:    "ANALYST_MODEL",
-};
+// ── Sub-Agent Model Resolution ────────────────────────────────────────────────
 
 /**
- * Resolve the best model for a given agent profile, using a priority chain:
- *   1. explicitModel (caller override)
- *   2. Per-tenant modelRoutes[profile]
- *   3. Global CODE_MODEL / RESEARCH_MODEL / WRITER_MODEL / ANALYST_MODEL env vars
- *   4. SUB_AGENT_MODEL (global sub-agent default)
- *   5. Per-tenant general model override
- *   6. DEFAULT_MODEL env var / hardcoded default
+ * Resolve model for a sub-agent.
+ * Priority: SUB_AGENT_MODEL (.env) → parent model → DEFAULT_MODEL
  *
- * @param {string|null} profile       - e.g. "coder", "researcher", "writer", "analyst"
- * @param {object}      tenantConfig  - resolvedConfig from TenantManager (may have .modelRoutes, .model, .subAgentModel)
- * @param {string|null} explicitModel - Caller-supplied model override (highest priority)
+ * @param {string|null} parentModel - Parent agent's resolved model
  * @returns {string} Resolved model ID
  */
-export function resolveModelForProfile(profile, tenantConfig = {}, explicitModel = null) {
-  if (explicitModel) return explicitModel;
-  if (profile && tenantConfig.modelRoutes?.[profile]) return tenantConfig.modelRoutes[profile];
-  if (profile && process.env[_profileEnvMap[profile]]) return process.env[_profileEnvMap[profile]];
-  // Sub-agent model: tenant-level > env-level
-  if (tenantConfig.subAgentModel) return tenantConfig.subAgentModel;
-  if (process.env.SUB_AGENT_MODEL) return process.env.SUB_AGENT_MODEL;
-  if (tenantConfig.model) return tenantConfig.model;
-  return process.env.DEFAULT_MODEL || "openai:gpt-4.1-mini";
-}
-
-/**
- * Get the task-type model for a profile from global env vars only.
- * Utility for callers without a tenant config.
- *
- * @param {string|null} profile - e.g. "coder", "researcher"
- * @returns {string} Model ID
- */
-export function getTaskTypeModel(profile) {
-  return (profile && process.env[_profileEnvMap[profile]]) || process.env.DEFAULT_MODEL || "openai:gpt-4.1-mini";
+export function resolveSubAgentModel(parentModel = null) {
+  return process.env.SUB_AGENT_MODEL || parentModel || process.env.DEFAULT_MODEL || "openai:gpt-4.1-mini";
 }

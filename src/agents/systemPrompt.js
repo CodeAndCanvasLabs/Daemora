@@ -48,7 +48,7 @@ export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeM
         renderResponseFormat(),
         renderToolList(true),
         renderMCPTools(),
-        renderSkills(taskInput, 30),
+        renderSkills(taskInput, 30, true),
         renderMemory(),
         renderSubagentContext(),
       ])
@@ -188,7 +188,7 @@ function renderToolUsageRules() {
 - \`<conversation-summary>\` = compacted history — treat as ground truth, don't redo.`;
 }
 
-async function renderSkills(taskInput, limit = 30) {
+async function renderSkills(taskInput, limit = 30, isSubAgent = false) {
   const totalCount = skillLoader.list().length;
   if (totalCount === 0) return "";
 
@@ -202,11 +202,16 @@ async function renderSkills(taskInput, limit = 30) {
   const dirHint = remaining > 0
     ? `\n\n${totalCount} skills total in ${config.skillsDir}.`
     : "";
+
+  const preamble = isSubAgent
+    ? `If a skill applies → readFile its path, follow it. Skip "confirm with user" steps.`
+    : `Scan this list. If a skill applies, readFile its path to load it, then follow it.
+- Planning required (3+ steps, unclear scope, multi-file) → load planning skill first.
+- Multi-agent task → load orchestration skill first.`;
+
   return `# Skills
 
-Scan this list. If a skill applies, readFile its path to load it, then follow it.
-- Planning required (3+ steps, unclear scope, multi-file) → load planning skill first.
-- Multi-agent task → load orchestration skill first.
+${preamble}
 
 ${lines.join("\n")}${dirHint}`;
 }
@@ -236,10 +241,12 @@ function renderDailyLog() {
 function renderSubagentContext() {
   return `# Sub-Agent Mode
 
-You are a focused specialist. Execute directly with tools — no spawning, no questions.
-Read before editing. Plan before complex work. Verify after changes.
-Write verbose output to files. Return a brief summary.
-Follow any injected skills as instructions.`;
+You are autonomous. No user. No confirmation. No waiting.
+- Plan → execute. Never stop after planning.
+- Stop only on genuine blockers.
+- Read before editing. Verify after changes.
+- Verbose output → files. Brief summary → return.
+- Skills apply, but skip "confirm with user" steps.`;
 }
 
 function renderRuntime(meta = {}) {
