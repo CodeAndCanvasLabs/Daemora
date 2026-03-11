@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { tool } from "ai";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const str = (desc) => z.string().describe(desc);
@@ -478,6 +479,24 @@ export function buildToolDocLines(availableTools) {
     lines.push(`- ${name}: ${toolSchemas[name].description}`);
   }
   return lines;
+}
+
+/**
+ * Build Vercel AI SDK tool definitions for generateText().
+ * Returns { toolName: tool({ description, parameters }) } — no execute.
+ * Dispatch is handled manually in AgentLoop with guards.
+ */
+export function buildAITools(availableNames) {
+  const aiTools = {};
+  for (const name of availableNames) {
+    const entry = toolSchemas[name];
+    if (!entry) continue;
+    aiTools[name] = tool({
+      description: entry.description,
+      parameters: entry.schema,
+    });
+  }
+  return aiTools;
 }
 
 export default toolSchemas;

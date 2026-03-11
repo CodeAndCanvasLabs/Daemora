@@ -1,9 +1,9 @@
-import { generateText, generateObject } from "ai";
+import { generateText, tool, stepCountIs } from "ai";
 import { getCheapModel } from "../models/ModelRouter.js";
 import { writeFileSync, mkdirSync } from "fs";
 import { config } from "../config/default.js";
 import eventBus from "./EventBus.js";
-import outputSchema from "../services/models/outputSchema.js";
+import { buildAITools } from "../tools/schemas.js";
 
 /**
  * Context compaction system.
@@ -74,60 +74,40 @@ async function runPreCompactionFlush(messages, tools = {}) {
 
     const { model } = getCheapModel();
 
-    // Build a summary of recent context for the flush agent
+    // Build native tool definitions with execute functions for the flush agent
+    const flushAITools = buildAITools(new Set(Object.keys(memoryTools)));
+    const executableTools = {};
+    for (const name of Object.keys(memoryTools)) {
+      const schema = flushAITools[name];
+      if (!schema) continue;
+      executableTools[name] = tool({
+        description: schema.description,
+        parameters: schema.parameters,
+        execute: async (params) => {
+          const output = await Promise.resolve(memoryTools[name](params));
+          const outputStr = typeof output === "string" ? output : JSON.stringify(output);
+          console.log(`[Compaction] Pre-flush: ${name} → ${outputStr.slice(0, 100)}`);
+          return outputStr;
+        },
+      });
+    }
+
     const recentMessages = messages.slice(-10);
     const contextSummary = recentMessages
       .map(m => `[${m.role}]: ${(typeof m.content === "string" ? m.content : JSON.stringify(m.content)).slice(0, 500)}`)
       .join("\n");
 
-    const flushPrompt = `Pre-compaction memory flush. The conversation is about to be compacted (older messages summarized).
+    const result = await generateText({
+      model,
+      tools: executableTools,
+      stopWhen: stepCountIs(3),
+      maxTokens: 2048,
+      system: "You are a memory-flush agent. Save important context from the conversation to long-term memory before it gets compacted. Be brief. If nothing important to save, just respond with done.",
+      prompt: `Pre-compaction memory flush. The conversation is about to be compacted.\n\nRecent context:\n${contextSummary}\n\nSave important details (decisions, file paths, user preferences, task progress) using writeMemory or writeDailyLog.`,
+    });
 
-Recent conversation context:
-${contextSummary}
-
-If there are important details worth preserving (decisions, file paths, user preferences, task progress), save them now using writeMemory or writeDailyLog.
-If nothing important to save, respond with finalResponse: true immediately.
-
-Available tools: ${Object.keys(memoryTools).join(", ")}`;
-
-    let flushMessages = [
-      { role: "system", content: "You are a memory-flush agent. Save important context from the conversation to long-term memory before it gets compacted. Be brief." },
-      { role: "user", content: flushPrompt },
-    ];
-
-    for (let turn = 0; turn < 3; turn++) {
-      const response = await generateObject({
-        model,
-        schema: outputSchema,
-        messages: flushMessages,
-        maxTokens: 2048,
-      });
-
-      const parsed = response.object;
-      if (parsed.finalResponse || parsed.type === "text") {
-        console.log("[Compaction] Pre-flush complete" + (turn === 0 ? " (nothing to save)" : ` (${turn} tool calls)`));
-        return;
-      }
-
-      if (parsed.type === "tool_call" && parsed.tool_call) {
-        const { tool_name, params } = parsed.tool_call;
-        flushMessages.push({ role: "assistant", content: JSON.stringify(parsed) });
-
-        if (memoryTools[tool_name]) {
-          try {
-            const output = await Promise.resolve(memoryTools[tool_name](...params));
-            const outputStr = typeof output === "string" ? output : JSON.stringify(output);
-            console.log(`[Compaction] Pre-flush: ${tool_name} → ${outputStr.slice(0, 100)}`);
-            flushMessages.push({ role: "user", content: JSON.stringify({ tool_name, params, output: outputStr }) });
-          } catch (e) {
-            flushMessages.push({ role: "user", content: JSON.stringify({ tool_name, params, output: `Error: ${e.message}` }) });
-          }
-        } else {
-          flushMessages.push({ role: "user", content: JSON.stringify({ tool_name, params, output: `Unknown tool. Available: ${Object.keys(memoryTools).join(", ")}` }) });
-        }
-      }
-    }
-    console.log("[Compaction] Pre-flush hit max turns (3)");
+    const flushSteps = result.toolCalls?.length || 0;
+    console.log("[Compaction] Pre-flush complete" + (flushSteps === 0 ? " (nothing to save)" : ` (${flushSteps} tool calls)`));
   } catch (error) {
     console.log(`[Compaction] Pre-flush failed (non-blocking): ${error.message}`);
   }

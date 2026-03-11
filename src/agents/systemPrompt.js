@@ -1,7 +1,6 @@
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { config } from "../config/default.js";
-import { buildToolDocLines, getSchemaToolNames } from "../tools/schemas.js";
 import skillLoader from "../skills/SkillLoader.js";
 import mcpManager from "../mcp/MCPManager.js";
 import tenantContext from "../tenants/TenantContext.js";
@@ -146,47 +145,19 @@ function renderResponseFormat() {
   const richChannels = new Set(["http", "discord"]);
   const isRich = richChannels.has(channel);
 
-  return `# Response Format
+  return `# Response Rules
 
-Respond with JSON matching: { type, tool_call, text_content, finalResponse }
-
-- Action request → type:"tool_call", tool_call: { tool_name, params: "{JSON string of named params}" }, finalResponse: false.
-- Conversation/done → type:"text", text_content: "...", finalResponse: true.
-- Never set finalResponse:true with unresolved errors.
+- Use tools to take action. Respond with text only when the task is done or you need user input.
 - Mid-task user follow-ups → acknowledge via replyToUser(), fold in, keep working.
 - ${isRich ? "Markdown supported." : `Plain text only (${channel} — no markdown headers, bold, tables, code blocks).`}
 - Be concise. Lead with the answer. 1-3 sentences for final responses.`;
 }
 
 function renderToolList(isSubAgent = false) {
-  const available = new Set(getSchemaToolNames());
-
-  // Remove unconfigured tools
-  for (const tool of Object.keys(TOOL_REQUIRED_KEYS)) {
-    if (!_isToolConfigured(tool)) available.delete(tool);
-  }
-
-  // Sub-agents can't spawn other agents
-  if (isSubAgent) {
-    for (const t of ["spawnAgent", "parallelAgents", "teamTask", "manageAgents", "delegateToAgent"]) {
-      available.delete(t);
-    }
-  }
-
-  const lines = buildToolDocLines(available);
-
   // Unconfigured tools warning
   const unconfigured = Object.keys(TOOL_REQUIRED_KEYS).filter(t => !_isToolConfigured(t));
-  const noAuth = unconfigured.length > 0
-    ? `\n\nUnconfigured (do NOT call): ${unconfigured.join(", ")}`
-    : "";
-
-  return `# Tools
-
-Params are JSON strings: { tool_name: "readFile", params: "{\"path\": \"/foo\", \"limit\": 100}" }
-Use existing context first — only call a tool when you need fresh or missing data.
-
-${lines.join("\n")}${noAuth}`;
+  if (unconfigured.length === 0) return null;
+  return `Unconfigured tools (do NOT call): ${unconfigured.join(", ")}`;
 }
 
 function renderMCPTools() {
