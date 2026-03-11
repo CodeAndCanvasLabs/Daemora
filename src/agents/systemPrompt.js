@@ -198,12 +198,12 @@ async function renderSkills(taskInput, limit = 20, isSubAgent = false) {
   const summaries = await skillLoader.getMatchedSkillSummaries(taskInput, limit);
   if (!summaries || summaries.length === 0) return "";
 
-  const lines = summaries.map(s =>
-    `- ${s.name} (${s.path}) — ${s.description}`
+  const items = summaries.map(s =>
+    `  <skill name="${s.name}" path="${s.path}">${s.description}</skill>`
   );
   const remaining = totalCount - summaries.length;
   const dirHint = remaining > 0
-    ? `\n\n${totalCount} skills total in ${config.skillsDir}.`
+    ? `\n  <!-- ${totalCount} skills total in ${config.skillsDir} -->`
     : "";
 
   const preamble = isSubAgent
@@ -218,7 +218,9 @@ Constraint: never load more than one skill up front.`;
 
 ${preamble}
 
-${lines.join("\n")}${dirHint}`;
+<available_skills>
+${items.join("\n")}${dirHint}
+</available_skills>`;
 }
 
 function renderMemory() {
