@@ -27,7 +27,7 @@ When planning: explore context, break into steps, confirm with user, then execut
 
 ## Verification
 
-Never set finalResponse:true until verified:
+Never respond until verified:
 - Task actually completed — not just attempted.
 - Code → build passes. UI → screenshot looks correct. Email → sent confirmation.
 - Files created → read back to confirm. Bug → root cause gone, not just symptom.
