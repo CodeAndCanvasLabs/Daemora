@@ -1,7 +1,8 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes, createCipheriv, createDecipheriv, scryptSync } from "node:crypto";
 import { config } from "../config/default.js";
+import { queryAll, queryOne, run } from "../storage/Database.js";
 
 /**
  * TenantManager - per-user configuration and isolation for multi-tenant deployments.
@@ -29,11 +30,10 @@ import { config } from "../config/default.js";
  *   taskCount      - total tasks submitted
  *   notes          - free-text operator notes
  *
- * Storage: data/tenants/tenants.json (flat JSON map of tenantId → config)
+ * Storage: SQLite tenants table (config column = JSON blob of full tenant config)
  * Workspaces: data/tenants/{tenantId}/workspace/  (isolated per-tenant directory)
  */
 
-const TENANTS_PATH = join(config.dataDir, "tenants", "tenants.json");
 const TENANTS_DIR = join(config.dataDir, "tenants");
 
 // ── Per-tenant API key encryption (AES-256-GCM) ───────────────────────────────
@@ -79,10 +79,6 @@ function _decryptTenantValue(str) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class TenantManager {
-  constructor() {
-    this._cache = null; // in-memory cache, invalidated on write
-  }
-
   // ── CRUD ──────────────────────────────────────────────────────────────────
 
   /**
@@ -91,36 +87,43 @@ class TenantManager {
    */
   getOrCreate(channel, userId) {
     const id = _makeId(channel, userId);
-    const tenants = this._load();
+    const row = queryOne("SELECT * FROM tenants WHERE id = $id", { $id: id });
 
-    if (!tenants[id]) {
+    if (!row) {
       if (!config.multiTenant?.autoRegister) return null;
-      tenants[id] = _defaultTenant(id);
-      this._save(tenants);
-    } else {
-      // Update lastSeenAt on every access
-      tenants[id].lastSeenAt = new Date().toISOString();
-      this._save(tenants);
+      const t = _defaultTenant(id);
+      run(
+        `INSERT INTO tenants (id, config, created_at, last_seen_at, suspended, suspend_reason)
+         VALUES ($id, $config, $created_at, $last_seen_at, 0, NULL)`,
+        { $id: id, $config: JSON.stringify(t), $created_at: t.createdAt, $last_seen_at: t.lastSeenAt }
+      );
+      return { id, ...t };
     }
 
-    return { id, ...tenants[id] };
+    // Update lastSeenAt on every access
+    const cfg = _parseConfig(row);
+    cfg.lastSeenAt = new Date().toISOString();
+    _updateRow(id, cfg);
+    return { id, ...cfg };
   }
 
   /**
    * Get tenant by ID. Returns null if not found.
    */
   get(tenantId) {
-    const tenants = this._load();
-    if (!tenants[tenantId]) return null;
-    return { id: tenantId, ...tenants[tenantId] };
+    const row = queryOne("SELECT * FROM tenants WHERE id = $id", { $id: tenantId });
+    if (!row) return null;
+    return { id: tenantId, ..._parseConfig(row) };
   }
 
   /**
    * List all tenants.
    */
   list() {
-    const tenants = this._load();
-    return Object.entries(tenants).map(([id, t]) => ({ id, ...t }));
+    return queryAll("SELECT * FROM tenants ORDER BY created_at DESC").map(row => ({
+      id: row.id,
+      ..._parseConfig(row),
+    }));
   }
 
   /**
@@ -137,26 +140,21 @@ class TenantManager {
           if (typeof p !== "string") {
             throw new Error(`${field} must contain strings`);
           }
-          // Must be absolute — Unix (/...) or Windows (C:\...)
           const isUnixAbs = p.startsWith("/");
           const isWinAbs = /^[A-Za-z]:[\\\/]/.test(p);
           if (!isUnixAbs && !isWinAbs) {
             throw new Error(`${field} must contain absolute paths (got "${p}")`);
           }
-          // Block null bytes (path injection)
           if (p.includes("\0")) {
             throw new Error(`${field} must not contain null bytes`);
           }
-          // Block path traversal via /../ or \..\ sequences
           const normalized = p.replace(/\\/g, "/");
           if (/(^|\/)\.\.(\/|$)/.test(normalized)) {
             throw new Error(`${field} must not contain ".." path traversal (got "${p}")`);
           }
-          // Max length — OS limits are typically 260 (Win) or 4096 (Unix)
           if (p.length > 4096) {
             throw new Error(`${field} path too long (max 4096 chars)`);
           }
-          // Block control characters (0x00-0x1F except nothing — all blocked)
           if (/[\x00-\x1f]/.test(p)) {
             throw new Error(`${field} must not contain control characters`);
           }
@@ -164,21 +162,42 @@ class TenantManager {
       }
     }
 
-    const tenants = this._load();
-    if (!tenants[tenantId]) {
-      tenants[tenantId] = _defaultTenant(tenantId);
+    let row = queryOne("SELECT * FROM tenants WHERE id = $id", { $id: tenantId });
+    let cfg;
+    if (!row) {
+      cfg = _defaultTenant(tenantId);
+    } else {
+      cfg = _parseConfig(row);
     }
+
     const allowed = [
       "model", "allowedPaths", "blockedPaths", "maxCostPerTask",
       "maxDailyCost", "tools", "suspended", "plan", "notes",
       "modelRoutes", "mcpServers",
     ];
     for (const key of allowed) {
-      if (updates[key] !== undefined) tenants[tenantId][key] = updates[key];
+      if (updates[key] !== undefined) cfg[key] = updates[key];
     }
-    tenants[tenantId].updatedAt = new Date().toISOString();
-    this._save(tenants);
-    return { id: tenantId, ...tenants[tenantId] };
+    cfg.updatedAt = new Date().toISOString();
+
+    if (!row) {
+      run(
+        `INSERT INTO tenants (id, config, created_at, last_seen_at, suspended, suspend_reason)
+         VALUES ($id, $config, $created_at, $last_seen_at, $suspended, $suspend_reason)`,
+        {
+          $id: tenantId,
+          $config: JSON.stringify(cfg),
+          $created_at: cfg.createdAt,
+          $last_seen_at: cfg.lastSeenAt,
+          $suspended: cfg.suspended ? 1 : 0,
+          $suspend_reason: cfg.suspendReason || null,
+        }
+      );
+    } else {
+      _updateRow(tenantId, cfg);
+    }
+
+    return { id: tenantId, ...cfg };
   }
 
   /**
@@ -186,11 +205,12 @@ class TenantManager {
    */
   recordCost(tenantId, cost) {
     if (!tenantId || !cost) return;
-    const tenants = this._load();
-    if (!tenants[tenantId]) return;
-    tenants[tenantId].totalCost = (tenants[tenantId].totalCost || 0) + cost;
-    tenants[tenantId].taskCount = (tenants[tenantId].taskCount || 0) + 1;
-    this._save(tenants);
+    const row = queryOne("SELECT * FROM tenants WHERE id = $id", { $id: tenantId });
+    if (!row) return;
+    const cfg = _parseConfig(row);
+    cfg.totalCost = (cfg.totalCost || 0) + cost;
+    cfg.taskCount = (cfg.taskCount || 0) + 1;
+    _updateRow(tenantId, cfg);
   }
 
   /**
@@ -211,26 +231,26 @@ class TenantManager {
    * Reset a tenant's config back to defaults (keep cost history).
    */
   reset(tenantId) {
-    const tenants = this._load();
-    if (!tenants[tenantId]) return null;
+    const row = queryOne("SELECT * FROM tenants WHERE id = $id", { $id: tenantId });
+    if (!row) return null;
+    const old = _parseConfig(row);
     const preserved = {
-      totalCost: tenants[tenantId].totalCost || 0,
-      taskCount: tenants[tenantId].taskCount || 0,
-      createdAt: tenants[tenantId].createdAt,
+      totalCost: old.totalCost || 0,
+      taskCount: old.taskCount || 0,
+      createdAt: old.createdAt,
     };
-    tenants[tenantId] = { ..._defaultTenant(tenantId), ...preserved };
-    this._save(tenants);
-    return { id: tenantId, ...tenants[tenantId] };
+    const cfg = { ..._defaultTenant(tenantId), ...preserved };
+    _updateRow(tenantId, cfg);
+    return { id: tenantId, ...cfg };
   }
 
   /**
    * Delete a tenant record entirely.
    */
   delete(tenantId) {
-    const tenants = this._load();
-    if (!tenants[tenantId]) return false;
-    delete tenants[tenantId];
-    this._save(tenants);
+    const row = queryOne("SELECT id FROM tenants WHERE id = $id", { $id: tenantId });
+    if (!row) return false;
+    run("DELETE FROM tenants WHERE id = $id", { $id: tenantId });
     return true;
   }
 
@@ -238,19 +258,24 @@ class TenantManager {
 
   /**
    * Store a per-tenant channel credential, encrypted with AES-256-GCM.
-   * Valid keys: email, email_password, resend_api_key, resend_from
-   *
-   * @param {string} tenantId - e.g. "telegram:123"
-   * @param {string} key      - e.g. "email"
-   * @param {string} value    - plaintext credential value
    */
   setChannelConfig(tenantId, key, value) {
-    const tenants = this._load();
-    if (!tenants[tenantId]) tenants[tenantId] = _defaultTenant(tenantId);
-    tenants[tenantId].encryptedChannelConfig = tenants[tenantId].encryptedChannelConfig || {};
-    tenants[tenantId].encryptedChannelConfig[key] = _encryptTenantValue(value);
-    tenants[tenantId].updatedAt = new Date().toISOString();
-    this._save(tenants);
+    let row = queryOne("SELECT * FROM tenants WHERE id = $id", { $id: tenantId });
+    let cfg;
+    if (!row) {
+      cfg = _defaultTenant(tenantId);
+      run(
+        `INSERT INTO tenants (id, config, created_at, last_seen_at, suspended, suspend_reason)
+         VALUES ($id, $config, $created_at, $last_seen_at, 0, NULL)`,
+        { $id: tenantId, $config: JSON.stringify(cfg), $created_at: cfg.createdAt, $last_seen_at: cfg.lastSeenAt }
+      );
+    } else {
+      cfg = _parseConfig(row);
+    }
+    cfg.encryptedChannelConfig = cfg.encryptedChannelConfig || {};
+    cfg.encryptedChannelConfig[key] = _encryptTenantValue(value);
+    cfg.updatedAt = new Date().toISOString();
+    _updateRow(tenantId, cfg);
     return true;
   }
 
@@ -258,11 +283,13 @@ class TenantManager {
    * Delete a per-tenant channel credential.
    */
   deleteChannelConfig(tenantId, key) {
-    const tenants = this._load();
-    if (!tenants[tenantId]?.encryptedChannelConfig?.[key]) return false;
-    delete tenants[tenantId].encryptedChannelConfig[key];
-    tenants[tenantId].updatedAt = new Date().toISOString();
-    this._save(tenants);
+    const row = queryOne("SELECT * FROM tenants WHERE id = $id", { $id: tenantId });
+    if (!row) return false;
+    const cfg = _parseConfig(row);
+    if (!cfg.encryptedChannelConfig?.[key]) return false;
+    delete cfg.encryptedChannelConfig[key];
+    cfg.updatedAt = new Date().toISOString();
+    _updateRow(tenantId, cfg);
     return true;
   }
 
@@ -270,17 +297,20 @@ class TenantManager {
    * List the credential keys stored for a tenant (not values).
    */
   listChannelConfigKeys(tenantId) {
-    const tenants = this._load();
-    return Object.keys(tenants[tenantId]?.encryptedChannelConfig || {});
+    const row = queryOne("SELECT * FROM tenants WHERE id = $id", { $id: tenantId });
+    if (!row) return [];
+    const cfg = _parseConfig(row);
+    return Object.keys(cfg.encryptedChannelConfig || {});
   }
 
   /**
    * Decrypt and return all channel credentials for a tenant.
-   * Returns {} if none stored.
    */
   getDecryptedChannelConfig(tenantId) {
-    const tenants = this._load();
-    const encrypted = tenants[tenantId]?.encryptedChannelConfig || {};
+    const row = queryOne("SELECT * FROM tenants WHERE id = $id", { $id: tenantId });
+    if (!row) return {};
+    const cfg = _parseConfig(row);
+    const encrypted = cfg.encryptedChannelConfig || {};
     const result = {};
     for (const [key, val] of Object.entries(encrypted)) {
       const decrypted = _decryptTenantValue(val);
@@ -293,60 +323,59 @@ class TenantManager {
 
   /**
    * Store a per-tenant API key, encrypted with AES-256-GCM.
-   * The key is stored in tenant.encryptedApiKeys[keyName].
-   *
-   * @param {string} tenantId - e.g. "telegram:123"
-   * @param {string} keyName  - e.g. "OPENAI_API_KEY"
-   * @param {string} keyValue - plaintext key value
    */
   setApiKey(tenantId, keyName, keyValue) {
-    const tenants = this._load();
-    if (!tenants[tenantId]) tenants[tenantId] = _defaultTenant(tenantId);
-    tenants[tenantId].encryptedApiKeys = tenants[tenantId].encryptedApiKeys || {};
-    tenants[tenantId].encryptedApiKeys[keyName] = _encryptTenantValue(keyValue);
-    tenants[tenantId].updatedAt = new Date().toISOString();
-    this._save(tenants);
+    let row = queryOne("SELECT * FROM tenants WHERE id = $id", { $id: tenantId });
+    let cfg;
+    if (!row) {
+      cfg = _defaultTenant(tenantId);
+      run(
+        `INSERT INTO tenants (id, config, created_at, last_seen_at, suspended, suspend_reason)
+         VALUES ($id, $config, $created_at, $last_seen_at, 0, NULL)`,
+        { $id: tenantId, $config: JSON.stringify(cfg), $created_at: cfg.createdAt, $last_seen_at: cfg.lastSeenAt }
+      );
+    } else {
+      cfg = _parseConfig(row);
+    }
+    cfg.encryptedApiKeys = cfg.encryptedApiKeys || {};
+    cfg.encryptedApiKeys[keyName] = _encryptTenantValue(keyValue);
+    cfg.updatedAt = new Date().toISOString();
+    _updateRow(tenantId, cfg);
     return true;
   }
 
   /**
    * Delete a per-tenant API key.
-   *
-   * @param {string} tenantId
-   * @param {string} keyName
-   * @returns {boolean} true if deleted, false if not found
    */
   deleteApiKey(tenantId, keyName) {
-    const tenants = this._load();
-    if (!tenants[tenantId]?.encryptedApiKeys?.[keyName]) return false;
-    delete tenants[tenantId].encryptedApiKeys[keyName];
-    tenants[tenantId].updatedAt = new Date().toISOString();
-    this._save(tenants);
+    const row = queryOne("SELECT * FROM tenants WHERE id = $id", { $id: tenantId });
+    if (!row) return false;
+    const cfg = _parseConfig(row);
+    if (!cfg.encryptedApiKeys?.[keyName]) return false;
+    delete cfg.encryptedApiKeys[keyName];
+    cfg.updatedAt = new Date().toISOString();
+    _updateRow(tenantId, cfg);
     return true;
   }
 
   /**
    * List the names (not values) of stored API keys for a tenant.
-   *
-   * @param {string} tenantId
-   * @returns {string[]} key names
    */
   listApiKeyNames(tenantId) {
-    const tenants = this._load();
-    return Object.keys(tenants[tenantId]?.encryptedApiKeys || {});
+    const row = queryOne("SELECT * FROM tenants WHERE id = $id", { $id: tenantId });
+    if (!row) return [];
+    const cfg = _parseConfig(row);
+    return Object.keys(cfg.encryptedApiKeys || {});
   }
 
   /**
    * Decrypt and return all stored API keys for a tenant.
-   * Returns {} if none stored or decryption fails.
-   * These are passed through the call stack (NOT via process.env) to prevent cross-tenant bleed.
-   *
-   * @param {string} tenantId
-   * @returns {object} e.g. { OPENAI_API_KEY: "sk-...", ANTHROPIC_API_KEY: "sk-ant-..." }
    */
   getDecryptedApiKeys(tenantId) {
-    const tenants = this._load();
-    const encrypted = tenants[tenantId]?.encryptedApiKeys || {};
+    const row = queryOne("SELECT * FROM tenants WHERE id = $id", { $id: tenantId });
+    if (!row) return {};
+    const cfg = _parseConfig(row);
+    const encrypted = cfg.encryptedApiKeys || {};
     const result = {};
     for (const [key, val] of Object.entries(encrypted)) {
       const decrypted = _decryptTenantValue(val);
@@ -359,7 +388,6 @@ class TenantManager {
 
   /**
    * Get (and create if missing) the isolated workspace directory for a tenant.
-   * This is the default allowed path when sandbox mode is active.
    */
   getWorkspace(tenantId) {
     const safe = tenantId.replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -373,18 +401,14 @@ class TenantManager {
   /**
    * Resolve the effective config for a task, merging:
    *   tenant config > channel config > global config > defaults
-   *
-   * Returns the values TaskRunner should use for this specific task.
    */
   resolveTaskConfig(tenant, channelModel) {
     const sandboxEnabled = config.sandbox?.mode === "docker" || config.multiTenant?.isolateFilesystem;
 
-    // Filesystem: tenant paths > global paths > (if sandbox) tenant workspace only
     let allowedPaths = tenant?.allowedPaths?.length
       ? tenant.allowedPaths
       : config.filesystem?.allowedPaths || [];
 
-    // If sandbox mode and tenant has no custom paths, default to their workspace
     if (sandboxEnabled && allowedPaths.length === 0 && tenant?.id) {
       allowedPaths = [this.getWorkspace(tenant.id)];
     }
@@ -400,49 +424,55 @@ class TenantManager {
       restrictCommands: config.filesystem?.restrictCommands || false,
       maxCostPerTask: tenant?.maxCostPerTask ?? config.maxCostPerTask,
       maxDailyCost: tenant?.maxDailyCost ?? config.maxDailyCost,
-      tools: tenant?.tools || null,       // null = all tools allowed
+      tools: tenant?.tools || null,
       sandbox: config.sandbox?.mode || "process",
-      mcpServers: tenant?.mcpServers ?? null,          // null = all MCP servers allowed
-      modelRoutes: tenant?.modelRoutes || null,         // null = use global env vars
-      apiKeys: tenant?.id ? this.getDecryptedApiKeys(tenant.id) : {},          // per-tenant AI provider keys
-      channelConfig: tenant?.id ? this.getDecryptedChannelConfig(tenant.id) : {},  // per-tenant channel credentials
+      mcpServers: tenant?.mcpServers ?? null,
+      modelRoutes: tenant?.modelRoutes || null,
+      apiKeys: tenant?.id ? this.getDecryptedApiKeys(tenant.id) : {},
+      channelConfig: tenant?.id ? this.getDecryptedChannelConfig(tenant.id) : {},
     };
   }
 
-  // ── Internal ──────────────────────────────────────────────────────────────
-
-  _load() {
-    if (this._cache) return this._cache;
-    mkdirSync(TENANTS_DIR, { recursive: true });
-    if (!existsSync(TENANTS_PATH)) return {};
-    try {
-      this._cache = JSON.parse(readFileSync(TENANTS_PATH, "utf-8"));
-      return this._cache;
-    } catch {
-      return {};
-    }
-  }
-
-  _save(tenants) {
-    mkdirSync(TENANTS_DIR, { recursive: true });
-    writeFileSync(TENANTS_PATH, JSON.stringify(tenants, null, 2), "utf-8");
-    this._cache = tenants;
-  }
+  // ── Stats ─────────────────────────────────────────────────────────────────
 
   stats() {
-    const tenants = this._load();
-    const list = Object.values(tenants);
+    const all = this.list();
     return {
-      total: list.length,
-      suspended: list.filter(t => t.suspended).length,
-      totalCost: list.reduce((s, t) => s + (t.totalCost || 0), 0).toFixed(4),
-      totalTasks: list.reduce((s, t) => s + (t.taskCount || 0), 0),
+      total: all.length,
+      suspended: all.filter(t => t.suspended).length,
+      totalCost: all.reduce((s, t) => s + (t.totalCost || 0), 0).toFixed(4),
+      totalTasks: all.reduce((s, t) => s + (t.taskCount || 0), 0),
     };
   }
 }
 
+// ── Internal Helpers ─────────────────────────────────────────────────────────
+
 function _makeId(channel, userId) {
   return `${channel}:${userId}`;
+}
+
+function _parseConfig(row) {
+  try {
+    return JSON.parse(row.config || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function _updateRow(tenantId, cfg) {
+  run(
+    `UPDATE tenants SET config = $config, last_seen_at = $last_seen_at,
+     suspended = $suspended, suspend_reason = $suspend_reason
+     WHERE id = $id`,
+    {
+      $id: tenantId,
+      $config: JSON.stringify(cfg),
+      $last_seen_at: cfg.lastSeenAt || null,
+      $suspended: cfg.suspended ? 1 : 0,
+      $suspend_reason: cfg.suspendReason || null,
+    }
+  );
 }
 
 function _defaultTenant(id) {
@@ -453,10 +483,10 @@ function _defaultTenant(id) {
     maxCostPerTask: null,
     maxDailyCost: null,
     tools: null,
-    mcpServers: null,              // null = all MCP servers allowed; ["github","linear"] = allowlist
-    modelRoutes: null,             // null = use global env vars; { coder: "anthropic:..." }
-    encryptedApiKeys: {},          // AES-256-GCM encrypted per-tenant AI provider keys
-    encryptedChannelConfig: {},    // AES-256-GCM encrypted per-tenant channel credentials (email, resend, etc.)
+    mcpServers: null,
+    modelRoutes: null,
+    encryptedApiKeys: {},
+    encryptedChannelConfig: {},
     suspended: false,
     suspendReason: "",
     plan: "free",

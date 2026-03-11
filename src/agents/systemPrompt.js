@@ -4,6 +4,7 @@ import { config } from "../config/default.js";
 import skillLoader from "../skills/SkillLoader.js";
 import mcpManager from "../mcp/MCPManager.js";
 import tenantContext from "../tenants/TenantContext.js";
+import { queryAll } from "../storage/Database.js";
 
 // ── Tool → required env keys mapping ──────────────────────────────────────────
 const TOOL_REQUIRED_KEYS = {
@@ -217,24 +218,43 @@ ${lines.join("\n")}${dirHint}`;
 }
 
 function renderMemory() {
-  const { memoryPath } = _getContextMemoryPaths();
-  let memory = "";
-  if (existsSync(memoryPath)) {
-    memory = readFileSync(memoryPath, "utf-8").trim();
+  const { tenantId } = _getContextMemoryPaths();
+  let rows;
+  if (tenantId) {
+    rows = queryAll(
+      "SELECT content, category, timestamp FROM memory_entries WHERE tenant_id = $tid ORDER BY id ASC",
+      { $tid: tenantId }
+    );
+  } else {
+    rows = queryAll(
+      "SELECT content, category, timestamp FROM memory_entries WHERE tenant_id IS NULL ORDER BY id ASC"
+    );
   }
-  if (!memory) return "";
+  if (rows.length === 0) return "";
+  const memory = rows.map(r => {
+    const catTag = r.category && r.category !== "general" ? ` [CATEGORY:${r.category}]` : "";
+    return `<!-- [${r.timestamp || r.created_at}]${catTag} ${r.content} -->`;
+  }).join("\n");
   return `# Agent Memory\n\n${memory}`;
 }
 
 function renderDailyLog() {
-  const { memoryDir } = _getContextMemoryPaths();
+  const { tenantId } = _getContextMemoryPaths();
   const today = new Date().toISOString().split("T")[0];
-  const dailyLogPath = `${memoryDir}/${today}.md`;
-  let dailyLog = "";
-  if (existsSync(dailyLogPath)) {
-    dailyLog = readFileSync(dailyLogPath, "utf-8").trim();
+  let rows;
+  if (tenantId) {
+    rows = queryAll(
+      "SELECT entry FROM daily_logs WHERE tenant_id = $tid AND date = $date ORDER BY id ASC",
+      { $tid: tenantId, $date: today }
+    );
+  } else {
+    rows = queryAll(
+      "SELECT entry FROM daily_logs WHERE tenant_id IS NULL AND date = $date ORDER BY id ASC",
+      { $date: today }
+    );
   }
-  if (!dailyLog) return "";
+  if (rows.length === 0) return "";
+  const dailyLog = rows.map(r => `- ${r.entry}`).join("\n");
   return `# Today's Log (${today})\n\n${dailyLog}`;
 }
 
