@@ -4,86 +4,37 @@ Where Daemora lacks, what OpenClaw does better, and what to fix. File-indexed.
 
 ---
 
-## 1. TOOL SYSTEM — CRITICAL GAP
+## 1. TOOL SYSTEM — ✅ DONE
 
-### Current State (Daemora)
-- Tools dispatched as string arrays: `tools[name](...params)` (`src/core/AgentLoop.js:313`)
-- Output schema: `params: z.array(z.string())` (`src/services/models/outputSchema.js:7`)
-- Tool name: `z.string()` — no enum validation (`src/services/models/outputSchema.js:5`)
-- Each tool manually parses its own params with inconsistent patterns
-- Tool docs in system prompt as prose (~2,953 tokens)
-- No per-tool schema — model guesses param order from natural language
+### What Was Done
+- 54 Zod schemas in `src/tools/schemas.js` — `.describe()` on every field for LLM hints
+- Named params: `params: z.record(z.unknown())` in `src/services/models/outputSchema.js`
+- All 50+ tool files updated from positional args to single `params` object
+- `validateToolParams()` in AgentLoop validates before dispatch
+- `buildToolDocLines()` generates one-liner docs from schemas (replaces verbose prose)
+- Tool dispatch: `tools[name](params)` instead of `tools[name](...params)`
 
-### Evidence of Fragility
-```
-readFile(filePath, offsetStr, limitStr)     → manual parseInt    (src/tools/readFile.js:11-13)
-executeCommand(cmd, optionsJson)            → manual JSON.parse  (src/tools/executeCommand.js:24)
-webSearch(query, optionsJson)               → silent parse fail  (src/tools/webSearch.js:18-22)
-editFile(filePath, oldString, newString)     → manual type check  (src/tools/editFile.js:5-10)
-browserAction(action, param1, param2)       → 500-line switch    (src/tools/browserAutomation.js:271-738)
-spawnAgent(taskDesc, optionsJson)           → JSON.parse or {}   (src/tools/spawnAgent.js:66)
-```
-
-### OpenClaw's Approach
-- TypeBox schemas per tool (`openclaw/src/agents/tools/browser-tool.schema.ts`)
-- Schemas passed directly to LLM via `parameters` field on tool definition
-- Runtime validation via helpers: `readStringParam()`, `readNumberParam()` (`openclaw/src/agents/tools/common.ts`)
-- Custom `ToolInputError` class for validation failures
-- Provider-specific schema normalization (`openclaw/src/agents/pi-tools.schema.ts`)
-  - Strips `anyOf`/`oneOf` for Gemini
-  - Removes `minLength`/`maxLength` for xAI
-  - Forces `type: "object"` for OpenAI
-- Tool result format: `{ content: [{ type: "text", text }], details }` — structured, not raw strings
-
-### Gap Summary
-| Aspect | Daemora | OpenClaw |
-|--------|---------|----------|
-| Param format | `string[]` positional | Named object with schema |
-| Validation | Manual per-tool | TypeBox schema + runtime helpers |
-| Tool name check | `if (tools[name])` at runtime | Schema enum, compile-time typed |
-| Error class | Generic Error/string | `ToolInputError` |
-| Provider compat | Single format | Normalized per-provider |
-| Result format | Raw string/object | Structured `AgentToolResult` |
-| Docs location | System prompt (~3K tokens) | Schema metadata (0 prompt tokens) |
+### Still Missing (P2)
+- No custom `ToolInputError` class (uses string returns)
+- No provider-specific schema normalization (Gemini/xAI compat)
+- Tool results still raw strings (not structured `AgentToolResult`)
 
 ---
 
-## 2. SYSTEM PROMPT — TOKEN BLOAT
+## 2. SYSTEM PROMPT — ✅ DONE
 
-### Current Token Budget
-| Section | Tokens | % |
-|---------|--------|---|
-| SOUL.md | 3,609 | 45% |
-| renderToolDocs() | 2,953 | 37% |
-| renderResponseFormat() | 726 | 9% |
-| renderSubagentContext() | 319 | 4% |
-| renderSkills() | ~300 | 4% |
-| renderMCPTools() | ~247 | 3% |
-| renderToolUsageRules() | 161 | 2% |
-| renderRuntime() | 58 | <1% |
-| **Total fixed** | **~8,054** | — |
-
-### OpenClaw's System Prompt
-- `buildAgentSystemPrompt()` — 30+ params, conditionally includes sections (`openclaw/src/agents/system-prompt.ts:189-689`)
-- Tool docs: one-line summaries only (`- read: Read file contents`)
-- 3 modes: `full`, `minimal`, `none`
-- Estimated: ~2-3K tokens for typical session
-
-### Duplication in Daemora
-| Content | Location 1 | Location 2 | Wasted Tokens |
-|---------|-----------|-----------|---------------|
-| Auto-spawn triggers | SOUL.md:119-131 | systemPrompt.js:328-339 | ~300 |
-| Planning rules | SOUL.md:48-73 | systemPrompt.js:189 (ref) | ~200 |
-| Memory guidance | SOUL.md:152-158 | systemPrompt.js:283-310 | ~250 |
-| Orchestration | SOUL.md:111-149 | systemPrompt.js:322-366 | ~575 |
-
-### Sections Daemora Sends That OpenClaw Doesn't
-- Full JSON response schema in prompt (OpenClaw uses Zod output schema)
-- Full tool param signatures with option JSON examples
-- Coding guidelines (agent already knows how to code)
-- Research guidelines (agent already knows how to research)
-- Communication guidelines (agent already knows how to send email)
-- 500-line browserAction docs (should be in tool schema metadata)
+### What Was Done
+- SOUL.md: 211 lines → 74 lines (~897 tokens, was 3,609)
+- Removed: Building/Coding, Research, Communication, Memory, Sandbox sections
+- Kept: Core Identity, Response Rules, Planning, Verification, Multi-Agent, Security, Engineering, Boundaries
+- Made general-purpose (not code-centric)
+- renderResponseFormat(): 726 → ~155 tokens
+- renderToolList(): one-liner docs from schemas instead of verbose prose
+- renderToolUsageRules(): 161 → ~85 tokens
+- renderSubagentContext(): 319 → ~71 tokens
+- Skills loading triggers restored (planning, orchestration)
+- Deduplication: orchestration/planning/memory rules now single source of truth
+- **Total: ~8,054 → ~2,713 fixed tokens (66% reduction)**
 
 ---
 
@@ -268,9 +219,9 @@ CompactionError     — context window management failures
 
 ## PRIORITY MATRIX
 
-### P0 — Do Now (Blocks Everything Else)
-1. **System prompt diet** — 8K → 4K tokens. Dedup SOUL.md/systemPrompt.js, remove verbose tool docs, conditional sections. Files: `SOUL.md`, `src/agents/systemPrompt.js`
-2. **Tool schema system** — Zod schemas per tool, named params instead of string arrays, remove tool docs from prompt. Files: `src/services/models/outputSchema.js`, `src/tools/*.js`, `src/core/AgentLoop.js`
+### P0 — ✅ COMPLETE
+1. ~~**System prompt diet**~~ — 8K → 2.7K tokens (66% reduction). Done.
+2. ~~**Tool schema system**~~ — 54 Zod schemas, named params, validation in AgentLoop. Done.
 
 ### P1 — Do Next (Data Safety + Reliability)
 3. **Config validation** — Zod schema for config, startup validation. File: `src/config/default.js`
