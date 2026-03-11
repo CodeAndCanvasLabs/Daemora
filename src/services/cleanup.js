@@ -1,29 +1,27 @@
 /**
  * cleanup.js - Data retention management.
  *
- * Cleans up old task files, audit logs, cost logs, and stale sub-agent sessions.
+ * Cleans up old tasks, audit logs, cost entries, and stale sub-agent sessions from SQLite.
  * Configurable via CLEANUP_AFTER_DAYS env var (default: 30, 0 = never delete).
  */
-import { readdirSync, statSync, unlinkSync, existsSync } from "node:fs";
-import { join } from "node:path";
-import { config } from "../config/default.js";
+import { queryOne, run } from "../storage/Database.js";
 
 const CLEANUP_DAYS = parseInt(process.env.CLEANUP_AFTER_DAYS || "30", 10);
 
 /**
- * Run cleanup across all data directories.
+ * Run cleanup across all SQLite tables.
  * @param {number} [days] - Override retention days (0 = skip)
  * @returns {{ tasks: number, audit: number, costs: number, sessions: number, total: number }}
  */
 export function runCleanup(days = CLEANUP_DAYS) {
   if (days <= 0) return { tasks: 0, audit: 0, costs: 0, sessions: 0, total: 0 };
 
-  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
   const results = {
-    tasks: cleanDir(config.tasksDir, cutoff, ".json"),
-    audit: cleanDir(config.auditDir, cutoff, ".jsonl"),
-    costs: cleanDir(config.costsDir, cutoff, ".jsonl"),
-    sessions: cleanStaleSessions(cutoff),
+    tasks: _cleanTable("tasks", "created_at", cutoff),
+    audit: _cleanTable("audit_log", "created_at", cutoff),
+    costs: _cleanTable("cost_entries", "created_at", cutoff),
+    sessions: _cleanStaleSessions(cutoff),
     total: 0,
   };
   results.total = results.tasks + results.audit + results.costs + results.sessions;
@@ -31,51 +29,38 @@ export function runCleanup(days = CLEANUP_DAYS) {
 }
 
 /**
- * Delete files older than cutoff in a directory.
+ * Delete rows older than cutoff in a table.
  */
-function cleanDir(dirPath, cutoffMs, ext) {
-  if (!existsSync(dirPath)) return 0;
-  let deleted = 0;
+function _cleanTable(table, dateCol, cutoff) {
   try {
-    const files = readdirSync(dirPath).filter(f => f.endsWith(ext));
-    for (const file of files) {
-      const filePath = join(dirPath, file);
-      try {
-        const mtime = statSync(filePath).mtimeMs;
-        if (mtime < cutoffMs) {
-          unlinkSync(filePath);
-          deleted++;
-        }
-      } catch {}
-    }
-  } catch {}
-  return deleted;
+    const result = run(`DELETE FROM ${table} WHERE ${dateCol} < $cutoff`, { $cutoff: cutoff });
+    return result.changes;
+  } catch {
+    return 0;
+  }
 }
 
 /**
- * Clean sub-agent sessions (telegram-123--coder.json) that are stale.
+ * Clean sub-agent sessions (IDs containing "--") that are stale.
  * Main user sessions (no "--") are kept regardless.
  */
-function cleanStaleSessions(cutoffMs) {
-  if (!existsSync(config.sessionsDir)) return 0;
-  let deleted = 0;
+function _cleanStaleSessions(cutoff) {
   try {
-    const files = readdirSync(config.sessionsDir).filter(f => f.endsWith(".json"));
-    for (const file of files) {
-      const name = file.slice(0, -5);
-      // Only clean sub-agent sessions (contain "--")
-      if (!name.includes("--")) continue;
-      const filePath = join(config.sessionsDir, file);
-      try {
-        const mtime = statSync(filePath).mtimeMs;
-        if (mtime < cutoffMs) {
-          unlinkSync(filePath);
-          deleted++;
-        }
-      } catch {}
-    }
-  } catch {}
-  return deleted;
+    // Delete messages first (FK cascade should handle it, but be explicit)
+    run(
+      `DELETE FROM messages WHERE session_id IN (
+        SELECT id FROM sessions WHERE id LIKE '%---%' AND updated_at < $cutoff
+      )`,
+      { $cutoff: cutoff }
+    );
+    const result = run(
+      "DELETE FROM sessions WHERE id LIKE '%---%' AND updated_at < $cutoff",
+      { $cutoff: cutoff }
+    );
+    return result.changes;
+  } catch {
+    return 0;
+  }
 }
 
 /**
@@ -83,23 +68,18 @@ function cleanStaleSessions(cutoffMs) {
  */
 export function getStorageStats() {
   return {
-    tasks: countDir(config.tasksDir, ".json"),
-    audit: countDir(config.auditDir, ".jsonl"),
-    costs: countDir(config.costsDir, ".jsonl"),
-    sessions: countDir(config.sessionsDir, ".json"),
+    tasks: _countTable("tasks"),
+    audit: _countTable("audit_log"),
+    costs: _countTable("cost_entries"),
+    sessions: _countTable("sessions"),
     retentionDays: CLEANUP_DAYS || "never",
   };
 }
 
-function countDir(dirPath, ext) {
-  if (!existsSync(dirPath)) return { files: 0, sizeKB: 0 };
+function _countTable(table) {
   try {
-    const files = readdirSync(dirPath).filter(f => f.endsWith(ext));
-    let totalSize = 0;
-    for (const file of files) {
-      try { totalSize += statSync(join(dirPath, file)).size; } catch {}
-    }
-    return { files: files.length, sizeKB: Math.round(totalSize / 1024) };
+    const row = queryOne(`SELECT COUNT(*) as files FROM ${table}`);
+    return { files: row.files, sizeKB: 0 }; // SQLite doesn't expose per-table size easily
   } catch {
     return { files: 0, sizeKB: 0 };
   }
