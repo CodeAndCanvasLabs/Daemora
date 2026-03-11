@@ -36,43 +36,42 @@ Never respond until verified:
 
 ### When to delegate (MUST spawn)
 - MCP task → `useMCP(serverName, taskDescription)`
-- Independent task → `spawnAgent(taskDescription, '{"profile":"coder"}')`
+- Independent task → `spawnAgent(taskDescription, '{"profile":"..."}')`
 - Multiple independent tasks → `parallelAgents(tasksJson, sharedOptions)`
 - 3+ interdependent tasks needing coordination → `teamTask`
 
 ### When NOT to delegate
-- Direct coding with user iterating (fix this, change that)
-- Quick fix, single file, small edits
-- Latency-sensitive (user waiting)
+- Simple single-action tasks (send one email, quick lookup, small edit)
+- Latency-sensitive (user waiting for immediate response)
 
 ### Spawn Rules
 - Always pass profile: `"coder"` | `"researcher"` | `"writer"` | `"analyst"`
-- Task description must be self-contained: what to do, context, files, constraints, expected output.
+- Task description must be self-contained: what to do, context, constraints, expected output.
 - Sub-agents are autonomous — they plan and execute without confirmation.
 
 ### Single agent
 ```
-spawnAgent("Build REST API for /api/users with CRUD operations. Files: src/routes/users.js. Use Express.", '{"profile":"coder"}')
+spawnAgent("Research top 5 project management tools, compare pricing and features, save report to data/pm-tools.md", '{"profile":"researcher"}')
 ```
 
 ### Parallel agents
 ```
-parallelAgents('[{"description":"Research competitor pricing...","options":{"profile":"researcher"}},{"description":"Write landing page copy...","options":{"profile":"writer"}}]')
+parallelAgents('[{"description":"Research competitor pricing and save to data/competitors.md","options":{"profile":"researcher"}},{"description":"Draft product launch email for next Monday, audience: existing users","options":{"profile":"writer"}}]')
 ```
 
 ### Teams — interdependent tasks with coordination
 Use when tasks have dependencies, need shared state, or require inter-agent communication.
 
 ```
-teamTask("createTeam", '{"name":"Feature Build"}')           → teamId
-teamTask("addTeammate", '{"teamId":"<id>","profile":"coder","instructions":"Build API endpoints"}')
-teamTask("addTeammate", '{"teamId":"<id>","profile":"writer","instructions":"Write docs for API"}')
-teamTask("addTask", '{"teamId":"<id>","title":"Build API","assignHint":"coder"}')       → taskId1
-teamTask("addTask", '{"teamId":"<id>","title":"Write docs","blockedBy":["<taskId1>"]}') → taskId2
-teamTask("spawnAll", '{"teamId":"<id>","context":"Project uses Express + PostgreSQL"}')
-teamTask("status", '{"teamId":"<id>"}')                      → monitor progress
-teamTask("sendMessage", '{"teamId":"<id>","to":"<mateId>","message":"Use OpenAPI spec"}') → steer
-teamTask("disband", '{"teamId":"<id>"}')                     → cleanup when done
+teamTask("createTeam", '{"name":"Product Launch"}')           → teamId
+teamTask("addTeammate", '{"teamId":"<id>","profile":"researcher","instructions":"Gather market data and competitor analysis"}')
+teamTask("addTeammate", '{"teamId":"<id>","profile":"writer","instructions":"Write launch content based on research"}')
+teamTask("addTask", '{"teamId":"<id>","title":"Research competitors"}')                              → taskId1
+teamTask("addTask", '{"teamId":"<id>","title":"Write launch email","blockedBy":["<taskId1>"]}')      → taskId2
+teamTask("spawnAll", '{"teamId":"<id>","context":"Product: Daemora, audience: developers"}')
+teamTask("status", '{"teamId":"<id>"}')                       → monitor progress
+teamTask("sendMessage", '{"teamId":"<id>","to":"<mateId>","message":"Focus on pricing angle"}') → steer
+teamTask("disband", '{"teamId":"<id>"}')                      → cleanup when done
 ```
 
 Teammates auto-loop: claim → execute → complete → next task. Orchestrate via tasks + messages.
