@@ -28,12 +28,157 @@ import eventBus from "../core/EventBus.js";
 import { CHANNEL_DEFS } from "./channelDefs.js";
 
 /**
+ * Maps stored channelConfig credential keys → channel constructor params.
+ * Used to spin up per-tenant channel instances from stored credentials.
+ */
+const TENANT_CHANNEL_BUILDERS = {
+  telegram: (c) => c.TELEGRAM_BOT_TOKEN
+    ? { token: c.TELEGRAM_BOT_TOKEN }
+    : null,
+  discord:  (c) => c.DISCORD_BOT_TOKEN
+    ? { token: c.DISCORD_BOT_TOKEN }
+    : null,
+  slack:    (c) => c.SLACK_BOT_TOKEN && c.SLACK_APP_TOKEN
+    ? { botToken: c.SLACK_BOT_TOKEN, appToken: c.SLACK_APP_TOKEN }
+    : null,
+  whatsapp: (c) => c.TWILIO_ACCOUNT_SID && c.TWILIO_AUTH_TOKEN
+    ? { accountSid: c.TWILIO_ACCOUNT_SID, authToken: c.TWILIO_AUTH_TOKEN, from: c.TWILIO_WHATSAPP_FROM }
+    : null,
+  line:     (c) => c.LINE_CHANNEL_ACCESS_TOKEN && c.LINE_CHANNEL_SECRET
+    ? { accessToken: c.LINE_CHANNEL_ACCESS_TOKEN, channelSecret: c.LINE_CHANNEL_SECRET }
+    : null,
+};
+
+/** Required credential key(s) per channel type — used by the UI to show what to enter. */
+export const TENANT_CHANNEL_CRED_KEYS = {
+  telegram: ["TELEGRAM_BOT_TOKEN"],
+  discord:  ["DISCORD_BOT_TOKEN"],
+  slack:    ["SLACK_BOT_TOKEN", "SLACK_APP_TOKEN"],
+  whatsapp: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_WHATSAPP_FROM"],
+  line:     ["LINE_CHANNEL_ACCESS_TOKEN", "LINE_CHANNEL_SECRET"],
+};
+
+/**
  * Channel Registry - manages all input channels.
- * Each channel auto-starts if its credentials are configured.
+ * Supports both global channel instances (from .env) and per-tenant instances
+ * (from tenant encryptedChannelConfig), keyed as "type::tenantId".
  */
 class ChannelRegistry {
   constructor() {
+    // Map<instanceKey, channelInstance>
+    // Global: "discord" | Per-tenant: "discord::telegram:123456"
     this.channels = new Map();
+  }
+
+  _instanceKey(channelType, tenantId) {
+    return tenantId ? `${channelType}::${tenantId}` : channelType;
+  }
+
+  _buildChannelInstance(channelType, channelConfig) {
+    switch (channelType) {
+      case "telegram": return new TelegramChannel({ ...channelConfig, enabled: true });
+      case "discord":  return new DiscordChannel({ ...channelConfig });
+      case "slack":    return new SlackChannel({ ...channelConfig });
+      case "whatsapp": return new WhatsAppChannel({ ...channelConfig, enabled: true });
+      case "line":     return new LineChannel({ ...channelConfig });
+      default:         return null;
+    }
+  }
+
+  /**
+   * Start (or restart) a per-tenant channel instance.
+   * Stops the existing instance if already running, then starts fresh.
+   * @param {string} tenantId
+   * @param {string} channelType - "telegram" | "discord" | "slack" | "whatsapp" | "line"
+   * @param {object} channelConfig - channel constructor params (token, botToken, etc.)
+   * @returns {boolean} true if started successfully
+   */
+  async startTenantChannel(tenantId, channelType, channelConfig) {
+    const key = this._instanceKey(channelType, tenantId);
+
+    // Stop existing instance if running
+    const existing = this.channels.get(key);
+    if (existing) {
+      try { await existing.stop(); } catch {}
+      this.channels.delete(key);
+    }
+
+    const ch = this._buildChannelInstance(channelType, {
+      ...channelConfig,
+      tenantId,
+      instanceKey: key,
+    });
+    if (!ch) return false;
+
+    try {
+      await ch.start();
+      if (ch.running) {
+        this.channels.set(key, ch);
+        console.log(`[ChannelRegistry] Tenant channel started: ${key}`);
+        eventBus.emit("tenant:channel:started", { tenantId, channelType, instanceKey: key });
+        return true;
+      }
+    } catch (e) {
+      console.log(`[ChannelRegistry] Failed to start tenant channel ${key}: ${e.message}`);
+    }
+    return false;
+  }
+
+  /**
+   * Stop and remove all per-tenant channel instances for a given tenant.
+   */
+  async stopTenantChannels(tenantId) {
+    const suffix = `::${tenantId}`;
+    for (const [key, ch] of this.channels) {
+      if (key.endsWith(suffix)) {
+        try { await ch.stop(); } catch {}
+        this.channels.delete(key);
+        console.log(`[ChannelRegistry] Tenant channel stopped: ${key}`);
+        eventBus.emit("tenant:channel:stopped", { tenantId, instanceKey: key });
+      }
+    }
+  }
+
+  /**
+   * Reload all channel instances for a tenant from their stored credentials.
+   * Stops stale instances and starts newly configured ones.
+   * @param {string} tenantId
+   * @param {object} creds - decrypted channelConfig key-value map
+   */
+  async reloadTenantChannels(tenantId, creds) {
+    // Stop all existing tenant instances first
+    await this.stopTenantChannels(tenantId);
+
+    // Start whichever channels have valid credentials
+    for (const [channelType, builder] of Object.entries(TENANT_CHANNEL_BUILDERS)) {
+      const channelConfig = builder(creds);
+      if (channelConfig) {
+        await this.startTenantChannel(tenantId, channelType, channelConfig);
+      }
+    }
+  }
+
+  /**
+   * Load channel instances for all tenants that have stored credentials.
+   * Called once on startup after global channels are started.
+   */
+  async loadTenantChannels() {
+    // Lazy import to avoid circular dep at module-load time
+    const { default: tenantManager } = await import("../tenants/TenantManager.js");
+    const tenants = tenantManager.list();
+    let started = 0;
+    for (const tenant of tenants) {
+      const creds = tenantManager.getDecryptedChannelConfig(tenant.id);
+      if (!creds || Object.keys(creds).length === 0) continue;
+      for (const [channelType, builder] of Object.entries(TENANT_CHANNEL_BUILDERS)) {
+        const channelConfig = builder(creds);
+        if (channelConfig) {
+          const ok = await this.startTenantChannel(tenant.id, channelType, channelConfig);
+          if (ok) started++;
+        }
+      }
+    }
+    if (started > 0) console.log(`[ChannelRegistry] ${started} per-tenant channel(s) started`);
   }
 
   /**
@@ -345,9 +490,12 @@ class ChannelRegistry {
       .map(([name]) => name);
     console.log(`[ChannelRegistry] Active channels: ${active.join(", ") || "none"}`);
 
-    // Recovery reply handler
+    // Load per-tenant channel instances
+    await this.loadTenantChannels();
+
+    // Recovery reply handler — routes to the right instance via instanceKey
     eventBus.on("task:reply:needed", async ({ task }) => {
-      const channel = this.channels.get(task.channel);
+      const channel = this.get(task.channel, task.channelMeta?.instanceKey);
       if (!channel?.running) {
         console.log(`[ChannelRegistry] Cannot send recovered reply \u2014 channel "${task.channel}" not running`);
         return;
@@ -377,19 +525,28 @@ class ChannelRegistry {
   }
 
   /**
-   * Get a channel by name.
+   * Get a channel instance.
+   * If instanceKey is provided (per-tenant routing), tries that first.
+   * Falls back to the global instance for the channel type.
+   * @param {string} channelType - e.g. "discord"
+   * @param {string} [instanceKey] - e.g. "discord::telegram:123456" (from channelMeta)
    */
-  get(name) {
-    return this.channels.get(name);
+  get(channelType, instanceKey) {
+    if (instanceKey && instanceKey !== channelType) {
+      const tenantInstance = this.channels.get(instanceKey);
+      if (tenantInstance) return tenantInstance;
+    }
+    return this.channels.get(channelType);
   }
 
   /**
-   * List all channels with status.
+   * List all channels with status, including per-tenant instances.
    */
   list() {
-    return [...this.channels.entries()].map(([name, ch]) => ({
-      name,
+    return [...this.channels.entries()].map(([key, ch]) => ({
+      name: key,
       running: ch.running,
+      tenantId: ch.getTenantId?.() || null,
     }));
   }
 

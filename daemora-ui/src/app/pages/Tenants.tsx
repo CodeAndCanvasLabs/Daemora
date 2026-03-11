@@ -71,6 +71,13 @@ export function Tenants() {
   const [linkUserId, setLinkUserId] = useState("");
   const [linkSaving, setLinkSaving] = useState(false);
 
+  // Channel credentials state
+  const [channelCredKeys, setChannelCredKeys] = useState<string[]>([]);
+  const [newCredKey, setNewCredKey] = useState("");
+  const [newCredValue, setNewCredValue] = useState("");
+  const [showCredValue, setShowCredValue] = useState(false);
+  const [credSaving, setCredSaving] = useState(false);
+
   // Own MCP servers state
   const [ownMcpServers, setOwnMcpServers] = useState<OwnMcpServer[]>([]);
   const [newMcpName, setNewMcpName] = useState("");
@@ -128,6 +135,40 @@ export function Tenants() {
       if (res.ok) { toast.success("Tenant deleted", { id: toastId }); fetchTenants(); }
       else { const err = await res.json(); toast.error(err.error || "FAILED TO DELETE", { id: toastId }); }
     } catch (error: any) { toast.error(error.message, { id: toastId }); }
+  };
+
+  const fetchChannelCredKeys = async (tenantId: string) => {
+    try {
+      const res = await apiFetch(`/api/tenants/${encodeURIComponent(tenantId)}/channel-config`);
+      if (res.ok) { const data = await res.json(); setChannelCredKeys(data.keys || []); }
+    } catch { setChannelCredKeys([]); }
+  };
+
+  const handleAddChannelCred = async () => {
+    if (!editTenant || !newCredKey.trim() || !newCredValue.trim()) { toast.error("Key and value are required"); return; }
+    setCredSaving(true);
+    try {
+      const res = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/channel-config/${encodeURIComponent(newCredKey.trim())}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: newCredValue }),
+      });
+      if (res.ok) {
+        toast.success(`${newCredKey.trim()} saved — channel starting...`);
+        setNewCredKey(""); setNewCredValue(""); setShowCredValue(false);
+        fetchChannelCredKeys(editTenant.id);
+      } else { const err = await res.json(); toast.error(err.error || "Failed to save credential"); }
+    } catch (e: any) { toast.error(e.message); }
+    finally { setCredSaving(false); }
+  };
+
+  const handleDeleteChannelCred = async (key: string) => {
+    if (!editTenant || !confirm(`Remove credential "${key}"? The channel will disconnect.`)) return;
+    try {
+      const res = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/channel-config/${encodeURIComponent(key)}`, { method: "DELETE" });
+      if (res.ok) { toast.success(`${key} removed`); fetchChannelCredKeys(editTenant.id); }
+      else { const err = await res.json(); toast.error(err.error || "Failed to remove"); }
+    } catch (e: any) { toast.error(e.message); }
   };
 
   const fetchApiKeys = async (tenantId: string) => {
@@ -288,8 +329,10 @@ export function Tenants() {
     });
     setNewKeyName(""); setNewKeyValue(""); setShowKeyValue(false);
     setLinkChannel(""); setLinkUserId("");
+    setNewCredKey(""); setNewCredValue(""); setShowCredValue(false);
     setNewMcpName(""); setNewMcpConfig('{\n  "command": "npx",\n  "args": ["-y", "@scope/server-name"],\n  "env": {}\n}');
     fetchApiKeys(tenant.id);
+    fetchChannelCredKeys(tenant.id);
     fetchOwnMcpServers(tenant.id);
   };
 
@@ -731,6 +774,71 @@ export function Tenants() {
                     </Button>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Channel Credentials */}
+            <div className="space-y-3 p-4 bg-slate-800/30 border border-slate-800 rounded-xl">
+              <div className="flex items-center gap-2">
+                <Key className="w-3.5 h-3.5 text-[#00d9ff]" />
+                <label className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Channel Credentials</label>
+              </div>
+              <p className="text-[9px] text-gray-600">
+                Bot tokens stored here are encrypted (AES-256-GCM) and start a dedicated channel instance for this tenant immediately.
+                <br />
+                <span className="text-gray-500">Keys: <code>TELEGRAM_BOT_TOKEN</code>, <code>DISCORD_BOT_TOKEN</code>, <code>SLACK_BOT_TOKEN</code>, <code>SLACK_APP_TOKEN</code>, <code>LINE_CHANNEL_ACCESS_TOKEN</code>, <code>LINE_CHANNEL_SECRET</code>, <code>TWILIO_ACCOUNT_SID</code>, <code>TWILIO_AUTH_TOKEN</code></span>
+              </p>
+
+              {channelCredKeys.length > 0 ? (
+                <div className="space-y-1.5">
+                  {channelCredKeys.map((key) => (
+                    <div key={key} className="flex items-center justify-between px-3 py-2 bg-slate-900/50 border border-slate-800 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono text-[#00d9ff]">{key}</span>
+                        <span className="text-[9px] font-mono text-gray-600">••••••••</span>
+                      </div>
+                      <button onClick={() => handleDeleteChannelCred(key)} className="text-red-500/50 hover:text-red-500 transition-colors">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[10px] text-gray-600 font-mono italic">No channel credentials — tenant uses global bots</p>
+              )}
+
+              <div className="space-y-2 pt-1">
+                <Input
+                  value={newCredKey}
+                  onChange={(e) => setNewCredKey(e.target.value)}
+                  placeholder="Credential key (e.g. TELEGRAM_BOT_TOKEN)"
+                  className="bg-slate-900 border-slate-800 text-white text-[10px] h-8 font-mono"
+                />
+                <div className="relative">
+                  <Input
+                    type={showCredValue ? "text" : "password"}
+                    value={newCredValue}
+                    onChange={(e) => setNewCredValue(e.target.value)}
+                    placeholder="Token or secret value"
+                    className="bg-slate-900 border-slate-800 text-white text-[10px] h-8 font-mono pr-8"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCredValue(v => !v)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                  >
+                    {showCredValue ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+                <Button
+                  onClick={handleAddChannelCred}
+                  disabled={credSaving || !newCredKey.trim() || !newCredValue.trim()}
+                  size="sm"
+                  className="bg-[#00d9ff]/15 text-[#00d9ff] border border-[#00d9ff]/30 hover:bg-[#00d9ff]/25 h-8 text-[10px] font-mono uppercase"
+                >
+                  {credSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Plus className="w-3.5 h-3.5 mr-1" />}
+                  Save &amp; Connect
+                </Button>
               </div>
             </div>
 

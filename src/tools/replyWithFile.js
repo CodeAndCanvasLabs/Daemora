@@ -40,7 +40,7 @@ export async function replyWithFile(params) {
       return "Error: No active channel context. Cannot determine where to send the file. Use sendFile(channel, target, filePath) instead.";
     }
 
-    const ch = channelRegistry.get(channelMeta.channel);
+    const ch = channelRegistry.get(channelMeta.channel, channelMeta.instanceKey);
     if (!ch) {
       return `Error: Channel "${channelMeta.channel}" not available.`;
     }

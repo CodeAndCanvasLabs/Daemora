@@ -83,12 +83,28 @@ export class BaseChannel {
 
   /**
    * Map a platform user identifier to a session ID.
-   * Ensures continuity across messages from the same user.
+   * For per-tenant instances, tenantId is embedded to prevent cross-tenant session collision.
    * @param {string} userId - Platform-specific user identifier
    * @returns {string} Session ID
    */
   getSessionId(userId) {
-    return `${this.name}-${userId}`;
+    const tenantId = this.getTenantId();
+    return tenantId ? `${this.name}-${tenantId}-${userId}` : `${this.name}-${userId}`;
+  }
+
+  /**
+   * Returns the tenantId this channel instance is scoped to, or null for global instances.
+   */
+  getTenantId() {
+    return this.config?.tenantId || null;
+  }
+
+  /**
+   * Returns the unique registry key for this channel instance.
+   * Global: "discord" | Per-tenant: "discord::telegram:123456789"
+   */
+  getInstanceKey() {
+    return this.config?.instanceKey || this.name;
   }
 
   /**

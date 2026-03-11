@@ -23,7 +23,7 @@ export async function replyToUser(params) {
       return "No active channel context — user is on HTTP/API. Progress noted internally.";
     }
 
-    const ch = channelRegistry.get(channelMeta.channel);
+    const ch = channelRegistry.get(channelMeta.channel, channelMeta.instanceKey);
     if (!ch || !ch.running) {
       return "Channel not available. Progress noted internally.";
     }

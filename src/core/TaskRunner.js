@@ -155,9 +155,12 @@ class TaskRunner {
     // ──────────────────────────────────────────────────────────────────────────
 
     // ── Multi-tenant: resolve tenant and effective config ──────────────────────
-    // Derive userId from sessionId: sessionId = "${channel}-${userId}"
+    // Per-tenant channel instances embed tenantId directly in channelMeta — use it directly.
+    // Global channel instances derive userId from sessionId and look up via getOrCreate.
     let tenant = null;
-    if (task.channel && task.sessionId) {
+    if (task.channelMeta?.tenantId) {
+      tenant = tenantManager.get(task.channelMeta.tenantId);
+    } else if (task.channel && task.sessionId) {
       const userId = task.sessionId.slice(task.channel.length + 1);
       if (userId) {
         tenant = tenantManager.getOrCreate(task.channel, userId);

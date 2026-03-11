@@ -961,6 +961,40 @@ app.delete("/api/tenants/:id/mcp-servers/:name", (req, res) => {
   res.json({ message: `Removed MCP server "${name}" from tenant ${id}` });
 });
 
+// --- Per-tenant channel credentials ---
+
+app.get("/api/tenants/:id/channel-config", (req, res) => {
+  const id = decodeURIComponent(req.params.id);
+  if (!tenantManager.get(id)) return res.status(404).json({ error: "Tenant not found" });
+  const keys = tenantManager.listChannelConfigKeys(id);
+  res.json({ keys });
+});
+
+app.put("/api/tenants/:id/channel-config/:key", async (req, res) => {
+  const id = decodeURIComponent(req.params.id);
+  const key = req.params.key;
+  const { value } = req.body || {};
+  if (!value) return res.status(400).json({ error: "value is required" });
+  if (!tenantManager.get(id)) return res.status(404).json({ error: "Tenant not found" });
+  tenantManager.setChannelConfig(id, key, value);
+  // Live-reload channels for this tenant
+  const creds = tenantManager.getDecryptedChannelConfig(id);
+  await channelRegistry.reloadTenantChannels(id, creds);
+  res.json({ ok: true, key });
+});
+
+app.delete("/api/tenants/:id/channel-config/:key", async (req, res) => {
+  const id = decodeURIComponent(req.params.id);
+  const key = req.params.key;
+  if (!tenantManager.get(id)) return res.status(404).json({ error: "Tenant not found" });
+  const removed = tenantManager.deleteChannelConfig(id, key);
+  if (!removed) return res.status(404).json({ error: `Credential "${key}" not found` });
+  // Live-reload channels for this tenant
+  const creds = tenantManager.getDecryptedChannelConfig(id);
+  await channelRegistry.reloadTenantChannels(id, creds);
+  res.json({ ok: true });
+});
+
 // --- Exec approvals ---
 app.get("/api/approvals", (req, res) => {
   res.json({ approvals: execApproval.listPending(), mode: execApproval.mode });
