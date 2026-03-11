@@ -81,10 +81,10 @@ export function getModel(modelId, apiKeys = {}) {
     );
   }
 
-  return {
-    model: provider(meta.model),
-    meta,
-  };
+  // Use Chat Completions API for OpenAI (not Responses API) — better tool schema compat
+  const model = meta.provider === "openai" ? provider.chat(meta.model) : provider(meta.model);
+
+  return { model, meta };
 }
 
 /**
