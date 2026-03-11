@@ -31,6 +31,7 @@ export const agentProfiles = {
     "imageAnalysis",    // analyze charts, diagrams, screenshots, visual data
     "useMCP",           // query external sources (GitHub, Notion, Linear, etc.)
     "teamTask",         // team coordination (shared tasks, messaging)
+    "replyToUser",      // mid-task progress updates
   ],
 
   /**
@@ -50,6 +51,7 @@ export const agentProfiles = {
     "projectTracker",   // track sub-tasks within complex coding work
     "useMCP",
     "teamTask",         // team coordination (shared tasks, messaging)
+    "replyToUser",      // mid-task progress updates
   ],
 
   /**
@@ -65,6 +67,7 @@ export const agentProfiles = {
     "createDocument",
     "readMemory", "writeMemory", "searchMemory",
     "teamTask",         // team coordination (shared tasks, messaging)
+    "replyToUser",      // mid-task progress updates
   ],
 
   /**
@@ -81,6 +84,7 @@ export const agentProfiles = {
     "createDocument",   // produce analysis reports
     "readMemory", "writeMemory", "searchMemory",
     "teamTask",         // team coordination (shared tasks, messaging)
+    "replyToUser",      // mid-task progress updates
   ],
 
 };
