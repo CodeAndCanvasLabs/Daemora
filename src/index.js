@@ -815,14 +815,14 @@ app.get("/api/tenants", (req, res) => {
 });
 
 app.post("/api/tenants", (req, res) => {
-  const { channel, userId, plan, notes } = req.body || {};
-  if (!channel || !userId) return res.status(400).json({ error: "channel and userId are required" });
-  const existing = tenantManager.getOrCreate(channel, userId);
-  if (existing) {
-    if (plan || notes) tenantManager.set(existing.id, { ...(plan && { plan }), ...(notes && { notes }) });
-    return res.json({ tenant: tenantManager.get(existing.id), created: true });
-  }
-  res.status(500).json({ error: "Auto-register is disabled" });
+  const { name, plan, notes } = req.body || {};
+  if (!name?.trim()) return res.status(400).json({ error: "name is required" });
+  const id = name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "-").replace(/-+/g, "-");
+  if (!id) return res.status(400).json({ error: "Invalid tenant name" });
+  const existing = tenantManager.get(id);
+  if (existing) return res.status(409).json({ error: "Tenant already exists" });
+  tenantManager.set(id, { plan: plan || "free", notes: notes || "" });
+  return res.json({ tenant: { id, ...tenantManager.get(id) }, created: true });
 });
 
 app.get("/api/tenants/:id", (req, res) => {

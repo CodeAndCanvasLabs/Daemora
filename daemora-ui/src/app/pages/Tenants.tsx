@@ -87,7 +87,7 @@ export function Tenants() {
 
   // Create tenant dialog
   const [showCreate, setShowCreate] = useState(false);
-  const [createForm, setCreateForm] = useState({ channel: "", userId: "", plan: "free", notes: "" });
+  const [createForm, setCreateForm] = useState({ name: "", plan: "free", notes: "" });
   const [creating, setCreating] = useState(false);
 
   // Confirm dialog state
@@ -321,19 +321,19 @@ export function Tenants() {
   };
 
   const handleCreateTenant = async () => {
-    if (!createForm.channel || !createForm.userId.trim()) { toast.error("Channel and user ID are required"); return; }
+    if (!createForm.name.trim()) { toast.error("Tenant name is required"); return; }
     setCreating(true);
     const toastId = toast.loading("CREATING TENANT...");
     try {
       const res = await apiFetch("/api/tenants", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channel: createForm.channel, userId: createForm.userId.trim(), plan: createForm.plan, notes: createForm.notes }),
+        body: JSON.stringify({ name: createForm.name.trim(), plan: createForm.plan, notes: createForm.notes }),
       });
       if (res.ok) {
         toast.success("TENANT CREATED", { id: toastId });
         setShowCreate(false);
-        setCreateForm({ channel: "", userId: "", plan: "free", notes: "" });
+        setCreateForm({ name: "", plan: "free", notes: "" });
         fetchTenants();
       } else { const err = await res.json(); toast.error(err.error || "FAILED TO CREATE", { id: toastId }); }
     } catch (e: any) { toast.error(e.message, { id: toastId }); }
@@ -544,29 +544,16 @@ export function Tenants() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-4 font-mono">
-            <p className="text-[10px] text-gray-500">Tenants are normally auto-created when a user messages. Use this to pre-configure a tenant before their first message.</p>
+            <p className="text-[10px] text-gray-500">Create a tenant, then add channel bot tokens in the edit dialog to spin up dedicated channel instances.</p>
             <div className="space-y-2">
-              <label className="text-[10px] text-gray-500 uppercase">Channel</label>
-              <Select value={createForm.channel} onValueChange={(v) => setCreateForm({ ...createForm, channel: v })}>
-                <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-xs">
-                  <SelectValue placeholder="Select channel..." />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                  {CHANNEL_OPTIONS.map(c => (
-                    <SelectItem key={c} value={c} className="text-xs font-mono">{CHANNEL_ICONS[c] || "💬"} {c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-[10px] text-gray-500 uppercase">User ID</label>
+              <label className="text-[10px] text-gray-500 uppercase">Tenant Name</label>
               <Input
-                value={createForm.userId}
-                onChange={(e) => setCreateForm({ ...createForm, userId: e.target.value })}
-                placeholder="e.g. 1026503197260513360"
+                value={createForm.name}
+                onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                placeholder="e.g. acme-corp, john-doe"
                 className="bg-slate-900 border-slate-800 text-white text-xs font-mono"
               />
-              <p className="text-[9px] text-gray-600">The channel-specific user/chat ID</p>
+              <p className="text-[9px] text-gray-600">Unique identifier — lowercase, hyphens allowed</p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -594,7 +581,7 @@ export function Tenants() {
             </div>
             <Button
               onClick={handleCreateTenant}
-              disabled={creating || !createForm.channel || !createForm.userId.trim()}
+              disabled={creating || !createForm.name.trim()}
               className="w-full bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] hover:opacity-90 text-white mt-2 uppercase tracking-tighter"
             >
               {creating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
