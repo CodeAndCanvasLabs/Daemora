@@ -53,7 +53,7 @@ class HumanApproval {
    */
   async requestApproval(taskId, tool_name, params, channelMeta) {
     const requestId = `apr-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const paramPreview = (params || []).slice(0, 2).map((p) => String(p).slice(0, 80)).join(", ");
+    const paramPreview = typeof params === "object" ? JSON.stringify(params).slice(0, 160) : String(params).slice(0, 160);
 
     console.log(`[HumanApproval] Waiting for approval: ${requestId} - ${tool_name}(${paramPreview})`);
 

@@ -25,7 +25,7 @@ class AuditLog {
     // ── Tool lifecycle (emitted by AgentLoop) ─────────────────────────────
     eventBus.on("tool:before", ({ tool_name, params, taskId, stepCount }) => {
       this.write({ event: "tool_attempted", tool_name, taskId, stepCount,
-        params: params?.slice(0, 3).map((p) => String(p).slice(0, 120)) });
+        params: typeof params === "object" ? JSON.stringify(params).slice(0, 360) : String(params).slice(0, 360) });
     });
 
     eventBus.on("tool:after", ({ tool_name, taskId, stepCount, duration, outputLength, error }) => {
