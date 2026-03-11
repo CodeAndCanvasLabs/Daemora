@@ -2,6 +2,7 @@ import { config as loadEnv } from "dotenv";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { existsSync, copyFileSync } from "fs";
+import { validateConfig } from "./schema.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, "..", "..");
@@ -19,7 +20,7 @@ if (!existsSync(envPath) && existsSync(examplePath)) {
 // regardless of which directory the user runs the command from.
 loadEnv({ path: envPath, quiet: true });
 
-export const config = {
+const rawConfig = {
   // Server
   port: parseInt(process.env.PORT || "8081", 10),
 
@@ -235,3 +236,16 @@ export const config = {
     },
   },
 };
+
+// Validate config — fail-closed on bad values
+const { ok, data, issues } = validateConfig(rawConfig);
+if (!ok) {
+  console.error("\n[Config] Invalid configuration:\n");
+  for (const { path, message } of issues) {
+    console.error(`  - "${path}": ${message}`);
+  }
+  console.error("");
+  process.exit(1);
+}
+
+export const config = data;
