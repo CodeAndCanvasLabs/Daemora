@@ -795,8 +795,22 @@ app.post("/api/vault/lock", (req, res) => {
 
 // --- Tenant endpoints ---
 app.get("/api/tenants", (req, res) => {
-  const tenants = tenantManager.list();
+  const tenants = tenantManager.list().map(t => ({
+    ...t,
+    channels: tenantManager.getChannels(t.id),
+  }));
   res.json({ tenants, stats: tenantManager.stats() });
+});
+
+app.post("/api/tenants", (req, res) => {
+  const { channel, userId, plan, notes } = req.body || {};
+  if (!channel || !userId) return res.status(400).json({ error: "channel and userId are required" });
+  const existing = tenantManager.getOrCreate(channel, userId);
+  if (existing) {
+    if (plan || notes) tenantManager.set(existing.id, { ...(plan && { plan }), ...(notes && { notes }) });
+    return res.json({ tenant: tenantManager.get(existing.id), created: true });
+  }
+  res.status(500).json({ error: "Auto-register is disabled" });
 });
 
 app.get("/api/tenants/:id", (req, res) => {
