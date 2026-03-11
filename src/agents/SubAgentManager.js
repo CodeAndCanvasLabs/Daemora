@@ -247,8 +247,10 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     }
 
     // 2. Semantic embedding search — find relevant skills the parent didn't explicitly pass
+    // Exclude orchestration/planning — those are main-agent-only skills
+    const SUBAGENT_SKILL_EXCLUDE = ["orchestration", "planning"];
     if (injectedSkills.length === 0 && taskDescription) {
-      const semanticResult = await skillLoader.getSkillPromptsAsync(taskDescription);
+      const semanticResult = await skillLoader.getSkillPromptsAsync(taskDescription, { exclude: SUBAGENT_SKILL_EXCLUDE });
       if (semanticResult) {
         // getSkillPromptsAsync returns formatted string with --- Skill: name --- blocks
         skillContext = semanticResult;
