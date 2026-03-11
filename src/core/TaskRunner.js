@@ -228,11 +228,11 @@ class TaskRunner {
           agentId: "main",
         });
 
-        // Build message history
-        const previousMessages = session.messages.map((m) => ({
-          role: m.role,
-          content: m.content,
-        }));
+        // Build message history — filter out raw tool-call/tool-result messages
+        // that were persisted by onStepPersist and don't conform to ModelMessage[] schema
+        const previousMessages = filterCleanMessages(
+          session.messages.map((m) => ({ role: m.role, content: m.content }))
+        );
         const messages = [...previousMessages, { role: "user", content: task.input }];
 
         // Track sub-agents spawned during this task

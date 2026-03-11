@@ -255,10 +255,10 @@ export async function runAgentLoop({
         if (onStepPersist) {
           try {
             const stepMessages = [];
+            // Only persist tool-call/tool-result steps incrementally.
+            // Text-only (final) responses are saved by TaskRunner after loop completes.
             if (toolCalls?.length > 0) {
               stepMessages.push({ role: "assistant", content: toolCalls.map(tc => ({ type: "tool-call", toolCallId: tc.toolCallId, toolName: tc.toolName, args: tc.args })) });
-            } else if (text) {
-              stepMessages.push({ role: "assistant", content: text });
             }
             if (toolResults?.length > 0) {
               stepMessages.push({ role: "tool", content: toolResults.map(tr => ({ type: "tool-result", toolCallId: tr.toolCallId, toolName: tr.toolName, result: tr.result })) });
