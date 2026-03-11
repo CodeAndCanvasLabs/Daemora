@@ -163,6 +163,15 @@ export async function runAgentLoop({
 
     console.log(`\n[Loop ${loopCount}] Sending ${messages.length} messages (~${estimateTokens(messages)} tokens) to ${resolvedModelId}...`);
 
+    // DEBUG: dump message roles and content types
+    if (loopCount > 1) {
+      for (let i = 0; i < messages.length; i++) {
+        const m = messages[i];
+        const contentType = Array.isArray(m.content) ? `array[${m.content.map(c => c.type).join(",")}]` : typeof m.content;
+        console.log(`  [msg ${i}] role=${m.role} content=${contentType} ${typeof m.content === "string" ? m.content.slice(0, 60) : ""}`);
+      }
+    }
+
     const startTime = Date.now();
 
     try {
@@ -206,6 +215,10 @@ export async function runAgentLoop({
 
       // --- Tool call handling ---
       if (hasToolCalls) {
+        // DEBUG: log SDK's own message format
+        console.log(`[DEBUG] response.messages:`, JSON.stringify(result.response.messages, null, 2).slice(0, 500));
+        console.log(`[DEBUG] toolCalls[0]:`, JSON.stringify(result.toolCalls[0], null, 2).slice(0, 300));
+
         // Add the assistant's tool-call message in CoreMessage format
         messages.push({
           role: "assistant",
