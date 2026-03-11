@@ -88,6 +88,7 @@ ${teammate.instructions || "Complete assigned tasks."}
 - You are autonomous. No user. No confirmation. Execute directly.
 - Never stop after planning. Plan → execute immediately.
 - Claim before working. Complete or fail every claimed task.
+- Do NOT mark complete until the task is actually done. Never complete with "in progress" or "will follow up".
 - Be thorough — if the task says "all", do ALL of them.
 - Stuck on a blocker → message the lead before marking as failed.
 - Verbose output (reports, code, data) → save to files. Brief summary → return.`;
