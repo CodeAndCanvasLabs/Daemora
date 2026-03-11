@@ -16,6 +16,11 @@ interface ChannelIdentity {
   linked_at: string;
 }
 
+interface OwnMcpServer {
+  name: string;
+  config: Record<string, any>;
+}
+
 interface Tenant {
   id: string;
   plan: string;
@@ -29,6 +34,7 @@ interface Tenant {
   allowedTools?: string[];
   blockedTools?: string[];
   mcpServers?: string[];
+  ownMcpServers?: Record<string, any>;
   modelRoutes?: Record<string, string>;
   notes?: string;
   taskCount?: number;
@@ -64,6 +70,12 @@ export function Tenants() {
   const [linkChannel, setLinkChannel] = useState("");
   const [linkUserId, setLinkUserId] = useState("");
   const [linkSaving, setLinkSaving] = useState(false);
+
+  // Own MCP servers state
+  const [ownMcpServers, setOwnMcpServers] = useState<OwnMcpServer[]>([]);
+  const [newMcpName, setNewMcpName] = useState("");
+  const [newMcpConfig, setNewMcpConfig] = useState('{\n  "command": "npx",\n  "args": ["-y", "@scope/server-name"],\n  "env": {}\n}');
+  const [mcpSaving, setMcpSaving] = useState(false);
 
   // Create tenant dialog
   const [showCreate, setShowCreate] = useState(false);
@@ -123,6 +135,48 @@ export function Tenants() {
       const res = await apiFetch(`/api/tenants/${encodeURIComponent(tenantId)}/apikeys`);
       if (res.ok) { const data = await res.json(); setApiKeyNames(data.keys || []); }
     } catch { setApiKeyNames([]); }
+  };
+
+  const fetchOwnMcpServers = async (tenantId: string) => {
+    try {
+      const res = await apiFetch(`/api/tenants/${encodeURIComponent(tenantId)}/mcp-servers`);
+      if (res.ok) {
+        const data = await res.json();
+        const servers = Object.entries(data.mcpServers || {}).map(([name, config]) => ({ name, config: config as Record<string, any> }));
+        setOwnMcpServers(servers);
+      }
+    } catch { setOwnMcpServers([]); }
+  };
+
+  const handleAddOwnMcpServer = async () => {
+    if (!editTenant || !newMcpName.trim()) { toast.error("Server name is required"); return; }
+    let serverConfig: Record<string, any>;
+    try { serverConfig = JSON.parse(newMcpConfig); } catch { toast.error("Invalid JSON in server config"); return; }
+    if (!serverConfig.command && !serverConfig.url) { toast.error("Server config must have 'command' (stdio) or 'url' (http/sse)"); return; }
+    setMcpSaving(true);
+    try {
+      const res = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/mcp-servers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newMcpName.trim(), serverConfig }),
+      });
+      if (res.ok) {
+        toast.success(`MCP server "${newMcpName.trim()}" added`);
+        setNewMcpName("");
+        setNewMcpConfig('{\n  "command": "npx",\n  "args": ["-y", "@scope/server-name"],\n  "env": {}\n}');
+        fetchOwnMcpServers(editTenant.id);
+      } else { const err = await res.json(); toast.error(err.error || "Failed to add MCP server"); }
+    } catch (e: any) { toast.error(e.message); }
+    finally { setMcpSaving(false); }
+  };
+
+  const handleRemoveOwnMcpServer = async (name: string) => {
+    if (!editTenant || !confirm(`Remove MCP server "${name}"?`)) return;
+    try {
+      const res = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/mcp-servers/${encodeURIComponent(name)}`, { method: "DELETE" });
+      if (res.ok) { toast.success(`MCP server "${name}" removed`); fetchOwnMcpServers(editTenant.id); }
+      else { const err = await res.json(); toast.error(err.error || "Failed to remove"); }
+    } catch (e: any) { toast.error(e.message); }
   };
 
   const handleAddApiKey = async () => {
@@ -234,7 +288,9 @@ export function Tenants() {
     });
     setNewKeyName(""); setNewKeyValue(""); setShowKeyValue(false);
     setLinkChannel(""); setLinkUserId("");
+    setNewMcpName(""); setNewMcpConfig('{\n  "command": "npx",\n  "args": ["-y", "@scope/server-name"],\n  "env": {}\n}');
     fetchApiKeys(tenant.id);
+    fetchOwnMcpServers(tenant.id);
   };
 
   const handleSaveEdit = async () => {
@@ -675,6 +731,61 @@ export function Tenants() {
                     </Button>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Own MCP Servers */}
+            <div className="space-y-3 p-4 bg-slate-800/30 border border-slate-800 rounded-xl">
+              <div className="flex items-center gap-2">
+                <Key className="w-3.5 h-3.5 text-[#4ECDC4]" />
+                <label className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Private MCP Servers</label>
+              </div>
+              <p className="text-[9px] text-gray-600">MCP servers only this tenant can use. Global MCP allowlist above controls access to system-wide servers.</p>
+
+              {ownMcpServers.length > 0 ? (
+                <div className="space-y-1.5">
+                  {ownMcpServers.map((s) => {
+                    const transport = s.config.command ? "stdio" : s.config.transport === "sse" ? "sse" : "http";
+                    const endpoint = s.config.command ? `${s.config.command} ${(s.config.args || []).join(" ")}`.trim() : s.config.url || "";
+                    return (
+                      <div key={s.name} className="flex items-center justify-between px-3 py-2 bg-slate-900/50 border border-slate-800 rounded-lg">
+                        <div>
+                          <span className="text-[10px] font-mono text-[#4ECDC4]">{s.name}</span>
+                          <span className="text-[9px] font-mono text-gray-600 ml-2">({transport}) {endpoint.slice(0, 40)}{endpoint.length > 40 ? "…" : ""}</span>
+                        </div>
+                        <button onClick={() => handleRemoveOwnMcpServer(s.name)} className="text-red-500/50 hover:text-red-500 transition-colors">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-[10px] text-gray-600 font-mono italic">No private MCP servers — using global servers only</p>
+              )}
+
+              <div className="space-y-2 pt-1">
+                <Input
+                  value={newMcpName}
+                  onChange={(e) => setNewMcpName(e.target.value)}
+                  placeholder="Server name (e.g. my-postgres, notion)"
+                  className="bg-slate-900 border-slate-800 text-white text-[10px] h-8 font-mono"
+                />
+                <Textarea
+                  value={newMcpConfig}
+                  onChange={(e) => setNewMcpConfig(e.target.value)}
+                  className="bg-slate-900 border-slate-800 text-white text-[10px] font-mono min-h-[80px]"
+                  placeholder='{ "command": "npx", "args": [...] } or { "url": "https://..." }'
+                />
+                <Button
+                  onClick={handleAddOwnMcpServer}
+                  disabled={mcpSaving || !newMcpName.trim()}
+                  size="sm"
+                  className="bg-[#4ECDC4]/15 text-[#4ECDC4] border border-[#4ECDC4]/30 hover:bg-[#4ECDC4]/25 h-8 text-[10px] font-mono uppercase"
+                >
+                  {mcpSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Plus className="w-3.5 h-3.5 mr-1" />}
+                  Add Server
+                </Button>
               </div>
             </div>
 

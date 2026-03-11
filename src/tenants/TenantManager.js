@@ -240,7 +240,7 @@ class TenantManager {
     const allowed = [
       "model", "allowedPaths", "blockedPaths", "maxCostPerTask",
       "maxDailyCost", "tools", "suspended", "plan", "notes",
-      "modelRoutes", "mcpServers",
+      "modelRoutes", "mcpServers", "ownMcpServers",
     ];
     for (const key of allowed) {
       if (updates[key] !== undefined) cfg[key] = updates[key];
@@ -451,6 +451,49 @@ class TenantManager {
     return result;
   }
 
+  // ── Per-Tenant MCP Servers ────────────────────────────────────────────────
+
+  /**
+   * Add a private MCP server to a tenant.
+   * The server definition follows the same format as config/mcp.json entries.
+   * Only this tenant can use servers defined here.
+   */
+  addOwnMcpServer(tenantId, name, serverConfig) {
+    if (!name || !/^[a-zA-Z0-9_-]+$/.test(name)) throw new Error("Server name must be alphanumeric (a-z, 0-9, _, -)");
+    const row = queryOne("SELECT * FROM tenants WHERE id = $id", { $id: tenantId });
+    if (!row) throw new Error(`Tenant "${tenantId}" not found`);
+    const cfg = _parseConfig(row);
+    cfg.ownMcpServers = cfg.ownMcpServers || {};
+    cfg.ownMcpServers[name] = serverConfig;
+    cfg.updatedAt = new Date().toISOString();
+    _updateRow(tenantId, cfg);
+    return { id: tenantId, name, serverConfig };
+  }
+
+  /**
+   * Remove a private MCP server from a tenant.
+   */
+  removeOwnMcpServer(tenantId, name) {
+    const row = queryOne("SELECT * FROM tenants WHERE id = $id", { $id: tenantId });
+    if (!row) return false;
+    const cfg = _parseConfig(row);
+    if (!cfg.ownMcpServers?.[name]) return false;
+    delete cfg.ownMcpServers[name];
+    cfg.updatedAt = new Date().toISOString();
+    _updateRow(tenantId, cfg);
+    return true;
+  }
+
+  /**
+   * Get all private MCP server definitions for a tenant (names + configs, no secrets).
+   */
+  getOwnMcpServers(tenantId) {
+    const row = queryOne("SELECT * FROM tenants WHERE id = $id", { $id: tenantId });
+    if (!row) return {};
+    const cfg = _parseConfig(row);
+    return cfg.ownMcpServers || {};
+  }
+
   // ── Workspace ─────────────────────────────────────────────────────────────
 
   /**
@@ -494,6 +537,7 @@ class TenantManager {
       tools: tenant?.tools || null,
       sandbox: config.sandbox?.mode || "process",
       mcpServers: tenant?.mcpServers ?? null,
+      ownMcpServers: tenant?.ownMcpServers || {},
       modelRoutes: tenant?.modelRoutes || null,
       apiKeys: tenant?.id ? this.getDecryptedApiKeys(tenant.id) : {},
       channelConfig: tenant?.id ? this.getDecryptedChannelConfig(tenant.id) : {},
@@ -550,7 +594,8 @@ function _defaultTenant(id) {
     maxCostPerTask: null,
     maxDailyCost: null,
     tools: null,
-    mcpServers: null,
+    mcpServers: null,       // allowlist of global MCP server names; null = all allowed
+    ownMcpServers: {},      // per-tenant private MCP server definitions (same format as mcp.json entries)
     modelRoutes: null,
     encryptedApiKeys: {},
     encryptedChannelConfig: {},

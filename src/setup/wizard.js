@@ -951,44 +951,27 @@ export async function runSetupWizard() {
   const spin = p.spinner();
   spin.start("Writing configuration");
 
+  // Write all non-secret config to SQLite config_entries table.
+  // Secrets were already vaulted above and removed from envConfig.
+  const { configStore } = await import("../config/ConfigStore.js");
+  const configCount = configStore.import(envConfig);
+
+  // Write a minimal .env — only bootstrap info needed before SQLite is open.
+  // Everything else is in SQLite now.
   const envPath = join(ROOT_DIR, ".env");
-  const examplePath = join(ROOT_DIR, ".env.example");
-
-  // Copy .env.example → .env as the base (preserves all comments, sections, docs)
-  // Then patch in user-configured values
-  let envContent;
-  if (existsSync(examplePath)) {
-    envContent = readFileSync(examplePath, "utf-8");
-    // Patch each configured key into the template
-    for (const [key, value] of Object.entries(envConfig)) {
-      if (value === undefined) continue;
-      // Match KEY=anything (including empty) on its own line
-      const regex = new RegExp(`^${key}=.*$`, "m");
-      if (regex.test(envContent)) {
-        envContent = envContent.replace(regex, `${key}=${value}`);
-      } else {
-        // Key not in template — append at end
-        envContent += `\n${key}=${value}`;
-      }
-    }
-  } else {
-    // Fallback: no .env.example available (shouldn't happen, but be safe)
-    const envLines = [
-      "# Daemora Configuration",
-      `# Generated on ${new Date().toISOString()}`,
-      "",
-    ];
-    for (const [key, value] of Object.entries(envConfig)) {
-      if (value !== undefined) envLines.push(`${key}=${value}`);
-    }
-    envContent = envLines.join("\n") + "\n";
-  }
-
+  const bootstrapLines = [
+    "# Daemora Bootstrap",
+    `# Generated on ${new Date().toISOString()}`,
+    "# All configuration is stored in SQLite (data/daemora.db).",
+    "# Only DATA_DIR is needed here if you want a non-default data directory.",
+    "# DATA_DIR=/custom/path/to/data",
+    "",
+  ];
   if (vaultPassphrase) {
-    envContent += "\n# API keys and secrets are stored encrypted in SQLite (vault_entries table)\n";
+    bootstrapLines.push("# Secrets are encrypted in SQLite vault_entries table.");
+    bootstrapLines.push("");
   }
-
-  writeFileSync(envPath, envContent, "utf-8");
+  writeFileSync(envPath, bootstrapLines.join("\n"), "utf-8");
 
   // Install daemon if requested
   if (daemonMode) {
@@ -1010,7 +993,7 @@ export async function runSetupWizard() {
     // Non-fatal — TF-IDF fallback will handle it
   }
 
-  spin.stop(`${S.check}  Configuration saved`);
+  spin.stop(`${S.check}  Configuration saved to SQLite (${configCount} setting${configCount !== 1 ? "s" : ""})`);
 
   // ━━━ Summary ━━━
   const fsLabel = envConfig.ALLOWED_PATHS

@@ -12,7 +12,7 @@
  */
 
 import chalk from "chalk";
-import { config } from "./config/default.js";
+import { config, reloadFromDb } from "./config/default.js";
 import daemonManager from "./daemon/DaemonManager.js";
 import secretVault from "./safety/SecretVault.js";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
@@ -102,6 +102,10 @@ async function main() {
           console.log(`\n  ${S.arrow}  Skipped vault. Starting without secrets.\n`);
         }
       }
+
+      // Reload non-secret config from SQLite (channel tokens, model settings, etc.)
+      // This runs after vault inject so SQLite config overrides .env for everything.
+      await reloadFromDb();
 
       // Block start if no AI provider is configured
       // Check: at least one provider key or Ollama host must be set

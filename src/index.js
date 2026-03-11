@@ -32,6 +32,7 @@ import webhookHandler from "./webhooks/WebhookHandler.js";
 import execApproval from "./safety/ExecApproval.js";
 import openaiCompat from "./api/openai-compat.js";
 import { msgText } from "./utils/msgText.js";
+import { configStore } from "./config/ConfigStore.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -917,6 +918,38 @@ app.delete("/api/tenants/:id/channels/:channel/:userId", (req, res) => {
   }
 });
 
+// --- Tenant-owned MCP servers ---
+
+app.get("/api/tenants/:id/mcp-servers", (req, res) => {
+  const id = decodeURIComponent(req.params.id);
+  if (!tenantManager.get(id)) return res.status(404).json({ error: "Tenant not found" });
+  res.json({ mcpServers: tenantManager.getOwnMcpServers(id) });
+});
+
+app.post("/api/tenants/:id/mcp-servers", (req, res) => {
+  const id = decodeURIComponent(req.params.id);
+  const { name, serverConfig } = req.body || {};
+  if (!name) return res.status(400).json({ error: "name is required" });
+  if (!serverConfig || (!serverConfig.command && !serverConfig.url)) {
+    return res.status(400).json({ error: "serverConfig must have 'command' (stdio) or 'url' (http/sse)" });
+  }
+  try {
+    const result = tenantManager.addOwnMcpServer(id, name, serverConfig);
+    res.json(result);
+  } catch (err) {
+    const status = err.message.includes("not found") ? 404 : 400;
+    res.status(status).json({ error: err.message });
+  }
+});
+
+app.delete("/api/tenants/:id/mcp-servers/:name", (req, res) => {
+  const id = decodeURIComponent(req.params.id);
+  const name = req.params.name;
+  const removed = tenantManager.removeOwnMcpServer(id, name);
+  if (!removed) return res.status(404).json({ error: `Server "${name}" not found for tenant` });
+  res.json({ message: `Removed MCP server "${name}" from tenant ${id}` });
+});
+
 // --- Exec approvals ---
 app.get("/api/approvals", (req, res) => {
   res.json({ approvals: execApproval.listPending(), mode: execApproval.mode });
@@ -932,7 +965,7 @@ app.post("/api/approvals/:id", (req, res) => {
   res.json({ message: `Approval ${req.params.id} → ${decision}` });
 });
 
-// --- Settings endpoint (read/write .env vars) ---
+// --- Settings endpoint (read/write config — .env + vault, SQLite config as overlay) ---
 app.get("/api/settings", (req, res) => {
   const envPath = join(__dirname, "..", ".env");
   const examplePath = join(__dirname, "..", ".env.example");
@@ -952,7 +985,11 @@ app.get("/api/settings", (req, res) => {
     }
   }
 
-  // Parse .env.example for available vars with sections
+  // Overlay with SQLite config_entries (setup wizard writes here)
+  const dbConfig = configStore.getAll();
+  Object.assign(envVars, dbConfig);
+
+  // Parse .env.example for available vars with sections (used for UI display grouping)
   const available = [];
   if (existsSync(examplePath)) {
     const lines = readFileSync(examplePath, "utf-8").split("\n");
@@ -971,12 +1008,12 @@ app.get("/api/settings", (req, res) => {
     }
   }
 
-  // Merge vault secrets (if unlocked) — vault takes priority
+  // Merge vault secrets (if unlocked) — vault takes priority over config
   const vaultActive = secretVault.isUnlocked();
   if (vaultActive) {
     const vaultSecrets = secretVault.getAsEnv();
     for (const key of Object.keys(vaultSecrets)) {
-      envVars[key] = vaultSecrets[key]; // vault overrides .env
+      envVars[key] = vaultSecrets[key];
     }
   }
 
