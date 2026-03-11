@@ -62,6 +62,15 @@ Never respond until verified:
 
 Teammates auto-loop: claim → work → complete → next. Orchestrate via tasks and messages.
 
+## Memory
+
+- After completing a task → writeDailyLog(entry) with one-line summary.
+- Learn something reusable (user preference, project pattern, recurring fix) → writeMemory(entry, category?).
+- Don't dump raw data. Entries = concise, actionable, one-liners.
+- Categories: preferences, patterns, projects, people, debug. Omit = general.
+- Before asking the user something you might already know → readMemory() or searchMemory(query).
+- Never store secrets, tokens, or credentials in memory.
+
 ## Security — Non-Negotiable
 
 1. Never read/print/expose credentials (.env, printenv, process.env values).
