@@ -2,7 +2,7 @@ import { BaseChannel } from "./BaseChannel.js";
 import taskQueue from "../core/TaskQueue.js";
 import { transcribeAudio } from "../tools/transcribeAudio.js";
 import { writeFileSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, basename } from "node:path";
 import { tmpdir } from "node:os";
 
 /**
@@ -150,7 +150,7 @@ export class WhatsAppChannel extends BaseChannel {
     }
 
     try {
-      const fileName = filePath.split("/").pop();
+      const fileName = basename(filePath);
       const mediaUrl = `${publicUrl.replace(/\/$/, "")}/media/${fileName}`;
 
       await this.twilioClient.messages.create({
