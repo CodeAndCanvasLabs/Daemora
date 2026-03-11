@@ -8,7 +8,7 @@ import { v4 as uuidv4 } from "uuid";
 import tenantContext from "../tenants/TenantContext.js";
 import { resolveSubAgentModel } from "../models/ModelRouter.js";
 import { createSession, getSession, setMessages } from "../services/sessions.js";
-import { filterCleanMessages } from "../core/TaskRunner.js";
+import { compactForSession } from "../utils/msgText.js";
 import skillLoader from "../skills/SkillLoader.js";
 
 /**
@@ -337,7 +337,7 @@ export async function spawnSubAgent(taskDescription, options = {}) {
       const capped = result.messages.length > 100
         ? result.messages.slice(-100)
         : result.messages;
-      setMessages(subSessionId, filterCleanMessages(capped));
+      setMessages(subSessionId, compactForSession(capped));
       console.log(`[SubAgent:${agentId}] Saved ${capped.length} messages to "${subSessionId}"`);
     }
 

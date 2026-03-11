@@ -2,6 +2,7 @@ import { spawnSubAgent } from "../agents/SubAgentManager.js";
 import mcpManager from "./MCPManager.js";
 import { toolFunctions } from "../tools/index.js";
 import { createSession, getSession, setMessages } from "../services/sessions.js";
+import { compactForSession } from "../utils/msgText.js";
 
 /**
  * Base tools injected into every MCP specialist agent alongside their server tools.
@@ -184,7 +185,7 @@ export async function runMCPAgent(serverName, taskDescription, options = {}) {
     const capped = fullResult.messages.length > 100
       ? fullResult.messages.slice(-100)
       : fullResult.messages;
-    setMessages(subSessionId, capped);
+    setMessages(subSessionId, compactForSession(capped));
     console.log(`[MCPAgentRunner] Saved ${capped.length} messages to sub-session "${subSessionId}"`);
   }
 
