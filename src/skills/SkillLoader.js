@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, statSync, accessSync, constants } from "fs";
-import { join, delimiter } from "path";
+import { join, basename, delimiter } from "path";
 import { createHash } from "node:crypto";
 import { config } from "../config/default.js";
 import { generateEmbedding, getEmbeddingProvider, buildTfidfVocab } from "../utils/Embeddings.js";
@@ -379,11 +379,9 @@ class SkillLoader {
     // Direct name lookup
     if (this.skills.has(nameOrPath)) return this.skills.get(nameOrPath);
 
-    // Strip common path prefixes and .md extension for matching
-    let normalized = nameOrPath
-      .replace(/^skills\//, "")
-      .replace(/\/SKILL\.md$/i, "")
-      .replace(/\.md$/, "");
+    // Strip path prefixes and .md extension for matching
+    // Handles full absolute paths on any OS: /Users/.../skills/coding.md or C:\...\skills\coding.md → "coding"
+    let normalized = basename(nameOrPath).replace(/\.md$/i, "");
 
     if (this.skills.has(normalized)) return this.skills.get(normalized);
 
