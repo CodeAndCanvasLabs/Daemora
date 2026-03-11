@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
 import { Link } from "react-router";
-import { Search, Clock, CheckCircle2, AlertCircle, Loader2, ChevronRight, ChevronDown, Bot } from "lucide-react";
+import { Search, Clock, CheckCircle2, AlertCircle, Loader2, ChevronRight, ChevronDown, Bot, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
+import { toast } from "sonner";
 
 interface SubAgent {
   agentId: string;
@@ -93,6 +94,19 @@ export function Tasks() {
     setExpandedTasks(next);
   };
 
+  const handleDelete = async (e: React.MouseEvent, taskId: string, status: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (status === "running") { toast.error("Cannot delete a running task"); return; }
+    if (!confirm("Delete this task?")) return;
+    const toastId = toast.loading("Deleting...");
+    try {
+      const res = await apiFetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+      if (res.ok) { toast.success("Task deleted", { id: toastId }); fetchTasks(); }
+      else { const err = await res.json(); toast.error(err.error || "Failed to delete", { id: toastId }); }
+    } catch (e: any) { toast.error(e.message, { id: toastId }); }
+  };
+
   const filteredTasks = tasks
     .filter((task) => !task.parentTaskId)
     .filter((task) =>
@@ -153,7 +167,8 @@ export function Tasks() {
             <div className="col-span-4">Input</div>
             <div className="col-span-1">Channel</div>
             <div className="col-span-2 text-right">Cost</div>
-            <div className="col-span-2 text-right">Created</div>
+            <div className="col-span-1 text-right">Created</div>
+            <div className="col-span-1"></div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -200,8 +215,18 @@ export function Tasks() {
                       <div className="col-span-2 text-right font-mono text-[10px] text-[#00ff88]">
                         <CostDisplay cost={task.cost} />
                       </div>
-                      <div className="col-span-2 text-right font-mono text-[10px] text-gray-500 uppercase">
-                        {new Date(task.createdAt).toLocaleDateString()} {new Date(task.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      <div className="col-span-1 text-right font-mono text-[10px] text-gray-500 uppercase">
+                        {new Date(task.createdAt).toLocaleDateString([], { month: 'numeric', day: 'numeric' })} {new Date(task.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                      <div className="col-span-1 flex justify-end">
+                        <button
+                          onClick={(e) => handleDelete(e, task.id, task.status)}
+                          disabled={task.status === "running"}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500/50 hover:text-red-500 disabled:opacity-20 disabled:cursor-not-allowed p-1"
+                          title="Delete task"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
 
