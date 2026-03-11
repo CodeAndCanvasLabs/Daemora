@@ -828,7 +828,7 @@ export async function runSetupWizard() {
       "",
       `  ${S.shield}  Per-secret unique IV`,
       `  ${S.shield}  No plaintext keys on disk`,
-      `  ${S.shield}  Vault file: data/.vault.enc`,
+      `  ${S.shield}  Secrets stored in SQLite (encrypted)`,
     ].join("\n"),
     "Encryption"
   );
@@ -856,12 +856,9 @@ export async function runSetupWizard() {
       }));
 
       if (vaultAction === "reset") {
-        const { unlinkSync } = await import("fs");
-        const vaultPath = join(ROOT_DIR, "data", ".vault.enc");
-        const saltPath = join(ROOT_DIR, "data", ".vault.salt");
-        try { unlinkSync(vaultPath); } catch {}
-        try { unlinkSync(saltPath); } catch {}
-        p.log.info("Old vault deleted.");
+        const { run: dbRun } = await import("../storage/Database.js");
+        try { dbRun("DELETE FROM vault_entries"); } catch {}
+        p.log.info("Old vault cleared.");
       }
     }
 
@@ -988,7 +985,7 @@ export async function runSetupWizard() {
   }
 
   if (vaultPassphrase) {
-    envContent += "\n# API keys encrypted in data/.vault.enc\n";
+    envContent += "\n# API keys and secrets are stored encrypted in SQLite (vault_entries table)\n";
   }
 
   writeFileSync(envPath, envContent, "utf-8");

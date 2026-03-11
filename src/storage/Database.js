@@ -113,6 +113,13 @@ function _initTables(db) {
     );
     CREATE INDEX IF NOT EXISTS idx_tenant_channels_tenant ON tenant_channels(tenant_id);
 
+    CREATE TABLE IF NOT EXISTS vault_entries (
+      key        TEXT PRIMARY KEY,
+      value      TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS cost_entries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       tenant_id TEXT,

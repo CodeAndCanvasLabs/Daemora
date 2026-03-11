@@ -1,94 +1,111 @@
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync, createHash } from "crypto";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "crypto";
+import { readFileSync, existsSync, renameSync, mkdirSync } from "fs";
 import { join } from "path";
 import { config } from "../config/default.js";
 import eventBus from "../core/EventBus.js";
+import { getDb } from "../storage/Database.js";
 
 /**
- * Secret Vault - encrypted secret storage.
+ * Secret Vault — encrypted secret storage in SQLite.
  *
- * All API keys, tokens, and credentials are encrypted at rest using
- * AES-256-GCM with a user-provided master passphrase.
+ * All API keys, channel tokens, and credentials are encrypted at rest using
+ * AES-256-GCM with the user-provided master passphrase.
  *
  * Security model:
- * - User provides a master passphrase during setup
- * - Passphrase → scrypt → 256-bit key (with per-vault salt)
+ * - User provides a master passphrase at startup (daemora start)
+ * - Passphrase → scrypt → 256-bit key (with per-vault salt stored in SQLite)
  * - Each secret encrypted individually with unique IV
- * - Even if filesystem is compromised, secrets can't be read without passphrase
- * - Vault file: data/.vault.enc (encrypted JSON)
- * - No plaintext API keys anywhere on disk
+ * - Stored in SQLite vault_entries table (not flat files)
+ * - No plaintext secrets anywhere on disk
+ * - .env is for infrastructure config only (PORT, DATA_DIR) — never secrets
  *
- * Usage:
- *   vault.unlock("user-passphrase")
- *   vault.set("OPENAI_API_KEY", "sk-...")
- *   const key = vault.get("OPENAI_API_KEY")
- *   vault.lock()
+ * Migration: existing .vault.enc file is imported into SQLite on first unlock,
+ * then renamed to .vault.enc.bak.
  */
 
-const VAULT_FILE = ".vault.enc";
-const SALT_FILE = ".vault.salt";
-const ALGORITHM = "aes-256-gcm";
-const SCRYPT_N = 16384;
-const SCRYPT_R = 8;
-const SCRYPT_P = 1;
+const SALT_KEY   = "__vault_salt__";
+const ALGORITHM  = "aes-256-gcm";
+const SCRYPT_N   = 16384;
+const SCRYPT_R   = 8;
+const SCRYPT_P   = 1;
 const KEY_LENGTH = 32;
+
+// Legacy flat file paths (for one-time migration)
+const LEGACY_VAULT_FILE = join(config.dataDir, ".vault.enc");
+const LEGACY_SALT_FILE  = join(config.dataDir, ".vault.salt");
 
 class SecretVault {
   constructor() {
-    this.vaultPath = join(config.dataDir, VAULT_FILE);
-    this.saltPath = join(config.dataDir, SALT_FILE);
     this.encryptionKey = null;
-    this.secrets = null; // decrypted secrets in memory (only while unlocked)
+    this.secrets = null; // decrypted map in memory (only while unlocked)
     this.unlocked = false;
   }
 
   /**
-   * Unlock the vault with a master passphrase.
-   * Must be called before get/set operations.
+   * Unlock the vault with the master passphrase.
+   * Initialises SQLite, derives the encryption key, decrypts all entries into memory.
+   * Must be called before any get/set operations.
    */
   unlock(passphrase) {
     if (!passphrase || passphrase.length < 8) {
       throw new Error("Passphrase must be at least 8 characters");
     }
 
-    // Get or create salt
+    const db = getDb(); // ensures vault_entries table exists
+
+    // Get or create salt (stored as a special vault_entries row)
     let salt;
-    if (existsSync(this.saltPath)) {
-      salt = readFileSync(this.saltPath);
+    const saltRow = db.prepare("SELECT value FROM vault_entries WHERE key = ?").get(SALT_KEY);
+    if (saltRow) {
+      salt = Buffer.from(saltRow.value, "hex");
     } else {
-      salt = randomBytes(32);
-      mkdirSync(config.dataDir, { recursive: true });
-      writeFileSync(this.saltPath, salt);
+      // Check legacy salt file first (migration path)
+      if (existsSync(LEGACY_SALT_FILE)) {
+        salt = readFileSync(LEGACY_SALT_FILE);
+      } else {
+        salt = randomBytes(32);
+      }
+      db.prepare(
+        "INSERT OR REPLACE INTO vault_entries (key, value, updated_at) VALUES (?, ?, datetime('now'))"
+      ).run(SALT_KEY, salt.toString("hex"));
     }
 
-    // Derive key from passphrase
+    // Derive encryption key from passphrase + salt
     this.encryptionKey = scryptSync(passphrase, salt, KEY_LENGTH, {
-      N: SCRYPT_N,
-      r: SCRYPT_R,
-      p: SCRYPT_P,
+      N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P,
     });
 
-    // Load existing vault or create empty
-    if (existsSync(this.vaultPath)) {
-      try {
-        const encrypted = readFileSync(this.vaultPath, "utf-8");
-        const decrypted = this._decrypt(encrypted);
-        this.secrets = JSON.parse(decrypted);
-      } catch (error) {
-        throw new Error(
-          "Failed to unlock vault. Wrong passphrase or corrupted vault file."
-        );
-      }
-    } else {
+    // Load secrets from SQLite
+    try {
+      const rows = db.prepare(
+        "SELECT key, value FROM vault_entries WHERE key != ?"
+      ).all(SALT_KEY);
+
       this.secrets = {};
+      for (const row of rows) {
+        try {
+          this.secrets[row.key] = this._decrypt(row.value);
+        } catch {
+          // Skip entries that fail to decrypt (wrong passphrase would throw on first one)
+          throw new Error("Failed to unlock vault. Wrong passphrase or corrupted entry.");
+        }
+      }
+    } catch (err) {
+      this.encryptionKey = null;
+      this.secrets = null;
+      throw err;
     }
 
     this.unlocked = true;
+
+    // One-time migration from legacy .vault.enc flat file
+    this._migrateLegacyVault();
+
     return true;
   }
 
   /**
-   * Lock the vault - clear decrypted secrets from memory.
+   * Lock the vault — wipe decrypted secrets from memory.
    */
   lock() {
     this.secrets = null;
@@ -101,14 +118,18 @@ class SecretVault {
    */
   set(key, value) {
     this._ensureUnlocked();
+    if (key === SALT_KEY) throw new Error("Reserved key");
+    const encrypted = this._encrypt(value);
+    getDb().prepare(
+      "INSERT OR REPLACE INTO vault_entries (key, value, updated_at) VALUES (?, ?, datetime('now'))"
+    ).run(key, encrypted);
     this.secrets[key] = value;
-    this._save();
     eventBus.emitEvent("vault:secret_stored", { key });
     return true;
   }
 
   /**
-   * Retrieve a secret from the vault.
+   * Retrieve a decrypted secret from memory.
    */
   get(key) {
     this._ensureUnlocked();
@@ -116,12 +137,12 @@ class SecretVault {
   }
 
   /**
-   * Delete a secret from the vault.
+   * Delete a secret.
    */
   delete(key) {
     this._ensureUnlocked();
+    getDb().prepare("DELETE FROM vault_entries WHERE key = ?").run(key);
     delete this.secrets[key];
-    this._save();
     return true;
   }
 
@@ -130,119 +151,114 @@ class SecretVault {
    */
   list() {
     this._ensureUnlocked();
-    return Object.keys(this.secrets).map((key) => ({
+    return Object.entries(this.secrets).map(([key, value]) => ({
       key,
-      length: this.secrets[key]?.length || 0,
-      preview: `${this.secrets[key]?.slice(0, 4)}...`,
+      length: value?.length || 0,
+      preview: `${value?.slice(0, 4)}...`,
     }));
   }
 
   /**
-   * Check if vault exists (has been set up).
+   * Check if the vault has been set up (has any entries in SQLite or legacy flat file).
    */
   exists() {
-    return existsSync(this.vaultPath);
+    try {
+      const db = getDb();
+      const row = db.prepare("SELECT COUNT(*) as cnt FROM vault_entries").get();
+      if (row.cnt > 0) return true;
+    } catch { /* DB not ready yet */ }
+    return existsSync(LEGACY_VAULT_FILE);
   }
 
-  /**
-   * Check if vault is unlocked.
-   */
-  isUnlocked() {
-    return this.unlocked;
-  }
+  isUnlocked() { return this.unlocked; }
 
   /**
-   * Import secrets from .env file into the vault.
-   * After import, the .env values can be removed.
-   */
-  importFromEnv(envPath) {
-    this._ensureUnlocked();
-
-    if (!existsSync(envPath)) {
-      throw new Error(`.env file not found: ${envPath}`);
-    }
-
-    const content = readFileSync(envPath, "utf-8");
-    const lines = content.split("\n");
-    let imported = 0;
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-
-      const eqIdx = trimmed.indexOf("=");
-      if (eqIdx <= 0) continue;
-
-      const key = trimmed.slice(0, eqIdx).trim();
-      let value = trimmed.slice(eqIdx + 1).trim();
-
-      // Remove surrounding quotes
-      if (
-        (value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))
-      ) {
-        value = value.slice(1, -1);
-      }
-
-      // Only import non-empty secret-looking values
-      if (value && value.length >= 8) {
-        this.secrets[key] = value;
-        imported++;
-      }
-    }
-
-    this._save();
-    return imported;
-  }
-
-  /**
-   * Get all secrets as environment variables (for process.env injection).
+   * Get all secrets as a plain object (for process.env injection at startup).
    */
   getAsEnv() {
     this._ensureUnlocked();
     return { ...this.secrets };
   }
 
-  // ===== Private methods =====
+  /**
+   * Import secrets from a .env file into the vault.
+   */
+  importFromEnv(envPath) {
+    this._ensureUnlocked();
+    if (!existsSync(envPath)) throw new Error(`.env file not found: ${envPath}`);
+
+    const lines = readFileSync(envPath, "utf-8").split("\n");
+    let imported = 0;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eqIdx = trimmed.indexOf("=");
+      if (eqIdx <= 0) continue;
+      const key = trimmed.slice(0, eqIdx).trim();
+      let value = trimmed.slice(eqIdx + 1).trim();
+      if ((value.startsWith('"') && value.endsWith('"')) ||
+          (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      if (value && value.length >= 8) {
+        this.set(key, value);
+        imported++;
+      }
+    }
+    return imported;
+  }
+
+  // ── Private ───────────────────────────────────────────────────────────────
 
   _ensureUnlocked() {
     if (!this.unlocked || !this.secrets) {
-      throw new Error(
-        "Vault is locked. Call vault.unlock(passphrase) first."
-      );
+      throw new Error("Vault is locked. Call vault.unlock(passphrase) first.");
     }
-  }
-
-  _save() {
-    const json = JSON.stringify(this.secrets);
-    const encrypted = this._encrypt(json);
-    writeFileSync(this.vaultPath, encrypted, "utf-8");
   }
 
   _encrypt(plaintext) {
     const iv = randomBytes(16);
     const cipher = createCipheriv(ALGORITHM, this.encryptionKey, iv);
-    let encrypted = cipher.update(plaintext, "utf-8", "hex");
-    encrypted += cipher.final("hex");
-    const authTag = cipher.getAuthTag().toString("hex");
-    // Format: iv:authTag:ciphertext
-    return `${iv.toString("hex")}:${authTag}:${encrypted}`;
+    let enc = cipher.update(plaintext, "utf-8", "hex");
+    enc += cipher.final("hex");
+    const tag = cipher.getAuthTag().toString("hex");
+    return `${iv.toString("hex")}:${tag}:${enc}`;
   }
 
   _decrypt(encryptedStr) {
     const parts = encryptedStr.split(":");
-    if (parts.length !== 3) {
-      throw new Error("Invalid vault format");
-    }
-    const [ivHex, authTagHex, ciphertext] = parts;
-    const iv = Buffer.from(ivHex, "hex");
-    const authTag = Buffer.from(authTagHex, "hex");
-
+    if (parts.length < 3) throw new Error("Invalid vault entry format");
+    const [ivHex, tagHex, ...rest] = parts;
+    const iv  = Buffer.from(ivHex, "hex");
+    const tag = Buffer.from(tagHex, "hex");
+    const enc = Buffer.from(rest.join(":"), "hex");
     const decipher = createDecipheriv(ALGORITHM, this.encryptionKey, iv);
-    decipher.setAuthTag(authTag);
-    let decrypted = decipher.update(ciphertext, "hex", "utf-8");
-    decrypted += decipher.final("utf-8");
-    return decrypted;
+    decipher.setAuthTag(tag);
+    return decipher.update(enc).toString("utf8") + decipher.final("utf8");
+  }
+
+  /**
+   * One-time migration: import .vault.enc flat file into SQLite, then rename it.
+   */
+  _migrateLegacyVault() {
+    if (!existsSync(LEGACY_VAULT_FILE)) return;
+    try {
+      const encrypted = readFileSync(LEGACY_VAULT_FILE, "utf-8").trim();
+      const decrypted = this._decrypt(encrypted);
+      const legacySecrets = JSON.parse(decrypted);
+      let migrated = 0;
+      for (const [key, value] of Object.entries(legacySecrets)) {
+        if (!this.secrets[key]) { // don't overwrite existing SQLite entries
+          this.set(key, value);
+          migrated++;
+        }
+      }
+      renameSync(LEGACY_VAULT_FILE, LEGACY_VAULT_FILE + ".bak");
+      if (existsSync(LEGACY_SALT_FILE)) renameSync(LEGACY_SALT_FILE, LEGACY_SALT_FILE + ".bak");
+      if (migrated > 0) console.log(`[Vault] Migrated ${migrated} secret(s) from flat file to SQLite`);
+    } catch (err) {
+      console.log(`[Vault] Legacy vault migration skipped: ${err.message}`);
+    }
   }
 }
 
