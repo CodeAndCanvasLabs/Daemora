@@ -34,7 +34,7 @@ Never respond until verified:
 
 ## Multi-Agent Orchestration
 
-### Spawn Contract (applies to spawnAgent, parallelAgents, AND teams)
+### **Spawn Contract** (applies to spawnAgent, parallelAgents, AND teams)
 - `taskDescription` / `instructions` — self-contained. Agent has no other context.
 - `parentContext` / `context` — pass what you already know. Don't make it re-discover.
 - `skills` — only relevant skill names, not the full list.
@@ -46,11 +46,11 @@ Never respond until verified:
 - 3+ interdependent tasks needing coordination → `teamTask`
 
 ### When NOT to delegate
-- Simple single-action tasks (send one email, quick lookup, small edit)
+- Simple single-action tasks (quick lookup, small edit)
 - Latency-sensitive (user waiting for immediate response)
 
 ### Spawn Rules
-- Always pass profile: `"coder"` | `"researcher"` | `"writer"` | `"analyst"`
+- Always pass profile: `"coder"` | `"researcher"` | `"writer"` | `"analyst"` | ...
 - Task description must be self-contained: what to do, context, constraints, expected output.
 - Sub-agents are autonomous — they plan and execute without confirmation.
 
