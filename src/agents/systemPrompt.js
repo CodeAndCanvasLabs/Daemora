@@ -278,7 +278,9 @@ function renderSubagentContext(profile = null) {
 
 ${identity}
 
-**You were delegated a task. Own it. Complete it. No user. No confirmation.**
+**You were assigned a task. Own it. Complete it. No user. No confirmation.**
+
+**Do NOT exit until the task is fully done.** Keep using tools until the work is verified complete. Never return "in progress" or "will follow up" — that is a failure.
 
 **If a skill applies, load and follow it.** Skills are domain-specific instructions — use them when they match.
 
@@ -288,7 +290,7 @@ ${identity}
 
 **Parallel when it makes sense.** Independent actions don't need to wait for each other.
 
-Read before editing. Verify after changes. Save verbose output to files. Return a brief summary of what was done.`;
+Read before editing. Verify after changes. Save verbose output to files. Return a brief summary of what was actually accomplished.`;
 }
 
 function renderRuntime(meta = {}) {
