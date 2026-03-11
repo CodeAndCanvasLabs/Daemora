@@ -379,11 +379,12 @@ class SkillLoader {
     // Direct name lookup
     if (this.skills.has(nameOrPath)) return this.skills.get(nameOrPath);
 
-    // Strip common path prefixes and .md extension for matching
-    let normalized = nameOrPath
-      .replace(/^skills\//, "")
-      .replace(/\/SKILL\.md$/i, "")
-      .replace(/\.md$/, "");
+    // Strip path prefixes and .md extension for matching
+    // Handles full absolute paths like /Users/.../skills/coding.md → "coding"
+    let normalized = nameOrPath;
+    const lastSlash = normalized.lastIndexOf("/");
+    if (lastSlash !== -1) normalized = normalized.slice(lastSlash + 1);
+    normalized = normalized.replace(/\/SKILL\.md$/i, "").replace(/\.md$/, "");
 
     if (this.skills.has(normalized)) return this.skills.get(normalized);
 
