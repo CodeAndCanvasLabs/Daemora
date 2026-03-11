@@ -30,6 +30,7 @@ export async function runAgentLoop({
   signal = null,
   steerQueue = null,
   apiKeys = {},
+  onStepPersist = null,
 }) {
   const selectedModelId = modelId || config.defaultModel;
   const { model, meta, modelId: resolvedModelId } = getModelWithFallback(selectedModelId, apiKeys);
@@ -249,6 +250,22 @@ export async function runAgentLoop({
           inputTokens: usage?.inputTokens || usage?.promptTokens || 0,
           outputTokens: usage?.outputTokens || usage?.completionTokens || 0,
         });
+
+        // Persist step messages incrementally so crashes don't lose history
+        if (onStepPersist) {
+          try {
+            const stepMessages = [];
+            if (toolCalls?.length > 0) {
+              stepMessages.push({ role: "assistant", content: toolCalls.map(tc => ({ type: "tool-call", toolCallId: tc.toolCallId, toolName: tc.toolName, args: tc.args })) });
+            } else if (text) {
+              stepMessages.push({ role: "assistant", content: text });
+            }
+            if (toolResults?.length > 0) {
+              stepMessages.push({ role: "tool", content: toolResults.map(tr => ({ type: "tool-result", toolCallId: tr.toolCallId, toolName: tr.toolName, result: tr.result })) });
+            }
+            if (stepMessages.length > 0) onStepPersist(stepMessages);
+          } catch (_) { /* never block the loop on persist errors */ }
+        }
 
         // Drain steer queue between steps
         if (steerQueue?.length > 0) {
