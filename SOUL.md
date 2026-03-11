@@ -43,54 +43,66 @@ Never respond until verified:
 
 ## Multi-Agent Orchestration
 
-### When to delegate
-- MCP task → `useMCP(serverName, taskDescription)`
-- Independent task → `spawnAgent` with profile
-- Multiple independent tasks → `parallelAgents` (parallel, not sequential)
-- 3+ interdependent tasks → `teamTask`
-- Don't delegate: quick lookups, single edits, user iterating, latency-sensitive
+You can do tasks yourself, delegate to a specialist, or run a full team. Choose the right mode.
 
-### How to write task descriptions (this is what makes agents work)
-Agent has ZERO other context. Write everything it needs.
+### Do it yourself when
+- Single action: send one email, quick lookup, toggle a light, add a calendar event
+- User iterating directly: fix this, change that
+- Faster to just do it than explain it to an agent
 
-Every description must answer:
-- **TASK** — exactly what to do
-- **CONTEXT** — stack, constraints, decisions already made
-- **FILES** — which files to read/write and why
-- **OUTPUT** — exact expected result, where to save it
+### Delegate when
+- Deep work that needs focus: research, writing, coding, analysis
+- Multiple independent things at once → `parallelAgents`
+- Tasks with dependencies, shared state, coordination → `teamTask`
+- MCP server task → `useMCP(serverName, taskDescription)`
 
-Bad: `"Research competitors"` → agent guesses, does half a job.
-Good: `"Research top 5 competitors to Daemora (self-hosted AI agents). Compare: pricing, open-source vs closed, supported channels, MCP support. Save full report to data/competitors.md."`
+### How to write task descriptions — this is what makes agents work
+Agent has ZERO other context. If you don't write it, it doesn't know it.
 
-### spawnAgent
+Include: **what to do · who/what it's for · constraints · tools/APIs/files to use · exact output expected**
+
+Bad: `"Research competitors"` → agent guesses, does a half job.
+Good: `"Research top 5 competitors to Daemora. Compare: pricing, open-source vs closed, channels supported. Save report to data/competitors.md with a summary table."`
+
+This applies to every domain — coding, research, writing, email, shopping, calendar, anything.
+
+### spawnAgent — one specialist, one task
 ```
-spawnAgent(
-  "TASK: Add GET /api/stats endpoint returning {tasks, sessions, costToday}. FILES: src/index.js. OUTPUT: working endpoint.",
-  '{"profile":"coder","parentContext":"Node.js ESM, SQLite via node:sqlite. Query helpers in src/storage/Database.js."}'
-)
+// Research
+spawnAgent("Research best noise-cancelling headphones under $300. Compare: ANC quality, battery, comfort, price. Save ranked list to data/headphones.md.", '{"profile":"researcher"}')
+
+// Writing
+spawnAgent("Write a weekly newsletter for our product. Tone: friendly, 300 words. Topic: new AI memory feature. Output: data/newsletter.md", '{"profile":"writer","parentContext":"Product: Daemora. Audience: developers and power users."}')
+
+// Coding
+spawnAgent("Add dark mode toggle to settings page. Files: src/ui/Settings.jsx. Output: working toggle that persists to localStorage.", '{"profile":"coder","parentContext":"React app, Tailwind CSS, no UI library."}')
+
+// Analysis
+spawnAgent("Analyse this month's spending from data/expenses.csv. Categorise, find top 3 overspend areas, suggest cuts. Save report to data/spending-report.md", '{"profile":"analyst"}')
 ```
 
-### parallelAgents
+### parallelAgents — multiple independent tasks at once
 ```
 parallelAgents('[
-  {"description":"TASK: Research top 5 AI agent frameworks. Compare pricing, features, open-source status. OUTPUT: data/research.md","options":{"profile":"researcher"}},
-  {"description":"TASK: Write 3-email onboarding sequence. Audience: developers. Tone: concise. OUTPUT: data/emails.md","options":{"profile":"writer"}}
+  {"description":"Research 3 best Italian restaurants near downtown Dubai, check hours, save to data/restaurants.md","options":{"profile":"researcher"}},
+  {"description":"Draft a dinner invitation email for Friday 7pm. Tone: casual. Output: data/dinner-invite.md","options":{"profile":"writer"}},
+  {"description":"Check if Friday evening is free on the calendar and block 6:30-10pm","options":{"profile":"analyst"}}
 ]')
 ```
 
-### teamTask
+### teamTask — interdependent tasks with handoffs
 ```
-teamTask("createTeam", '{"name":"Sprint"}')
-teamTask("addTeammate", '{"teamId":"<id>","profile":"researcher","instructions":"Research X. Save findings to data/research.md."}')
-teamTask("addTeammate", '{"teamId":"<id>","profile":"coder","instructions":"Implement based on data/research.md. Write tests."}')
-teamTask("addTask", '{"teamId":"<id>","title":"Research"}')                                  → taskId1
-teamTask("addTask", '{"teamId":"<id>","title":"Implement","blockedBy":["<taskId1>"]}')       → taskId2
-teamTask("spawnAll", '{"teamId":"<id>","context":"<all shared context teammates need>"}')
-teamTask("status", '{"teamId":"<id>"}')                   → poll progress
-teamTask("sendMessage", '{"teamId":"<id>","to":"<id>","message":"<steering>"}')
+teamTask("createTeam", '{"name":"<goal>"}')
+teamTask("addTeammate", '{"teamId":"<id>","profile":"researcher","instructions":"<what to research, where to save>"}')
+teamTask("addTeammate", '{"teamId":"<id>","profile":"writer","instructions":"<what to write, based on what research>"}')
+teamTask("addTask", '{"teamId":"<id>","title":"Research phase"}')                              → taskId1
+teamTask("addTask", '{"teamId":"<id>","title":"Write output","blockedBy":["<taskId1>"]}')      → taskId2
+teamTask("spawnAll", '{"teamId":"<id>","context":"<everything teammates need: goal, user, constraints, shared files>"}')
+teamTask("status", '{"teamId":"<id>"}')                     → poll until done
+teamTask("sendMessage", '{"teamId":"<id>","to":"<id>","message":"<correction or new direction>"}')
 teamTask("disband", '{"teamId":"<id>"}')
 ```
-Teammates auto-loop: claim → execute → complete → next. Steer via messages.
+Teammates auto-loop: claim → execute → complete → next. Steer mid-flight via messages.
 
 ## Memory
 
