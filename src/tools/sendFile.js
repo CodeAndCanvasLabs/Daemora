@@ -15,6 +15,7 @@
  */
 import channelRegistry from "../channels/index.js";
 import tenantContext from "../tenants/TenantContext.js";
+import tenantManager from "../tenants/TenantManager.js";
 import { existsSync, statSync } from "node:fs";
 import filesystemGuard from "../safety/FilesystemGuard.js";
 
@@ -48,29 +49,40 @@ export async function sendFile(params) {
       return "Error: No active channel context. Cannot determine where to send the file.";
     }
 
-    // If a specific channel was requested, verify it matches the current user's channel.
-    // Cross-channel sends (e.g. Discord → Telegram) are not supported — each channel is
-    // a separate tenant identity and we don't have the user's ID on other channels.
     const targetChannel = requestedChannel?.toLowerCase() || channelMeta.channel;
+
+    // Resolve the channelMeta to use for sending
+    let targetMeta = channelMeta;
     if (targetChannel !== channelMeta.channel) {
-      return `Error: Cannot send to "${targetChannel}" — you are on "${channelMeta.channel}". Files can only be sent back to the channel you are using.`;
+      // Cross-channel send — look up the tenant's identity on the requested channel
+      const tenantId = store?.tenant?.id;
+      if (!tenantId) {
+        return `Error: No tenant context — cannot determine your identity on "${targetChannel}".`;
+      }
+      const linkedChannels = tenantManager.getChannels(tenantId);
+      const linked = linkedChannels.find(c => c.channel === targetChannel);
+      if (!linked) {
+        return `Error: Your account has no "${targetChannel}" identity linked. Link it first: daemora tenant link ${tenantId} ${targetChannel} <userId>`;
+      }
+      // Build a minimal channelMeta for the target channel using the tenant's known ID
+      targetMeta = { channel: targetChannel, chatId: linked.user_id, channelId: linked.user_id, userId: linked.user_id };
     }
 
-    const ch = channelRegistry.get(channelMeta.channel);
+    const ch = channelRegistry.get(targetMeta.channel);
     if (!ch) {
       const available = channelRegistry.list().map((c) => c.name).join(", ");
-      return `Error: Channel "${channelMeta.channel}" not found. Available: ${available || "none"}`;
+      return `Error: Channel "${targetMeta.channel}" not found. Available: ${available || "none"}`;
     }
     if (!ch.running) {
-      return `Error: Channel "${channelMeta.channel}" is not running.`;
+      return `Error: Channel "${targetMeta.channel}" is not running.`;
     }
     if (typeof ch.sendFile !== "function") {
-      return `Error: Channel "${channelMeta.channel}" does not support file sending yet.`;
+      return `Error: Channel "${targetMeta.channel}" does not support file sending yet.`;
     }
 
-    await ch.sendFile(channelMeta, filePath, caption || "");
+    await ch.sendFile(targetMeta, filePath, caption || "");
 
-    return `File sent via ${channelMeta.channel}: ${filePath}`;
+    return `File sent via ${targetMeta.channel}: ${filePath}`;
   } catch (error) {
     return `Error sending file: ${error.message}`;
   }
@@ -78,7 +90,7 @@ export async function sendFile(params) {
 
 export const sendFileDescription =
   'sendFile(filePath, caption?, channel?) - Send a file, image, or video back to the current user. ' +
-  'Always sends to the user who sent the current message — target is automatic from session context. ' +
-  'channel: optional, must match the current channel (cross-channel sends are not supported). ' +
+  'Always sends to the current user — never to arbitrary external targets. ' +
+  'channel: optional, specify a different channel (e.g. "telegram") only if the user explicitly requests it and has that channel linked to their account. ' +
   'filePath: absolute path to the file. caption: optional text alongside the file. ' +
-  'Prefer replyWithFile() for simplicity — use sendFile() only when you need to confirm the channel explicitly.';
+  'Prefer replyWithFile() for simplicity — sendFile() is for explicit cross-channel sends.';

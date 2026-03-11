@@ -870,6 +870,39 @@ app.delete("/api/tenants/:id/apikeys/:keyName", (req, res) => {
   res.json({ message: `API key ${keyName} deleted` });
 });
 
+// --- Tenant channel identities ---
+app.get("/api/tenants/:id/channels", (req, res) => {
+  const id = decodeURIComponent(req.params.id);
+  if (!tenantManager.get(id)) return res.status(404).json({ error: "Tenant not found" });
+  res.json({ channels: tenantManager.getChannels(id) });
+});
+
+app.post("/api/tenants/:id/channels", (req, res) => {
+  const id = decodeURIComponent(req.params.id);
+  const { channel, userId } = req.body || {};
+  if (!channel || !userId) return res.status(400).json({ error: "channel and userId are required" });
+  try {
+    tenantManager.linkChannel(id, channel, userId);
+    res.json({ message: `Linked ${channel}:${userId} to tenant ${id}` });
+  } catch (err) {
+    const status = err.message.includes("not found") ? 404 : 409;
+    res.status(status).json({ error: err.message });
+  }
+});
+
+app.delete("/api/tenants/:id/channels/:channel/:userId", (req, res) => {
+  const id = decodeURIComponent(req.params.id);
+  const channel = req.params.channel;
+  const userId = decodeURIComponent(req.params.userId);
+  try {
+    tenantManager.unlinkChannel(id, channel, userId);
+    res.json({ message: `Unlinked ${channel}:${userId} from tenant ${id}` });
+  } catch (err) {
+    const status = err.message.includes("last channel") ? 400 : 404;
+    res.status(status).json({ error: err.message });
+  }
+});
+
 // --- Exec approvals ---
 app.get("/api/approvals", (req, res) => {
   res.json({ approvals: execApproval.listPending(), mode: execApproval.mode });

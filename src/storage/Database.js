@@ -104,6 +104,15 @@ function _initTables(db) {
       suspend_reason TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS tenant_channels (
+      channel  TEXT NOT NULL,
+      user_id  TEXT NOT NULL,
+      tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      linked_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (channel, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_tenant_channels_tenant ON tenant_channels(tenant_id);
+
     CREATE TABLE IF NOT EXISTS cost_entries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       tenant_id TEXT,
@@ -179,6 +188,19 @@ function _runMigrations(db) {
   };
   _addCol("channel", "TEXT");
   _addCol("session_id", "TEXT");
+
+  // Backfill tenant_channels from existing "channel:userId" tenant IDs (idempotent)
+  const tenants = db.prepare("SELECT id FROM tenants").all();
+  for (const { id } of tenants) {
+    const colonIdx = id.indexOf(":");
+    if (colonIdx === -1) continue;
+    const channel = id.slice(0, colonIdx);
+    const userId  = id.slice(colonIdx + 1);
+    if (!channel || !userId) continue;
+    db.prepare(
+      "INSERT OR IGNORE INTO tenant_channels (channel, user_id, tenant_id) VALUES (?, ?, ?)"
+    ).run(channel, userId, id);
+  }
 }
 
 // ── Flat File Migration ──────────────────────────────────────────────────────

@@ -1196,6 +1196,38 @@ async function handleTenant(action, args) {
       break;
     }
 
+    case "link": {
+      // daemora tenant link <tenantId> <channel> <userId>
+      const [linkId, linkChannel, linkUserId] = args;
+      if (!linkId || !linkChannel || !linkUserId) {
+        console.error(`\n  ${S.cross}  Usage: daemora tenant link ${t.dim("<tenantId> <channel> <userId>")}\n`);
+        process.exit(1);
+      }
+      try {
+        const res = await apiCall("POST", `/tenants/${encodeURIComponent(linkId)}/channels`, { channel: linkChannel, userId: linkUserId });
+        if (res.status === 404) { console.error(`\n  ${S.cross}  Tenant "${linkId}" not found.\n`); process.exit(1); }
+        if (res.status === 409) { console.error(`\n  ${S.cross}  ${res.body?.error || "Channel identity already linked to another tenant."}\n`); process.exit(1); }
+        console.log(`\n${header}  ${S.check}  Linked ${t.bold(linkChannel + ":" + linkUserId)} → tenant ${t.bold(linkId)}.\n`);
+      } catch { console.error(`\n  ${S.cross}  Agent not running.\n`); }
+      break;
+    }
+
+    case "unlink": {
+      // daemora tenant unlink <tenantId> <channel> <userId>
+      const [unlinkId, unlinkChannel, unlinkUserId] = args;
+      if (!unlinkId || !unlinkChannel || !unlinkUserId) {
+        console.error(`\n  ${S.cross}  Usage: daemora tenant unlink ${t.dim("<tenantId> <channel> <userId>")}\n`);
+        process.exit(1);
+      }
+      try {
+        const res = await apiCall("DELETE", `/tenants/${encodeURIComponent(unlinkId)}/channels/${unlinkChannel}/${encodeURIComponent(unlinkUserId)}`);
+        if (res.status === 404) { console.error(`\n  ${S.cross}  Tenant or channel identity not found.\n`); process.exit(1); }
+        if (res.status === 400) { console.error(`\n  ${S.cross}  ${res.body?.error || "Cannot unlink last identity."}\n`); process.exit(1); }
+        console.log(`\n${header}  ${S.check}  Unlinked ${t.bold(unlinkChannel + ":" + unlinkUserId)} from tenant ${t.bold(unlinkId)}.\n`);
+      } catch { console.error(`\n  ${S.cross}  Agent not running.\n`); }
+      break;
+    }
+
     case "apikey": {
       // daemora tenant apikey set <tenantId> <KEY_NAME> <value>
       // daemora tenant apikey delete <tenantId> <KEY_NAME>
