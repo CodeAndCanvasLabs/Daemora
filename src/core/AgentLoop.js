@@ -235,8 +235,8 @@ export async function runAgentLoop({
       onStepFinish({ stepNumber, text, toolCalls, toolResults, finishReason, usage }) {
         totalSteps = stepNumber + 1;
         if (usage) {
-          totalInputTokens += usage.promptTokens || 0;
-          totalOutputTokens += usage.completionTokens || 0;
+          totalInputTokens += usage.inputTokens || usage.promptTokens || 0;
+          totalOutputTokens += usage.outputTokens || usage.completionTokens || 0;
         }
 
         const tcNames = toolCalls?.map(tc => tc.toolName).join(", ") || "none";
@@ -246,8 +246,8 @@ export async function runAgentLoop({
           modelId: resolvedModelId,
           loopCount: stepNumber + 1,
           elapsed: 0,
-          inputTokens: usage?.promptTokens || 0,
-          outputTokens: usage?.completionTokens || 0,
+          inputTokens: usage?.inputTokens || usage?.promptTokens || 0,
+          outputTokens: usage?.outputTokens || usage?.completionTokens || 0,
         });
 
         // Drain steer queue between steps
@@ -270,8 +270,8 @@ export async function runAgentLoop({
     // Final usage from result
     if (result.usage) {
       // If onStepFinish already tracked, these may overlap — use result.usage as total
-      totalInputTokens = result.usage.promptTokens || totalInputTokens;
-      totalOutputTokens = result.usage.completionTokens || totalOutputTokens;
+      totalInputTokens = result.usage.inputTokens || result.usage.promptTokens || totalInputTokens;
+      totalOutputTokens = result.usage.outputTokens || result.usage.completionTokens || totalOutputTokens;
     }
 
     const finalText = result.text || "";
