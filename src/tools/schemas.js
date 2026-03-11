@@ -483,7 +483,7 @@ export function buildToolDocLines(availableTools) {
 
 /**
  * Build Vercel AI SDK tool definitions for generateText().
- * Returns { toolName: tool({ description, parameters }) } — no execute.
+ * Returns { toolName: tool({ description, inputSchema }) } — no execute.
  * Dispatch is handled manually in AgentLoop with guards.
  */
 export function buildAITools(availableNames) {
@@ -493,7 +493,7 @@ export function buildAITools(availableNames) {
     if (!entry) continue;
     aiTools[name] = tool({
       description: entry.description,
-      parameters: entry.schema,
+      inputSchema: entry.schema,
     });
   }
   return aiTools;
