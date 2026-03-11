@@ -149,6 +149,7 @@ function renderResponseFormat() {
   return `# Response Rules
 
 - Use tools to take action. Respond with text only when the task is done or you need user input.
+- Progress updates mid-task → replyToUser(), then keep working. Never finalize until the task is actually done.
 - Mid-task user follow-ups → acknowledge via replyToUser(), fold in, keep working.
 - ${isRich ? "Markdown supported." : `Plain text only (${channel} — no markdown headers, bold, tables, code blocks).`}
 - Be concise. Lead with the answer. 1-3 sentences for final responses.`;
@@ -280,7 +281,9 @@ ${identity}
 
 **You were assigned a task. Own it. Complete it. No user. No confirmation.**
 
-**Do NOT exit until the task is fully done.** Keep using tools until the work is verified complete. Never return "in progress" or "will follow up" — that is a failure.
+**Do NOT exit until the task is fully done.** Keep using tools until the work is verified complete. Never return "in progress" or "will follow up" as a final response — that is a failure.
+
+**Progress updates** → use replyToUser(), then keep working. Never use replyToUser as a substitute for completing the task.
 
 **If a skill applies, load and follow it.** Skills are domain-specific instructions — use them when they match.
 
