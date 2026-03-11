@@ -8,7 +8,9 @@ import tenantContext from "../tenants/TenantContext.js";
 import filesystemGuard from "../safety/FilesystemGuard.js";
 import { getTenantTmpDir } from "./_paths.js";
 
-export async function generateImage(prompt, optionsJson) {
+export async function generateImage(params) {
+  const prompt = params?.prompt;
+  const optionsJson = params?.options;
   if (!prompt) return "Error: prompt is required.";
 
   let opts = {};

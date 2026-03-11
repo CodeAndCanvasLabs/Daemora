@@ -4,7 +4,9 @@
  */
 import { execSync } from "node:child_process";
 
-export async function contacts(action, paramsJson) {
+export async function contacts(_params) {
+  const action = _params?.action;
+  const paramsJson = _params?.params;
   if (!action) return "Error: action required. Valid: search, list, get";
   const params = paramsJson
     ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson)

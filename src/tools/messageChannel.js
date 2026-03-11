@@ -7,7 +7,10 @@ import channelRegistry from "../channels/index.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export async function messageChannel(channel, target, message) {
+export async function messageChannel(params) {
+  const channel = params?.channel;
+  const target = params?.target;
+  const message = params?.message;
   try {
     if (!channel) return "Error: channel is required (telegram, whatsapp, email)";
     if (!target) return "Error: target is required (chat ID, phone number, or email address)";

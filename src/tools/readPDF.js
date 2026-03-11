@@ -7,7 +7,9 @@ import { readFileSync, existsSync } from "node:fs";
 import filesystemGuard from "../safety/FilesystemGuard.js";
 import tenantContext from "../tenants/TenantContext.js";
 
-export async function readPDF(filePath, optionsJson) {
+export async function readPDF(params) {
+  const filePath = params?.filePath;
+  const optionsJson = params?.options;
   if (!filePath) return "Error: filePath is required.";
 
   const guard = filesystemGuard.checkRead(filePath);

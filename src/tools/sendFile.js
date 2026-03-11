@@ -19,7 +19,11 @@ import filesystemGuard from "../safety/FilesystemGuard.js";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB - most platforms limit around this
 
-export async function sendFile(channel, target, filePath, caption) {
+export async function sendFile(params) {
+  const channel = params?.channel;
+  const target = params?.target;
+  const filePath = params?.filePath;
+  const caption = params?.caption;
   try {
     if (!channel) return "Error: channel is required";
     if (!target)  return "Error: target is required (chat ID, user ID, phone, or email)";

@@ -73,16 +73,19 @@ function findNearbyContext(content, oldString, maxContext = 3) {
   return candidates.slice(0, 3);
 }
 
-export function editFile(filePath, oldString, newString) {
-  // Parameter validation - model sometimes passes wrong number of args
+export function editFile(params) {
+  const filePath = params?.path || params?.filePath;
+  const oldString = params?.oldString;
+  const newString = params?.newString;
+
   if (!filePath || typeof filePath !== "string") {
-    return "Error: editFile requires filePath as the first parameter.";
+    return "Error: editFile requires path.";
   }
   if (!oldString || typeof oldString !== "string") {
-    return "Error: editFile requires oldString as the second parameter - the text to find and replace.";
+    return "Error: editFile requires oldString — the text to find.";
   }
   if (newString === undefined || newString === null || typeof newString !== "string") {
-    return "Error: editFile requires 3 parameters: editFile(filePath, oldString, newString). You only passed 2. oldString is the text to FIND in the file, newString is what to REPLACE it with. If you want to append content, use writeFile instead to rewrite the full file, or use editFile with an existing line as oldString and provide the replacement that includes the new content.";
+    return "Error: editFile requires oldString and newString.";
   }
 
   // Filesystem security check

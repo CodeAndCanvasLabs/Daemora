@@ -21,7 +21,9 @@ import tenantContext from "../tenants/TenantContext.js";
 const OPENAI_CHAR_LIMIT = 4096;
 const ELEVENLABS_CHAR_LIMIT = 5000;
 
-export async function textToSpeech(text, optionsJson) {
+export async function textToSpeech(params) {
+  const text = params?.text;
+  const optionsJson = params?.options;
   try {
     if (!text || text.trim().length === 0) {
       return "Error: text is required";

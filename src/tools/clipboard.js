@@ -8,7 +8,9 @@ function platform() {
   return process.platform;
 }
 
-export async function clipboard(action, text) {
+export async function clipboard(params) {
+  const action = params?.action;
+  const text = params?.text;
   if (!action) return 'Error: action required. Valid: read, write, clear';
 
   try {

@@ -6,7 +6,7 @@ const outputSchema = z.object({
   tool_call: z
     .object({
       tool_name: z.string(),
-      params: z.array(z.string()),
+      params: z.record(z.unknown()),
     })
     .nullable(),
   finalResponse: z.boolean(),

@@ -5,7 +5,9 @@
  */
 import { execSync } from "node:child_process";
 
-export async function calendar(action, paramsJson) {
+export async function calendar(_params) {
+  const action = _params?.action;
+  const paramsJson = _params?.params;
   if (!action) return "Error: action required. Valid: list, create, delete, search";
   const params = paramsJson
     ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson)

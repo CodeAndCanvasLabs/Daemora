@@ -21,7 +21,9 @@ const DEFAULT_TIMEOUT_MS = 120_000;   // 2 minutes default
 const MAX_TIMEOUT_MS = 600_000;       // 10 minutes hard max
 const MAX_BUFFER = 10 * 1024 * 1024; // 10MB
 
-export async function executeCommand(cmd, optionsJson) {
+export async function executeCommand(params) {
+  const cmd = params?.command || params?.cmd;
+  const optionsJson = params?.options;
   const opts = optionsJson ? JSON.parse(optionsJson) : {};
   const {
     cwd: cwdRaw = null,

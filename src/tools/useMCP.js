@@ -11,7 +11,9 @@ import tenantContext from "../tenants/TenantContext.js";
  * @param {string} taskDescription  - Full task spec - the agent has no other context
  * @returns {Promise<string>}       - Specialist agent's final response
  */
-export async function useMCP(serverName, taskDescription) {
+export async function useMCP(params) {
+  const serverName = params?.serverName;
+  const taskDescription = params?.taskDescription;
   // Enforce per-tenant MCP server allowlist
   const store = tenantContext.getStore();
   const allowedMcpServers = store?.resolvedConfig?.mcpServers ?? null;

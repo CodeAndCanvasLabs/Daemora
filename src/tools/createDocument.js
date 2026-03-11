@@ -8,7 +8,10 @@ import filesystemGuard from "../safety/FilesystemGuard.js";
  *           optional DOCX support via 'docx' package.
  */
 
-export async function createDocument(filePath, content, format) {
+export async function createDocument(params) {
+  const filePath = params?.filePath;
+  const content = params?.content;
+  const format = params?.format;
   const fmt = (format || "markdown").toLowerCase();
   console.log(`      [createDocument] Creating ${fmt}: ${filePath}`);
 

@@ -7,7 +7,10 @@ import { execSync } from "node:child_process";
 
 function platform() { return process.platform; }
 
-export async function notification(title, message, options = {}) {
+export async function notification(params) {
+  const title = params?.title;
+  const message = params?.message;
+  const options = params?.options || {};
   if (!title) return "Error: title is required";
   if (!message) return "Error: message is required";
 

@@ -8,9 +8,10 @@ import filesystemGuard from "../safety/FilesystemGuard.js";
  * @param {string} [offsetStr] - Line number to start from (1-based), default "1"
  * @param {string} [limitStr] - Max lines to return, default "2000"
  */
-export function readFile(filePath, offsetStr, limitStr) {
-  const offset = offsetStr ? parseInt(offsetStr, 10) : 1;
-  const limit = limitStr ? parseInt(limitStr, 10) : 2000;
+export function readFile(params) {
+  const filePath = params?.path || params?.filePath;
+  const offset = params?.offset ? parseInt(params.offset, 10) : 1;
+  const limit = params?.limit ? parseInt(params.limit, 10) : 2000;
 
   // Filesystem security check
   const guard = filesystemGuard.checkRead(filePath);

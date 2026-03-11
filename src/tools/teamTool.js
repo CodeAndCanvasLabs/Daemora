@@ -18,7 +18,9 @@ import {
   getTaskList,
 } from "../agents/TeamManager.js";
 
-export function teamTask(action, paramsJson) {
+export function teamTask(toolParams) {
+  const action = toolParams?.action;
+  const paramsJson = toolParams?.params;
   const params = paramsJson
     ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson)
     : {};

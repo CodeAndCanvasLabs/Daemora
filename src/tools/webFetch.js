@@ -55,7 +55,9 @@ function setCache(url, content) {
   cache.set(url, { content, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
-export async function webFetch(url, optionsJson) {
+export async function webFetch(params) {
+  let url = params?.url;
+  const optionsJson = params?.options;
   const opts = optionsJson ? JSON.parse(optionsJson) : {};
   const maxChars = opts.maxChars ? parseInt(opts.maxChars) : 50000;
 

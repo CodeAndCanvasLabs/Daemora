@@ -348,7 +348,9 @@ function applyHunk(fileLines, hunk, offset) {
 
 // ── Main export ──────────────────────────────────────────────────────────────
 
-export function applyPatch(filePath, patch) {
+export function applyPatch(params) {
+  const filePath = params?.path || params?.filePath;
+  const patch = params?.patch;
   try {
     const readCheck = filesystemGuard.checkRead(filePath);
     if (!readCheck.allowed) return `Error: ${readCheck.reason}`;
