@@ -19,7 +19,7 @@ export async function replyToUser(params) {
     const store = tenantContext.getStore();
     const channelMeta = store?.channelMeta;
 
-    if (!channelMeta?.channel || !channelMeta?.chatId) {
+    if (!channelMeta?.channel || (!channelMeta?.chatId && !channelMeta?.channelId)) {
       return "No active channel context — user is on HTTP/API. Progress noted internally.";
     }
 
