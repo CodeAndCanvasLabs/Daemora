@@ -9,7 +9,7 @@ import tenantManager from "../tenants/TenantManager.js";
 import tenantContext from "../tenants/TenantContext.js";
 import inputSanitizer from "../safety/InputSanitizer.js";
 import eventBus from "./EventBus.js";
-import { msgText } from "../utils/msgText.js";
+import { msgText, compactForSession } from "../utils/msgText.js";
 
 /**
  * Filter out internal tool call/result JSON from messages before saving to session.
@@ -277,8 +277,8 @@ class TaskRunner {
         eventBus.removeListener("agent:spawned", onSpawn);
         eventBus.removeListener("agent:finished", onFinish);
 
-        // Update session with CLEAN conversation only (strip internal tool JSON)
-        setMessages(session.sessionId, filterCleanMessages(result.messages));
+        // Save full conversation (with tool context) — truncate large tool outputs
+        setMessages(session.sessionId, compactForSession(result.messages));
 
         // Update task cost info and tool calls
         task.cost = result.cost;
