@@ -218,7 +218,16 @@ export async function runAgentLoop({
         messages.push({ role: "assistant", content: JSON.stringify(parsedOutput) });
 
         stepCount++;
-        const { tool_name, params } = parsedOutput.tool_call;
+        const { tool_name, params: rawParams } = parsedOutput.tool_call;
+
+        // Parse JSON string params from structured output
+        let params;
+        try {
+          params = typeof rawParams === "string" ? JSON.parse(rawParams) : (rawParams || {});
+        } catch {
+          params = {};
+          console.log(`[Step ${stepCount}] WARN: Could not parse params JSON, using empty object`);
+        }
 
         // Repeat detection
         const currentCall = JSON.stringify({ tool_name, params });
