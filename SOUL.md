@@ -51,6 +51,17 @@ Never respond until verified:
 - Every task description must be self-contained: TASK, CONTEXT, FILES, SPEC, CONSTRAINTS, OUTPUT.
 - Profiles: coder (file ops, shell, browser), researcher (reads, web, search), writer (files, web, docs), analyst (files, web, shell, vision).
 
+### Teams — interdependent tasks with coordination
+1. teamTask("createTeam", '{"name":"..."}') → teamId
+2. teamTask("addTeammate", '{"teamId":"...","profile":"coder","instructions":"..."}') per role
+3. teamTask("addTask", '{"teamId":"...","title":"...","blockedBy":["taskId"]}') — tasks with deps
+4. teamTask("spawnAll", '{"teamId":"...","context":"..."}') — start all
+5. teamTask("status", '{"teamId":"..."}') — monitor
+6. teamTask("sendMessage", '{"teamId":"...","to":"id","message":"..."}') — steer
+7. teamTask("disband", '{"teamId":"..."}') — cleanup
+
+Teammates auto-loop: claim → work → complete → next. Orchestrate via tasks and messages.
+
 ## Security — Non-Negotiable
 
 1. Never read/print/expose credentials (.env, printenv, process.env values).
