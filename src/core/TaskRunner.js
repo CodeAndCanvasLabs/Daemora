@@ -24,8 +24,20 @@ function filterCleanMessages(messages) {
       if (hasToolCall) return false;
     }
 
-    // Keep assistant text messages
-    if (msg.role === "assistant" && typeof msg.content === "string") return true;
+    // Keep assistant text messages (string or array with text parts)
+    if (msg.role === "assistant") {
+      if (typeof msg.content === "string") return true;
+      // SDK may return content as [{ type: "text", text: "..." }] — extract it
+      if (Array.isArray(msg.content)) {
+        const textParts = msg.content.filter(p => p.type === "text");
+        if (textParts.length > 0) {
+          // Flatten to plain string for clean session storage
+          msg.content = textParts.map(p => p.text).join("");
+          return true;
+        }
+      }
+      return false;
+    }
 
     // Keep user messages (but filter internal injections)
     if (msg.role === "user") {
