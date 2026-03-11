@@ -15,7 +15,9 @@
 import scheduler from "../scheduler/Scheduler.js";
 import tenantContext from "../tenants/TenantContext.js";
 
-export function cron(action, paramsJson) {
+export function cron(toolParams) {
+  const action = toolParams?.action;
+  const paramsJson = toolParams?.params;
   try {
     const params = paramsJson ? JSON.parse(paramsJson) : {};
 

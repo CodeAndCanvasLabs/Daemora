@@ -34,7 +34,9 @@ async function sonosSoap(speakerIp, service, action, body = "") {
   return text;
 }
 
-export async function sonos(action, paramsJson) {
+export async function sonos(_params) {
+  const action = _params?.action;
+  const paramsJson = _params?.params;
   if (!action) return "Error: action required. Valid: play, pause, stop, next, prev, volume, mute, queue, info";
   const params = paramsJson
     ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson)

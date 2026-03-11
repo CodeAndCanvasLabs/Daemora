@@ -30,7 +30,9 @@ function setCache(key, results) {
   searchCache.set(key, { results, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
-export async function webSearch(query, optionsJson) {
+export async function webSearch(params) {
+  const query = params?.query;
+  const optionsJson = params?.options;
   // Support both old API (maxResults as string) and new API (optionsJson)
   let opts = {};
   if (optionsJson && !isNaN(parseInt(optionsJson))) {

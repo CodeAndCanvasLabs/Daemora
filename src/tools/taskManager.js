@@ -17,7 +17,9 @@ import tenantContext from "../tenants/TenantContext.js";
  *   getTask     - get full task details + children
  */
 
-export function taskManager(action, paramsJson) {
+export function taskManager(toolParams) {
+  const action = toolParams?.action;
+  const paramsJson = toolParams?.params;
   const params = paramsJson
     ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson)
     : {};

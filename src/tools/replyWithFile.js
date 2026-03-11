@@ -15,7 +15,9 @@ import filesystemGuard from "../safety/FilesystemGuard.js";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 
-export async function replyWithFile(filePath, caption) {
+export async function replyWithFile(params) {
+  const filePath = params?.filePath;
+  const caption = params?.caption;
   try {
     if (!filePath) return "Error: filePath is required.";
 

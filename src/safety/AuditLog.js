@@ -1,12 +1,11 @@
-import { appendFileSync, mkdirSync } from "fs";
-import { config } from "../config/default.js";
 import eventBus from "../core/EventBus.js";
 import tenantContext from "../tenants/TenantContext.js";
+import { run } from "../storage/Database.js";
 
 /**
  * Audit Log - append-only logging of all agent actions.
  *
- * Writes to: data/audit/YYYY-MM-DD.jsonl
+ * Writes to: SQLite audit_log table
  *
  * Listens to EventBus events already emitted by AgentLoop, Supervisor,
  * SubAgentManager, and TaskRunner. No changes needed to other files -
@@ -20,12 +19,10 @@ class AuditLog {
   }
 
   start() {
-    mkdirSync(config.auditDir, { recursive: true });
-
     // ── Tool lifecycle (emitted by AgentLoop) ─────────────────────────────
     eventBus.on("tool:before", ({ tool_name, params, taskId, stepCount }) => {
       this.write({ event: "tool_attempted", tool_name, taskId, stepCount,
-        params: params?.slice(0, 3).map((p) => String(p).slice(0, 120)) });
+        params: typeof params === "object" ? JSON.stringify(params).slice(0, 360) : String(params).slice(0, 360) });
     });
 
     eventBus.on("tool:after", ({ tool_name, taskId, stepCount, duration, outputLength, error }) => {
@@ -108,17 +105,23 @@ class AuditLog {
       this.write(data);
     });
 
-    console.log(`[AuditLog] Started - logging to ${config.auditDir}`);
+    console.log(`[AuditLog] Started - logging to SQLite`);
   }
 
   write(data) {
     if (!this.enabled) return;
     try {
-      const today = new Date().toISOString().split("T")[0];
-      const logFile = `${config.auditDir}/${today}.jsonl`;
       const tenantId = tenantContext.getStore()?.tenant?.id || null;
-      const entry = { timestamp: new Date().toISOString(), tenantId, ...data };
-      appendFileSync(logFile, JSON.stringify(entry) + "\n", "utf-8");
+      const { event, ...rest } = data;
+      run(
+        "INSERT INTO audit_log (tenant_id, event, data, created_at) VALUES ($tid, $event, $data, $ts)",
+        {
+          $tid: tenantId,
+          $event: event || "unknown",
+          $data: Object.keys(rest).length > 0 ? JSON.stringify(rest) : null,
+          $ts: new Date().toISOString(),
+        }
+      );
       this.entryCount++;
     } catch (error) {
       // Never let audit failures crash the system

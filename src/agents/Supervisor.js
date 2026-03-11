@@ -105,7 +105,7 @@ class Supervisor {
 
     // Check: dangerous tool patterns
     if (tool_name === "executeCommand" && params) {
-      const cmd = Array.isArray(params) ? params[0] : params;
+      const cmd = params?.command || (Array.isArray(params) ? params[0] : params);
       if (typeof cmd === "string") {
         if (/rm\s+-rf\s+\//.test(cmd)) {
           this.alert(taskId, `BLOCKED: Destructive command detected: ${cmd.slice(0, 50)}`);

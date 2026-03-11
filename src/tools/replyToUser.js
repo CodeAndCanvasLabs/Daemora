@@ -11,7 +11,8 @@
 import tenantContext from "../tenants/TenantContext.js";
 import channelRegistry from "../channels/index.js";
 
-export async function replyToUser(message) {
+export async function replyToUser(params) {
+  const message = params?.message;
   try {
     if (!message) return "Error: message is required.";
 

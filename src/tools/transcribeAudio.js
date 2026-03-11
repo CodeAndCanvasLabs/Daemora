@@ -21,7 +21,9 @@ const SUPPORTED_EXTENSIONS = new Set([
 // Telegram voices come as .oga (ogg audio) - map to .ogg for Whisper compatibility
 const EXT_REMAP = { ".oga": ".ogg" };
 
-export async function transcribeAudio(audioPath, prompt) {
+export async function transcribeAudio(params) {
+  const audioPath = params?.audioPath;
+  const prompt = params?.prompt;
   try {
     if (!audioPath) return "Error: audioPath is required";
 

@@ -26,7 +26,9 @@ function walkDir(dir, fileType, results = []) {
   return results;
 }
 
-export function grep(pattern, optionsJson) {
+export function grep(params) {
+  const pattern = params?.pattern;
+  const optionsJson = params?.options;
   try {
     const opts = optionsJson ? JSON.parse(optionsJson) : {};
     const {

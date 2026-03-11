@@ -10,7 +10,10 @@ function escapeShellArg(str) {
   return `'${str.replace(/'/g, "'\\''")}'`;
 }
 
-export function searchFiles(pattern, directory = ".", optionsJson) {
+export function searchFiles(params) {
+  const pattern = params?.pattern;
+  const directory = params?.directory || ".";
+  const optionsJson = params?.options;
   let opts = {};
   if (optionsJson) {
     try { opts = JSON.parse(optionsJson); } catch {}

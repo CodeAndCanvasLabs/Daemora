@@ -5,7 +5,9 @@
  */
 import { execSync } from "node:child_process";
 
-export async function iMessageTool(action, paramsJson) {
+export async function iMessageTool(_params) {
+  const action = _params?.action;
+  const paramsJson = _params?.params;
   if (!action) return "Error: action required. Valid: send, read";
   const params = paramsJson
     ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson)

@@ -1,9 +1,7 @@
-import { generateObject } from "ai";
+import { generateText, tool, stepCountIs } from "ai";
 import { getModelWithFallback, resolveThinkingConfig } from "../models/ModelRouter.js";
-import { compactIfNeeded, estimateTokens } from "./Compaction.js";
 import { config } from "../config/default.js";
 import eventBus from "./EventBus.js";
-import outputSchema from "../services/models/outputSchema.js";
 import hookRunner from "../hooks/HookRunner.js";
 import secretScanner from "../safety/SecretScanner.js";
 import sandbox from "../safety/Sandbox.js";
@@ -11,24 +9,15 @@ import circuitBreaker from "../safety/CircuitBreaker.js";
 import permissionGuard from "../safety/PermissionGuard.js";
 import supervisor from "../agents/Supervisor.js";
 import gitRollback from "../safety/GitRollback.js";
+import { validateToolParams, getSchemaToolNames } from "../tools/schemas.js";
+import toolSchemas from "../tools/schemas.js";
+import { msgText } from "../utils/msgText.js";
 
 /**
- * Core agent loop - model-agnostic via Vercel AI SDK.
+ * Core agent loop - uses Vercel AI SDK native tool calling.
  *
- * Extracted from the original openai.js. This is the brain of the agent:
- * 1. Send messages to model (any provider)
- * 2. If model returns tool_call → execute tool → feed result back → loop
- * 3. If model returns text + finalResponse → return to caller
- * 4. Compaction when approaching context limit
- * 5. Repeat detection, max loop safety, stuck agent recovery
- *
- * @param {object} options
- * @param {Array} options.messages - Conversation history
- * @param {object} options.systemPrompt - System prompt { role, content }
- * @param {object} options.tools - Tool functions map { name: fn }
- * @param {string} [options.modelId] - Model to use (e.g. "openai:gpt-4.1-mini")
- * @param {string} [options.taskId] - Task ID for tracking
- * @returns {{ text: string, messages: Array, cost: object }}
+ * Tools have execute functions with guards baked in.
+ * SDK handles the loop via stopWhen, message format, provider normalization.
  */
 export async function runAgentLoop({
   messages: msgs,
@@ -36,20 +25,19 @@ export async function runAgentLoop({
   tools,
   modelId = null,
   taskId = null,
-  approvalMode = "auto",   // "auto" | "dangerous-only" | "every-tool"
-  channelMeta = null,      // passed through to HumanApproval so channel can notify user
-  signal = null,           // AbortController.signal - hard-kills the loop mid-call
-  steerQueue = null,       // shared mutable array - push strings here to steer the agent
-  apiKeys = {},            // per-tenant API key overlay - passed through to provider factory
+  approvalMode = "auto",
+  channelMeta = null,
+  signal = null,
+  steerQueue = null,
+  apiKeys = {},
 }) {
   const selectedModelId = modelId || config.defaultModel;
   const { model, meta, modelId: resolvedModelId } = getModelWithFallback(selectedModelId, apiKeys);
 
-  // Resolve thinking level config
   const thinkingConfig = resolveThinkingConfig(resolvedModelId, config.thinkingLevel);
   const thinkingParams = thinkingConfig?.thinkingParams || {};
 
-  // Build set of known secret values to redact from tool outputs (dynamic - catches tenant keys)
+  // Build set of known secret values to redact from tool outputs
   const _knownSecrets = new Set([
     ...Object.values(apiKeys),
     process.env.OPENAI_API_KEY,
@@ -65,174 +53,40 @@ export async function runAgentLoop({
     return out;
   }
 
-  let messages = [systemPrompt, ...msgs];
+  // ── Shared state for guards inside execute closures ──
   let stepCount = 0;
-  let loopCount = 0;
+  const toolCallLog = [];
+  const WRITE_TOOLS = new Set(["writeFile", "editFile", "applyPatch", "executeCommand", "sendEmail", "createDocument", "browserAction", "messageChannel"]);
+  let gitSnapshotDone = false;
   let lastToolCall = null;
   let repeatCount = 0;
-  let totalInputTokens = 0;
-  let totalOutputTokens = 0;
-  let consecutiveErrors = 0;
-  const toolCallLog = [];  // Track tool calls for task history
 
-  const WRITE_TOOLS = new Set(["writeFile", "editFile", "applyPatch", "executeCommand", "sendEmail", "createDocument", "browserAction", "messageChannel"]);
-  let gitSnapshotDone = false; // Only snapshot once per task
+  // ── Build AI SDK tools with execute functions + guards ──
+  const availableToolNames = new Set(getSchemaToolNames());
+  for (const name of availableToolNames) {
+    if (!tools[name]) availableToolNames.delete(name);
+  }
 
-  console.log(`\n--- AGENT LOOP STARTED ---`);
-  console.log(`Model: ${resolvedModelId}`);
-  console.log(`User message: "${msgs[msgs.length - 1]?.content?.slice(0, 120)}"`);
-  console.log(`Conversation history: ${msgs.length} message(s)`);
+  const aiTools = {};
+  for (const name of availableToolNames) {
+    const entry = toolSchemas[name];
+    if (!entry) continue;
 
-  while (true) {
-    loopCount++;
-
-    // ── Break point 1: AbortController signal (hard kill, works mid-API-call) ──
-    if (signal?.aborted) {
-      console.log(`[AgentLoop] Task ${taskId?.slice(0, 8)} aborted via AbortController.`);
-      return {
-        text: "Agent was stopped by the supervisor.",
-        messages: messages.slice(1),
-        cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, estimatedCost: 0, modelCalls: loopCount, model: resolvedModelId },
-        toolCalls: toolCallLog,
-      };
-    }
-
-    // ── Break point 2: Supervisor kill flag (checked each iteration) ──────────
-    if (supervisor.isKilled(taskId)) {
-      console.log(`[AgentLoop] Task ${taskId?.slice(0, 8)} was killed by Supervisor. Stopping.`);
-      return {
-        text: "Task was stopped by the safety supervisor due to excessive tool usage or a dangerous pattern.",
-        messages: messages.slice(1),
-        cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, estimatedCost: 0, modelCalls: loopCount, model: resolvedModelId },
-        toolCalls: toolCallLog,
-      };
-    }
-
-    // ── Steering: drain steerQueue between tool calls ────────────────────────
-    // Items can be plain strings (supervisor/parent instructions) or
-    // objects { type: "user", content } for live follow-up messages injected
-    // from the same session while this loop is mid-flight.
-    if (steerQueue?.length > 0) {
-      // Collect all user follow-ups to batch them into one injection
-      const userFollowUps = [];
-      const steeringMessages = [];
-
-      while (steerQueue.length > 0) {
-        const item = steerQueue.shift();
-        if (item && typeof item === "object" && item.type === "user") {
-          console.log(`[AgentLoop] User follow-up injected: "${item.content.slice(0, 80)}"`);
-          userFollowUps.push(item.content);
-        } else {
-          const text = typeof item === "string" ? item : JSON.stringify(item);
-          console.log(`[AgentLoop] Steering instruction received: "${text.slice(0, 80)}"`);
-          steeringMessages.push(text);
-        }
-      }
-
-      // Inject steering messages (supervisor/parent/team)
-      for (const text of steeringMessages) {
-        messages.push({ role: "user", content: `[Supervisor instruction]: ${text}` });
-      }
-
-      // Inject user follow-ups with framing so the model acknowledges them naturally
-      if (userFollowUps.length > 0) {
-        const combined = userFollowUps.join("\n\n");
-        messages.push({
-          role: "user",
-          content: `[User sent a follow-up message while you are working. Acknowledge it — use replyToUser() to send a brief acknowledgment or progress update, then incorporate their input into your current work. Do NOT stop or restart — continue working with the new information folded in.]\n\n${combined}`,
-        });
-      }
-    }
-
-    if (loopCount > config.maxLoops + 3) {
-      // Hard exit — agent ignored the soft stop message
-      console.log(`[FATAL] Agent exceeded hard limit (${config.maxLoops + 3}). Forcing exit.`);
-      return {
-        text: "Task stopped: exceeded maximum iterations. Here is what was accomplished before stopping.",
-        messages: messages.slice(1),
-        cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, estimatedCost: 0, modelCalls: loopCount, model: resolvedModelId },
-        toolCalls: toolCallLog,
-      };
-    }
-
-    if (loopCount > config.maxLoops) {
-      console.log(`[WARN] Hit max loop limit (${config.maxLoops}). Forcing agent to stop.`);
-      messages.push({
-        role: "user",
-        content: `You have used ${config.maxLoops} iterations. You must stop now. Summarize what you have done so far. Set type to "text", finalResponse to true, and put your summary in text_content.`,
-      });
-    }
-
-    // Compaction check before model call (pass tools for pre-compaction memory flush)
-    messages = await compactIfNeeded(messages, meta, taskId, tools);
-
-    console.log(`\n[Loop ${loopCount}] Sending ${messages.length} messages (~${estimateTokens(messages)} tokens) to ${resolvedModelId}...`);
-
-    const startTime = Date.now();
-
-    try {
-      const response = await generateObject({
-        model,
-        schema: outputSchema,
-        messages,
-        maxTokens: 8192,
-        abortSignal: signal || undefined,
-        ...thinkingParams,
-      });
-
-      const elapsed = Date.now() - startTime;
-      consecutiveErrors = 0; // Reset on success
-
-      // Track token usage (Vercel AI SDK uses inputTokens/outputTokens)
-      const usage = response.usage;
-      if (usage && (usage.inputTokens || usage.outputTokens || usage.promptTokens || usage.completionTokens)) {
-        totalInputTokens += usage.inputTokens || usage.promptTokens || 0;
-        totalOutputTokens += usage.outputTokens || usage.completionTokens || 0;
-      } else {
-        // Fallback: estimate from message sizes if usage not available
-        console.log(`[Loop ${loopCount}] WARNING: No token usage returned. response.usage = ${JSON.stringify(usage)}`);
-        const inputChars = messages.reduce((sum, m) => sum + (typeof m.content === "string" ? m.content.length : 0), 0);
-        const outputChars = JSON.stringify(response.object).length;
-        totalInputTokens += Math.ceil(inputChars / 4);
-        totalOutputTokens += Math.ceil(outputChars / 4);
-      }
-
-      eventBus.emitEvent("model:called", {
-        modelId: resolvedModelId,
-        loopCount,
-        elapsed,
-        inputTokens: usage?.inputTokens || usage?.promptTokens || 0,
-        outputTokens: usage?.outputTokens || usage?.completionTokens || 0,
-      });
-
-      const parsedOutput = response.object;
-
-      console.log(
-        `[Loop ${loopCount}] Model responded in ${elapsed}ms | type=${parsedOutput.type} | final=${parsedOutput.finalResponse}`
-      );
-
-      // --- Tool call handling ---
-      if (parsedOutput.type === "tool_call" && parsedOutput.tool_call) {
-        // Save the model's tool call as an assistant message so the conversation is properly structured
-        messages.push({ role: "assistant", content: JSON.stringify(parsedOutput) });
-
+    aiTools[name] = tool({
+      description: entry.description,
+      inputSchema: entry.schema,
+      execute: async (params) => {
         stepCount++;
-        const { tool_name, params } = parsedOutput.tool_call;
+        const tool_name = name;
 
         // Repeat detection
         const currentCall = JSON.stringify({ tool_name, params });
         if (currentCall === lastToolCall) {
           repeatCount++;
-          console.log(`[WARN] Same tool call repeated ${repeatCount + 1} times in a row`);
           if (repeatCount >= 2) {
-            console.log(`[WARN] Agent stuck repeating "${tool_name}". Forcing it to move on.`);
-            messages.push({
-              role: "user",
-              content: `You are calling ${tool_name} with the same params repeatedly. This is not working. Try a different approach or give the user your final answer. Set type to "text" and finalResponse to true.`,
-            });
             lastToolCall = null;
             repeatCount = 0;
-            continue;
+            return `You are calling ${tool_name} with the same params repeatedly. Try a different approach.`;
           }
         } else {
           repeatCount = 0;
@@ -244,240 +98,218 @@ export async function runAgentLoop({
 
         eventBus.emitEvent("tool:before", { tool_name, params, stepCount, taskId });
 
-        // Permission guard check
+        // Permission guard
         const permCheck = permissionGuard.check(tool_name, params);
         if (!permCheck.allowed) {
           console.log(`[Step ${stepCount}] BLOCKED by PermissionGuard: ${permCheck.reason}`);
           eventBus.emitEvent("audit:permission_denied", { tool_name, reason: permCheck.reason, taskId });
-          messages.push({
-            role: "user",
-            content: JSON.stringify({ tool_name, params, output: permCheck.reason }),
-          });
-          continue;
+          return permCheck.reason;
         }
 
-        // Circuit breaker check
+        // Circuit breaker
         if (circuitBreaker.isToolDisabled(tool_name)) {
           console.log(`[Step ${stepCount}] Tool "${tool_name}" temporarily disabled by circuit breaker`);
-          messages.push({
-            role: "user",
-            content: JSON.stringify({
-              tool_name, params,
-              output: `Tool "${tool_name}" is temporarily disabled due to repeated failures. Try a different approach.`,
-            }),
-          });
-          continue;
+          return `Tool "${tool_name}" is temporarily disabled due to repeated failures. Try a different approach.`;
+        }
+
+        // Validate params
+        const validation = validateToolParams(tool_name, params);
+        if (!validation.success) {
+          console.log(`[Step ${stepCount}] INVALID PARAMS: ${validation.error}`);
+          return validation.error;
         }
 
         // Sandbox check for executeCommand
-        if (tool_name === "executeCommand" && params[0]) {
-          const sandboxResult = sandbox.check(params[0]);
+        if (tool_name === "executeCommand" && params.command) {
+          const sandboxResult = sandbox.check(params.command);
           if (!sandboxResult.safe) {
             console.log(`[Step ${stepCount}] BLOCKED by sandbox: ${sandboxResult.reason}`);
-            eventBus.emitEvent("audit:sandbox_blocked", { command: params[0], reason: sandboxResult.reason, taskId });
-            messages.push({
-              role: "user",
-              content: JSON.stringify({
-                tool_name, params,
-                output: `${sandboxResult.reason}. This command is not allowed for safety reasons.`,
-              }),
-            });
-            continue;
+            eventBus.emitEvent("audit:sandbox_blocked", { command: params.command, reason: sandboxResult.reason, taskId });
+            return `${sandboxResult.reason}. This command is not allowed for safety reasons.`;
           }
         }
 
-        // Run PreToolUse hooks
+        // PreToolUse hooks
         const hookResult = await hookRunner.preToolUse(tool_name, params, taskId);
         if (hookResult.decision === "block") {
           console.log(`[Step ${stepCount}] BLOCKED by hook: ${hookResult.reason}`);
           eventBus.emitEvent("audit:hook_blocked", { tool_name, reason: hookResult.reason, taskId });
-          messages.push({
-            role: "user",
-            content: JSON.stringify({
-              tool_name, params,
-              output: `Tool blocked by safety hook: ${hookResult.reason}. Try a different approach.`,
-            }),
-          });
-          continue;
+          return `Tool blocked by safety hook: ${hookResult.reason}. Try a different approach.`;
         }
 
-        // Git snapshot - before the first write tool in this task
+        // Git snapshot before first write
         if (!gitSnapshotDone && WRITE_TOOLS.has(tool_name)) {
           gitRollback.snapshot(taskId);
           gitSnapshotDone = true;
         }
 
-        if (tools[tool_name]) {
-          try {
-            const toolStart = Date.now();
-            const toolOutput = await Promise.resolve(tools[tool_name](...params));
-            const toolElapsed = Date.now() - toolStart;
+        // Execute the actual tool
+        try {
+          const toolStart = Date.now();
+          const toolOutput = await Promise.resolve(tools[tool_name](params));
+          const toolElapsed = Date.now() - toolStart;
 
-            const outputStr = typeof toolOutput === "string" ? toolOutput : JSON.stringify(toolOutput);
-            const preview = outputStr.slice(0, 300) + (outputStr.length > 300 ? "..." : "");
+          const outputStr = typeof toolOutput === "string" ? toolOutput : JSON.stringify(toolOutput);
+          const preview = outputStr.slice(0, 300) + (outputStr.length > 300 ? "..." : "");
 
-            console.log(`[Step ${stepCount}] Done in ${toolElapsed}ms`);
-            console.log(`[Step ${stepCount}] Output: ${preview}`);
+          console.log(`[Step ${stepCount}] Done in ${toolElapsed}ms`);
+          console.log(`[Step ${stepCount}] Output: ${preview}`);
 
-            // Record tool call in log
-            toolCallLog.push({
-              tool: tool_name,
-              params,
-              duration: toolElapsed,
-              output_preview: outputStr.slice(0, 500),
-              status: "success",
-              step: stepCount,
-            });
+          toolCallLog.push({
+            tool: tool_name, params, duration: toolElapsed,
+            output_preview: outputStr.slice(0, 500),
+            status: "success", step: stepCount,
+          });
 
-            eventBus.emitEvent("tool:after", {
-              tool_name,
-              params,
-              stepCount,
-              taskId,
-              duration: toolElapsed,
-              outputLength: outputStr.length,
-            });
+          eventBus.emitEvent("tool:after", { tool_name, params, stepCount, taskId, duration: toolElapsed, outputLength: outputStr.length });
+          await hookRunner.postToolUse(tool_name, params, outputStr, taskId);
 
-            // Run PostToolUse hooks
-            await hookRunner.postToolUse(tool_name, params, outputStr, taskId);
-
-            // Scan output for secrets and redact (double layer: static patterns + dynamic tenant keys)
-            const safeOutput = _redactKnownSecrets(secretScanner.redactOutput(outputStr));
-            const secretsFound = (outputStr.match(/\[REDACTED\]/g) || []).length - (safeOutput.match(/\[REDACTED\]/g) || []).length;
-            if (safeOutput !== outputStr) {
-              eventBus.emitEvent("audit:secret_detected", { tool_name, taskId, count: Math.max(1, secretsFound) });
-            }
-
-            // Record success for circuit breaker
-            circuitBreaker.recordSuccess(taskId);
-
-            messages.push({
-              role: "user",
-              content: JSON.stringify({ tool_name, params, output: safeOutput }),
-            });
-          } catch (error) {
-            console.log(`[Step ${stepCount}] FAILED: ${error.message}`);
-
-            // Record failed tool call in log
-            toolCallLog.push({
-              tool: tool_name,
-              params,
-              duration: 0,
-              output_preview: `Error: ${error.message}`,
-              status: "error",
-              step: stepCount,
-            });
-
-            // Record failure for circuit breaker
-            circuitBreaker.recordToolFailure(tool_name);
-
-            eventBus.emitEvent("tool:after", {
-              tool_name,
-              params,
-              stepCount,
-              taskId,
-              error: error.message,
-            });
-            messages.push({
-              role: "user",
-              content: JSON.stringify({
-                tool_name,
-                params,
-                output: `Error executing tool: ${error.message}`,
-              }),
-            });
+          // Redact secrets
+          const safeOutput = _redactKnownSecrets(secretScanner.redactOutput(outputStr));
+          if (safeOutput !== outputStr) {
+            eventBus.emitEvent("audit:secret_detected", { tool_name, taskId });
           }
-        } else {
-          console.log(`[Step ${stepCount}] Unknown tool: ${tool_name} - skipping`);
-          messages.push({
-            role: "user",
-            content: JSON.stringify({
-              tool_name,
-              params,
-              output: `Unknown tool: ${tool_name}. Available tools: ${Object.keys(tools).join(", ")}`,
-            }),
+
+          circuitBreaker.recordSuccess(taskId);
+          return safeOutput;
+        } catch (error) {
+          console.log(`[Step ${stepCount}] FAILED: ${error.message}`);
+          toolCallLog.push({
+            tool: tool_name, params, duration: 0,
+            output_preview: `Error: ${error.message}`,
+            status: "error", step: stepCount,
           });
+          circuitBreaker.recordToolFailure(tool_name);
+          eventBus.emitEvent("tool:after", { tool_name, params, stepCount, taskId, error: error.message });
+          return `Error executing tool: ${error.message}`;
         }
-        continue;
+      },
+    });
+  }
+
+  console.log(`\n--- AGENT LOOP STARTED ---`);
+  console.log(`Model: ${resolvedModelId}`);
+  console.log(`User message: "${msgText(msgs[msgs.length - 1]?.content).slice(0, 120)}"`);;
+  console.log(`Conversation history: ${msgs.length} message(s)`);
+
+  // ── Inject steering messages before the call ──
+  const inputMessages = [...msgs];
+  if (steerQueue?.length > 0) {
+    const userFollowUps = [];
+    const steeringMessages = [];
+    while (steerQueue.length > 0) {
+      const item = steerQueue.shift();
+      if (item && typeof item === "object" && item.type === "user") {
+        userFollowUps.push(item.content);
+      } else {
+        steeringMessages.push(typeof item === "string" ? item : JSON.stringify(item));
       }
-
-      // --- Final response handling ---
-      if (parsedOutput.finalResponse || parsedOutput.type === "text") {
-        if (!parsedOutput.text_content) {
-          console.log(`[Loop ${loopCount}] Model signaled done but text_content is null - asking for summary`);
-          messages.push({
-            role: "user",
-            content:
-              "Provide a text summary of what you did. Set type to 'text', finalResponse to true, and text_content to your summary.",
-          });
-          continue;
-        }
-
-        const cost = {
-          inputTokens: totalInputTokens,
-          outputTokens: totalOutputTokens,
-          estimatedCost:
-            (totalInputTokens / 1000) * meta.costPer1kInput +
-            (totalOutputTokens / 1000) * meta.costPer1kOutput,
-          modelCalls: loopCount,
-          model: resolvedModelId,
-        };
-
-        console.log(`\n--- AGENT LOOP FINISHED ---`);
-        console.log(`Stats: ${loopCount} loops | ${stepCount} tool calls | ~$${cost.estimatedCost.toFixed(4)}`);
-        console.log(
-          `Response: "${parsedOutput.text_content.slice(0, 150)}${parsedOutput.text_content.length > 150 ? "..." : ""}"`
-        );
-
-        // Add assistant's final response to conversation history
-        messages.push({ role: "assistant", content: parsedOutput.text_content });
-
-        const conversationMessages = messages.slice(1);
-        return { text: parsedOutput.text_content, messages: conversationMessages, cost, toolCalls: toolCallLog };
-      }
-    } catch (error) {
-      // Abort signal fires as an error - exit cleanly
-      if (signal?.aborted || error.name === "AbortError") {
-        console.log(`[Loop ${loopCount}] Aborted mid-call.`);
-        return {
-          text: "Agent was stopped by the supervisor.",
-          messages: messages.slice(1),
-          cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, estimatedCost: 0, modelCalls: loopCount, model: resolvedModelId },
-          toolCalls: toolCallLog,
-        };
-      }
-
-      consecutiveErrors++;
-      console.log(`[Loop ${loopCount}] Model call failed (${consecutiveErrors}/5): ${error.message}`);
-
-      // Give up after 5 consecutive failures
-      if (consecutiveErrors >= 5) {
-        console.log(`[FATAL] 5 consecutive model failures. Stopping.`);
-        return {
-          text: `I encountered an error while processing your request: ${error.message}`,
-          messages: messages.slice(1),
-          cost: {
-            inputTokens: totalInputTokens,
-            outputTokens: totalOutputTokens,
-            estimatedCost: 0,
-            modelCalls: loopCount,
-            model: resolvedModelId,
-          },
-          toolCalls: toolCallLog,
-        };
-      }
-
-      // Exponential backoff: 1s, 2s, 4s, 8s, 16s
-      const backoffMs = Math.min(1000 * Math.pow(2, consecutiveErrors - 1), 16000);
-      console.log(`[Loop ${loopCount}] Retrying in ${backoffMs}ms...`);
-      await new Promise(resolve => setTimeout(resolve, backoffMs));
-
-      // Retry with a user-role nudge (compatible with all providers)
-      messages.push({
-        role: "user",
-        content: `[System: previous call failed: ${error.message}] Try again with the same approach, or provide your final answer. Set type to "text" and finalResponse to true.`,
-      });
-      continue;
     }
+    for (const text of steeringMessages) {
+      inputMessages.push({ role: "user", content: `[Supervisor instruction]: ${text}` });
+    }
+    if (userFollowUps.length > 0) {
+      inputMessages.push({
+        role: "user",
+        content: `[User follow-up while you are working. Acknowledge via replyToUser(), fold in, keep working.]\n\n${userFollowUps.join("\n\n")}`,
+      });
+    }
+  }
+
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let totalSteps = 0;
+
+  const startTime = Date.now();
+
+  try {
+    const result = await generateText({
+      model,
+      tools: aiTools,
+      system: systemPrompt.content,
+      messages: inputMessages,
+      maxTokens: 8192,
+      abortSignal: signal || undefined,
+      stopWhen: stepCountIs(config.maxLoops || 30),
+      ...thinkingParams,
+      onStepFinish({ stepNumber, text, toolCalls, toolResults, finishReason, usage }) {
+        totalSteps = stepNumber + 1;
+        if (usage) {
+          totalInputTokens += usage.inputTokens || usage.promptTokens || 0;
+          totalOutputTokens += usage.outputTokens || usage.completionTokens || 0;
+        }
+
+        const tcNames = toolCalls?.map(tc => tc.toolName).join(", ") || "none";
+        console.log(`[Step ${stepNumber + 1}] finishReason=${finishReason} tools=[${tcNames}]`);
+
+        eventBus.emitEvent("model:called", {
+          modelId: resolvedModelId,
+          loopCount: stepNumber + 1,
+          elapsed: 0,
+          inputTokens: usage?.inputTokens || usage?.promptTokens || 0,
+          outputTokens: usage?.outputTokens || usage?.completionTokens || 0,
+        });
+
+        // Drain steer queue between steps
+        if (steerQueue?.length > 0) {
+          while (steerQueue.length > 0) {
+            const item = steerQueue.shift();
+            console.log(`[AgentLoop] Steering received (step ${stepNumber}): ${JSON.stringify(item).slice(0, 80)}`);
+          }
+        }
+
+        // Check supervisor kill
+        if (supervisor.isKilled(taskId)) {
+          console.log(`[AgentLoop] Task ${taskId?.slice(0, 8)} killed by Supervisor.`);
+        }
+      },
+    });
+
+    const elapsed = Date.now() - startTime;
+
+    // Final usage from result
+    if (result.usage) {
+      // If onStepFinish already tracked, these may overlap — use result.usage as total
+      totalInputTokens = result.usage.inputTokens || result.usage.promptTokens || totalInputTokens;
+      totalOutputTokens = result.usage.outputTokens || result.usage.completionTokens || totalOutputTokens;
+    }
+
+    const finalText = result.text || "";
+    const cost = {
+      inputTokens: totalInputTokens,
+      outputTokens: totalOutputTokens,
+      estimatedCost:
+        (totalInputTokens / 1000) * meta.costPer1kInput +
+        (totalOutputTokens / 1000) * meta.costPer1kOutput,
+      modelCalls: totalSteps + 1,
+      model: resolvedModelId,
+    };
+
+    console.log(`\n--- AGENT LOOP FINISHED ---`);
+    console.log(`Stats: ${totalSteps + 1} steps | ${stepCount} tool calls | ${elapsed}ms | ~$${cost.estimatedCost.toFixed(4)}`);
+    console.log(`Response: "${finalText.slice(0, 150)}${finalText.length > 150 ? "..." : ""}"`);
+
+    // Build conversation messages for session persistence
+    const conversationMessages = [...inputMessages, ...result.response.messages];
+
+    return { text: finalText, messages: conversationMessages, cost, toolCalls: toolCallLog };
+  } catch (error) {
+    if (signal?.aborted || error.name === "AbortError") {
+      console.log(`[AgentLoop] Aborted.`);
+      return {
+        text: "Agent was stopped.",
+        messages: inputMessages,
+        cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, estimatedCost: 0, modelCalls: totalSteps, model: resolvedModelId },
+        toolCalls: toolCallLog,
+      };
+    }
+
+    console.log(`[AgentLoop] Fatal error: ${error.message}`);
+    return {
+      text: `I encountered an error: ${error.message}`,
+      messages: inputMessages,
+      cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, estimatedCost: 0, modelCalls: totalSteps, model: resolvedModelId },
+      toolCalls: toolCallLog,
+    };
   }
 }

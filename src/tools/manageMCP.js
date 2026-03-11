@@ -31,7 +31,9 @@ function _stripCredentials(serverConfig) {
  *   disable - disable a server (disconnects it, keeps in config)
  *   reload  - reconnect a server (useful after config changes)
  */
-export async function manageMCP(action, paramsJson) {
+export async function manageMCP(toolParams) {
+  const action = toolParams?.action;
+  const paramsJson = toolParams?.params;
   const params = paramsJson
     ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson)
     : {};

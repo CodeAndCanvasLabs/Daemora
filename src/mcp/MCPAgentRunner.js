@@ -2,6 +2,7 @@ import { spawnSubAgent } from "../agents/SubAgentManager.js";
 import mcpManager from "./MCPManager.js";
 import { toolFunctions } from "../tools/index.js";
 import { createSession, getSession, setMessages } from "../services/sessions.js";
+import { compactForSession } from "../utils/msgText.js";
 
 /**
  * Base tools injected into every MCP specialist agent alongside their server tools.
@@ -88,7 +89,7 @@ Base tools use regular string params (array of strings), not JSON.
 # Rules - You Own This Task
 
 - **Do the work, don't describe it.** Your first response must be a tool_call, not a plan.
-- **Chain calls until fully done.** After each tool result, decide: need more tools? Call another. Only set finalResponse true when the task is genuinely complete.
+- **Chain calls until fully done.** After each tool result, decide: need more tools? Call another. Only set finalResponse true when the task is genuinely complete. Never set finalResponse true with "in progress" or "will follow up" — that is a failure.
 - **Never ask for clarification.** You have everything you need in the task description. Make reasonable decisions and proceed.
 - **Handle errors yourself.** If a tool call fails, read the error, adjust your approach, try again. Do not give up and report failure unless you have exhausted all approaches.
 - **Be thorough.** If the task says "update all tasks in a project", update all of them. If it says "research X", gather enough detail to be useful. Don't do a half job.
@@ -184,7 +185,7 @@ export async function runMCPAgent(serverName, taskDescription, options = {}) {
     const capped = fullResult.messages.length > 100
       ? fullResult.messages.slice(-100)
       : fullResult.messages;
-    setMessages(subSessionId, capped);
+    setMessages(subSessionId, compactForSession(capped));
     console.log(`[MCPAgentRunner] Saved ${capped.length} messages to sub-session "${subSessionId}"`);
   }
 

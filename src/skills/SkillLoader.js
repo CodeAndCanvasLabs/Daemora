@@ -233,7 +233,7 @@ class SkillLoader {
    *
    * Returns top-5 matched skills, sorted by relevance score (highest first).
    */
-  async getSkillPromptsAsync(taskInput) {
+  async getSkillPromptsAsync(taskInput, { exclude = [] } = {}) {
     if (!taskInput) return "";
     if (!this.loaded) this.load();
 
@@ -245,6 +245,7 @@ class SkillLoader {
         const scored = [];
 
         for (const [name, skill] of this.skills) {
+          if (exclude.includes(name)) continue;
           const cached = this._skillVectors[name];
           if (!cached?.vector) continue;
           const score = this._cosineSim(queryVector, cached.vector);
@@ -268,7 +269,7 @@ class SkillLoader {
     }
 
     // Fallback: keyword matching
-    return this.getSkillPrompts(taskInput);
+    return this.getSkillPrompts(taskInput, { exclude });
   }
 
   /**
@@ -355,8 +356,8 @@ class SkillLoader {
   /**
    * Get skill prompt text for matched skills (sync keyword version).
    */
-  getSkillPrompts(taskInput) {
-    const matched = this.matchSkills(taskInput);
+  getSkillPrompts(taskInput, { exclude = [] } = {}) {
+    const matched = this.matchSkills(taskInput).filter(s => !exclude.includes(s.name));
     if (matched.length === 0) return "";
 
     const sections = matched.map(

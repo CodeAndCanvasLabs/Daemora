@@ -6,7 +6,7 @@ const outputSchema = z.object({
   tool_call: z
     .object({
       tool_name: z.string(),
-      params: z.array(z.string()),
+      params: z.string().describe("JSON-encoded named params object"),
     })
     .nullable(),
   finalResponse: z.boolean(),

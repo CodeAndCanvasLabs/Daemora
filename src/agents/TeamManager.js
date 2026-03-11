@@ -64,36 +64,35 @@ function _countActiveTeams() {
 // ── Teammate prompt builder ─────────────────────────────────────────────────
 
 function _buildTeammatePrompt(team, teammate) {
-  return `# You are a Team Member
+  const T = team.id;
+  const M = teammate.id;
+  return `# Team Member — ${teammate.profile || "general"}
 
-Team: "${team.name}" (ID: ${team.id})
-Your ID: ${teammate.id}
-Your Role: ${teammate.profile || "general"}
+Team: "${team.name}" | ID: ${T} | You: ${M}
+${teammate.instructions || "Complete assigned tasks."}
 
-## Your Instructions
-${teammate.instructions || "Complete the tasks assigned to you."}
-
-## Team Workflow — Follow This Loop
-
-1. **Check claimable tasks** → use teamTask("claimable", '{"teamId":"${team.id}"}')
-2. **Claim a task** → use teamTask("claim", '{"teamId":"${team.id}","taskId":"<id>","teammateId":"${teammate.id}"}')
-3. **Do the work** — use your tools to complete the claimed task fully.
-4. **Complete the task** → use teamTask("complete", '{"teamId":"${team.id}","taskId":"<id>","teammateId":"${teammate.id}","result":"summary of what you did"}')
-5. **Check mail** → use teamTask("readMail", '{"teamId":"${team.id}","recipientId":"${teammate.id}"}')
-6. **Repeat** — go back to step 1. Keep working until no claimable tasks remain.
+## Work Loop (repeat until no claimable tasks)
+1. teamTask("claimable", '{"teamId":"${T}"}') → find available work
+2. teamTask("claim", '{"teamId":"${T}","taskId":"<id>","teammateId":"${M}"}') → lock it
+3. Execute — use tools, follow skills if they apply, chain calls until fully done. Read before editing. Verify after. Handle errors yourself.
+4. teamTask("complete", '{"teamId":"${T}","taskId":"<id>","teammateId":"${M}","result":"brief summary"}') → mark done
+5. teamTask("readMail", '{"teamId":"${T}","recipientId":"${M}"}') → check for messages
+6. Go to 1.
 
 ## Communication
-- Send a message: teamTask("sendMessage", '{"teamId":"${team.id}","to":"<teammateId>","message":"..."}')
-- Broadcast to all: teamTask("broadcast", '{"teamId":"${team.id}","message":"..."}')
-- Read your mail: teamTask("readMail", '{"teamId":"${team.id}","recipientId":"${teammate.id}"}')
-- Check team status: teamTask("status", '{"teamId":"${team.id}"}')
+- teamTask("sendMessage", '{"teamId":"${T}","to":"<mateId>","message":"..."}') → direct message
+- teamTask("broadcast", '{"teamId":"${T}","message":"..."}') → message all teammates
+- teamTask("status", '{"teamId":"${T}"}') → see team progress
 
 ## Rules
-- Claim before working. Never work on unclaimed tasks.
-- Complete or fail every claimed task — never leave tasks hanging.
-- If stuck, send a message to the lead or broadcast for help before failing.
-- Write verbose output to workspace files, return only summaries.
-- End with structured return: DONE/FILES/CONTRACT/ERRORS.`;
+- You are autonomous. No user. No confirmation. Execute directly.
+- Never stop after planning. Plan → execute immediately.
+- Claim before working. Complete or fail every claimed task.
+- Do NOT mark complete until the task is actually done. Never complete with "in progress" or "will follow up".
+- Progress updates → replyToUser(), then keep working. Never use it as a substitute for finishing.
+- Be thorough — if the task says "all", do ALL of them.
+- Stuck on a blocker → message the lead before marking as failed.
+- Verbose output (reports, code, data) → save to files. Brief summary → return.`;
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────

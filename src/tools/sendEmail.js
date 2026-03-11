@@ -94,7 +94,11 @@ async function getTransporter() {
   return _globalTransporter;
 }
 
-export async function sendEmail(to, subject, body, optionsJson) {
+export async function sendEmail(params) {
+  const to = params?.to;
+  const subject = params?.subject;
+  const body = params?.body;
+  const optionsJson = params?.options;
   if (!to || !subject || !body) {
     return "Error: to, subject, and body are all required.";
   }

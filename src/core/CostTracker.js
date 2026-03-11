@@ -1,76 +1,52 @@
-import { readFileSync, existsSync, appendFileSync, mkdirSync } from "fs";
 import { config } from "../config/default.js";
 import { models } from "../config/models.js";
 import eventBus from "./EventBus.js";
 import tenantContext from "../tenants/TenantContext.js";
-
-const COSTS_DIR = config.costsDir;
-mkdirSync(COSTS_DIR, { recursive: true });
-
-/**
- * Get today's cost log file path.
- */
-function getTodayLogPath() {
-  const today = new Date().toISOString().split("T")[0];
-  return `${COSTS_DIR}/${today}.jsonl`;
-}
+import { queryOne, run } from "../storage/Database.js";
 
 /**
  * Log a cost entry.
  * tenantId is automatically added from TenantContext when available.
  */
 export function logCost({ taskId, modelId, inputTokens, outputTokens, estimatedCost, tenantId = null }) {
-  const entry = {
-    timestamp: new Date().toISOString(),
-    taskId,
-    modelId,
-    inputTokens,
-    outputTokens,
-    estimatedCost,
-    tenantId,
-  };
-  appendFileSync(getTodayLogPath(), JSON.stringify(entry) + "\n");
+  run(
+    `INSERT INTO cost_entries (tenant_id, task_id, model_id, input_tokens, output_tokens, estimated_cost, created_at)
+     VALUES ($tenant_id, $task_id, $model_id, $input, $output, $cost, $created_at)`,
+    {
+      $tenant_id: tenantId,
+      $task_id: taskId || "unknown",
+      $model_id: modelId || null,
+      $input: inputTokens || 0,
+      $output: outputTokens || 0,
+      $cost: estimatedCost || 0,
+      $created_at: new Date().toISOString(),
+    }
+  );
 }
 
 /**
  * Get total cost spent today (global - all tenants combined).
  */
 export function getTodayCost() {
-  const logPath = getTodayLogPath();
-  if (!existsSync(logPath)) return 0;
-
-  const lines = readFileSync(logPath, "utf-8").trim().split("\n").filter(Boolean);
-  return lines.reduce((sum, line) => {
-    try {
-      const entry = JSON.parse(line);
-      return sum + (entry.estimatedCost || 0);
-    } catch {
-      return sum;
-    }
-  }, 0);
+  const today = new Date().toISOString().split("T")[0];
+  const row = queryOne(
+    "SELECT COALESCE(SUM(estimated_cost), 0) as total FROM cost_entries WHERE created_at >= $start",
+    { $start: today }
+  );
+  return row.total;
 }
 
 /**
  * Get total cost spent today for a specific tenant.
- *
- * @param {string} tenantId
- * @returns {number}
  */
 export function getTenantTodayCost(tenantId) {
   if (!tenantId) return 0;
-  const logPath = getTodayLogPath();
-  if (!existsSync(logPath)) return 0;
-
-  const lines = readFileSync(logPath, "utf-8").trim().split("\n").filter(Boolean);
-  return lines.reduce((sum, line) => {
-    try {
-      const entry = JSON.parse(line);
-      if (entry.tenantId !== tenantId) return sum;
-      return sum + (entry.estimatedCost || 0);
-    } catch {
-      return sum;
-    }
-  }, 0);
+  const today = new Date().toISOString().split("T")[0];
+  const row = queryOne(
+    "SELECT COALESCE(SUM(estimated_cost), 0) as total FROM cost_entries WHERE tenant_id = $tid AND created_at >= $start",
+    { $tid: tenantId, $start: today }
+  );
+  return row.total;
 }
 
 /**
@@ -82,10 +58,6 @@ export function isDailyBudgetExceeded() {
 
 /**
  * Check if a specific tenant's daily budget is exceeded.
- *
- * @param {string} tenantId
- * @param {number} maxDailyCost
- * @returns {boolean}
  */
 export function isTenantDailyBudgetExceeded(tenantId, maxDailyCost) {
   if (!tenantId || !maxDailyCost) return false;

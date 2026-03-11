@@ -8,8 +8,11 @@ import {
 } from "../agents/SubAgentManager.js";
 import { listSessions, getSession, clearSession } from "../services/sessions.js";
 import tenantContext from "../tenants/TenantContext.js";
+import { msgText } from "../utils/msgText.js";
 
-export function manageAgents(action, paramsJson) {
+export function manageAgents(toolParams) {
+  const action = toolParams?.action;
+  const paramsJson = toolParams?.params;
   try {
     const params = paramsJson ? JSON.parse(paramsJson) : {};
 
@@ -62,7 +65,7 @@ export function manageAgents(action, paramsJson) {
         const last = session.messages.slice(-count);
         if (last.length === 0) return "Session exists but has no messages.";
         return `Last ${last.length} messages from "${params.sessionId}":\n\n` +
-          last.map(m => `[${m.role}]: ${(m.content || "").slice(0, 300)}`).join("\n\n");
+          last.map(m => `[${m.role}]: ${msgText(m.content).slice(0, 300)}`).join("\n\n");
       }
 
       case "session_clear": {

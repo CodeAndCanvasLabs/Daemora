@@ -9,38 +9,38 @@ import tenantManager from "../tenants/TenantManager.js";
 import tenantContext from "../tenants/TenantContext.js";
 import inputSanitizer from "../safety/InputSanitizer.js";
 import eventBus from "./EventBus.js";
+import { msgText, compactForSession } from "../utils/msgText.js";
 
 /**
  * Filter out internal tool call/result JSON from messages before saving to session.
  * Keeps only clean user text and assistant text that users should see.
  */
-function filterCleanMessages(messages) {
+export function filterCleanMessages(messages) {
   return messages.filter(msg => {
-    if (!msg.content || typeof msg.content !== "string") return false;
-
-    const trimmed = msg.content.trimStart();
-    if (trimmed.startsWith("{")) {
-      try {
-        const parsed = JSON.parse(trimmed);
-        // Assistant tool_call messages
-        if (parsed.type === "tool_call" || parsed.tool_call) return false;
-        // User tool_result messages
-        if (parsed.tool_name) return false;
-        // Structured finalResponse wrappers (the actual text is saved separately)
-        if (parsed.type === "text" && parsed.finalResponse !== undefined) return false;
-      } catch {
-        // Not valid JSON - keep it (probably natural language that starts with {)
-      }
+    if (msg.role === "tool") return false;
+    if (msg.role === "assistant" && Array.isArray(msg.content)) {
+      if (msg.content.some(p => p.type === "tool-call")) return false;
     }
 
-    // Filter out system injection messages
-    if (msg.role === "user" && msg.content.startsWith("[Supervisor instruction]:")) return false;
-    if (msg.role === "user" && msg.content.startsWith("[System:")) return false;
-    if (msg.role === "user" && msg.content.includes("You have used") && msg.content.includes("iterations")) return false;
-    if (msg.role === "user" && msg.content.includes("You are calling") && msg.content.includes("same params repeatedly")) return false;
-    if (msg.role === "user" && msg.content.includes("Provide a text summary of what you did")) return false;
+    if (msg.role === "assistant") {
+      const text = msgText(msg.content);
+      if (!text) return false;
+      msg.content = text;
+      return true;
+    }
 
-    return true;
+    if (msg.role === "user") {
+      const text = msgText(msg.content);
+      if (!text) return false;
+      msg.content = text;
+      if (text.startsWith("[Supervisor instruction]:")) return false;
+      if (text.startsWith("[System:")) return false;
+      if (text.startsWith("[User follow-up while you are working")) return false;
+      if (text.includes("You have used") && text.includes("iterations")) return false;
+      return true;
+    }
+
+    return false;
   });
 }
 
@@ -277,8 +277,8 @@ class TaskRunner {
         eventBus.removeListener("agent:spawned", onSpawn);
         eventBus.removeListener("agent:finished", onFinish);
 
-        // Update session with CLEAN conversation only (strip internal tool JSON)
-        setMessages(session.sessionId, filterCleanMessages(result.messages));
+        // Save full conversation (with tool context) — truncate large tool outputs
+        setMessages(session.sessionId, compactForSession(result.messages));
 
         // Update task cost info and tool calls
         task.cost = result.cost;
