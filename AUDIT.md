@@ -217,22 +217,70 @@ CompactionError     — context window management failures
 
 ---
 
+## 11. NATIVE TOOL CALLING — ✅ DONE
+
+### What Was Done
+- Migrated from custom JSON output schema to Vercel AI SDK native `tool()` + `generateText` + `stopWhen: stepCountIs(N)`
+- SDK handles schema conversion per provider (OpenAI, Anthropic, Google/Gemini, Ollama) — no custom logic needed
+- Session format uses SDK's provider-agnostic `ModelMessage` types (`tool-call`, `tool-result`, `toolCallId`) — works across all providers
+- `compactForSession()` preserves tool call/result structure in sessions (truncates large outputs, keeps context)
+- `filterCleanMessages()` only for API display, never for session storage
+- `msgText()` utility (`src/utils/msgText.js`) — central text extraction from any SDK message format
+- Confirmed: all 4 providers (OpenAI, Anthropic, Google/Gemini, Ollama) work with native tool calling
+
+---
+
+## 12. SUB-AGENT & TEAM IMPROVEMENTS — ✅ DONE
+
+### What Was Done
+- Simplified model resolution: `SUB_AGENT_MODEL` → parent model → `DEFAULT_MODEL` (deleted overengineered profile routing)
+- Removed `model` param from `spawnAgent` schema — user defines model in `.env`, not per-spawn
+- Sub-agent autonomy: "Plan → execute. Never stop after planning. No user. No confirmation."
+- Teammate prompt rewritten — terse, with claim→execute→complete loop and comms instructions
+- SOUL.md Multi-Agent section rewritten with exact call patterns (spawnAgent, parallelAgents, teamTask)
+- Spawn contract: `taskDescription`, `parentContext`, `skills` — applies to spawns and teams
+- General-purpose examples (research, writing, product launch — not code-only)
+- Skills reduced from 30 to 20 in system prompt
+- Sub-agent skill preamble: "If a skill applies → readFile its path, follow it. Skip confirm steps."
+
+### Files Changed
+- `src/agents/SubAgentManager.js` — simplified model resolution, `compactForSession` for sessions
+- `src/models/ModelRouter.js` — `resolveSubAgentModel()` replaces `resolveModelForProfile`/`getTaskTypeModel`
+- `src/agents/systemPrompt.js` — sub-agent context, skill preamble, limit 20
+- `src/agents/TeamManager.js` — `_buildTeammatePrompt` rewritten
+- `src/tools/schemas.js` — removed `model` from spawnAgent options
+- `SOUL.md` — Multi-Agent Orchestration, Memory section added
+
+---
+
+## 13. MEMORY INSTRUCTIONS — ✅ DONE
+
+### What Was Done
+- Added `## Memory` section to SOUL.md — when to log, when to save, format rules, categories, security
+- Tools: `writeDailyLog`, `writeMemory`, `readMemory`, `searchMemory`
+- Categories: preferences, patterns, projects, people, debug
+
+---
+
 ## PRIORITY MATRIX
 
 ### P0 — ✅ COMPLETE
 1. ~~**System prompt diet**~~ — 8K → 2.7K tokens (66% reduction). Done.
 2. ~~**Tool schema system**~~ — 54 Zod schemas, named params, validation in AgentLoop. Done.
+3. ~~**Native tool calling**~~ — Vercel AI SDK `tool()` + `generateText`, all providers confirmed. Done.
+4. ~~**Sub-agent & team maturity**~~ — Model resolution, autonomy, spawn contract, SOUL.md instructions. Done.
+5. ~~**Memory instructions**~~ — SOUL.md section for when/how to use memory tools. Done.
 
 ### P1 — Do Next (Data Safety + Reliability)
-3. **Config validation** — Zod schema for config, startup validation. File: `src/config/default.js`
-4. **SQLite storage** — Replace flat JSON for memory/tasks/sessions/tenants. Files: `src/tools/memory.js`, `src/storage/TaskStore.js`, `src/services/sessions.js`, `src/tenants/TenantManager.js`
+6. **Config validation** — Zod schema for config, startup validation. File: `src/config/default.js`
+7. **SQLite storage** — Replace flat JSON for memory/tasks/sessions/tenants. Files: `src/tools/memory.js`, `src/storage/TaskStore.js`, `src/services/sessions.js`, `src/tenants/TenantManager.js`
 
 ### P2 — Do After (Quality + Scale)
-5. **Error class hierarchy** — ToolInputError, ConfigError, etc. New file: `src/errors.js`
-6. **Channel middleware** — Shared retry/rate-limit in BaseChannel. File: `src/channels/BaseChannel.js`
-7. **Test coverage** — Target 50%. Priority: AgentLoop, tool schemas, memory, channels
+8. **Error class hierarchy** — ToolInputError, ConfigError, etc. New file: `src/errors.js`
+9. **Channel middleware** — Shared retry/rate-limit in BaseChannel. File: `src/channels/BaseChannel.js`
+10. **Test coverage** — Target 50%. Priority: AgentLoop, tool schemas, memory, channels
 
 ### P3 — Future (Ecosystem)
-8. **Optional deps** — Move channel SDKs to optional. File: `package.json`
-9. **Plugin system** — Manifest, loader, registry. New files: `src/plugins/`
-10. **Structured logging** — Replace console.log with pino. All files.
+11. **Optional deps** — Move channel SDKs to optional. File: `package.json`
+12. **Plugin system** — Manifest, loader, registry. New files: `src/plugins/`
+13. **Structured logging** — Replace console.log with pino. All files.
