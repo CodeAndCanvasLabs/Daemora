@@ -254,31 +254,31 @@ const toolSchemas = {
   // ── Agents ───────────────────────────────────────────────────────────────
   spawnAgent: {
     schema: z.object({
-      taskDescription: str("Complete task brief for the sub-agent"),
-      options: json('{"profile":"coder|researcher|writer|analyst","extraTools":[...],"skills":[...],"parentContext":"..."}'),
+      taskDescription: str("Complete task brief — include what, constraints, files/APIs, expected output. Agent has zero other context."),
+      options: json('{"profile":"coder|researcher|writer|analyst","parentContext":"...","extraTools":[...],"skills":[...]}'),
     }),
-    description: "Spawn sub-agent for independent task",
+    description: "Spawn specialist sub-agent. Use for any deep-focus task: research, writing, coding, analysis. Profile sets identity.",
   },
   parallelAgents: {
     schema: z.object({
-      tasks: str('JSON array: [{"description":"...","options":{...}}]'),
+      tasks: str('JSON array: [{"description":"...","options":{"profile":"..."}}]'),
       sharedOptions: json('{"sharedContext":"..."}'),
     }),
-    description: "Spawn multiple sub-agents in parallel",
+    description: "Spawn multiple sub-agents simultaneously for independent tasks.",
   },
   delegateToAgent: {
     schema: z.object({
       agentUrl: str("Remote agent URL"),
       taskInput: str("Task description for remote agent"),
     }),
-    description: "Delegate to external agent via A2A protocol",
+    description: "Send task to external agent via A2A protocol",
   },
   manageAgents: {
     schema: z.object({
       action: str("list|kill|steer|sessions|session_get|session_clear|session_clear_all"),
       params: json("Action-specific params"),
     }),
-    description: "Manage sub-agents and sessions",
+    description: "List, kill, or steer running sub-agents",
   },
 
   // ── Tasks & Projects ─────────────────────────────────────────────────────
@@ -328,7 +328,7 @@ const toolSchemas = {
       action: str("createTeam|addTeammate|spawnTeammate|spawnAll|addTask|claim|complete|failTask|listTasks|claimable|sendMessage|broadcast|readMail|mailHistory|status|disband"),
       params: json("Action-specific params"),
     }),
-    description: "Multi-agent team coordination with shared tasks and messaging",
+    description: "Coordinate a team of sub-agents with shared tasks, dependencies, and messaging. Use for multi-stage work with handoffs.",
   },
 
   // ── Voice ────────────────────────────────────────────────────────────────
