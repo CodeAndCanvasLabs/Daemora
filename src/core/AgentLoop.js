@@ -206,8 +206,16 @@ export async function runAgentLoop({
 
       // --- Tool call handling ---
       if (hasToolCalls) {
-        // Add the assistant's tool-call message to conversation
-        messages.push(...result.response.messages);
+        // Add the assistant's tool-call message in CoreMessage format
+        messages.push({
+          role: "assistant",
+          content: result.toolCalls.map(tc => ({
+            type: "tool-call",
+            toolCallId: tc.toolCallId,
+            toolName: tc.toolName,
+            args: tc.args,
+          })),
+        });
 
         const toolResults = [];
 
@@ -353,7 +361,7 @@ export async function runAgentLoop({
 
       if (!finalText.trim()) {
         console.log(`[Loop ${loopCount}] Model returned empty text — asking for summary`);
-        messages.push(...(result.response.messages || []));
+        // Don't push response.messages — format may not match CoreMessage[]
         messages.push({
           role: "user",
           content: "Provide a text summary of what you did.",
