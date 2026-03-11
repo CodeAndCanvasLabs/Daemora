@@ -74,11 +74,7 @@ ${teammate.instructions || "Complete assigned tasks."}
 ## Work Loop (repeat until no claimable tasks)
 1. teamTask("claimable", '{"teamId":"${T}"}') → find available work
 2. teamTask("claim", '{"teamId":"${T}","taskId":"<id>","teammateId":"${M}"}') → lock it
-3. Execute the task:
-   - Check skills first — if one matches, readFile it and follow it.
-   - Then act with tools. Chain calls until fully done.
-   - Read before editing. Verify after changes.
-   - Handle errors yourself — adjust approach, try again. Don't give up.
+3. Execute — use tools, follow skills if they apply, chain calls until fully done. Read before editing. Verify after. Handle errors yourself.
 4. teamTask("complete", '{"teamId":"${T}","taskId":"<id>","teammateId":"${M}","result":"brief summary"}') → mark done
 5. teamTask("readMail", '{"teamId":"${T}","recipientId":"${M}"}') → check for messages
 6. Go to 1.
