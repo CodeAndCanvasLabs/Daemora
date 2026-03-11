@@ -3,7 +3,7 @@ import { getCheapModel } from "../models/ModelRouter.js";
 import { writeFileSync, mkdirSync } from "fs";
 import { config } from "../config/default.js";
 import eventBus from "./EventBus.js";
-import { buildAITools } from "../tools/schemas.js";
+import toolSchemas from "../tools/schemas.js";
 
 /**
  * Context compaction system.
@@ -75,14 +75,13 @@ async function runPreCompactionFlush(messages, tools = {}) {
     const { model } = getCheapModel();
 
     // Build native tool definitions with execute functions for the flush agent
-    const flushAITools = buildAITools(new Set(Object.keys(memoryTools)));
     const executableTools = {};
     for (const name of Object.keys(memoryTools)) {
-      const schema = flushAITools[name];
-      if (!schema) continue;
+      const entry = toolSchemas[name];
+      if (!entry) continue;
       executableTools[name] = tool({
-        description: schema.description,
-        parameters: schema.parameters,
+        description: entry.description,
+        inputSchema: entry.schema,
         execute: async (params) => {
           const output = await Promise.resolve(memoryTools[name](params));
           const outputStr = typeof output === "string" ? output : JSON.stringify(output);
