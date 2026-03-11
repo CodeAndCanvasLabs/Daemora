@@ -150,7 +150,7 @@ function renderResponseFormat() {
 
 Respond with JSON matching: { type, tool_call, text_content, finalResponse }
 
-- Action request → type:"tool_call", tool_call: { tool_name, params: {named params} }, finalResponse: false.
+- Action request → type:"tool_call", tool_call: { tool_name, params: "{JSON string of named params}" }, finalResponse: false.
 - Conversation/done → type:"text", text_content: "...", finalResponse: true.
 - Never set finalResponse:true with unresolved errors.
 - Mid-task user follow-ups → acknowledge via replyToUser(), fold in, keep working.
@@ -183,7 +183,7 @@ function renderToolList(isSubAgent = false) {
 
   return `# Tools
 
-Params are named objects: { tool_name: "readFile", params: { path: "/foo", limit: 100 } }
+Params are JSON strings: { tool_name: "readFile", params: "{\"path\": \"/foo\", \"limit\": 100}" }
 Use existing context first — only call a tool when you need fresh or missing data.
 
 ${lines.join("\n")}${noAuth}`;
