@@ -271,9 +271,9 @@ CompactionError     — context window management failures
 4. ~~**Sub-agent & team maturity**~~ — Model resolution, autonomy, spawn contract, SOUL.md instructions. Done.
 5. ~~**Memory instructions**~~ — SOUL.md section for when/how to use memory tools. Done.
 
-### P1 — Do Next (Data Safety + Reliability)
-6. **Config validation** — Zod schema for config, startup validation. File: `src/config/default.js`
-7. **SQLite storage** — Replace flat JSON for memory/tasks/sessions/tenants. Files: `src/tools/memory.js`, `src/storage/TaskStore.js`, `src/services/sessions.js`, `src/tenants/TenantManager.js`
+### P1 — ✅ COMPLETE
+6. ~~**Config validation**~~ — Zod schema (`src/config/schema.js`), fail-closed startup, `channelWith()` DRY helper. Done.
+7. ~~**SQLite storage**~~ — `node:sqlite` DatabaseSync, WAL mode, 9 tables, reusable helpers (`queryAll/queryOne/run/transaction`), auto-migration from flat files. Done.
 
 ### P2 — Do After (Quality + Scale)
 8. **Error class hierarchy** — ToolInputError, ConfigError, etc. New file: `src/errors.js`
