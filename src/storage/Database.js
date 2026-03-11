@@ -18,6 +18,7 @@ export function getDb() {
   _db.exec("PRAGMA busy_timeout = 5000");
   _db.exec("PRAGMA foreign_keys = ON");
   _initTables(_db);
+  _runMigrations(_db);
   _migrateFromFlatFiles();
   return _db;
 }
@@ -71,6 +72,8 @@ function _initTables(db) {
     CREATE TABLE IF NOT EXISTS tasks (
       id TEXT PRIMARY KEY,
       tenant_id TEXT,
+      channel TEXT,
+      session_id TEXT,
       type TEXT NOT NULL DEFAULT 'chat',
       title TEXT,
       description TEXT,
@@ -90,6 +93,7 @@ function _initTables(db) {
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
     CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id);
     CREATE INDEX IF NOT EXISTS idx_tasks_tenant ON tasks(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id);
 
     CREATE TABLE IF NOT EXISTS tenants (
       id TEXT PRIMARY KEY,
@@ -154,6 +158,16 @@ function _initTables(db) {
     CREATE INDEX IF NOT EXISTS idx_audit_tenant_date ON audit_log(tenant_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_audit_event ON audit_log(event);
   `);
+}
+
+// ── Schema Migrations ────────────────────────────────────────────────────────
+// ALTER TABLE for columns added after initial schema creation.
+// Each migration is idempotent — silently skipped if column already exists.
+
+function _runMigrations(db) {
+  const addCol = (sql) => { try { db.exec(sql); } catch {} };
+  addCol("ALTER TABLE tasks ADD COLUMN channel TEXT");
+  addCol("ALTER TABLE tasks ADD COLUMN session_id TEXT");
 }
 
 // ── Flat File Migration ──────────────────────────────────────────────────────
