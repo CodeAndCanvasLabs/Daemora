@@ -7,7 +7,7 @@
     "daemora": "src/cli.js"
   },
   "scripts": {
-    "start": "node src/index.js",
+    "start": "node --disable-warning=ExperimentalWarning src/index.js",
     "setup": "node src/cli.js setup",
     "daemon:install": "node src/cli.js daemon install",
     "daemon:start": "node src/cli.js daemon start",
