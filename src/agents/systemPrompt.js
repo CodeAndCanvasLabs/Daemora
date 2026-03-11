@@ -205,12 +205,14 @@ async function renderSkills(taskInput, limit = 20, isSubAgent = false) {
     : "";
 
   const preamble = isSubAgent
-    ? `If a skill applies → readFile its path, follow it. Skip "confirm with user" steps.`
-    : `Scan this list. If a skill applies, readFile its path to load it, then follow it.
-- Planning required (3+ steps, unclear scope, multi-file) → load planning skill first.
-- Multi-agent task → load orchestration skill first.`;
+    ? `Before acting: scan list. If one clearly applies → readFile its path, follow it. Skip "confirm with user" steps. If multiple → pick most specific. If none → proceed.`
+    : `Before acting: scan list below.
+- Exactly one clearly applies → readFile its path, follow it.
+- Multiple could apply → pick the most specific one, read/follow it.
+- None clearly apply → proceed without loading.
+Constraint: never load more than one skill up front.`;
 
-  return `# Skills
+  return `## Skills (mandatory)
 
 ${preamble}
 

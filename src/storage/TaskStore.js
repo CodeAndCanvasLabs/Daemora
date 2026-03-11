@@ -6,14 +6,16 @@ import { queryAll, queryOne, run } from "./Database.js";
 export function saveTask(task) {
   const ts = new Date().toISOString();
   run(
-    `INSERT INTO tasks (id, tenant_id, type, title, description, status, priority,
+    `INSERT INTO tasks (id, tenant_id, channel, session_id, type, title, description, status, priority,
      parent_task_id, agent_id, agent_created, input, result, error,
      created_at, started_at, completed_at, updated_at)
-     VALUES ($id, $tenant_id, $type, $title, $desc, $status, $priority,
+     VALUES ($id, $tenant_id, $channel, $session_id, $type, $title, $desc, $status, $priority,
      $parent, $agent_id, $agent_created, $input, $result, $error,
      $created_at, $started_at, $completed_at, $updated_at)
      ON CONFLICT(id) DO UPDATE SET
        tenant_id = excluded.tenant_id,
+       channel = excluded.channel,
+       session_id = excluded.session_id,
        type = excluded.type,
        title = excluded.title,
        description = excluded.description,
@@ -31,6 +33,8 @@ export function saveTask(task) {
     {
       $id: task.id,
       $tenant_id: task.tenantId || null,
+      $channel: task.channel || null,
+      $session_id: task.sessionId || null,
       $type: task.type || "chat",
       $title: task.title || null,
       $desc: task.description || null,
@@ -106,11 +110,13 @@ export function recoverStaleTasks() {
 }
 
 /**
- * Load all tasks currently in "pending" state, sorted by priority then createdAt.
+ * Load pending tasks for recovery on startup.
+ * Only recovers agent-created tasks (background work) — not user chat tasks.
+ * User chat sessions are one-shot and replaying them after restart creates duplicates.
  */
 export function loadPendingTasks() {
   return queryAll(
-    "SELECT * FROM tasks WHERE status = 'pending' ORDER BY priority ASC, created_at ASC"
+    "SELECT * FROM tasks WHERE status = 'pending' AND agent_created = 1 ORDER BY priority ASC, created_at ASC"
   ).map(_rowToTask);
 }
 
@@ -118,6 +124,8 @@ function _rowToTask(row) {
   return {
     id: row.id,
     tenantId: row.tenant_id,
+    channel: row.channel || undefined,
+    sessionId: row.session_id || undefined,
     type: row.type || "chat",
     title: row.title,
     description: row.description,
