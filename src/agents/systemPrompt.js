@@ -48,7 +48,7 @@ export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeM
         renderResponseFormat(),
         renderToolList(true),
         renderMCPTools(),
-        renderSkills(taskInput, 30, true),
+        renderSkills(taskInput, 20, true),
         renderMemory(),
         renderSubagentContext(),
       ])
@@ -188,7 +188,7 @@ function renderToolUsageRules() {
 - \`<conversation-summary>\` = compacted history — treat as ground truth, don't redo.`;
 }
 
-async function renderSkills(taskInput, limit = 30, isSubAgent = false) {
+async function renderSkills(taskInput, limit = 20, isSubAgent = false) {
   const totalCount = skillLoader.list().length;
   if (totalCount === 0) return "";
 
