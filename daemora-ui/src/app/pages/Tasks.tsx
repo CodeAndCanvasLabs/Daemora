@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
 import { toast } from "sonner";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel } from "../components/ui/alert-dialog";
 
 interface SubAgent {
   agentId: string;
@@ -53,6 +54,7 @@ export function Tasks() {
   const [search, setSearch] = useState("");
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [childrenMap, setChildrenMap] = useState<Record<string, ChildTask[]>>({});
+  const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; description?: string; onConfirm: () => void }>({ open: false, title: "", onConfirm: () => {} });
 
   const fetchTasks = async () => {
     try {
@@ -94,17 +96,23 @@ export function Tasks() {
     setExpandedTasks(next);
   };
 
-  const handleDelete = async (e: React.MouseEvent, taskId: string, status: string) => {
+  const handleDelete = (e: React.MouseEvent, taskId: string, status: string) => {
     e.preventDefault();
     e.stopPropagation();
     if (status === "running") { toast.error("Cannot delete a running task"); return; }
-    if (!confirm("Delete this task?")) return;
-    const toastId = toast.loading("Deleting...");
-    try {
-      const res = await apiFetch(`/api/tasks/${taskId}`, { method: "DELETE" });
-      if (res.ok) { toast.success("Task deleted", { id: toastId }); fetchTasks(); }
-      else { const err = await res.json(); toast.error(err.error || "Failed to delete", { id: toastId }); }
-    } catch (e: any) { toast.error(e.message, { id: toastId }); }
+    setConfirmState({
+      open: true,
+      title: "Delete this task?",
+      description: "This action cannot be undone.",
+      onConfirm: async () => {
+        const toastId = toast.loading("Deleting...");
+        try {
+          const res = await apiFetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+          if (res.ok) { toast.success("Task deleted", { id: toastId }); fetchTasks(); }
+          else { const err = await res.json(); toast.error(err.error || "Failed to delete", { id: toastId }); }
+        } catch (err: any) { toast.error(err.message, { id: toastId }); }
+      },
+    });
   };
 
   const filteredTasks = tasks
@@ -307,6 +315,25 @@ export function Tasks() {
           </div>
         </CardContent>
       </Card>
+      <AlertDialog open={confirmState.open} onOpenChange={(open) => setConfirmState((s) => ({ ...s, open }))}>
+        <AlertDialogContent className="bg-slate-900 border border-slate-700 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white font-mono uppercase text-sm tracking-wide">{confirmState.title}</AlertDialogTitle>
+            {confirmState.description && (
+              <AlertDialogDescription className="text-gray-400 font-mono text-xs">{confirmState.description}</AlertDialogDescription>
+            )}
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-slate-800 border-slate-700 text-gray-300 hover:bg-slate-700 font-mono text-xs uppercase">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 font-mono text-xs uppercase"
+              onClick={() => { confirmState.onConfirm(); setConfirmState((s) => ({ ...s, open: false })); }}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

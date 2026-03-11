@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel } from "../components/ui/alert-dialog";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
@@ -89,6 +90,9 @@ export function Tenants() {
   const [createForm, setCreateForm] = useState({ channel: "", userId: "", plan: "free", notes: "" });
   const [creating, setCreating] = useState(false);
 
+  // Confirm dialog state
+  const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; description?: string; onConfirm: () => void }>({ open: false, title: "", onConfirm: () => {} });
+
   const fetchTenants = async () => {
     try {
       const res = await apiFetch("/api/tenants");
@@ -127,14 +131,20 @@ export function Tenants() {
     } catch (error: any) { toast.error(error.message, { id: toastId }); }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(`Delete tenant "${id}"? This cannot be undone.`)) return;
-    const toastId = toast.loading("DELETING TENANT...");
-    try {
-      const res = await apiFetch(`/api/tenants/${encodeURIComponent(id)}`, { method: "DELETE" });
-      if (res.ok) { toast.success("Tenant deleted", { id: toastId }); fetchTenants(); }
-      else { const err = await res.json(); toast.error(err.error || "FAILED TO DELETE", { id: toastId }); }
-    } catch (error: any) { toast.error(error.message, { id: toastId }); }
+  const handleDelete = (id: string) => {
+    setConfirmState({
+      open: true,
+      title: `Delete tenant "${id}"?`,
+      description: "This cannot be undone.",
+      onConfirm: async () => {
+        const toastId = toast.loading("DELETING TENANT...");
+        try {
+          const res = await apiFetch(`/api/tenants/${encodeURIComponent(id)}`, { method: "DELETE" });
+          if (res.ok) { toast.success("Tenant deleted", { id: toastId }); fetchTenants(); }
+          else { const err = await res.json(); toast.error(err.error || "FAILED TO DELETE", { id: toastId }); }
+        } catch (error: any) { toast.error(error.message, { id: toastId }); }
+      },
+    });
   };
 
   const fetchChannelCredKeys = async (tenantId: string) => {
@@ -162,13 +172,20 @@ export function Tenants() {
     finally { setCredSaving(false); }
   };
 
-  const handleDeleteChannelCred = async (key: string) => {
-    if (!editTenant || !confirm(`Remove credential "${key}"? The channel will disconnect.`)) return;
-    try {
-      const res = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/channel-config/${encodeURIComponent(key)}`, { method: "DELETE" });
-      if (res.ok) { toast.success(`${key} removed`); fetchChannelCredKeys(editTenant.id); }
-      else { const err = await res.json(); toast.error(err.error || "Failed to remove"); }
-    } catch (e: any) { toast.error(e.message); }
+  const handleDeleteChannelCred = (key: string) => {
+    if (!editTenant) return;
+    setConfirmState({
+      open: true,
+      title: `Remove credential "${key}"?`,
+      description: "The channel will disconnect.",
+      onConfirm: async () => {
+        try {
+          const res = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/channel-config/${encodeURIComponent(key)}`, { method: "DELETE" });
+          if (res.ok) { toast.success(`${key} removed`); fetchChannelCredKeys(editTenant.id); }
+          else { const err = await res.json(); toast.error(err.error || "Failed to remove"); }
+        } catch (e: any) { toast.error(e.message); }
+      },
+    });
   };
 
   const fetchApiKeys = async (tenantId: string) => {
@@ -211,13 +228,19 @@ export function Tenants() {
     finally { setMcpSaving(false); }
   };
 
-  const handleRemoveOwnMcpServer = async (name: string) => {
-    if (!editTenant || !confirm(`Remove MCP server "${name}"?`)) return;
-    try {
-      const res = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/mcp-servers/${encodeURIComponent(name)}`, { method: "DELETE" });
-      if (res.ok) { toast.success(`MCP server "${name}" removed`); fetchOwnMcpServers(editTenant.id); }
-      else { const err = await res.json(); toast.error(err.error || "Failed to remove"); }
-    } catch (e: any) { toast.error(e.message); }
+  const handleRemoveOwnMcpServer = (name: string) => {
+    if (!editTenant) return;
+    setConfirmState({
+      open: true,
+      title: `Remove MCP server "${name}"?`,
+      onConfirm: async () => {
+        try {
+          const res = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/mcp-servers/${encodeURIComponent(name)}`, { method: "DELETE" });
+          if (res.ok) { toast.success(`MCP server "${name}" removed`); fetchOwnMcpServers(editTenant.id); }
+          else { const err = await res.json(); toast.error(err.error || "Failed to remove"); }
+        } catch (e: any) { toast.error(e.message); }
+      },
+    });
   };
 
   const handleAddApiKey = async () => {
@@ -275,21 +298,26 @@ export function Tenants() {
     finally { setLinkSaving(false); }
   };
 
-  const handleUnlinkChannel = async (channel: string, userId: string) => {
+  const handleUnlinkChannel = (channel: string, userId: string) => {
     if (!editTenant) return;
-    if (!confirm(`Unlink ${channel}:${userId}?`)) return;
-    try {
-      const res = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/channels/${channel}/${encodeURIComponent(userId)}`, { method: "DELETE" });
-      if (res.ok) {
-        toast.success(`${channel}:${userId} unlinked`);
-        const channelsRes = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/channels`);
-        if (channelsRes.ok) {
-          const channelsData = await channelsRes.json();
-          setEditTenant({ ...editTenant, channels: channelsData.channels });
-        }
-        fetchTenants();
-      } else { const err = await res.json(); toast.error(err.error || "Failed to unlink"); }
-    } catch (e: any) { toast.error(e.message); }
+    setConfirmState({
+      open: true,
+      title: `Unlink ${channel}:${userId}?`,
+      onConfirm: async () => {
+        try {
+          const res = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/channels/${channel}/${encodeURIComponent(userId)}`, { method: "DELETE" });
+          if (res.ok) {
+            toast.success(`${channel}:${userId} unlinked`);
+            const channelsRes = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/channels`);
+            if (channelsRes.ok) {
+              const channelsData = await channelsRes.json();
+              setEditTenant({ ...editTenant, channels: channelsData.channels });
+            }
+            fetchTenants();
+          } else { const err = await res.json(); toast.error(err.error || "Failed to unlink"); }
+        } catch (e: any) { toast.error(e.message); }
+      },
+    });
   };
 
   const handleCreateTenant = async () => {
@@ -910,6 +938,26 @@ export function Tenants() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={confirmState.open} onOpenChange={(open) => setConfirmState((s) => ({ ...s, open }))}>
+        <AlertDialogContent className="bg-slate-900 border border-slate-700 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white font-mono uppercase text-sm tracking-wide">{confirmState.title}</AlertDialogTitle>
+            {confirmState.description && (
+              <AlertDialogDescription className="text-gray-400 font-mono text-xs">{confirmState.description}</AlertDialogDescription>
+            )}
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-slate-800 border-slate-700 text-gray-300 hover:bg-slate-700 font-mono text-xs uppercase">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 font-mono text-xs uppercase"
+              onClick={() => { confirmState.onConfirm(); setConfirmState((s) => ({ ...s, open: false })); }}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
