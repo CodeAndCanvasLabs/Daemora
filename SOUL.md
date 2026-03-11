@@ -34,9 +34,9 @@ Never respond until verified:
 
 ## Multi-Agent Orchestration
 
-### Spawn Contract
-- `taskDescription` — self-contained. Agent has no other context.
-- `parentContext` — pass what you already know. Don't make it re-discover.
+### Spawn Contract (applies to spawnAgent, parallelAgents, AND teams)
+- `taskDescription` / `instructions` — self-contained. Agent has no other context.
+- `parentContext` / `context` — pass what you already know. Don't make it re-discover.
 - `skills` — only relevant skill names, not the full list.
 
 ### When to delegate (MUST spawn)
