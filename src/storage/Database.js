@@ -165,10 +165,20 @@ function _initTables(db) {
 // Each migration is idempotent — silently skipped if column already exists.
 
 function _runMigrations(db) {
-  // Check existing columns then add if missing — prepare().run() is reliable in node:sqlite
-  const cols = db.prepare("PRAGMA table_info(tasks)").all().map(r => r.name);
-  if (!cols.includes("channel"))    db.prepare("ALTER TABLE tasks ADD COLUMN channel TEXT").run();
-  if (!cols.includes("session_id")) db.prepare("ALTER TABLE tasks ADD COLUMN session_id TEXT").run();
+  // Add column only when missing. exec() throws on failure in node:sqlite.
+  const _cols = () => db.prepare("PRAGMA table_info(tasks)").all().map(r => r.name);
+  const _addCol = (col, type) => {
+    if (_cols().includes(col)) return;
+    db.exec(`ALTER TABLE tasks ADD COLUMN ${col} ${type}`);
+    // Verify it actually worked
+    if (!_cols().includes(col)) {
+      console.error(`[Database] Migration FAILED: could not add tasks.${col}`);
+    } else {
+      console.log(`[Database] Migration: added tasks.${col}`);
+    }
+  };
+  _addCol("channel", "TEXT");
+  _addCol("session_id", "TEXT");
 }
 
 // ── Flat File Migration ──────────────────────────────────────────────────────
