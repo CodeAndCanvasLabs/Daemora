@@ -12,7 +12,9 @@ function run(cmd, cwd) {
   return execSync(cmd, { encoding: "utf-8", cwd, timeout: 60000, maxBuffer: 10 * 1024 * 1024, stdio: ["pipe", "pipe", "pipe"] }).trim();
 }
 
-export async function gitTool(action, paramsJson) {
+export async function gitTool(_params) {
+  const action = _params?.action;
+  const paramsJson = _params?.params;
   if (!action) return 'Error: action required. Valid: clone, status, diff, log, commit, push, pull, branch, checkout, stash, add, reset, remote';
 
   const params = paramsJson ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson) : {};

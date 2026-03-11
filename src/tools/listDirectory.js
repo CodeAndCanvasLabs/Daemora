@@ -2,7 +2,8 @@ import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import filesystemGuard from "../safety/FilesystemGuard.js";
 
-export function listDirectory(dirPath = ".") {
+export function listDirectory(params) {
+  const dirPath = params?.path || params?.dirPath || ".";
   const guard = filesystemGuard.checkRead(dirPath);
   if (!guard.allowed) {
     console.log(`      [listDirectory] BLOCKED: ${guard.reason}`);

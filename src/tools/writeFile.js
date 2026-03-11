@@ -2,7 +2,9 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import filesystemGuard from "../safety/FilesystemGuard.js";
 
-export function writeFile(filePath, content) {
+export function writeFile(params) {
+  const filePath = params?.path || params?.filePath;
+  const content = params?.content;
   // Filesystem security check
   const guard = filesystemGuard.checkWrite(filePath);
   if (!guard.allowed) {

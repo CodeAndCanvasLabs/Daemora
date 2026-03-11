@@ -101,7 +101,9 @@ export async function pollTaskResult(agentUrl, taskId, maxWaitMs = 120000) {
  * Tool function: delegate a task to an external agent.
  * Used by the agent as a tool call.
  */
-export async function delegateToAgent(agentUrl, taskInput) {
+export async function delegateToAgent(params) {
+  const agentUrl = params?.agentUrl;
+  const taskInput = params?.taskInput;
   console.log(`      [A2A] Delegating to ${agentUrl}: "${taskInput.slice(0, 80)}"`);
 
   try {

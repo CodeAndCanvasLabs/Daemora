@@ -56,7 +56,9 @@ const VALID_TASK_STATUSES = ["pending", "in_progress", "done", "failed", "skippe
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function projectTracker(action, paramsJson) {
+export function projectTracker(toolParams) {
+  const action = toolParams?.action;
+  const paramsJson = toolParams?.params;
   ensureDir();
 
   const params = paramsJson

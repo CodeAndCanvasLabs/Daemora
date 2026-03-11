@@ -9,7 +9,10 @@ function escapeShellArg(str) {
   return `'${str.replace(/'/g, "'\\''")}'`;
 }
 
-export function searchContent(pattern, directory = ".", optionsJson) {
+export function searchContent(params) {
+  const pattern = params?.pattern;
+  const directory = params?.directory || ".";
+  const optionsJson = params?.options;
   // Support old 3-arg API (pattern, directory, limitStr) and new optionsJson
   let opts = {};
   if (optionsJson && !isNaN(parseInt(optionsJson))) {

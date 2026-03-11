@@ -11,6 +11,7 @@ import circuitBreaker from "../safety/CircuitBreaker.js";
 import permissionGuard from "../safety/PermissionGuard.js";
 import supervisor from "../agents/Supervisor.js";
 import gitRollback from "../safety/GitRollback.js";
+import { validateToolParams } from "../tools/schemas.js";
 
 /**
  * Core agent loop - model-agnostic via Vercel AI SDK.
@@ -269,12 +270,24 @@ export async function runAgentLoop({
           continue;
         }
 
+        // Validate params against tool schema
+        const validation = validateToolParams(tool_name, params);
+        if (!validation.success) {
+          console.log(`[Step ${stepCount}] INVALID PARAMS: ${validation.error}`);
+          messages.push({
+            role: "user",
+            content: JSON.stringify({ tool_name, params, output: validation.error }),
+          });
+          continue;
+        }
+
         // Sandbox check for executeCommand
-        if (tool_name === "executeCommand" && params[0]) {
-          const sandboxResult = sandbox.check(params[0]);
+        if (tool_name === "executeCommand" && (params.command || params[0])) {
+          const cmd = params.command || params[0];
+          const sandboxResult = sandbox.check(cmd);
           if (!sandboxResult.safe) {
             console.log(`[Step ${stepCount}] BLOCKED by sandbox: ${sandboxResult.reason}`);
-            eventBus.emitEvent("audit:sandbox_blocked", { command: params[0], reason: sandboxResult.reason, taskId });
+            eventBus.emitEvent("audit:sandbox_blocked", { command: cmd, reason: sandboxResult.reason, taskId });
             messages.push({
               role: "user",
               content: JSON.stringify({
@@ -310,7 +323,7 @@ export async function runAgentLoop({
         if (tools[tool_name]) {
           try {
             const toolStart = Date.now();
-            const toolOutput = await Promise.resolve(tools[tool_name](...params));
+            const toolOutput = await Promise.resolve(tools[tool_name](params));
             const toolElapsed = Date.now() - toolStart;
 
             const outputStr = typeof toolOutput === "string" ? toolOutput : JSON.stringify(toolOutput);

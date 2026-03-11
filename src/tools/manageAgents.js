@@ -9,7 +9,9 @@ import {
 import { listSessions, getSession, clearSession } from "../services/sessions.js";
 import tenantContext from "../tenants/TenantContext.js";
 
-export function manageAgents(action, paramsJson) {
+export function manageAgents(toolParams) {
+  const action = toolParams?.action;
+  const paramsJson = toolParams?.params;
   try {
     const params = paramsJson ? JSON.parse(paramsJson) : {};
 

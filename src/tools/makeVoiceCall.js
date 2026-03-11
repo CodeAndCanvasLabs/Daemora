@@ -71,7 +71,10 @@ function _buildSayTwiML(message, voice = "Polly.Joanna", language = "en-US") {
 
 // ─── Main tool function ────────────────────────────────────────────────────────
 
-export async function makeVoiceCall(action, phoneNumberOrSessionId, optionsJson) {
+export async function makeVoiceCall(params) {
+  const action = params?.action;
+  const phoneNumberOrSessionId = params?.target;
+  const optionsJson = params?.options;
   if (!action) return 'Error: action required. Use: initiate|listen|speak|end|status|list  (or "call" for one-shot)';
 
   const { accountSid, authToken, fromNumber } = _getCreds();

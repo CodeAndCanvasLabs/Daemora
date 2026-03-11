@@ -5,7 +5,9 @@
  * Security: uses parameterized queries for all user-supplied values.
  */
 
-export async function database(action, paramsJson) {
+export async function database(_params) {
+  const action = _params?.action;
+  const paramsJson = _params?.params;
   if (!action) return "Error: action required. Valid: query, execute, schema, list";
   const params = paramsJson
     ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson)

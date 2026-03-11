@@ -9,7 +9,9 @@ import filesystemGuard from "../safety/FilesystemGuard.js";
 
 const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
 
-export async function globSearch(pattern, directory) {
+export async function globSearch(params) {
+  const pattern = params?.pattern;
+  const directory = params?.directory;
   try {
     const dir = directory ? resolve(directory) : process.cwd();
 

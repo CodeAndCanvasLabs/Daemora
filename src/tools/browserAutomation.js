@@ -264,7 +264,10 @@ function wrapError(error) {
 }
 
 // ── Main action handler ──────────────────────────────────────────────────────
-export async function browserAction(action, param1, param2) {
+export async function browserAction(params) {
+  const action = params?.action;
+  const param1 = params?.param1;
+  const param2 = params?.param2;
   console.log(`      [browser] ${action}: ${param1 || ""}`);
 
   try {

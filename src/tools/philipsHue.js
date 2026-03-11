@@ -4,7 +4,9 @@
  * All requests go to the local bridge — no cloud dependency.
  */
 
-export async function philipsHue(action, paramsJson) {
+export async function philipsHue(_params) {
+  const action = _params?.action;
+  const paramsJson = _params?.params;
   if (!action) return "Error: action required. Valid: list, on, off, color, brightness, scene, discover";
   const params = paramsJson
     ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson)

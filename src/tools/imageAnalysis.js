@@ -26,7 +26,9 @@ const VISION_MODEL_PREFERENCE = [
   "anthropic:claude-sonnet-4-6",
 ];
 
-export async function imageAnalysis(imagePath, prompt) {
+export async function imageAnalysis(params) {
+  const imagePath = params?.imagePath;
+  const prompt = params?.prompt;
   try {
     const description = prompt || "Describe this image in detail. Include all visible text, UI elements, code, diagrams, or any other relevant content.";
 

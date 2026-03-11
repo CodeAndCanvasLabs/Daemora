@@ -18,7 +18,8 @@ import { join } from "node:path";
 import filesystemGuard from "../safety/FilesystemGuard.js";
 import { getTenantTmpDir } from "./_paths.js";
 
-export function screenCapture(optionsJson) {
+export function screenCapture(params) {
+  const optionsJson = params?.options;
   try {
     const opts = optionsJson ? JSON.parse(optionsJson) : {};
     const outputDir = opts.outputDir || getTenantTmpDir("daemora-captures");

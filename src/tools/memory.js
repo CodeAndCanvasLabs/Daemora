@@ -203,7 +203,7 @@ function formatEntry(text, category) {
 
 // ─── Exports ─────────────────────────────────────────────────────────────────
 
-export function readMemory() {
+export function readMemory(params) {
   const { memoryPath } = _getMemoryPaths();
   console.log(`      [memory] Reading MEMORY.md`);
   if (!existsSync(memoryPath)) {
@@ -212,7 +212,9 @@ export function readMemory() {
   return readFileSync(memoryPath, "utf-8");
 }
 
-export async function writeMemory(entry, category) {
+export async function writeMemory(params) {
+  const entry = params?.entry;
+  const category = params?.category;
   const { memoryPath } = _getMemoryPaths();
   console.log(`      [memory] Writing to MEMORY.md${category ? ` [${category}]` : ""}`);
 
@@ -246,7 +248,8 @@ export async function writeMemory(entry, category) {
   return `Memory saved${category ? ` [${category}]` : ""}: "${entry.slice(0, 80)}${entry.length > 80 ? "..." : ""}"`;
 }
 
-export function readDailyLog(date) {
+export function readDailyLog(params) {
+  const date = params?.date;
   const { memoryDir } = _getMemoryPaths();
   const d = date || new Date().toISOString().split("T")[0];
   const logPath = `${memoryDir}/${d}.md`;
@@ -258,7 +261,8 @@ export function readDailyLog(date) {
   return readFileSync(logPath, "utf-8");
 }
 
-export function writeDailyLog(entry) {
+export function writeDailyLog(params) {
+  const entry = params?.entry;
   const { memoryDir } = _getMemoryPaths();
   console.log(`      [memory] Writing to daily log`);
 
@@ -284,7 +288,9 @@ export function writeDailyLog(entry) {
   return `Daily log entry saved for ${today} at ${timestamp}`;
 }
 
-export async function searchMemory(query, optionsJson) {
+export async function searchMemory(params) {
+  const query = params?.query;
+  const optionsJson = params?.options;
   const { memoryPath, memoryDir } = _getMemoryPaths();
   console.log(`      [memory] Searching memory for: "${query}"`);
 
@@ -381,7 +387,8 @@ export async function searchMemory(query, optionsJson) {
   return `Found ${results.length} keyword match(es) for "${query}":\n\n${results.join("\n")}`;
 }
 
-export function pruneMemory(maxAgeDaysStr) {
+export function pruneMemory(params) {
+  const maxAgeDaysStr = params?.maxAgeDays;
   const { memoryPath, memoryDir } = _getMemoryPaths();
   const maxAgeDays = parseInt(maxAgeDaysStr || "90");
   if (isNaN(maxAgeDays) || maxAgeDays < 1) return "Error: maxAgeDays must be a positive number.";
@@ -425,7 +432,7 @@ export function pruneMemory(maxAgeDaysStr) {
   return `Pruned ${prunedMemory} MEMORY.md entries and ${prunedLogs} daily logs older than ${maxAgeDays} days.`;
 }
 
-export function listMemoryCategories() {
+export function listMemoryCategories(params) {
   const { memoryPath } = _getMemoryPaths();
   console.log(`      [memory] Listing categories`);
   if (!existsSync(memoryPath)) return "No memory file found.";
