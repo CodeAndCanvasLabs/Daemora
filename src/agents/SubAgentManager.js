@@ -299,6 +299,7 @@ export async function spawnSubAgent(taskDescription, options = {}) {
           model: resolvedModel,
           agentId,
           taskDescription,
+          profile,
         }),
         tools:        agentTools,
         modelId:      resolvedModel,
