@@ -255,7 +255,7 @@ const toolSchemas = {
   spawnAgent: {
     schema: z.object({
       taskDescription: str("Complete task brief for the sub-agent"),
-      options: json('{"profile":"coder|researcher|writer|analyst","extraTools":[...],"skills":[...],"parentContext":"...","model":"..."}'),
+      options: json('{"profile":"coder|researcher|writer|analyst","extraTools":[...],"skills":[...],"parentContext":"..."}'),
     }),
     description: "Spawn sub-agent for independent task",
   },

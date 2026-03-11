@@ -4,6 +4,7 @@ import { writeFileSync, mkdirSync } from "fs";
 import { config } from "../config/default.js";
 import eventBus from "./EventBus.js";
 import toolSchemas from "../tools/schemas.js";
+import { msgText } from "../utils/msgText.js";
 
 /**
  * Context compaction system.
@@ -22,7 +23,7 @@ import toolSchemas from "../tools/schemas.js";
 export function estimateTokens(messages) {
   let total = 0;
   for (const msg of messages) {
-    const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+    const content = msgText(msg.content) || JSON.stringify(msg.content);
     total += Math.ceil(content.length / 4);
   }
   return total;
@@ -154,7 +155,7 @@ export async function compactIfNeeded(messages, modelMeta, taskId = null, tools 
   // Step 2: Prune verbose tool outputs in old messages
   const prunedOld = oldMessages.map((msg, i) => {
     if (msg.role === "developer" || msg.role === "tool") {
-      const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+      const content = msgText(msg.content) || JSON.stringify(msg.content);
       if (content.length > 50000) {
         return { ...msg, content: persistLargeOutput(content, taskId, i) };
       }
@@ -190,7 +191,7 @@ export async function compactIfNeeded(messages, modelMeta, taskId = null, tools 
 Format as a structured summary with clear sections.
 
 Conversation to summarize:
-${prunedOld.map((m) => `[${m.role}]: ${typeof m.content === "string" ? m.content.slice(0, 2000) : JSON.stringify(m.content).slice(0, 2000)}`).join("\n")}`;
+${prunedOld.map((m) => `[${m.role}]: ${(msgText(m.content) || JSON.stringify(m.content)).slice(0, 2000)}`).join("\n")}`;
 
     const { text: summary } = await generateText({
       model,
