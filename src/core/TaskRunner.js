@@ -16,31 +16,28 @@ import eventBus from "./EventBus.js";
  */
 function filterCleanMessages(messages) {
   return messages.filter(msg => {
-    if (!msg.content || typeof msg.content !== "string") return false;
-
-    const trimmed = msg.content.trimStart();
-    if (trimmed.startsWith("{")) {
-      try {
-        const parsed = JSON.parse(trimmed);
-        // Assistant tool_call messages
-        if (parsed.type === "tool_call" || parsed.tool_call) return false;
-        // User tool_result messages
-        if (parsed.tool_name) return false;
-        // Structured finalResponse wrappers (the actual text is saved separately)
-        if (parsed.type === "text" && parsed.finalResponse !== undefined) return false;
-      } catch {
-        // Not valid JSON - keep it (probably natural language that starts with {)
-      }
+    // Skip tool-call and tool-result messages (native tool calling format)
+    if (msg.role === "tool") return false;
+    if (msg.role === "assistant" && Array.isArray(msg.content)) {
+      // Assistant messages with tool-call parts — skip
+      const hasToolCall = msg.content.some(p => p.type === "tool-call");
+      if (hasToolCall) return false;
     }
 
-    // Filter out system injection messages
-    if (msg.role === "user" && msg.content.startsWith("[Supervisor instruction]:")) return false;
-    if (msg.role === "user" && msg.content.startsWith("[System:")) return false;
-    if (msg.role === "user" && msg.content.includes("You have used") && msg.content.includes("iterations")) return false;
-    if (msg.role === "user" && msg.content.includes("You are calling") && msg.content.includes("same params repeatedly")) return false;
-    if (msg.role === "user" && msg.content.includes("Provide a text summary of what you did")) return false;
+    // Keep assistant text messages
+    if (msg.role === "assistant" && typeof msg.content === "string") return true;
 
-    return true;
+    // Keep user messages (but filter internal injections)
+    if (msg.role === "user") {
+      if (typeof msg.content !== "string") return false;
+      if (msg.content.startsWith("[Supervisor instruction]:")) return false;
+      if (msg.content.startsWith("[System:")) return false;
+      if (msg.content.startsWith("[User follow-up while you are working")) return false;
+      if (msg.content.includes("You have used") && msg.content.includes("iterations")) return false;
+      return true;
+    }
+
+    return false;
   });
 }
 
