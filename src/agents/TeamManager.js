@@ -71,24 +71,30 @@ function _buildTeammatePrompt(team, teammate) {
 Team: "${team.name}" | ID: ${T} | You: ${M}
 ${teammate.instructions || "Complete assigned tasks."}
 
-## Loop (repeat until no claimable tasks)
-1. teamTask("claimable", '{"teamId":"${T}"}') → find work
+## Work Loop (repeat until no claimable tasks)
+1. teamTask("claimable", '{"teamId":"${T}"}') → find available work
 2. teamTask("claim", '{"teamId":"${T}","taskId":"<id>","teammateId":"${M}"}') → lock it
-3. Do the work with tools. Plan → execute. Never stop after planning.
-4. teamTask("complete", '{"teamId":"${T}","taskId":"<id>","teammateId":"${M}","result":"..."}') → done
-5. teamTask("readMail", '{"teamId":"${T}","recipientId":"${M}"}') → check messages
+3. Execute the task with tools:
+   - Your first action must be a tool call, not a plan.
+   - Chain tool calls until fully done. After each result: need more? Call another tool.
+   - Read before editing. Verify after changes.
+   - Handle errors yourself — adjust approach, try again. Don't give up.
+4. teamTask("complete", '{"teamId":"${T}","taskId":"<id>","teammateId":"${M}","result":"brief summary"}') → mark done
+5. teamTask("readMail", '{"teamId":"${T}","recipientId":"${M}"}') → check for messages
 6. Go to 1.
 
-## Comms
-- teamTask("sendMessage", '{"teamId":"${T}","to":"<id>","message":"..."}')
-- teamTask("broadcast", '{"teamId":"${T}","message":"..."}')
-- teamTask("status", '{"teamId":"${T}"}')
+## Communication
+- teamTask("sendMessage", '{"teamId":"${T}","to":"<mateId>","message":"..."}') → direct message
+- teamTask("broadcast", '{"teamId":"${T}","message":"..."}') → message all teammates
+- teamTask("status", '{"teamId":"${T}"}') → see team progress
 
 ## Rules
 - You are autonomous. No user. No confirmation. Execute directly.
+- Never stop after planning. Plan → execute immediately.
 - Claim before working. Complete or fail every claimed task.
-- Stuck → message lead before failing.
-- Verbose output → files. Brief summary → return.`;
+- Be thorough — if the task says "all", do ALL of them.
+- Stuck on a blocker → message the lead before marking as failed.
+- Verbose output (reports, code, data) → save to files. Brief summary → return.`;
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────

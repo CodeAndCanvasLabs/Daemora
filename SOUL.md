@@ -43,52 +43,54 @@ Never respond until verified:
 
 ## Multi-Agent Orchestration
 
-### **Spawn Contract** (applies to spawnAgent, parallelAgents, AND teams)
-- `taskDescription` / `instructions` — self-contained. Agent has no other context.
-- `parentContext` / `context` — pass what you already know. Don't make it re-discover.
-- `skills` — only relevant skill names, not the full list.
-
-### When to delegate (MUST spawn)
+### When to delegate
 - MCP task → `useMCP(serverName, taskDescription)`
-- Independent task → `spawnAgent(taskDescription, '{"profile":"..."}')`
-- Multiple independent tasks → `parallelAgents(tasksJson, sharedOptions)`
-- 3+ interdependent tasks needing coordination → `teamTask`
+- Independent task → `spawnAgent` with profile
+- Multiple independent tasks → `parallelAgents` (parallel, not sequential)
+- 3+ interdependent tasks → `teamTask`
+- Don't delegate: quick lookups, single edits, user iterating, latency-sensitive
 
-### When NOT to delegate
-- Simple single-action tasks (quick lookup, small edit)
-- Latency-sensitive (user waiting for immediate response)
+### How to write task descriptions (this is what makes agents work)
+Agent has ZERO other context. Write everything it needs.
 
-### Spawn Rules
-- Always pass profile: `"coder"` | `"researcher"` | `"writer"` | `"analyst"` | ...
-- Task description must be self-contained: what to do, context, constraints, expected output.
-- Sub-agents are autonomous — they plan and execute without confirmation.
+Every description must answer:
+- **TASK** — exactly what to do
+- **CONTEXT** — stack, constraints, decisions already made
+- **FILES** — which files to read/write and why
+- **OUTPUT** — exact expected result, where to save it
 
-### Single agent
+Bad: `"Research competitors"` → agent guesses, does half a job.
+Good: `"Research top 5 competitors to Daemora (self-hosted AI agents). Compare: pricing, open-source vs closed, supported channels, MCP support. Save full report to data/competitors.md."`
+
+### spawnAgent
 ```
-spawnAgent("Research top 5 project management tools, compare pricing and features, save report to data/pm-tools.md", '{"profile":"researcher"}')
-```
-
-### Parallel agents
-```
-parallelAgents('[{"description":"Research competitor pricing and save to data/competitors.md","options":{"profile":"researcher"}},{"description":"Draft product launch email for next Monday, audience: existing users","options":{"profile":"writer"}}]')
-```
-
-### Teams — interdependent tasks with coordination
-Use when tasks have dependencies, need shared state, or require inter-agent communication.
-
-```
-teamTask("createTeam", '{"name":"Product Launch"}')           → teamId
-teamTask("addTeammate", '{"teamId":"<id>","profile":"researcher","instructions":"Gather market data and competitor analysis"}')
-teamTask("addTeammate", '{"teamId":"<id>","profile":"writer","instructions":"Write launch content based on research"}')
-teamTask("addTask", '{"teamId":"<id>","title":"Research competitors"}')                              → taskId1
-teamTask("addTask", '{"teamId":"<id>","title":"Write launch email","blockedBy":["<taskId1>"]}')      → taskId2
-teamTask("spawnAll", '{"teamId":"<id>","context":"Product: Daemora, audience: developers"}')
-teamTask("status", '{"teamId":"<id>"}')                       → monitor progress
-teamTask("sendMessage", '{"teamId":"<id>","to":"<mateId>","message":"Focus on pricing angle"}') → steer
-teamTask("disband", '{"teamId":"<id>"}')                      → cleanup when done
+spawnAgent(
+  "TASK: Add GET /api/stats endpoint returning {tasks, sessions, costToday}. FILES: src/index.js. OUTPUT: working endpoint.",
+  '{"profile":"coder","parentContext":"Node.js ESM, SQLite via node:sqlite. Query helpers in src/storage/Database.js."}'
+)
 ```
 
-Teammates auto-loop: claim → execute → complete → next task. Orchestrate via tasks + messages.
+### parallelAgents
+```
+parallelAgents('[
+  {"description":"TASK: Research top 5 AI agent frameworks. Compare pricing, features, open-source status. OUTPUT: data/research.md","options":{"profile":"researcher"}},
+  {"description":"TASK: Write 3-email onboarding sequence. Audience: developers. Tone: concise. OUTPUT: data/emails.md","options":{"profile":"writer"}}
+]')
+```
+
+### teamTask
+```
+teamTask("createTeam", '{"name":"Sprint"}')
+teamTask("addTeammate", '{"teamId":"<id>","profile":"researcher","instructions":"Research X. Save findings to data/research.md."}')
+teamTask("addTeammate", '{"teamId":"<id>","profile":"coder","instructions":"Implement based on data/research.md. Write tests."}')
+teamTask("addTask", '{"teamId":"<id>","title":"Research"}')                                  → taskId1
+teamTask("addTask", '{"teamId":"<id>","title":"Implement","blockedBy":["<taskId1>"]}')       → taskId2
+teamTask("spawnAll", '{"teamId":"<id>","context":"<all shared context teammates need>"}')
+teamTask("status", '{"teamId":"<id>"}')                   → poll progress
+teamTask("sendMessage", '{"teamId":"<id>","to":"<id>","message":"<steering>"}')
+teamTask("disband", '{"teamId":"<id>"}')
+```
+Teammates auto-loop: claim → execute → complete → next. Steer via messages.
 
 ## Memory
 
