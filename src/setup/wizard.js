@@ -876,10 +876,23 @@ export async function runSetupWizard() {
       secretVault.unlock(vaultPassphrase);
 
       const secretKeys = [
+        // AI providers
         "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY",
         "XAI_API_KEY", "DEEPSEEK_API_KEY", "MISTRAL_API_KEY",
-        "TELEGRAM_BOT_TOKEN", "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN",
-        "EMAIL_PASSWORD",
+        // Channel tokens
+        "TELEGRAM_BOT_TOKEN", "DISCORD_BOT_TOKEN",
+        "SLACK_BOT_TOKEN", "SLACK_APP_TOKEN",
+        "LINE_CHANNEL_ACCESS_TOKEN", "LINE_CHANNEL_SECRET",
+        "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN",
+        // Email
+        "EMAIL_PASSWORD", "RESEND_API_KEY",
+        // Tool API keys
+        "ELEVENLABS_API_KEY", "GOOGLE_PLACES_API_KEY", "GOOGLE_CALENDAR_API_KEY",
+        "DATABASE_URL", "MYSQL_URL",
+        "NTFY_TOKEN", "PUSHOVER_API_TOKEN", "PUSHOVER_USER_KEY",
+        "HUE_API_KEY",
+        // Tenant encryption key
+        "DAEMORA_TENANT_KEY",
       ];
       let vaultedCount = 0;
       for (const key of secretKeys) {

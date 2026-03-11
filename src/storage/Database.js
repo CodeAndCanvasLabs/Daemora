@@ -202,6 +202,9 @@ function _runMigrations(db) {
   };
   _addCol("channel", "TEXT");
   _addCol("session_id", "TEXT");
+  _addCol("tool_calls", "TEXT");
+  _addCol("sub_agents", "TEXT");
+  _addCol("cost", "TEXT");
 
   // Backfill tenant_channels from existing "channel:userId" tenant IDs (idempotent)
   const tenants = db.prepare("SELECT id FROM tenants").all();

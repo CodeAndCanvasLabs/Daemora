@@ -1,7 +1,8 @@
-import { useParams, Link } from "react-router";
+import { useParams, Link, useNavigate } from "react-router";
 import { apiFetch, apiStreamUrl } from "../api";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Clock, DollarSign, Cpu, Loader2, AlertTriangle, Zap, GitBranch, CheckCircle2, XCircle, Bot } from "lucide-react";
+import { ArrowLeft, Clock, DollarSign, Cpu, Loader2, AlertTriangle, Zap, GitBranch, CheckCircle2, XCircle, Bot, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -24,6 +25,10 @@ interface SubAgent {
   description: string;
   depth: number;
   status: string;
+  role?: string;
+  model?: string;
+  toolCalls?: any[];
+  resultPreview?: string;
   startedAt: string;
   completedAt?: string;
   cost?: { estimatedCost?: number; model?: string } | null;
@@ -55,8 +60,26 @@ interface TaskData {
 
 export function TaskDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [task, setTask] = useState<TaskData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const handleDelete = async () => {
+    if (!confirm("Delete this task? This cannot be undone.")) return;
+    const toastId = toast.loading("DELETING TASK...");
+    try {
+      const res = await apiFetch(`/api/tasks/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Task deleted", { id: toastId });
+        navigate("/tasks");
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Failed to delete", { id: toastId });
+      }
+    } catch (e: any) {
+      toast.error(e.message, { id: toastId });
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -147,6 +170,16 @@ export function TaskDetail() {
         <Badge className={statusColor}>
           {task.status}
         </Badge>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={handleDelete}
+          disabled={task.status === "running"}
+          className="bg-slate-900 border-slate-800 text-red-400 hover:bg-red-500/10 hover:border-red-500/30 disabled:opacity-30"
+          title="Delete task"
+        >
+          <Trash2 className="w-4 h-4" />
+        </Button>
       </div>
 
       {/* Overview Cards */}
@@ -304,8 +337,8 @@ export function TaskDetail() {
                   {task.subAgents.map((sa, index) => (
                     <div key={index} className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-3">
-                          <Bot className="w-4 h-4 text-[#7C6AFF]" />
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <Bot className="w-4 h-4 text-[#7C6AFF] flex-shrink-0" />
                           <span className="font-mono text-sm text-white">{sa.agentId}</span>
                           <Badge variant="outline" className={`text-[9px] font-mono ${
                             sa.status === "completed" ? "text-[#00ff88] border-[#00ff88]/30"
@@ -315,17 +348,46 @@ export function TaskDetail() {
                           }`}>
                             {sa.status}
                           </Badge>
+                          {sa.role && (
+                            <Badge variant="outline" className="text-[9px] font-mono text-[#7C6AFF] border-[#7C6AFF]/30">
+                              {sa.role}
+                            </Badge>
+                          )}
                           {sa.depth > 0 && (
                             <span className="text-[9px] font-mono text-gray-600">depth: {sa.depth}</span>
                           )}
                         </div>
-                        {sa.cost?.estimatedCost != null && (
-                          <span className="text-[10px] font-mono text-gray-500">${sa.cost.estimatedCost.toFixed(4)}</span>
-                        )}
+                        <div className="flex items-center gap-3">
+                          {sa.toolCalls && sa.toolCalls.length > 0 && (
+                            <span className="text-[10px] font-mono text-gray-500 flex items-center gap-1">
+                              <Zap className="w-3 h-3 text-[#7C6AFF]" />{sa.toolCalls.length}
+                            </span>
+                          )}
+                          {sa.cost?.estimatedCost != null && (
+                            <span className="text-[10px] font-mono text-gray-500">${sa.cost.estimatedCost.toFixed(4)}</span>
+                          )}
+                        </div>
                       </div>
-                      <p className="text-gray-400 font-mono text-xs">{sa.description}</p>
+                      <p className="text-gray-400 font-mono text-xs mb-2">{sa.description}</p>
+                      {(sa.model || sa.cost?.model) && (
+                        <div className="flex items-center gap-1 mb-2">
+                          <Cpu className="w-3 h-3 text-gray-600" />
+                          <span className="text-[10px] font-mono text-gray-600">{sa.model || sa.cost?.model}</span>
+                        </div>
+                      )}
+                      {sa.resultPreview && (
+                        <div className="mt-2">
+                          <div className="text-[9px] font-mono text-gray-600 uppercase mb-1">Result Preview</div>
+                          <pre className="font-mono text-[11px] bg-slate-900/50 p-2 rounded border border-slate-800 text-gray-400 overflow-x-auto max-h-24 overflow-y-auto whitespace-pre-wrap">
+                            {sa.resultPreview}
+                          </pre>
+                        </div>
+                      )}
                       {sa.error && (
-                        <p className="text-red-400 font-mono text-xs mt-2">{sa.error}</p>
+                        <div className="flex items-start gap-2 mt-2">
+                          <AlertTriangle className="w-3 h-3 text-red-400 flex-shrink-0 mt-0.5" />
+                          <p className="text-red-400 font-mono text-xs">{sa.error}</p>
+                        </div>
                       )}
                     </div>
                   ))}

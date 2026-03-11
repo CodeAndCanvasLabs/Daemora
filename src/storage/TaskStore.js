@@ -7,10 +7,10 @@ export function saveTask(task) {
   const ts = new Date().toISOString();
   run(
     `INSERT INTO tasks (id, tenant_id, channel, session_id, type, title, description, status, priority,
-     parent_task_id, agent_id, agent_created, input, result, error,
+     parent_task_id, agent_id, agent_created, input, result, error, tool_calls, sub_agents, cost,
      created_at, started_at, completed_at, updated_at)
      VALUES ($id, $tenant_id, $channel, $session_id, $type, $title, $desc, $status, $priority,
-     $parent, $agent_id, $agent_created, $input, $result, $error,
+     $parent, $agent_id, $agent_created, $input, $result, $error, $tool_calls, $sub_agents, $cost,
      $created_at, $started_at, $completed_at, $updated_at)
      ON CONFLICT(id) DO UPDATE SET
        tenant_id = excluded.tenant_id,
@@ -27,6 +27,9 @@ export function saveTask(task) {
        input = excluded.input,
        result = excluded.result,
        error = excluded.error,
+       tool_calls = excluded.tool_calls,
+       sub_agents = excluded.sub_agents,
+       cost = excluded.cost,
        started_at = excluded.started_at,
        completed_at = excluded.completed_at,
        updated_at = excluded.updated_at`,
@@ -46,12 +49,25 @@ export function saveTask(task) {
       $input: task.input ? (typeof task.input === "string" ? task.input : JSON.stringify(task.input)) : null,
       $result: task.result ? (typeof task.result === "string" ? task.result : JSON.stringify(task.result)) : null,
       $error: task.error || null,
+      $tool_calls: task.toolCalls?.length ? JSON.stringify(task.toolCalls) : null,
+      $sub_agents: task.subAgents?.length ? JSON.stringify(task.subAgents) : null,
+      $cost: task.cost ? JSON.stringify(task.cost) : null,
       $created_at: task.createdAt || ts,
       $started_at: task.startedAt || null,
       $completed_at: task.completedAt || null,
       $updated_at: ts,
     }
   );
+}
+
+/**
+ * Delete a task by ID. Returns true if deleted, false if not found.
+ */
+export function deleteTask(taskId) {
+  const row = queryOne("SELECT id FROM tasks WHERE id = $id", { $id: taskId });
+  if (!row) return false;
+  run("DELETE FROM tasks WHERE id = $id", { $id: taskId });
+  return true;
 }
 
 /**
@@ -137,6 +153,9 @@ function _rowToTask(row) {
     input: _tryParse(row.input),
     result: _tryParse(row.result),
     error: row.error,
+    toolCalls: _tryParseArray(row.tool_calls),
+    subAgents: _tryParseArray(row.sub_agents),
+    cost: _tryParseObject(row.cost),
     createdAt: row.created_at,
     startedAt: row.started_at,
     completedAt: row.completed_at,
@@ -153,4 +172,14 @@ function _tryParse(val) {
   } catch {
     return val;
   }
+}
+
+function _tryParseArray(val) {
+  if (!val) return [];
+  try { return JSON.parse(val) || []; } catch { return []; }
+}
+
+function _tryParseObject(val) {
+  if (!val) return null;
+  try { return JSON.parse(val) || null; } catch { return null; }
 }

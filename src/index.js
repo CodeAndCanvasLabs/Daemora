@@ -9,7 +9,7 @@ import { config } from "./config/default.js";
 import { listAvailableModels } from "./models/ModelRouter.js";
 import taskQueue from "./core/TaskQueue.js";
 import taskRunner from "./core/TaskRunner.js";
-import { loadTask, listTasks, listChildTasks } from "./storage/TaskStore.js";
+import { loadTask, listTasks, listChildTasks, deleteTask } from "./storage/TaskStore.js";
 import { getTodayCost } from "./core/CostTracker.js";
 import supervisor from "./agents/Supervisor.js";
 import { getActiveSubAgentCount, listActiveAgents } from "./agents/SubAgentManager.js";
@@ -253,6 +253,17 @@ app.get("/api/tasks/:id", (req, res) => {
     return res.status(404).json({ error: "Task not found" });
   }
   res.json(task);
+});
+
+app.delete("/api/tasks/:id", (req, res) => {
+  const id = req.params.id;
+  // Refuse to delete a running task — cancel it first
+  if (taskQueue.active.has(id)) {
+    return res.status(409).json({ error: "Cannot delete a running task. Cancel it first." });
+  }
+  const deleted = deleteTask(id);
+  if (!deleted) return res.status(404).json({ error: "Task not found" });
+  res.json({ message: `Task ${id} deleted` });
 });
 
 app.get("/api/tasks", (req, res) => {
