@@ -135,12 +135,11 @@ const toolSchemas = {
   },
   sendFile: {
     schema: z.object({
-      channel: str("telegram|discord|slack|email"),
-      target: str("Chat ID, user ID, or email"),
       filePath: str("Absolute path to file"),
       caption: optStr("File caption"),
+      channel: optStr("Channel to send on — must match current channel"),
     }),
-    description: "Send file to a user on a channel",
+    description: "Send file back to the current user on their channel",
   },
   replyWithFile: {
     schema: z.object({

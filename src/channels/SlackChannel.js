@@ -166,7 +166,7 @@ export class SlackChannel extends BaseChannel {
     const task = taskQueue.enqueue({
       input,
       channel: "slack",
-      channelMeta: { userId, channelId, threadTs, messageTs, channel: "slack" },
+      channelMeta: { userId, channelId, threadTs, messageTs, channel: "slack", tenantId: this.getTenantId(), instanceKey: this.getInstanceKey() },
       sessionId: this.getSessionId(userId),
       model: this.getModel(),
     });

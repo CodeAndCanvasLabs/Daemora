@@ -36,11 +36,11 @@ export async function replyWithFile(params) {
     const store = tenantContext.getStore();
     const channelMeta = store?.channelMeta;
 
-    if (!channelMeta?.channel || !channelMeta?.chatId) {
+    if (!channelMeta?.channel || (!channelMeta?.chatId && !channelMeta?.channelId)) {
       return "Error: No active channel context. Cannot determine where to send the file. Use sendFile(channel, target, filePath) instead.";
     }
 
-    const ch = channelRegistry.get(channelMeta.channel);
+    const ch = channelRegistry.get(channelMeta.channel, channelMeta.instanceKey);
     if (!ch) {
       return `Error: Channel "${channelMeta.channel}" not available.`;
     }

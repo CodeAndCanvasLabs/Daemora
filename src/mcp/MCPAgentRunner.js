@@ -1,8 +1,10 @@
 import { spawnSubAgent } from "../agents/SubAgentManager.js";
 import mcpManager from "./MCPManager.js";
+import { MCPClient } from "./MCPClient.js";
 import { toolFunctions } from "../tools/index.js";
 import { createSession, getSession, setMessages } from "../services/sessions.js";
 import { compactForSession } from "../utils/msgText.js";
+import tenantContext from "../tenants/TenantContext.js";
 
 /**
  * Base tools injected into every MCP specialist agent alongside their server tools.
@@ -110,8 +112,57 @@ Base tools use regular string params (array of strings), not JSON.
 export async function runMCPAgent(serverName, taskDescription, options = {}) {
   const { mainSessionId, ...restOptions } = options;
 
-  // Get only this server's tool functions
-  const serverTools = mcpManager.getServerTools(serverName);
+  // Get only this server's tool functions.
+  // First check global connected servers; if not found, try tenant's private server config.
+  let serverTools = mcpManager.getServerTools(serverName);
+  let tempClient = null;
+  let tempToolMeta = {}; // fullName → { description, inputSchema } for tenant-owned server tools
+
+  if (Object.keys(serverTools).length === 0) {
+    // Try tenant's own private MCP server definitions
+    const store = tenantContext.getStore();
+    const ownMcpServers = store?.resolvedConfig?.ownMcpServers ?? {};
+    const ownServerConfig = ownMcpServers[serverName];
+
+    if (ownServerConfig) {
+      try {
+        console.log(`[MCPAgentRunner] Connecting tenant-owned MCP server "${serverName}"`);
+        tempClient = new MCPClient(serverName, ownServerConfig);
+        const tools = await tempClient.connect();
+        // Build serverTools map with same arg-parsing signature as MCPManager.getServerTools()
+        serverTools = {};
+        for (const tool of tools) {
+          const fullName = `mcp__${serverName}__${tool.name}`;
+          tempToolMeta[fullName] = { description: tool.description, inputSchema: tool.inputSchema };
+          const schema = tool.inputSchema;
+          const toolName = tool.name;
+          const client = tempClient;
+          serverTools[fullName] = async (...args) => {
+            let toolArgs = {};
+            if (args[0]) {
+              try {
+                toolArgs = typeof args[0] === "string" ? JSON.parse(args[0]) : args[0];
+              } catch {
+                const props = schema?.properties || {};
+                const keys = Object.keys(props);
+                for (let i = 0; i < keys.length && i < args.length; i++) {
+                  toolArgs[keys[i]] = args[i];
+                }
+              }
+            }
+            console.log(`      [MCP:${fullName}] Calling with: ${JSON.stringify(toolArgs).slice(0, 200)}`);
+            try {
+              return await client.callTool(toolName, toolArgs);
+            } catch (err) {
+              return `MCP tool error: ${err.message}`;
+            }
+          };
+        }
+      } catch (err) {
+        return `Failed to connect tenant MCP server "${serverName}": ${err.message}`;
+      }
+    }
+  }
 
   if (Object.keys(serverTools).length === 0) {
     const available = mcpManager.list().map((s) => s.name);
@@ -121,10 +172,11 @@ export async function runMCPAgent(serverName, taskDescription, options = {}) {
     return `MCP server "${serverName}" not found or has no tools. Available servers: ${available.join(", ")}`;
   }
 
-  // Build tool docs for this server's system prompt (include nested schemas)
+  // Build tool docs for this server's system prompt (include nested schemas).
+  // For global servers, look up mcpManager.toolMap; for tenant-owned, use tempToolMeta.
   const toolDocs = Object.keys(serverTools)
     .map((fullName) => {
-      const entry = mcpManager.toolMap.get(fullName);
+      const entry = mcpManager.toolMap.get(fullName) || tempToolMeta[fullName];
       if (!entry) return `### ${fullName}(argsJson: string)`;
       const desc = entry.description || entry.toolName;
       const schema = entry.inputSchema;
@@ -188,6 +240,11 @@ export async function runMCPAgent(serverName, taskDescription, options = {}) {
       : fullResult.messages;
     setMessages(subSessionId, compactForSession(capped));
     console.log(`[MCPAgentRunner] Saved ${capped.length} messages to sub-session "${subSessionId}"`);
+  }
+
+  // Disconnect temp client for tenant-owned server (not registered in global MCPManager)
+  if (tempClient) {
+    try { await tempClient.disconnect(); } catch {}
   }
 
   return typeof fullResult === "string" ? fullResult : fullResult.text;

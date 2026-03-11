@@ -19,11 +19,11 @@ export async function replyToUser(params) {
     const store = tenantContext.getStore();
     const channelMeta = store?.channelMeta;
 
-    if (!channelMeta?.channel || !channelMeta?.chatId) {
+    if (!channelMeta?.channel || (!channelMeta?.chatId && !channelMeta?.channelId)) {
       return "No active channel context — user is on HTTP/API. Progress noted internally.";
     }
 
-    const ch = channelRegistry.get(channelMeta.channel);
+    const ch = channelRegistry.get(channelMeta.channel, channelMeta.instanceKey);
     if (!ch || !ch.running) {
       return "Channel not available. Progress noted internally.";
     }

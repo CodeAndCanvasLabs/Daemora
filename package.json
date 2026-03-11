@@ -1,13 +1,13 @@
 {
   "name": "daemora",
-  "version": "2026.1.0-beta.9",
+  "version": "2026.1.0-beta.10",
   "description": "A powerful open-source AI agent that runs on your machine. Connects to any AI model, any MCP server, any channel. Fully autonomous - plans, codes, tests, browses, emails, and manages your tools without asking permission.",
   "main": "src/index.js",
   "bin": {
     "daemora": "src/cli.js"
   },
   "scripts": {
-    "start": "node src/index.js",
+    "start": "node --disable-warning=ExperimentalWarning src/index.js",
     "setup": "node src/cli.js setup",
     "daemon:install": "node src/cli.js daemon install",
     "daemon:start": "node src/cli.js daemon start",

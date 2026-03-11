@@ -14,19 +14,18 @@
  * caption: optional text caption alongside the file
  */
 import channelRegistry from "../channels/index.js";
+import tenantContext from "../tenants/TenantContext.js";
+import tenantManager from "../tenants/TenantManager.js";
 import { existsSync, statSync } from "node:fs";
 import filesystemGuard from "../safety/FilesystemGuard.js";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB - most platforms limit around this
 
 export async function sendFile(params) {
-  const channel = params?.channel;
-  const target = params?.target;
+  const requestedChannel = params?.channel;
   const filePath = params?.filePath;
   const caption = params?.caption;
   try {
-    if (!channel) return "Error: channel is required";
-    if (!target)  return "Error: target is required (chat ID, user ID, phone, or email)";
     if (!filePath) return "Error: filePath is required";
 
     const readCheck = filesystemGuard.checkRead(filePath);
@@ -41,31 +40,57 @@ export async function sendFile(params) {
       return `Error: File too large (${(size / 1024 / 1024).toFixed(1)} MB). Maximum is 50 MB.`;
     }
 
-    const ch = channelRegistry.get(channel.toLowerCase());
+    // Always send to the current user's channel — target is derived from TenantContext,
+    // never a free-form ID. This prevents sending files to arbitrary external users.
+    const store = tenantContext.getStore();
+    const channelMeta = store?.channelMeta;
+
+    if (!channelMeta?.channel || (!channelMeta?.chatId && !channelMeta?.channelId)) {
+      return "Error: No active channel context. Cannot determine where to send the file.";
+    }
+
+    const targetChannel = requestedChannel?.toLowerCase() || channelMeta.channel;
+
+    // Resolve the channelMeta to use for sending
+    let targetMeta = channelMeta;
+    if (targetChannel !== channelMeta.channel) {
+      // Cross-channel send — look up the tenant's identity on the requested channel
+      const tenantId = store?.tenant?.id;
+      if (!tenantId) {
+        return `Error: No tenant context — cannot determine your identity on "${targetChannel}".`;
+      }
+      const linkedChannels = tenantManager.getChannels(tenantId);
+      const linked = linkedChannels.find(c => c.channel === targetChannel);
+      if (!linked) {
+        return `Error: Your account has no "${targetChannel}" identity linked. Link it first: daemora tenant link ${tenantId} ${targetChannel} <userId>`;
+      }
+      // Build a minimal channelMeta for the target channel using the tenant's known ID
+      targetMeta = { channel: targetChannel, chatId: linked.user_id, channelId: linked.user_id, userId: linked.user_id };
+    }
+
+    const ch = channelRegistry.get(targetMeta.channel);
     if (!ch) {
       const available = channelRegistry.list().map((c) => c.name).join(", ");
-      return `Error: Channel "${channel}" not found. Available: ${available || "none"}`;
+      return `Error: Channel "${targetMeta.channel}" not found. Available: ${available || "none"}`;
     }
-
     if (!ch.running) {
-      return `Error: Channel "${channel}" is not running.`;
+      return `Error: Channel "${targetMeta.channel}" is not running.`;
     }
-
     if (typeof ch.sendFile !== "function") {
-      return `Error: Channel "${channel}" does not support file sending yet.`;
+      return `Error: Channel "${targetMeta.channel}" does not support file sending yet.`;
     }
 
-    await ch.sendFile({ chatId: target, userId: target, channelId: target }, filePath, caption || "");
+    await ch.sendFile(targetMeta, filePath, caption || "");
 
-    return `File sent via ${channel} to ${target}: ${filePath}`;
+    return `File sent via ${targetMeta.channel}: ${filePath}`;
   } catch (error) {
     return `Error sending file: ${error.message}`;
   }
 }
 
 export const sendFileDescription =
-  'sendFile(channel, target, filePath, caption?) - Send a file, image, or video to a user. ' +
-  'channel: "telegram"|"discord"|"slack"|"email". ' +
-  'target: chat ID (Telegram), user/channel ID (Discord/Slack), or email. ' +
+  'sendFile(filePath, caption?, channel?) - Send a file, image, or video back to the current user. ' +
+  'Always sends to the current user — never to arbitrary external targets. ' +
+  'channel: optional, specify a different channel (e.g. "telegram") only if the user explicitly requests it and has that channel linked to their account. ' +
   'filePath: absolute path to the file. caption: optional text alongside the file. ' +
-  'Use after screenCapture, createDocument, or imageAnalysis to deliver results to the user.';
+  'Prefer replyWithFile() for simplicity — sendFile() is for explicit cross-channel sends.';

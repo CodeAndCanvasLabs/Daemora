@@ -828,7 +828,7 @@ export async function runSetupWizard() {
       "",
       `  ${S.shield}  Per-secret unique IV`,
       `  ${S.shield}  No plaintext keys on disk`,
-      `  ${S.shield}  Vault file: data/.vault.enc`,
+      `  ${S.shield}  Secrets stored in SQLite (encrypted)`,
     ].join("\n"),
     "Encryption"
   );
@@ -856,12 +856,9 @@ export async function runSetupWizard() {
       }));
 
       if (vaultAction === "reset") {
-        const { unlinkSync } = await import("fs");
-        const vaultPath = join(ROOT_DIR, "data", ".vault.enc");
-        const saltPath = join(ROOT_DIR, "data", ".vault.salt");
-        try { unlinkSync(vaultPath); } catch {}
-        try { unlinkSync(saltPath); } catch {}
-        p.log.info("Old vault deleted.");
+        const { run: dbRun } = await import("../storage/Database.js");
+        try { dbRun("DELETE FROM vault_entries"); } catch {}
+        p.log.info("Old vault cleared.");
       }
     }
 
@@ -879,10 +876,23 @@ export async function runSetupWizard() {
       secretVault.unlock(vaultPassphrase);
 
       const secretKeys = [
+        // AI providers
         "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY",
         "XAI_API_KEY", "DEEPSEEK_API_KEY", "MISTRAL_API_KEY",
-        "TELEGRAM_BOT_TOKEN", "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN",
-        "EMAIL_PASSWORD",
+        // Channel tokens
+        "TELEGRAM_BOT_TOKEN", "DISCORD_BOT_TOKEN",
+        "SLACK_BOT_TOKEN", "SLACK_APP_TOKEN",
+        "LINE_CHANNEL_ACCESS_TOKEN", "LINE_CHANNEL_SECRET",
+        "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN",
+        // Email
+        "EMAIL_PASSWORD", "RESEND_API_KEY",
+        // Tool API keys
+        "ELEVENLABS_API_KEY", "GOOGLE_PLACES_API_KEY", "GOOGLE_CALENDAR_API_KEY",
+        "DATABASE_URL", "MYSQL_URL",
+        "NTFY_TOKEN", "PUSHOVER_API_TOKEN", "PUSHOVER_USER_KEY",
+        "HUE_API_KEY",
+        // Tenant encryption key
+        "DAEMORA_TENANT_KEY",
       ];
       let vaultedCount = 0;
       for (const key of secretKeys) {
@@ -954,44 +964,27 @@ export async function runSetupWizard() {
   const spin = p.spinner();
   spin.start("Writing configuration");
 
+  // Write all non-secret config to SQLite config_entries table.
+  // Secrets were already vaulted above and removed from envConfig.
+  const { configStore } = await import("../config/ConfigStore.js");
+  const configCount = configStore.import(envConfig);
+
+  // Write a minimal .env — only bootstrap info needed before SQLite is open.
+  // Everything else is in SQLite now.
   const envPath = join(ROOT_DIR, ".env");
-  const examplePath = join(ROOT_DIR, ".env.example");
-
-  // Copy .env.example → .env as the base (preserves all comments, sections, docs)
-  // Then patch in user-configured values
-  let envContent;
-  if (existsSync(examplePath)) {
-    envContent = readFileSync(examplePath, "utf-8");
-    // Patch each configured key into the template
-    for (const [key, value] of Object.entries(envConfig)) {
-      if (value === undefined) continue;
-      // Match KEY=anything (including empty) on its own line
-      const regex = new RegExp(`^${key}=.*$`, "m");
-      if (regex.test(envContent)) {
-        envContent = envContent.replace(regex, `${key}=${value}`);
-      } else {
-        // Key not in template — append at end
-        envContent += `\n${key}=${value}`;
-      }
-    }
-  } else {
-    // Fallback: no .env.example available (shouldn't happen, but be safe)
-    const envLines = [
-      "# Daemora Configuration",
-      `# Generated on ${new Date().toISOString()}`,
-      "",
-    ];
-    for (const [key, value] of Object.entries(envConfig)) {
-      if (value !== undefined) envLines.push(`${key}=${value}`);
-    }
-    envContent = envLines.join("\n") + "\n";
-  }
-
+  const bootstrapLines = [
+    "# Daemora Bootstrap",
+    `# Generated on ${new Date().toISOString()}`,
+    "# All configuration is stored in SQLite (data/daemora.db).",
+    "# Only DATA_DIR is needed here if you want a non-default data directory.",
+    "# DATA_DIR=/custom/path/to/data",
+    "",
+  ];
   if (vaultPassphrase) {
-    envContent += "\n# API keys encrypted in data/.vault.enc\n";
+    bootstrapLines.push("# Secrets are encrypted in SQLite vault_entries table.");
+    bootstrapLines.push("");
   }
-
-  writeFileSync(envPath, envContent, "utf-8");
+  writeFileSync(envPath, bootstrapLines.join("\n"), "utf-8");
 
   // Install daemon if requested
   if (daemonMode) {
@@ -1013,7 +1006,7 @@ export async function runSetupWizard() {
     // Non-fatal — TF-IDF fallback will handle it
   }
 
-  spin.stop(`${S.check}  Configuration saved`);
+  spin.stop(`${S.check}  Configuration saved to SQLite (${configCount} setting${configCount !== 1 ? "s" : ""})`);
 
   // ━━━ Summary ━━━
   const fsLabel = envConfig.ALLOWED_PATHS

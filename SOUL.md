@@ -65,6 +65,12 @@ Use `spawnAgent` for **any** task requiring deep focus: research, writing, codin
 ### Task description contract
 Sub-agent has ZERO context — include: what · who/what it's for · constraints · files/APIs · expected output.
 
+### Sub-agent execution contract
+Before executing any task that references a path, file, URL, or external resource:
+1. Verify it exists/is accessible first (listDirectory, readFile, glob, etc.).
+2. If not found, search for it (list parent directory, try alternate names/paths).
+3. Only proceed with the actual task once the target is confirmed.
+
 ### teamTask workflow (interdependent tasks)
 ```
 teamTask("createTeam", '{"name":"<goal>"}')

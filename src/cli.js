@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S node --disable-warning=ExperimentalWarning
 
 /**
  * Daemora CLI
@@ -12,7 +12,7 @@
  */
 
 import chalk from "chalk";
-import { config } from "./config/default.js";
+import { config, reloadFromDb } from "./config/default.js";
 import daemonManager from "./daemon/DaemonManager.js";
 import secretVault from "./safety/SecretVault.js";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
@@ -102,6 +102,10 @@ async function main() {
           console.log(`\n  ${S.arrow}  Skipped vault. Starting without secrets.\n`);
         }
       }
+
+      // Reload non-secret config from SQLite (channel tokens, model settings, etc.)
+      // This runs after vault inject so SQLite config overrides .env for everything.
+      await reloadFromDb();
 
       // Block start if no AI provider is configured
       // Check: at least one provider key or Ollama host must be set
@@ -1192,6 +1196,38 @@ async function handleTenant(action, args) {
         const res = await apiCall("DELETE", `/tenants/${encodeURIComponent(id)}`);
         if (res.status === 404) { console.error(`\n  ${S.cross}  Tenant "${id}" not found.\n`); process.exit(1); }
         console.log(`\n${header}  ${S.check}  Tenant ${t.bold(id)} deleted.\n`);
+      } catch { console.error(`\n  ${S.cross}  Agent not running.\n`); }
+      break;
+    }
+
+    case "link": {
+      // daemora tenant link <tenantId> <channel> <userId>
+      const [linkId, linkChannel, linkUserId] = args;
+      if (!linkId || !linkChannel || !linkUserId) {
+        console.error(`\n  ${S.cross}  Usage: daemora tenant link ${t.dim("<tenantId> <channel> <userId>")}\n`);
+        process.exit(1);
+      }
+      try {
+        const res = await apiCall("POST", `/tenants/${encodeURIComponent(linkId)}/channels`, { channel: linkChannel, userId: linkUserId });
+        if (res.status === 404) { console.error(`\n  ${S.cross}  Tenant "${linkId}" not found.\n`); process.exit(1); }
+        if (res.status === 409) { console.error(`\n  ${S.cross}  ${res.body?.error || "Channel identity already linked to another tenant."}\n`); process.exit(1); }
+        console.log(`\n${header}  ${S.check}  Linked ${t.bold(linkChannel + ":" + linkUserId)} → tenant ${t.bold(linkId)}.\n`);
+      } catch { console.error(`\n  ${S.cross}  Agent not running.\n`); }
+      break;
+    }
+
+    case "unlink": {
+      // daemora tenant unlink <tenantId> <channel> <userId>
+      const [unlinkId, unlinkChannel, unlinkUserId] = args;
+      if (!unlinkId || !unlinkChannel || !unlinkUserId) {
+        console.error(`\n  ${S.cross}  Usage: daemora tenant unlink ${t.dim("<tenantId> <channel> <userId>")}\n`);
+        process.exit(1);
+      }
+      try {
+        const res = await apiCall("DELETE", `/tenants/${encodeURIComponent(unlinkId)}/channels/${unlinkChannel}/${encodeURIComponent(unlinkUserId)}`);
+        if (res.status === 404) { console.error(`\n  ${S.cross}  Tenant or channel identity not found.\n`); process.exit(1); }
+        if (res.status === 400) { console.error(`\n  ${S.cross}  ${res.body?.error || "Cannot unlink last identity."}\n`); process.exit(1); }
+        console.log(`\n${header}  ${S.check}  Unlinked ${t.bold(unlinkChannel + ":" + unlinkUserId)} from tenant ${t.bold(unlinkId)}.\n`);
       } catch { console.error(`\n  ${S.cross}  Agent not running.\n`); }
       break;
     }

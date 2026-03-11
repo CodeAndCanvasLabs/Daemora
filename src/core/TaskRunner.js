@@ -1,7 +1,7 @@
 import { runAgentLoop } from "./AgentLoop.js";
 import { buildSystemPrompt } from "../agents/systemPrompt.js";
 import { toolFunctions } from "../tools/index.js";
-import { createSession, getSession, setMessages } from "../services/sessions.js";
+import { createSession, getSession, setMessages, appendMessage } from "../services/sessions.js";
 import taskQueue from "./TaskQueue.js";
 import { isDailyBudgetExceeded, isTenantDailyBudgetExceeded } from "./CostTracker.js";
 import { config } from "../config/default.js";
@@ -155,9 +155,12 @@ class TaskRunner {
     // ──────────────────────────────────────────────────────────────────────────
 
     // ── Multi-tenant: resolve tenant and effective config ──────────────────────
-    // Derive userId from sessionId: sessionId = "${channel}-${userId}"
+    // Per-tenant channel instances embed tenantId directly in channelMeta — use it directly.
+    // Global channel instances derive userId from sessionId and look up via getOrCreate.
     let tenant = null;
-    if (task.channel && task.sessionId) {
+    if (task.channelMeta?.tenantId) {
+      tenant = tenantManager.get(task.channelMeta.tenantId);
+    } else if (task.channel && task.sessionId) {
       const userId = task.sessionId.slice(task.channel.length + 1);
       if (userId) {
         tenant = tenantManager.getOrCreate(task.channel, userId);
@@ -225,11 +228,11 @@ class TaskRunner {
           agentId: "main",
         });
 
-        // Build message history
-        const previousMessages = session.messages.map((m) => ({
-          role: m.role,
-          content: m.content,
-        }));
+        // Build message history — filter out raw tool-call/tool-result messages
+        // that were persisted by onStepPersist and don't conform to ModelMessage[] schema
+        const previousMessages = filterCleanMessages(
+          session.messages.map((m) => ({ role: m.role, content: m.content }))
+        );
         const messages = [...previousMessages, { role: "user", content: task.input }];
 
         // Track sub-agents spawned during this task
@@ -257,6 +260,9 @@ class TaskRunner {
         eventBus.on("agent:spawned", onSpawn);
         eventBus.on("agent:finished", onFinish);
 
+        // Persist the user message immediately before the loop starts
+        appendMessage(session.sessionId, "user", task.input);
+
         // Run agent loop with resolved model, cost limits, and per-tenant API keys.
         // steerQueue lets follow-up messages from the same user be injected live
         // between tool calls instead of spawning a competing agent loop.
@@ -271,14 +277,22 @@ class TaskRunner {
           maxCostPerTask: resolvedConfig.maxCostPerTask,
           apiKeys,
           steerQueue,
+          onStepPersist: (stepMessages) => {
+            for (const msg of stepMessages) {
+              const compacted = compactForSession([msg])[0];
+              appendMessage(session.sessionId, compacted.role, compacted.content);
+            }
+          },
         });
 
         // Clean up event listeners
         eventBus.removeListener("agent:spawned", onSpawn);
         eventBus.removeListener("agent:finished", onFinish);
 
-        // Save full conversation (with tool context) — truncate large tool outputs
-        setMessages(session.sessionId, compactForSession(result.messages));
+        // Save final assistant text response (steps already persisted incrementally)
+        if (result.text) {
+          appendMessage(session.sessionId, "assistant", result.text);
+        }
 
         // Update task cost info and tool calls
         task.cost = result.cost;

@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes, createCipheriv, createDecipheriv, scryptSync } from "node:crypto";
 import { config } from "../config/default.js";
-import { queryAll, queryOne, run } from "../storage/Database.js";
+import { queryAll, queryOne, run, transaction } from "../storage/Database.js";
 
 /**
  * TenantManager - per-user configuration and isolation for multi-tenant deployments.
@@ -83,28 +83,95 @@ class TenantManager {
 
   /**
    * Get or auto-create a tenant record.
+   * Looks up by channel identity — one tenant can have multiple linked channels.
    * Called on every incoming message to apply per-tenant config.
    */
   getOrCreate(channel, userId) {
-    const id = _makeId(channel, userId);
-    const row = queryOne("SELECT * FROM tenants WHERE id = $id", { $id: id });
+    // 1. Look up channel identity → tenant_id
+    const channelRow = queryOne(
+      "SELECT tenant_id FROM tenant_channels WHERE channel = $ch AND user_id = $uid",
+      { $ch: channel, $uid: userId }
+    );
 
-    if (!row) {
-      if (!config.multiTenant?.autoRegister) return null;
-      const t = _defaultTenant(id);
+    if (channelRow) {
+      const row = queryOne("SELECT * FROM tenants WHERE id = $id", { $id: channelRow.tenant_id });
+      if (row) {
+        const cfg = _parseConfig(row);
+        cfg.lastSeenAt = new Date().toISOString();
+        _updateRow(channelRow.tenant_id, cfg);
+        return { id: channelRow.tenant_id, ...cfg };
+      }
+    }
+
+    // 2. No identity found — create new tenant (channel:userId id for backward compat)
+    if (!config.multiTenant?.autoRegister) return null;
+    const id = _makeId(channel, userId);
+    const t = _defaultTenant(id);
+    transaction(() => {
       run(
-        `INSERT INTO tenants (id, config, created_at, last_seen_at, suspended, suspend_reason)
+        `INSERT OR IGNORE INTO tenants (id, config, created_at, last_seen_at, suspended, suspend_reason)
          VALUES ($id, $config, $created_at, $last_seen_at, 0, NULL)`,
         { $id: id, $config: JSON.stringify(t), $created_at: t.createdAt, $last_seen_at: t.lastSeenAt }
       );
-      return { id, ...t };
+      run(
+        "INSERT OR IGNORE INTO tenant_channels (channel, user_id, tenant_id) VALUES ($ch, $uid, $tid)",
+        { $ch: channel, $uid: userId, $tid: id }
+      );
+    });
+    return { id, ...t };
+  }
+
+  /**
+   * Link an additional channel identity to an existing tenant.
+   * Enables the same person to be recognized across Discord, Telegram, Slack, etc.
+   * Throws if the channel identity is already linked to a different tenant.
+   */
+  linkChannel(tenantId, channel, userId) {
+    const row = queryOne("SELECT id FROM tenants WHERE id = $id", { $id: tenantId });
+    if (!row) throw new Error(`Tenant "${tenantId}" not found`);
+
+    const existing = queryOne(
+      "SELECT tenant_id FROM tenant_channels WHERE channel = $ch AND user_id = $uid",
+      { $ch: channel, $uid: userId }
+    );
+    if (existing && existing.tenant_id !== tenantId) {
+      throw new Error(`${channel}:${userId} is already linked to tenant "${existing.tenant_id}"`);
     }
 
-    // Update lastSeenAt on every access
-    const cfg = _parseConfig(row);
-    cfg.lastSeenAt = new Date().toISOString();
-    _updateRow(id, cfg);
-    return { id, ...cfg };
+    run(
+      "INSERT OR IGNORE INTO tenant_channels (channel, user_id, tenant_id) VALUES ($ch, $uid, $tid)",
+      { $ch: channel, $uid: userId, $tid: tenantId }
+    );
+    return true;
+  }
+
+  /**
+   * Unlink a channel identity from a tenant.
+   * Refuses if it's the last identity — tenant would become unreachable.
+   */
+  unlinkChannel(tenantId, channel, userId) {
+    const count = queryOne(
+      "SELECT COUNT(*) as cnt FROM tenant_channels WHERE tenant_id = $tid",
+      { $tid: tenantId }
+    );
+    if (count.cnt <= 1) {
+      throw new Error("Cannot unlink the last channel identity — tenant would become unreachable");
+    }
+    run(
+      "DELETE FROM tenant_channels WHERE channel = $ch AND user_id = $uid AND tenant_id = $tid",
+      { $ch: channel, $uid: userId, $tid: tenantId }
+    );
+    return true;
+  }
+
+  /**
+   * List all channel identities linked to a tenant.
+   */
+  getChannels(tenantId) {
+    return queryAll(
+      "SELECT channel, user_id, linked_at FROM tenant_channels WHERE tenant_id = $tid ORDER BY linked_at ASC",
+      { $tid: tenantId }
+    );
   }
 
   /**
@@ -173,7 +240,7 @@ class TenantManager {
     const allowed = [
       "model", "allowedPaths", "blockedPaths", "maxCostPerTask",
       "maxDailyCost", "tools", "suspended", "plan", "notes",
-      "modelRoutes", "mcpServers",
+      "modelRoutes", "mcpServers", "ownMcpServers",
     ];
     for (const key of allowed) {
       if (updates[key] !== undefined) cfg[key] = updates[key];
@@ -384,6 +451,49 @@ class TenantManager {
     return result;
   }
 
+  // ── Per-Tenant MCP Servers ────────────────────────────────────────────────
+
+  /**
+   * Add a private MCP server to a tenant.
+   * The server definition follows the same format as config/mcp.json entries.
+   * Only this tenant can use servers defined here.
+   */
+  addOwnMcpServer(tenantId, name, serverConfig) {
+    if (!name || !/^[a-zA-Z0-9_-]+$/.test(name)) throw new Error("Server name must be alphanumeric (a-z, 0-9, _, -)");
+    const row = queryOne("SELECT * FROM tenants WHERE id = $id", { $id: tenantId });
+    if (!row) throw new Error(`Tenant "${tenantId}" not found`);
+    const cfg = _parseConfig(row);
+    cfg.ownMcpServers = cfg.ownMcpServers || {};
+    cfg.ownMcpServers[name] = serverConfig;
+    cfg.updatedAt = new Date().toISOString();
+    _updateRow(tenantId, cfg);
+    return { id: tenantId, name, serverConfig };
+  }
+
+  /**
+   * Remove a private MCP server from a tenant.
+   */
+  removeOwnMcpServer(tenantId, name) {
+    const row = queryOne("SELECT * FROM tenants WHERE id = $id", { $id: tenantId });
+    if (!row) return false;
+    const cfg = _parseConfig(row);
+    if (!cfg.ownMcpServers?.[name]) return false;
+    delete cfg.ownMcpServers[name];
+    cfg.updatedAt = new Date().toISOString();
+    _updateRow(tenantId, cfg);
+    return true;
+  }
+
+  /**
+   * Get all private MCP server definitions for a tenant (names + configs, no secrets).
+   */
+  getOwnMcpServers(tenantId) {
+    const row = queryOne("SELECT * FROM tenants WHERE id = $id", { $id: tenantId });
+    if (!row) return {};
+    const cfg = _parseConfig(row);
+    return cfg.ownMcpServers || {};
+  }
+
   // ── Workspace ─────────────────────────────────────────────────────────────
 
   /**
@@ -427,6 +537,7 @@ class TenantManager {
       tools: tenant?.tools || null,
       sandbox: config.sandbox?.mode || "process",
       mcpServers: tenant?.mcpServers ?? null,
+      ownMcpServers: tenant?.ownMcpServers || {},
       modelRoutes: tenant?.modelRoutes || null,
       apiKeys: tenant?.id ? this.getDecryptedApiKeys(tenant.id) : {},
       channelConfig: tenant?.id ? this.getDecryptedChannelConfig(tenant.id) : {},
@@ -483,7 +594,8 @@ function _defaultTenant(id) {
     maxCostPerTask: null,
     maxDailyCost: null,
     tools: null,
-    mcpServers: null,
+    mcpServers: null,       // allowlist of global MCP server names; null = all allowed
+    ownMcpServers: {},      // per-tenant private MCP server definitions (same format as mcp.json entries)
     modelRoutes: null,
     encryptedApiKeys: {},
     encryptedChannelConfig: {},

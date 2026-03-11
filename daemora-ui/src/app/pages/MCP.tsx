@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../co
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel } from "../components/ui/alert-dialog";
 import { Input } from "../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { toast } from "sonner";
@@ -53,6 +54,9 @@ export function MCP() {
   const [configValues, setConfigValues] = useState<KVPair[]>([]);
   const [configSaving, setConfigSaving] = useState(false);
 
+  // Confirm dialog state
+  const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; description?: string; onConfirm: () => void }>({ open: false, title: "", onConfirm: () => {} });
+
   const fetchServers = async () => {
     try {
       const res = await apiFetch("/api/mcp");
@@ -87,17 +91,23 @@ export function MCP() {
     }
   };
 
-  const handleDeleteServer = async (name: string) => {
-    if (!confirm(`Are you sure you want to remove ${name}?`)) return;
-    try {
-      const res = await apiFetch(`/api/mcp/${name}`, { method: "DELETE" });
-      if (res.ok) {
-        toast.success(`${name} removed`);
-        fetchServers();
-      }
-    } catch (error: any) {
-      toast.error(error.message);
-    }
+  const handleDeleteServer = (name: string) => {
+    setConfirmState({
+      open: true,
+      title: `Remove ${name}?`,
+      description: "Are you sure you want to remove this MCP server?",
+      onConfirm: async () => {
+        try {
+          const res = await apiFetch(`/api/mcp/${name}`, { method: "DELETE" });
+          if (res.ok) {
+            toast.success(`${name} removed`);
+            fetchServers();
+          }
+        } catch (error: any) {
+          toast.error(error.message);
+        }
+      },
+    });
   };
 
   const resetAddForm = () => {
@@ -638,6 +648,26 @@ export function MCP() {
           })
         )}
       </div>
+
+      <AlertDialog open={confirmState.open} onOpenChange={(open) => setConfirmState((s) => ({ ...s, open }))}>
+        <AlertDialogContent className="bg-slate-900 border border-slate-700 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white font-mono uppercase text-sm tracking-wide">{confirmState.title}</AlertDialogTitle>
+            {confirmState.description && (
+              <AlertDialogDescription className="text-gray-400 font-mono text-xs">{confirmState.description}</AlertDialogDescription>
+            )}
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-slate-800 border-slate-700 text-gray-300 hover:bg-slate-700 font-mono text-xs uppercase">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 font-mono text-xs uppercase"
+              onClick={() => { confirmState.onConfirm(); setConfirmState((s) => ({ ...s, open: false })); }}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

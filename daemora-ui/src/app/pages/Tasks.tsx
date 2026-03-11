@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
 import { Link } from "react-router";
-import { Search, Clock, CheckCircle2, AlertCircle, Loader2, ChevronRight, ChevronDown, Bot } from "lucide-react";
+import { Search, Clock, CheckCircle2, AlertCircle, Loader2, ChevronRight, ChevronDown, Bot, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
+import { toast } from "sonner";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel } from "../components/ui/alert-dialog";
 
 interface SubAgent {
   agentId: string;
@@ -52,6 +54,7 @@ export function Tasks() {
   const [search, setSearch] = useState("");
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [childrenMap, setChildrenMap] = useState<Record<string, ChildTask[]>>({});
+  const [confirmState, setConfirmState] = useState<{ open: boolean; title: string; description?: string; onConfirm: () => void }>({ open: false, title: "", onConfirm: () => {} });
 
   const fetchTasks = async () => {
     try {
@@ -91,6 +94,25 @@ export function Tasks() {
       }
     }
     setExpandedTasks(next);
+  };
+
+  const handleDelete = (e: React.MouseEvent, taskId: string, status: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (status === "running") { toast.error("Cannot delete a running task"); return; }
+    setConfirmState({
+      open: true,
+      title: "Delete this task?",
+      description: "This action cannot be undone.",
+      onConfirm: async () => {
+        const toastId = toast.loading("Deleting...");
+        try {
+          const res = await apiFetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+          if (res.ok) { toast.success("Task deleted", { id: toastId }); fetchTasks(); }
+          else { const err = await res.json(); toast.error(err.error || "Failed to delete", { id: toastId }); }
+        } catch (err: any) { toast.error(err.message, { id: toastId }); }
+      },
+    });
   };
 
   const filteredTasks = tasks
@@ -153,7 +175,8 @@ export function Tasks() {
             <div className="col-span-4">Input</div>
             <div className="col-span-1">Channel</div>
             <div className="col-span-2 text-right">Cost</div>
-            <div className="col-span-2 text-right">Created</div>
+            <div className="col-span-1 text-right">Created</div>
+            <div className="col-span-1"></div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -200,8 +223,18 @@ export function Tasks() {
                       <div className="col-span-2 text-right font-mono text-[10px] text-[#00ff88]">
                         <CostDisplay cost={task.cost} />
                       </div>
-                      <div className="col-span-2 text-right font-mono text-[10px] text-gray-500 uppercase">
-                        {new Date(task.createdAt).toLocaleDateString()} {new Date(task.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      <div className="col-span-1 text-right font-mono text-[10px] text-gray-500 uppercase">
+                        {new Date(task.createdAt).toLocaleDateString([], { month: 'numeric', day: 'numeric' })} {new Date(task.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                      <div className="col-span-1 flex justify-end">
+                        <button
+                          onClick={(e) => handleDelete(e, task.id, task.status)}
+                          disabled={task.status === "running"}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500/50 hover:text-red-500 disabled:opacity-20 disabled:cursor-not-allowed p-1"
+                          title="Delete task"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
 
@@ -282,6 +315,25 @@ export function Tasks() {
           </div>
         </CardContent>
       </Card>
+      <AlertDialog open={confirmState.open} onOpenChange={(open) => setConfirmState((s) => ({ ...s, open }))}>
+        <AlertDialogContent className="bg-slate-900 border border-slate-700 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white font-mono uppercase text-sm tracking-wide">{confirmState.title}</AlertDialogTitle>
+            {confirmState.description && (
+              <AlertDialogDescription className="text-gray-400 font-mono text-xs">{confirmState.description}</AlertDialogDescription>
+            )}
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-slate-800 border-slate-700 text-gray-300 hover:bg-slate-700 font-mono text-xs uppercase">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 font-mono text-xs uppercase"
+              onClick={() => { confirmState.onConfirm(); setConfirmState((s) => ({ ...s, open: false })); }}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
