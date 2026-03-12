@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 import { randomBytes } from "crypto";
 import { toolFunctions } from "./tools/index.js";
 import { getSession, listSessions, createSession, clearSession } from "./services/sessions.js";
-import { config } from "./config/default.js";
+import { config, reloadFromDb } from "./config/default.js";
 import { listAvailableModels } from "./models/ModelRouter.js";
 import taskQueue from "./core/TaskQueue.js";
 import taskRunner from "./core/TaskRunner.js";
@@ -1014,29 +1014,12 @@ app.post("/api/approvals/:id", (req, res) => {
   res.json({ message: `Approval ${req.params.id} → ${decision}` });
 });
 
-// --- Settings endpoint (read/write config — .env + vault, SQLite config as overlay) ---
+// --- Settings endpoint (read/write config — SQLite config_entries + vault) ---
 app.get("/api/settings", (req, res) => {
-  const envPath = join(__dirname, "..", ".env");
   const examplePath = join(__dirname, "..", ".env.example");
 
-  // Parse current .env
-  const envVars = {};
-  if (existsSync(envPath)) {
-    const lines = readFileSync(envPath, "utf-8").split("\n");
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const eqIdx = trimmed.indexOf("=");
-      if (eqIdx === -1) continue;
-      const key = trimmed.slice(0, eqIdx).trim();
-      const val = trimmed.slice(eqIdx + 1).trim();
-      envVars[key] = val;
-    }
-  }
-
-  // Overlay with SQLite config_entries (setup wizard writes here)
+  // Primary source: SQLite config_entries (database)
   const dbConfig = configStore.getAll();
-  Object.assign(envVars, dbConfig);
 
   // Parse .env.example for available vars with sections (used for UI display grouping)
   const available = [];
@@ -1057,18 +1040,18 @@ app.get("/api/settings", (req, res) => {
     }
   }
 
-  // Merge vault secrets (if unlocked) — vault takes priority over config
+  // Merge vault secrets (if unlocked) — vault takes priority
   const vaultActive = secretVault.isUnlocked();
   if (vaultActive) {
     const vaultSecrets = secretVault.getAsEnv();
     for (const key of Object.keys(vaultSecrets)) {
-      envVars[key] = vaultSecrets[key];
+      dbConfig[key] = vaultSecrets[key];
     }
   }
 
   // Uniform masking — never leak any characters
   const masked = {};
-  for (const [key, val] of Object.entries(envVars)) {
+  for (const [key, val] of Object.entries(dbConfig)) {
     if (!val) { masked[key] = ""; continue; }
     masked[key] = "••••••••";
   }
@@ -1076,7 +1059,7 @@ app.get("/api/settings", (req, res) => {
   res.json({ vars: masked, available, vaultActive });
 });
 
-app.put("/api/settings", (req, res) => {
+app.put("/api/settings", async (req, res) => {
   const { updates } = req.body; // { KEY: "value", KEY2: "value2" }
   if (!updates || typeof updates !== "object") {
     return res.status(400).json({ error: "updates object is required" });
@@ -1086,7 +1069,7 @@ app.put("/api/settings", (req, res) => {
   const sensitivePattern = /KEY|TOKEN|SECRET|PASSWORD|PASSPHRASE|CREDENTIAL/i;
 
   // Separate sensitive vs non-sensitive
-  const envUpdates = {};
+  const dbUpdates = {};
   const vaultUpdates = {};
 
   for (const [key, value] of Object.entries(updates)) {
@@ -1094,26 +1077,16 @@ app.put("/api/settings", (req, res) => {
     if (vaultActive && sensitivePattern.test(key)) {
       vaultUpdates[key] = value;
     } else {
-      envUpdates[key] = value;
+      dbUpdates[key] = value;
     }
     // Always update process.env so changes take effect immediately
     process.env[key] = value;
   }
 
-  // Write non-sensitive (or all if vault locked) to .env
-  if (Object.keys(envUpdates).length > 0 || (!vaultActive && Object.keys(vaultUpdates).length === 0)) {
-    const allEnvUpdates = vaultActive ? envUpdates : { ...envUpdates, ...vaultUpdates };
-    const envPath = join(__dirname, "..", ".env");
-    let content = existsSync(envPath) ? readFileSync(envPath, "utf-8") : "";
-    for (const [key, value] of Object.entries(allEnvUpdates)) {
-      const regex = new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}=.*$`, "m");
-      if (regex.test(content)) {
-        content = content.replace(regex, `${key}=${value}`);
-      } else {
-        content = content.trimEnd() + `\n${key}=${value}\n`;
-      }
-    }
-    writeFileSync(envPath, content, "utf-8");
+  // Write non-sensitive to SQLite config_entries (database)
+  const allDbUpdates = vaultActive ? dbUpdates : { ...dbUpdates, ...vaultUpdates };
+  if (Object.keys(allDbUpdates).length > 0) {
+    configStore.import(allDbUpdates);
   }
 
   // Write sensitive keys to vault
@@ -1123,9 +1096,12 @@ app.put("/api/settings", (req, res) => {
     }
   }
 
+  // Reload config from DB so config object reflects new values
+  try { await reloadFromDb(); } catch { /* non-fatal */ }
+
   const stored = vaultActive
-    ? { env: Object.keys(envUpdates), vault: Object.keys(vaultUpdates) }
-    : { env: Object.keys(updates).filter(k => /^[A-Z][A-Z0-9_]*$/.test(k)) };
+    ? { db: Object.keys(dbUpdates), vault: Object.keys(vaultUpdates) }
+    : { db: Object.keys(updates).filter(k => /^[A-Z][A-Z0-9_]*$/.test(k)) };
 
   res.json({ message: `Updated ${Object.keys(updates).length} variable(s)`, stored });
 });
@@ -1308,6 +1284,30 @@ app.listen(config.port, async () => {
   console.log(`Permission tier: ${config.permissionTier}`);
   console.log(`Data dir: ${config.dataDir}`);
   console.log(`Daemon mode: ${config.daemonMode}`);
+
+  // ── Phase 0: Migrate .env → SQLite config_entries (one-time bootstrap) ──
+  const dbConfig = configStore.getAll();
+  if (Object.keys(dbConfig).length === 0) {
+    const envPath = join(__dirname, "..", ".env");
+    if (existsSync(envPath)) {
+      const envVars = {};
+      const lines = readFileSync(envPath, "utf-8").split("\n");
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const eqIdx = trimmed.indexOf("=");
+        if (eqIdx === -1) continue;
+        const key = trimmed.slice(0, eqIdx).trim();
+        const val = trimmed.slice(eqIdx + 1).trim();
+        if (key && val) envVars[key] = val;
+      }
+      const count = configStore.import(envVars, { skipExisting: true });
+      if (count > 0) console.log(`[Startup] Migrated ${count} .env values → SQLite config_entries`);
+    }
+  }
+
+  // Reload config from DB (picks up setup wizard + migrated .env values)
+  try { await reloadFromDb(); } catch { /* non-fatal */ }
 
   // ── Phase 1: Load skills + embeddings (must complete before processing messages) ──
   console.log("[Startup] Loading skills...");
