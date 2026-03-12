@@ -819,9 +819,10 @@ app.get("/api/tenants", (req, res) => {
 });
 
 app.post("/api/tenants", (req, res) => {
-  const { name, plan, notes } = req.body || {};
-  if (!name?.trim()) return res.status(400).json({ error: "name is required" });
-  const id = name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "-").replace(/-+/g, "-");
+  const { name, id: rawId, plan, notes } = req.body || {};
+  const input = rawId?.trim() || name?.trim();
+  if (!input) return res.status(400).json({ error: "name or id is required" });
+  const id = input.toLowerCase().replace(/[^a-z0-9_:.@-]/g, "-").replace(/-+/g, "-");
   if (!id) return res.status(400).json({ error: "Invalid tenant name" });
   const existing = tenantManager.get(id);
   if (existing) return res.status(409).json({ error: "Tenant already exists" });
@@ -830,8 +831,13 @@ app.post("/api/tenants", (req, res) => {
 });
 
 app.get("/api/tenants/:id", (req, res) => {
-  const tenant = tenantManager.get(decodeURIComponent(req.params.id));
+  const id = decodeURIComponent(req.params.id);
+  const tenant = tenantManager.get(id);
   if (!tenant) return res.status(404).json({ error: "Tenant not found" });
+  // Enrich with linked channels and API key names
+  tenant.channels = tenantManager.getChannels(id);
+  tenant.apiKeyNames = tenantManager.listApiKeyNames(id);
+  tenant.channelConfigKeys = tenantManager.listChannelConfigKeys(id);
   res.json(tenant);
 });
 

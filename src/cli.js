@@ -1107,16 +1107,54 @@ async function handleTenant(action, args) {
         console.log(`  ${S.bar}  Task count     ${t.bold(t2.taskCount || 0)}`);
         console.log(`  ${S.bar}  Max cost/task  ${t2.maxCostPerTask != null ? t.bold("$" + t2.maxCostPerTask) : t.muted("(global default)")}`);
         console.log(`  ${S.bar}  Max daily cost ${t2.maxDailyCost != null ? t.bold("$" + t2.maxDailyCost) : t.muted("(global default)")}`);
+        if (t2.tools?.length) console.log(`  ${S.bar}  Allowed tools  ${t.success(t2.tools.join(", "))}`);
+        if (t2.blockedTools?.length) console.log(`  ${S.bar}  Blocked tools  ${t.error(t2.blockedTools.join(", "))}`);
+        if (t2.mcpServers?.length) console.log(`  ${S.bar}  MCP servers    ${t.accent(t2.mcpServers.join(", "))}`);
+        if (t2.ownMcpServers && Object.keys(t2.ownMcpServers).length > 0) console.log(`  ${S.bar}  Own MCP        ${t.accent(Object.keys(t2.ownMcpServers).join(", "))}`);
+        if (t2.modelRoutes) console.log(`  ${S.bar}  Model routes   ${t.dim(JSON.stringify(t2.modelRoutes))}`);
         if (t2.allowedPaths?.length) console.log(`  ${S.bar}  Allowed paths  ${t.dim(t2.allowedPaths.join(", "))}`);
         if (t2.blockedPaths?.length) console.log(`  ${S.bar}  Blocked paths  ${t.dim(t2.blockedPaths.join(", "))}`);
-        if (t2.tools?.length) console.log(`  ${S.bar}  Tools          ${t.dim(t2.tools.join(", "))}`);
         if (t2.notes) console.log(`  ${S.bar}  Notes          ${t.muted(t2.notes)}`);
         console.log(`  ${S.bar}  Created        ${t.dim(t2.createdAt)}`);
         console.log(`  ${S.bar}  Last seen      ${t.dim(t2.lastSeenAt)}`);
+
+        // Show linked channels
+        if (t2.channels?.length) {
+          console.log(`  ${S.bar}`);
+          console.log(`  ${S.bar}  Linked channels:`);
+          for (const ch of t2.channels) {
+            console.log(`  ${S.bar}    ${t.accent(ch.channel)}:${t.bold(ch.user_id)}  ${t.dim(ch.linked_at || "")}`);
+          }
+        }
+
+        // Show API key names
+        if (t2.apiKeyNames?.length) {
+          console.log(`  ${S.bar}`);
+          console.log(`  ${S.bar}  API keys:`);
+          for (const k of t2.apiKeyNames) {
+            console.log(`  ${S.bar}    ${S.lock}  ${t.bold(k)}  ${t.dim("(encrypted)")}`);
+          }
+        }
+
         console.log("");
       } catch {
         console.error(`\n  ${S.cross}  Agent not running.\n`);
       }
+      break;
+    }
+
+    case "create": {
+      const [id] = args;
+      if (!id) {
+        console.error(`\n  ${S.cross}  Usage: daemora tenant create ${t.dim("<tenantId>")}`);
+        console.error(`  ${t.muted("e.g. daemora tenant create telegram:123456789")}\n`);
+        process.exit(1);
+      }
+      try {
+        const res = await apiCall("POST", `/tenants`, { id });
+        if (res.status === 409) { console.error(`\n  ${S.cross}  Tenant "${id}" already exists.\n`); process.exit(1); }
+        console.log(`\n${header}  ${S.check}  Tenant ${t.bold(id)} created.\n`);
+      } catch { console.error(`\n  ${S.cross}  Agent not running.\n`); }
       break;
     }
 
@@ -1126,19 +1164,32 @@ async function handleTenant(action, args) {
       const value = valueParts.join(" ");
       if (!id || !key || !value) {
         console.error(`\n  ${S.cross}  Usage: daemora tenant set ${t.dim("<tenantId> <key> <value>")}`);
-        console.error(`  ${t.muted("Keys: model, plan, maxCostPerTask, maxDailyCost, notes")}\n`);
+        console.error(`  ${t.muted("Keys:")}`);
+        console.error(`    model              ${t.dim("— override model (e.g. openai:gpt-4o)")}`);
+        console.error(`    plan               ${t.dim("— free | pro | admin")}`);
+        console.error(`    maxCostPerTask     ${t.dim("— per-task cost limit (e.g. 0.50)")}`);
+        console.error(`    maxDailyCost       ${t.dim("— daily budget (e.g. 5.00)")}`);
+        console.error(`    tools              ${t.dim("— allowed tools (comma-separated, or 'none' to clear)")}`);
+        console.error(`    blockedTools       ${t.dim("— blocked tools (comma-separated, or 'none' to clear)")}`);
+        console.error(`    mcpServers         ${t.dim("— allowed MCP servers (comma-separated, or 'none' to clear)")}`);
+        console.error(`    notes              ${t.dim("— free-text operator notes")}\n`);
         process.exit(1);
       }
       const body = {};
-      if (key === "maxCostPerTask" || key === "maxDailyCost") {
+      const numericKeys = ["maxCostPerTask", "maxDailyCost"];
+      const arrayKeys = ["tools", "blockedTools", "mcpServers"];
+      if (numericKeys.includes(key)) {
         body[key] = parseFloat(value);
+      } else if (arrayKeys.includes(key)) {
+        body[key] = value === "none" ? null : value.split(",").map(s => s.trim()).filter(Boolean);
       } else {
         body[key] = value;
       }
       try {
         const res = await apiCall("PATCH", `/tenants/${encodeURIComponent(id)}`, body);
         if (res.status === 404) { console.error(`\n  ${S.cross}  Tenant "${id}" not found.\n`); process.exit(1); }
-        console.log(`\n${header}  ${S.check}  Tenant ${t.bold(id)}: ${t.accent(key)} = ${t.bold(value)}\n`);
+        const display = Array.isArray(body[key]) ? body[key].join(", ") : value;
+        console.log(`\n${header}  ${S.check}  Tenant ${t.bold(id)}: ${t.accent(key)} = ${t.bold(display)}\n`);
       } catch { console.error(`\n  ${S.cross}  Agent not running.\n`); }
       break;
     }
@@ -1471,7 +1522,7 @@ async function handleTenant(action, args) {
 
     default:
       console.error(`\n  ${S.cross}  Unknown tenant command: ${action || "(none)"}`);
-      console.log(`  ${t.muted("Usage:")} daemora tenant ${t.dim("[list|show|set|plan|suspend|unsuspend|reset|delete|apikey|channel|workspace]")}\n`);
+      console.log(`  ${t.muted("Usage:")} daemora tenant ${t.dim("[list|show|create|set|plan|suspend|unsuspend|reset|delete|link|unlink|apikey|channel|workspace]")}\n`);
       process.exit(1);
   }
 }
@@ -2193,25 +2244,26 @@ ${line}
   ${t.cmd("sandbox clear")}                    Remove all path limits (global mode)
 
   ${t.cmd("tenant list")}                      List all tenants with stats
-  ${t.cmd("tenant show")} ${t.dim("<id>")}                 Show full tenant config
+  ${t.cmd("tenant show")} ${t.dim("<id>")}                 Show full tenant config + channels + API keys
+  ${t.cmd("tenant create")} ${t.dim("<id>")}               Create a tenant manually (e.g. telegram:123)
   ${t.cmd("tenant set")} ${t.dim("<id> <key> <value>")}    Update a tenant setting
+  ${t.muted("  keys: model  plan  maxCostPerTask  maxDailyCost  tools  blockedTools  mcpServers  notes")}
+  ${t.muted("  arrays: comma-separated, 'none' to clear")}
   ${t.cmd("tenant plan")} ${t.dim("<id> <free|pro|admin>")}  Set tenant plan
   ${t.cmd("tenant suspend")} ${t.dim("<id> [reason]")}     Suspend a tenant (blocks all tasks)
   ${t.cmd("tenant unsuspend")} ${t.dim("<id>")}            Unsuspend a tenant
   ${t.cmd("tenant reset")} ${t.dim("<id>")}                Reset tenant config (keep cost history)
   ${t.cmd("tenant delete")} ${t.dim("<id>")}               Delete a tenant record
-  ${t.cmd("tenant apikey set")} ${t.dim("<id> <KEY> <val>")}  Store encrypted AI provider key (OPENAI_API_KEY, etc.)
+  ${t.cmd("tenant link")} ${t.dim("<id> <channel> <userId>")}   Link a channel identity to tenant
+  ${t.cmd("tenant unlink")} ${t.dim("<id> <channel> <userId>")} Unlink a channel identity
+  ${t.cmd("tenant apikey set")} ${t.dim("<id> <KEY> <val>")}  Store encrypted API key (per-tenant)
   ${t.cmd("tenant apikey delete")} ${t.dim("<id> <KEY>")}  Delete a tenant API key
   ${t.cmd("tenant apikey list")} ${t.dim("<id>")}          List tenant API key names (not values)
-  ${t.cmd("tenant channel set")} ${t.dim("<id> <key> <val>")}  Store encrypted outbound channel credential
+  ${t.cmd("tenant channel set")} ${t.dim("<id> <key> <val>")}  Store encrypted channel credential
   ${t.cmd("tenant channel unset")} ${t.dim("<id> <key>")}  Remove a channel credential
   ${t.cmd("tenant channel list")} ${t.dim("<id>")}         List stored channel credential keys
-  ${t.muted("  channel keys: email  email_password  resend_api_key  resend_from")}
   ${t.cmd("tenant workspace")} ${t.dim("<id>")}             Show workspace + allowed/blocked paths
-  ${t.cmd("tenant workspace")} ${t.dim("<id> add <path>")}  Add path to tenant's allowedPaths
-  ${t.cmd("tenant workspace")} ${t.dim("<id> remove <path>")}  Remove from allowedPaths
-  ${t.cmd("tenant workspace")} ${t.dim("<id> block <path>")}   Add to blockedPaths
-  ${t.cmd("tenant workspace")} ${t.dim("<id> unblock <path>")} Remove from blockedPaths
+  ${t.cmd("tenant workspace")} ${t.dim("<id> add|remove|block|unblock <path>")}
 
   ${t.cmd("channels")}                          List all 19 supported channels + setup status
   ${t.cmd("channels add")} ${t.dim("[name]")}               Configure a new channel interactively
