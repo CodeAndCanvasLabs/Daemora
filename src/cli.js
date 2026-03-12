@@ -80,6 +80,21 @@ async function main() {
     }
 
     case "start": {
+      // Block start if setup has not been completed
+      try {
+        const { configStore } = await import("./config/ConfigStore.js");
+        if (!configStore.get("SETUP_COMPLETED")) {
+          console.log(`\n  ${S.cross}  ${t.error("Setup not completed.")}`);
+          console.log(`\n  Run ${t.cmd("daemora setup")} first to configure your agent.\n`);
+          process.exit(1);
+        }
+      } catch {
+        // DB not initialized — setup definitely not done
+        console.log(`\n  ${S.cross}  ${t.error("Setup not completed.")}`);
+        console.log(`\n  Run ${t.cmd("daemora setup")} first to configure your agent.\n`);
+        process.exit(1);
+      }
+
       // If vault exists, prompt for passphrase and inject secrets before server boot
       if (secretVault.exists()) {
         const { password } = await import("@clack/prompts");

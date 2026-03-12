@@ -968,6 +968,7 @@ export async function runSetupWizard() {
   // Secrets were already vaulted above and removed from envConfig.
   const { configStore } = await import("../config/ConfigStore.js");
   const configCount = configStore.import(envConfig);
+  configStore.set("SETUP_COMPLETED", new Date().toISOString());
 
   // Write a minimal .env — only bootstrap info needed before SQLite is open.
   // Everything else is in SQLite now.
