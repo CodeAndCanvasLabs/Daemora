@@ -17,8 +17,8 @@
 
   <!-- Input Channels -->
   <rect x="60" y="54" width="780" height="72" rx="8" fill="#1a2332" stroke="#2f81f7" stroke-width="1.5"/>
-  <text x="450" y="76" text-anchor="middle" fill="#2f81f7" font-size="13" font-weight="700">INPUT CHANNELS (20) — Per-Tenant Instances</text>
-  <text x="450" y="96" text-anchor="middle" fill="#8b949e" font-size="11">Telegram · WhatsApp · Discord · Slack · Email · LINE · Signal · Teams · Google Chat · Matrix</text>
+  <text x="450" y="76" text-anchor="middle" fill="#2f81f7" font-size="13" font-weight="700">INPUT CHANNELS (19) — Per-Tenant Instances</text>
+  <text x="450" y="96" text-anchor="middle" fill="#8b949e" font-size="11">Telegram · WhatsApp · Discord · Slack · Email · LINE · Signal · Teams · Google Chat · Matrix · iMessage</text>
   <text x="450" y="112" text-anchor="middle" fill="#8b949e" font-size="11">Each tenant can have own bot tokens → dedicated channel instances spun up live (AES-256-GCM encrypted)</text>
 
   <!-- Arrow 1 -->
@@ -46,7 +46,7 @@
   <!-- Agent Loop -->
   <rect x="60" y="328" width="780" height="68" rx="8" fill="#1a2332" stroke="#58a6ff" stroke-width="1.5"/>
   <text x="450" y="352" text-anchor="middle" fill="#58a6ff" font-size="13" font-weight="700">AGENT LOOP</text>
-  <text x="450" y="372" text-anchor="middle" fill="#8b949e" font-size="10">Vercel AI SDK · System prompt (SOUL.md + memory + skills) · 7 providers: OpenAI / Anthropic / Google / xAI / DeepSeek / Mistral / Ollama</text>
+  <text x="450" y="372" text-anchor="middle" fill="#8b949e" font-size="10">Vercel AI SDK · System prompt (SOUL.md + memory + skills) · 4 providers: OpenAI / Anthropic / Google / Ollama</text>
 
   <!-- Arrows to bottom row -->
   <line x1="230" y1="396" x2="230" y2="430" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrowCyan)"/>
@@ -86,8 +86,8 @@
 
   <!-- Skills bar -->
   <rect x="60" y="572" width="780" height="48" rx="8" fill="#1a2332" stroke="#d2a8ff" stroke-width="1.5"/>
-  <text x="450" y="596" text-anchor="middle" fill="#d2a8ff" font-size="13" font-weight="700">51 BUILT-IN SKILLS</text>
-  <text x="450" y="612" text-anchor="middle" fill="#8b949e" font-size="10">Coding · Research · Email · Weather · Spotify · Obsidian · PDF · DevOps · Data Analysis · Browser · Documents · Planning</text>
+  <text x="450" y="596" text-anchor="middle" fill="#d2a8ff" font-size="13" font-weight="700">50+ BUILT-IN SKILLS</text>
+  <text x="450" y="612" text-anchor="middle" fill="#8b949e" font-size="10">Coding · Research · Email · Weather · Spotify · Obsidian · PDF · DevOps · Data Analysis · Browser · Documents · Planning · Image Gen</text>
 
   <!-- Security badge -->
   <rect x="60" y="636" width="780" height="32" rx="8" fill="#1a2332" stroke="#f85149" stroke-width="1.5"/>
