@@ -1,5 +1,14 @@
 #!/usr/bin/env -S node --disable-warning=ExperimentalWarning
 
+// Suppress Node.js warnings (ExperimentalWarning, DeprecationWarning)
+// when run directly via `node src/cli.js` instead of shebang
+const _origEmit = process.emit;
+process.emit = function (event, ...args) {
+  if (event === "warning" && args[0]?.name === "ExperimentalWarning") return false;
+  if (event === "warning" && args[0]?.name === "DeprecationWarning") return false;
+  return _origEmit.call(this, event, ...args);
+};
+
 /**
  * Daemora CLI
  *
