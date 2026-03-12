@@ -936,28 +936,11 @@ export async function runSetupWizard() {
   if (mtChoice === "multitenant") {
     multiTenantMode = "multitenant";
     envConfig.MULTI_TENANT_ENABLED = "true";
-
-    const autoReg = guard(await p.confirm({
-      message: "Auto-register tenants on first message?",
-      initialValue: true,
-    }));
-    envConfig.AUTO_REGISTER_TENANTS = autoReg ? "true" : "false";
-
-    const isolateFs = guard(await p.confirm({
-      message: "Isolate each tenant's filesystem? (recommended for shared deployments)",
-      initialValue: true,
-    }));
-    envConfig.TENANT_ISOLATE_FILESYSTEM = isolateFs ? "true" : "false";
-
-    const setKey = guard(await p.confirm({
-      message: "Generate a tenant encryption key? (encrypts per-tenant API keys at rest)",
-      initialValue: true,
-    }));
-    if (setKey) {
-      const { randomBytes: rb } = await import("crypto");
-      envConfig.DAEMORA_TENANT_KEY = rb(16).toString("hex");
-      p.log.success(`${S.check}  DAEMORA_TENANT_KEY generated (32 hex chars)`);
-    }
+    envConfig.AUTO_REGISTER_TENANTS = "true";
+    envConfig.TENANT_ISOLATE_FILESYSTEM = "true";
+    const { randomBytes: rb } = await import("crypto");
+    envConfig.DAEMORA_TENANT_KEY = rb(16).toString("hex");
+    p.log.success(`${S.check}  Multi-tenant enabled — auto-register, filesystem isolation, encryption key generated`);
   }
 
   // ━━━ Write Config ━━━
