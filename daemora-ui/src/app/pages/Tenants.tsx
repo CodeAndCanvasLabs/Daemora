@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
-import { Users, Loader2, Trash2, Pause, Play, Pencil, RotateCcw, Key, Plus, X, Eye, EyeOff, Link, Unlink } from "lucide-react";
+import { Users, Loader2, Trash2, Pause, Play, Pencil, RotateCcw, Key, Plus, X, Eye, EyeOff } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -10,12 +10,6 @@ import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { toast } from "sonner";
-
-interface ChannelIdentity {
-  channel: string;
-  user_id: string;
-  linked_at: string;
-}
 
 interface OwnMcpServer {
   name: string;
@@ -42,19 +36,15 @@ interface Tenant {
   totalCost?: number;
   lastSeen?: string;
   createdAt?: string;
-  channels?: ChannelIdentity[];
 }
 
-const CHANNEL_ICONS: Record<string, string> = {
-  discord: "🟣",
-  telegram: "🔵",
-  slack: "🟡",
-  whatsapp: "🟢",
-  email: "📧",
-  http: "🌐",
-};
-
-const CHANNEL_OPTIONS = ["discord", "telegram", "slack", "whatsapp", "email", "signal", "matrix", "irc", "line"];
+const CHANNEL_CRED_MAP = [
+  { channel: "telegram", label: "🔵 Telegram", keys: ["TELEGRAM_BOT_TOKEN"] },
+  { channel: "discord",  label: "🟣 Discord",  keys: ["DISCORD_BOT_TOKEN"] },
+  { channel: "slack",    label: "🟡 Slack",     keys: ["SLACK_BOT_TOKEN", "SLACK_APP_TOKEN"] },
+  { channel: "whatsapp", label: "🟢 WhatsApp",  keys: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_WHATSAPP_FROM"] },
+  { channel: "line",     label: "🟢 LINE",      keys: ["LINE_CHANNEL_ACCESS_TOKEN", "LINE_CHANNEL_SECRET"] },
+];
 
 export function Tenants() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -67,15 +57,9 @@ export function Tenants() {
   const [showKeyValue, setShowKeyValue] = useState(false);
   const [keySaving, setKeySaving] = useState(false);
 
-  // Channel linking state
-  const [linkChannel, setLinkChannel] = useState("");
-  const [linkUserId, setLinkUserId] = useState("");
-  const [linkSaving, setLinkSaving] = useState(false);
-
   // Channel credentials state
   const [channelCredKeys, setChannelCredKeys] = useState<string[]>([]);
-  const [newCredKey, setNewCredKey] = useState("");
-  const [newCredValue, setNewCredValue] = useState("");
+  const [newCredValues, setNewCredValues] = useState<Record<string, string>>({});
   const [showCredValue, setShowCredValue] = useState(false);
   const [credSaving, setCredSaving] = useState(false);
 
@@ -154,21 +138,25 @@ export function Tenants() {
     } catch { setChannelCredKeys([]); }
   };
 
-  const handleAddChannelCred = async () => {
-    if (!editTenant || !newCredKey.trim() || !newCredValue.trim()) { toast.error("Key and value are required"); return; }
+  const handleConnectChannel = async (channel: string, keys: string[]) => {
+    if (!editTenant) return;
     setCredSaving(true);
+    const toastId = toast.loading(`Connecting ${channel}...`);
     try {
-      const res = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/channel-config/${encodeURIComponent(newCredKey.trim())}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ value: newCredValue }),
-      });
-      if (res.ok) {
-        toast.success(`${newCredKey.trim()} saved — channel starting...`);
-        setNewCredKey(""); setNewCredValue(""); setShowCredValue(false);
-        fetchChannelCredKeys(editTenant.id);
-      } else { const err = await res.json(); toast.error(err.error || "Failed to save credential"); }
-    } catch (e: any) { toast.error(e.message); }
+      for (const key of keys) {
+        const value = (newCredValues[key] || "").trim();
+        if (!value) continue;
+        const res = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/channel-config/${encodeURIComponent(key)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ value }),
+        });
+        if (!res.ok) { const err = await res.json(); toast.error(err.error || `Failed to save ${key}`, { id: toastId }); return; }
+      }
+      toast.success(`${channel} connected — bot starting...`, { id: toastId });
+      setNewCredValues(v => { const next = { ...v }; keys.forEach(k => delete next[k]); return next; });
+      fetchChannelCredKeys(editTenant.id);
+    } catch (e: any) { toast.error(e.message, { id: toastId }); }
     finally { setCredSaving(false); }
   };
 
@@ -271,55 +259,6 @@ export function Tenants() {
     } catch (e: any) { toast.error(e.message); }
   };
 
-  const handleLinkChannel = async () => {
-    if (!editTenant || !linkChannel || !linkUserId.trim()) { toast.error("Channel and user ID are required"); return; }
-    setLinkSaving(true);
-    try {
-      const res = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/channels`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channel: linkChannel, userId: linkUserId.trim() }),
-      });
-      if (res.ok) {
-        toast.success(`${linkChannel}:${linkUserId.trim()} linked`);
-        setLinkChannel(""); setLinkUserId("");
-        // Refresh edit tenant channels
-        const updated = tenants.find(t => t.id === editTenant.id);
-        if (updated) {
-          const channelsRes = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/channels`);
-          if (channelsRes.ok) {
-            const channelsData = await channelsRes.json();
-            setEditTenant({ ...editTenant, channels: channelsData.channels });
-          }
-        }
-        fetchTenants();
-      } else { const err = await res.json(); toast.error(err.error || "Failed to link channel"); }
-    } catch (e: any) { toast.error(e.message); }
-    finally { setLinkSaving(false); }
-  };
-
-  const handleUnlinkChannel = (channel: string, userId: string) => {
-    if (!editTenant) return;
-    setConfirmState({
-      open: true,
-      title: `Unlink ${channel}:${userId}?`,
-      onConfirm: async () => {
-        try {
-          const res = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/channels/${channel}/${encodeURIComponent(userId)}`, { method: "DELETE" });
-          if (res.ok) {
-            toast.success(`${channel}:${userId} unlinked`);
-            const channelsRes = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/channels`);
-            if (channelsRes.ok) {
-              const channelsData = await channelsRes.json();
-              setEditTenant({ ...editTenant, channels: channelsData.channels });
-            }
-            fetchTenants();
-          } else { const err = await res.json(); toast.error(err.error || "Failed to unlink"); }
-        } catch (e: any) { toast.error(e.message); }
-      },
-    });
-  };
-
   const handleCreateTenant = async () => {
     if (!createForm.name.trim()) { toast.error("Tenant name is required"); return; }
     setCreating(true);
@@ -356,8 +295,7 @@ export function Tenants() {
       notes: tenant.notes || "",
     });
     setNewKeyName(""); setNewKeyValue(""); setShowKeyValue(false);
-    setLinkChannel(""); setLinkUserId("");
-    setNewCredKey(""); setNewCredValue(""); setShowCredValue(false);
+    setNewCredValues({}); setShowCredValue(false);
     setNewMcpName(""); setNewMcpConfig('{\n  "command": "npx",\n  "args": ["-y", "@scope/server-name"],\n  "env": {}\n}');
     fetchApiKeys(tenant.id);
     fetchChannelCredKeys(tenant.id);
@@ -481,19 +419,6 @@ export function Tenants() {
                         {tenant.taskCount != null && <span>Tasks: {tenant.taskCount}</span>}
                         {tenant.lastSeen && <span>Last seen: {new Date(tenant.lastSeen).toLocaleDateString()}</span>}
                       </div>
-                      {/* Channel identities */}
-                      {tenant.channels && tenant.channels.length > 0 && (
-                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                          {tenant.channels.map((ch) => (
-                            <span
-                              key={`${ch.channel}:${ch.user_id}`}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-[9px] font-mono text-gray-300"
-                            >
-                              {CHANNEL_ICONS[ch.channel] || "💬"} {ch.channel}:{ch.user_id}
-                            </span>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -600,70 +525,6 @@ export function Tenants() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-4 font-mono">
-
-            {/* Channel Identities */}
-            <div className="space-y-3 p-4 bg-slate-800/30 border border-slate-800 rounded-xl">
-              <div className="flex items-center gap-2">
-                <Link className="w-3.5 h-3.5 text-[#00d9ff]" />
-                <label className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Linked Channel Identities</label>
-              </div>
-              <p className="text-[9px] text-gray-600">Each identity is a channel+userId pair that maps to this tenant. Same person on Discord + Telegram = link both here.</p>
-
-              {/* Existing identities */}
-              {editTenant?.channels && editTenant.channels.length > 0 ? (
-                <div className="space-y-1.5">
-                  {editTenant.channels.map((ch) => (
-                    <div key={`${ch.channel}:${ch.user_id}`} className="flex items-center justify-between px-3 py-2 bg-slate-900/50 border border-slate-800 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm">{CHANNEL_ICONS[ch.channel] || "💬"}</span>
-                        <div>
-                          <span className="text-[10px] font-mono text-[#00d9ff]">{ch.channel}</span>
-                          <span className="text-[10px] font-mono text-gray-400 ml-1">:{ch.user_id}</span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleUnlinkChannel(ch.channel, ch.user_id)}
-                        className="text-red-500/50 hover:text-red-500 transition-colors"
-                        title="Unlink"
-                      >
-                        <Unlink className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-[10px] text-gray-600 font-mono italic">No channel identities linked</p>
-              )}
-
-              {/* Link new identity */}
-              <div className="flex gap-2 pt-1">
-                <Select value={linkChannel} onValueChange={setLinkChannel}>
-                  <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-[10px] font-mono h-8 w-36 shrink-0">
-                    <SelectValue placeholder="Channel..." />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                    {CHANNEL_OPTIONS.map(c => (
-                      <SelectItem key={c} value={c} className="text-[10px] font-mono">{CHANNEL_ICONS[c] || "💬"} {c}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  value={linkUserId}
-                  onChange={(e) => setLinkUserId(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleLinkChannel()}
-                  placeholder="User / Chat ID"
-                  className="bg-slate-900 border-slate-800 text-white text-[10px] h-8 font-mono flex-1"
-                />
-                <Button
-                  onClick={handleLinkChannel}
-                  disabled={linkSaving || !linkChannel || !linkUserId.trim()}
-                  size="sm"
-                  className="bg-[#00d9ff]/15 text-[#00d9ff] border border-[#00d9ff]/30 hover:bg-[#00d9ff]/25 h-8 px-3 shrink-0"
-                >
-                  {linkSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link className="w-3.5 h-3.5" />}
-                </Button>
-              </div>
-            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -792,69 +653,69 @@ export function Tenants() {
               </div>
             </div>
 
-            {/* Channel Credentials */}
+            {/* Channel Connections */}
             <div className="space-y-3 p-4 bg-slate-800/30 border border-slate-800 rounded-xl">
               <div className="flex items-center gap-2">
                 <Key className="w-3.5 h-3.5 text-[#00d9ff]" />
-                <label className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Channel Credentials</label>
+                <label className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Channel Connections</label>
               </div>
               <p className="text-[9px] text-gray-600">
-                Bot tokens stored here are encrypted (AES-256-GCM) and start a dedicated channel instance for this tenant immediately.
-                <br />
-                <span className="text-gray-500">Keys: <code>TELEGRAM_BOT_TOKEN</code>, <code>DISCORD_BOT_TOKEN</code>, <code>SLACK_BOT_TOKEN</code>, <code>SLACK_APP_TOKEN</code>, <code>LINE_CHANNEL_ACCESS_TOKEN</code>, <code>LINE_CHANNEL_SECRET</code>, <code>TWILIO_ACCOUNT_SID</code>, <code>TWILIO_AUTH_TOKEN</code></span>
+                Select channels to enable for this tenant. Tokens are encrypted (AES-256-GCM) and start a dedicated bot instance immediately.
               </p>
 
-              {channelCredKeys.length > 0 ? (
-                <div className="space-y-1.5">
-                  {channelCredKeys.map((key) => (
-                    <div key={key} className="flex items-center justify-between px-3 py-2 bg-slate-900/50 border border-slate-800 rounded-lg">
+              {/* Per-channel sections */}
+              {CHANNEL_CRED_MAP.map(({ channel, label, keys }) => {
+                const connected = keys.every(k => channelCredKeys.includes(k));
+                const partial = keys.some(k => channelCredKeys.includes(k));
+                return (
+                  <div key={channel} className="p-3 bg-slate-900/50 border border-slate-800 rounded-lg space-y-2">
+                    <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-mono text-[#00d9ff]">{key}</span>
-                        <span className="text-[9px] font-mono text-gray-600">••••••••</span>
+                        <span className="text-sm">{label}</span>
+                        <span className="text-[10px] font-mono text-gray-400 uppercase">{channel}</span>
                       </div>
-                      <button onClick={() => handleDeleteChannelCred(key)} className="text-red-500/50 hover:text-red-500 transition-colors">
-                        <X className="w-3 h-3" />
-                      </button>
+                      {connected ? (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="bg-[#00ff88]/10 border-[#00ff88]/30 text-[#00ff88] text-[8px] font-mono">CONNECTED</Badge>
+                          <button
+                            onClick={() => keys.forEach(k => handleDeleteChannelCred(k))}
+                            className="text-red-500/50 hover:text-red-500 transition-colors"
+                            title="Disconnect"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : partial ? (
+                        <Badge variant="outline" className="bg-[#ffaa00]/10 border-[#ffaa00]/30 text-[#ffaa00] text-[8px] font-mono">INCOMPLETE</Badge>
+                      ) : null}
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-[10px] text-gray-600 font-mono italic">No channel credentials — tenant uses global bots</p>
-              )}
-
-              <div className="space-y-2 pt-1">
-                <Input
-                  value={newCredKey}
-                  onChange={(e) => setNewCredKey(e.target.value)}
-                  placeholder="Credential key (e.g. TELEGRAM_BOT_TOKEN)"
-                  className="bg-slate-900 border-slate-800 text-white text-[10px] h-8 font-mono"
-                />
-                <div className="relative">
-                  <Input
-                    type={showCredValue ? "text" : "password"}
-                    value={newCredValue}
-                    onChange={(e) => setNewCredValue(e.target.value)}
-                    placeholder="Token or secret value"
-                    className="bg-slate-900 border-slate-800 text-white text-[10px] h-8 font-mono pr-8"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowCredValue(v => !v)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
-                  >
-                    {showCredValue ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
-                <Button
-                  onClick={handleAddChannelCred}
-                  disabled={credSaving || !newCredKey.trim() || !newCredValue.trim()}
-                  size="sm"
-                  className="bg-[#00d9ff]/15 text-[#00d9ff] border border-[#00d9ff]/30 hover:bg-[#00d9ff]/25 h-8 text-[10px] font-mono uppercase"
-                >
-                  {credSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Plus className="w-3.5 h-3.5 mr-1" />}
-                  Save &amp; Connect
-                </Button>
-              </div>
+                    {!connected && (
+                      <div className="space-y-1.5 pt-1">
+                        {keys.map(k => (
+                          <div key={k} className="relative">
+                            <Input
+                              type={showCredValue ? "text" : "password"}
+                              value={newCredValues[k] || ""}
+                              onChange={(e) => setNewCredValues(v => ({ ...v, [k]: e.target.value }))}
+                              placeholder={k}
+                              className="bg-slate-900 border-slate-800 text-white text-[10px] h-8 font-mono pr-8"
+                            />
+                          </div>
+                        ))}
+                        <Button
+                          onClick={() => handleConnectChannel(channel, keys)}
+                          disabled={credSaving || keys.some(k => !(newCredValues[k] || "").trim())}
+                          size="sm"
+                          className="bg-[#00d9ff]/15 text-[#00d9ff] border border-[#00d9ff]/30 hover:bg-[#00d9ff]/25 h-8 text-[10px] font-mono uppercase w-full"
+                        >
+                          {credSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Plus className="w-3.5 h-3.5 mr-1" />}
+                          Connect {channel}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Own MCP Servers */}
