@@ -24,6 +24,8 @@ function getFromCache(key) {
   return null;
 }
 
+export function clearSearchCache() { searchCache.clear(); return searchCache.size; }
+
 function setCache(key, results) {
   if (searchCache.size >= 50) {
     searchCache.delete(searchCache.keys().next().value);

@@ -110,6 +110,13 @@ export function getModel(modelId, apiKeys = {}) {
  * Detect which providers have API keys configured.
  * Returns set of provider names with available keys (global or tenant).
  */
+/**
+ * Clear cached provider instances so new API keys take effect.
+ */
+export function clearProviderCache() {
+  for (const key of Object.keys(providerCache)) delete providerCache[key];
+}
+
 function _availableProviders(apiKeys = {}) {
   const available = new Set();
   for (const [name, info] of Object.entries(PROVIDERS)) {

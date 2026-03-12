@@ -324,9 +324,9 @@ const toolSchemas = {
   // ── System Reload ──────────────────────────────────────────────────────
   reload: {
     schema: z.object({
-      action: str("all|config|skills|mcp|scheduler|channels|status"),
+      action: str("all|config|models|skills|mcp|scheduler|channels|vault|caches|status"),
     }),
-    description: "Hot-reload system components without restart",
+    description: "Hot-reload system components without restart (config, models, skills, mcp, scheduler, channels, vault, caches)",
   },
 
   // ── Teams ────────────────────────────────────────────────────────────────

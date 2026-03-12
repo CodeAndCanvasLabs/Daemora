@@ -24,6 +24,8 @@ const cache = new Map();
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const MAX_CACHE_SIZE = 100;
 
+export function clearFetchCache() { cache.clear(); return cache.size; }
+
 function isPrivateIP(hostname) {
   return PRIVATE_RANGES.some((r) => r.test(hostname));
 }

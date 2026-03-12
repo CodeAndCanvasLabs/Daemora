@@ -2,20 +2,26 @@
  * reload(action) - Hot-reload system components without restart.
  *
  * Actions:
- *   all       - reload everything (config, skills, mcp, scheduler, channels)
+ *   all       - reload everything (config, models, skills, mcp, scheduler, channels, vault, caches)
  *   config    - reload config from SQLite + vault
+ *   models    - clear provider cache + re-resolve default model
  *   skills    - reload skill files + re-embed
  *   mcp       - reload all MCP server connections
  *   scheduler - reload cron jobs from DB (stop + restart timers)
  *   channels  - reconnect all active channels
+ *   vault     - reload secrets from DB (if unlocked)
+ *   caches    - clear web fetch + search caches
  *   status    - show what's currently loaded and reloadable
  */
 import { config, reloadFromDb } from "../config/default.js";
-import { resolveDefaultModel } from "../models/ModelRouter.js";
+import { resolveDefaultModel, clearProviderCache } from "../models/ModelRouter.js";
 import skillLoader from "../skills/SkillLoader.js";
 import mcpManager from "../mcp/MCPManager.js";
 import scheduler from "../scheduler/Scheduler.js";
 import channelRegistry from "../channels/index.js";
+import secretVault from "../safety/SecretVault.js";
+import { clearFetchCache } from "./webFetch.js";
+import { clearSearchCache } from "./webSearch.js";
 import eventBus from "../core/EventBus.js";
 
 async function _reloadConfig() {
@@ -25,6 +31,13 @@ async function _reloadConfig() {
     config.defaultModel = resolveDefaultModel();
   }
   return { config: "reloaded", defaultModel: config.defaultModel };
+}
+
+function _reloadModels() {
+  clearProviderCache();
+  const prev = config.defaultModel;
+  config.defaultModel = resolveDefaultModel();
+  return { previous: prev, current: config.defaultModel };
 }
 
 async function _reloadSkills() {
@@ -57,7 +70,6 @@ async function _reloadScheduler() {
 }
 
 async function _reloadChannels() {
-  // Stop and restart all active channels
   let restarted = 0;
   try {
     await channelRegistry.stopAll();
@@ -67,6 +79,24 @@ async function _reloadChannels() {
     return { channels: "error", error: e.message };
   }
   return { channels: restarted };
+}
+
+function _reloadVault() {
+  if (!secretVault.isUnlocked()) return { vault: "locked (skipped)" };
+  // Re-inject vault secrets into process.env so providers pick up new keys
+  const secrets = secretVault.getAsEnv();
+  let injected = 0;
+  for (const [key, value] of Object.entries(secrets)) {
+    process.env[key] = value;
+    injected++;
+  }
+  return { vault: "reloaded", secrets: injected };
+}
+
+function _clearCaches() {
+  clearFetchCache();
+  clearSearchCache();
+  return { caches: "cleared" };
 }
 
 export async function reload(toolParams) {
@@ -80,6 +110,7 @@ export async function reload(toolParams) {
         const mcpServers = mcpManager.list ? mcpManager.list() : [];
         return JSON.stringify({
           defaultModel: config.defaultModel,
+          vault: secretVault.isUnlocked() ? "unlocked" : "locked",
           skills: skills.length,
           mcpServers: mcpServers.length,
           scheduler: {
@@ -87,7 +118,7 @@ export async function reload(toolParams) {
             runningJobs: schedulerStatus.runningJobs,
             started: schedulerStatus.started,
           },
-          reloadable: ["config", "skills", "mcp", "scheduler", "channels", "all"],
+          reloadable: ["config", "models", "skills", "mcp", "scheduler", "channels", "vault", "caches", "all"],
         }, null, 2);
       }
 
@@ -95,6 +126,12 @@ export async function reload(toolParams) {
         const result = await _reloadConfig();
         eventBus.emit("system:reload", { component: "config" });
         return `Config reloaded. Default model: ${result.defaultModel}`;
+      }
+
+      case "models": {
+        const result = _reloadModels();
+        eventBus.emit("system:reload", { component: "models" });
+        return `Models reloaded. Provider cache cleared. Model: ${result.previous} → ${result.current}`;
       }
 
       case "skills": {
@@ -121,28 +158,45 @@ export async function reload(toolParams) {
         return `Channels reloaded: ${result.channels} active.`;
       }
 
+      case "vault": {
+        const result = _reloadVault();
+        eventBus.emit("system:reload", { component: "vault" });
+        return `Vault: ${result.vault}${result.secrets ? ` (${result.secrets} secrets injected)` : ""}`;
+      }
+
+      case "caches": {
+        _clearCaches();
+        eventBus.emit("system:reload", { component: "caches" });
+        return "Web fetch + search caches cleared.";
+      }
+
       case "all": {
         const results = {};
+        results.vault = _reloadVault();
         results.config = await _reloadConfig();
+        results.models = _reloadModels();
         results.skills = await _reloadSkills();
         results.mcp = await _reloadMCP();
         results.scheduler = await _reloadScheduler();
-        // Channels last — depends on config being fresh
         results.channels = await _reloadChannels();
+        results.caches = _clearCaches();
         eventBus.emit("system:reload", { component: "all" });
 
         const summary = [
-          `Config: reloaded (model: ${results.config.defaultModel})`,
+          `Vault: ${results.vault.vault}`,
+          `Config: reloaded (model: ${results.models.current})`,
+          `Models: provider cache cleared`,
           `Skills: ${results.skills.skills} loaded`,
           `MCP: ${results.mcp.mcpServers} servers reconnected`,
           `Scheduler: ${results.scheduler.jobs} jobs`,
           `Channels: ${results.channels.channels} active`,
+          `Caches: cleared`,
         ].join("\n");
         return `Full reload complete:\n${summary}`;
       }
 
       default:
-        return `Unknown action: "${action}". Available: status, config, skills, mcp, scheduler, channels, all`;
+        return `Unknown action: "${action}". Available: status, config, models, skills, mcp, scheduler, channels, vault, caches, all`;
     }
   } catch (error) {
     return `Reload error: ${error.message}`;
@@ -151,6 +205,7 @@ export async function reload(toolParams) {
 
 export const reloadDescription =
   'reload(action) - Hot-reload system components without restart. ' +
-  'Actions: "status" (show loaded state), "config" (reload from DB), "skills" (reload skill files), ' +
-  '"mcp" (reconnect MCP servers), "scheduler" (reload cron jobs), "channels" (reconnect channels), ' +
+  'Actions: "status" (show loaded state), "config" (reload from DB), "models" (clear provider cache + re-resolve), ' +
+  '"skills" (reload skill files), "mcp" (reconnect MCP servers), "scheduler" (reload cron jobs), ' +
+  '"channels" (reconnect channels), "vault" (reload secrets), "caches" (clear web caches), ' +
   '"all" (reload everything).';
