@@ -27,7 +27,7 @@ import voiceWebhook from "./voice/VoiceWebhook.js";
 import daemonManager from "./daemon/DaemonManager.js";
 import secretVault from "./safety/SecretVault.js";
 import tenantManager from "./tenants/TenantManager.js";
-import { runCleanup } from "./services/cleanup.js";
+import { runCleanup, cleanCompletedTasks } from "./services/cleanup.js";
 import webhookHandler from "./webhooks/WebhookHandler.js";
 import execApproval from "./safety/ExecApproval.js";
 import openaiCompat from "./api/openai-compat.js";
@@ -57,6 +57,15 @@ if (config.cleanupAfterDays > 0) {
     console.log(`[Cleanup] Deleted ${cleaned.total} file(s) older than ${config.cleanupAfterDays} days (tasks: ${cleaned.tasks}, audit: ${cleaned.audit}, costs: ${cleaned.costs}, sessions: ${cleaned.sessions})`);
   }
 }
+
+// Periodic task cleaner — purge completed/failed/cancelled tasks every 5 hours
+const TASK_CLEAN_INTERVAL = 5 * 60 * 60 * 1000;
+setInterval(() => {
+  const deleted = cleanCompletedTasks();
+  if (deleted > 0) {
+    console.log(`[TaskCleaner] Purged ${deleted} completed tasks`);
+  }
+}, TASK_CLEAN_INTERVAL);
 
 // Initialize task system (TaskRunner starts after full init — see startup sequence below)
 taskQueue.init();

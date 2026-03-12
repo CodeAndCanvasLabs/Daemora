@@ -76,6 +76,21 @@ export function getStorageStats() {
   };
 }
 
+/**
+ * Delete completed/failed/cancelled tasks (not pending or running).
+ * @returns {number} Number of tasks deleted
+ */
+export function cleanCompletedTasks() {
+  try {
+    const result = run(
+      "DELETE FROM tasks WHERE status IN ('completed', 'failed', 'cancelled')"
+    );
+    return result.changes;
+  } catch {
+    return 0;
+  }
+}
+
 function _countTable(table) {
   try {
     const row = queryOne(`SELECT COUNT(*) as files FROM ${table}`);
