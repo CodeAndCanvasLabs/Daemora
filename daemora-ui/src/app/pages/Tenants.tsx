@@ -592,111 +592,148 @@ export function Tenants() {
               <Input value={editForm.blockedPaths || ""} onChange={(e) => setEditForm({ ...editForm, blockedPaths: e.target.value })}
                 placeholder="/etc, /root" className="bg-slate-900 border-slate-800 text-white text-xs" />
             </div>
-            {/* Allowed Tools — tag multi-select */}
-            <div className="space-y-2">
+            {/* Allowed Tools */}
+            <div className="space-y-1.5">
               <label className="text-[10px] text-gray-500 uppercase">Allowed Tools</label>
-              <div className="flex flex-wrap gap-1 min-h-[32px] p-2 bg-slate-900 border border-slate-800 rounded-md">
-                {(editForm.allowedTools || "").split(",").filter((t: string) => t.trim()).map((t: string) => (
-                  <span key={t.trim()} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#00d9ff]/10 border border-[#00d9ff]/30 text-[9px] font-mono text-[#00d9ff]">
-                    {t.trim()}
-                    <button onClick={() => setEditForm({ ...editForm, allowedTools: (editForm.allowedTools || "").split(",").filter((x: string) => x.trim() !== t.trim()).join(", ") })} className="hover:text-red-400"><X className="w-2.5 h-2.5" /></button>
-                  </span>
-                ))}
-              </div>
               <Select value="" onValueChange={(v) => {
                 const current = (editForm.allowedTools || "").split(",").map((t: string) => t.trim()).filter(Boolean);
                 if (!current.includes(v)) setEditForm({ ...editForm, allowedTools: [...current, v].join(", ") });
               }}>
-                <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-[10px] h-7 font-mono">
+                <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-[10px] h-8 font-mono">
                   <SelectValue placeholder="Add tool..." />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-48">
-                  {availableTools.filter(t => !(editForm.allowedTools || "").includes(t)).map(t => (
+                  {availableTools.filter(t => !(editForm.allowedTools || "").split(",").map((x: string) => x.trim()).includes(t)).map(t => (
                     <SelectItem key={t} value={t} className="text-[10px] font-mono">{t}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {(editForm.allowedTools || "").split(",").some((t: string) => t.trim()) && (
+                <div className="flex flex-wrap gap-1">
+                  {(editForm.allowedTools || "").split(",").filter((t: string) => t.trim()).map((t: string) => (
+                    <span key={t.trim()} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#00d9ff]/10 border border-[#00d9ff]/30 text-[9px] font-mono text-[#00d9ff]">
+                      {t.trim()}
+                      <button onClick={() => setEditForm({ ...editForm, allowedTools: (editForm.allowedTools || "").split(",").filter((x: string) => x.trim() !== t.trim()).join(", ") })} className="hover:text-red-400"><X className="w-2.5 h-2.5" /></button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Blocked Tools — tag multi-select */}
-            <div className="space-y-2">
+            {/* Blocked Tools */}
+            <div className="space-y-1.5">
               <label className="text-[10px] text-gray-500 uppercase">Blocked Tools</label>
-              <div className="flex flex-wrap gap-1 min-h-[32px] p-2 bg-slate-900 border border-slate-800 rounded-md">
-                {(editForm.blockedTools || "").split(",").filter((t: string) => t.trim()).map((t: string) => (
-                  <span key={t.trim()} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-500/10 border border-red-500/30 text-[9px] font-mono text-red-400">
-                    {t.trim()}
-                    <button onClick={() => setEditForm({ ...editForm, blockedTools: (editForm.blockedTools || "").split(",").filter((x: string) => x.trim() !== t.trim()).join(", ") })} className="hover:text-red-300"><X className="w-2.5 h-2.5" /></button>
-                  </span>
-                ))}
-              </div>
               <Select value="" onValueChange={(v) => {
                 const current = (editForm.blockedTools || "").split(",").map((t: string) => t.trim()).filter(Boolean);
                 if (!current.includes(v)) setEditForm({ ...editForm, blockedTools: [...current, v].join(", ") });
               }}>
-                <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-[10px] h-7 font-mono">
+                <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-[10px] h-8 font-mono">
                   <SelectValue placeholder="Block tool..." />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-48">
-                  {availableTools.filter(t => !(editForm.blockedTools || "").includes(t)).map(t => (
+                  {availableTools.filter(t => !(editForm.blockedTools || "").split(",").map((x: string) => x.trim()).includes(t)).map(t => (
                     <SelectItem key={t} value={t} className="text-[10px] font-mono">{t}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {(editForm.blockedTools || "").split(",").some((t: string) => t.trim()) && (
+                <div className="flex flex-wrap gap-1">
+                  {(editForm.blockedTools || "").split(",").filter((t: string) => t.trim()).map((t: string) => (
+                    <span key={t.trim()} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-500/10 border border-red-500/30 text-[9px] font-mono text-red-400">
+                      {t.trim()}
+                      <button onClick={() => setEditForm({ ...editForm, blockedTools: (editForm.blockedTools || "").split(",").filter((x: string) => x.trim() !== t.trim()).join(", ") })} className="hover:text-red-300"><X className="w-2.5 h-2.5" /></button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* MCP Servers — tag multi-select */}
-            <div className="space-y-2">
+            {/* MCP Servers */}
+            <div className="space-y-1.5">
               <label className="text-[10px] text-gray-500 uppercase">MCP Servers (Allowlist)</label>
-              <div className="flex flex-wrap gap-1 min-h-[32px] p-2 bg-slate-900 border border-slate-800 rounded-md">
-                {(editForm.mcpServers || "").split(",").filter((t: string) => t.trim()).map((t: string) => (
-                  <span key={t.trim()} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#4ECDC4]/10 border border-[#4ECDC4]/30 text-[9px] font-mono text-[#4ECDC4]">
-                    {t.trim()}
-                    <button onClick={() => setEditForm({ ...editForm, mcpServers: (editForm.mcpServers || "").split(",").filter((x: string) => x.trim() !== t.trim()).join(", ") })} className="hover:text-red-400"><X className="w-2.5 h-2.5" /></button>
-                  </span>
-                ))}
-              </div>
               <Select value="" onValueChange={(v) => {
                 const current = (editForm.mcpServers || "").split(",").map((t: string) => t.trim()).filter(Boolean);
                 if (!current.includes(v)) setEditForm({ ...editForm, mcpServers: [...current, v].join(", ") });
               }}>
-                <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-[10px] h-7 font-mono">
+                <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-[10px] h-8 font-mono">
                   <SelectValue placeholder="Add MCP server..." />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-48">
-                  {availableMcpServers.filter(s => !(editForm.mcpServers || "").includes(s)).map(s => (
+                  {availableMcpServers.filter(s => !(editForm.mcpServers || "").split(",").map((x: string) => x.trim()).includes(s)).map(s => (
                     <SelectItem key={s} value={s} className="text-[10px] font-mono">{s}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {(editForm.mcpServers || "").split(",").some((t: string) => t.trim()) && (
+                <div className="flex flex-wrap gap-1">
+                  {(editForm.mcpServers || "").split(",").filter((t: string) => t.trim()).map((t: string) => (
+                    <span key={t.trim()} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#4ECDC4]/10 border border-[#4ECDC4]/30 text-[9px] font-mono text-[#4ECDC4]">
+                      {t.trim()}
+                      <button onClick={() => setEditForm({ ...editForm, mcpServers: (editForm.mcpServers || "").split(",").filter((x: string) => x.trim() !== t.trim()).join(", ") })} className="hover:text-red-400"><X className="w-2.5 h-2.5" /></button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Model Routes */}
             <div className="space-y-2">
               <label className="text-[10px] text-gray-500 uppercase">Model Routes</label>
-              <p className="text-[9px] text-gray-600">Assign models per profile: coder, researcher, writer, analyst</p>
-              {["coder", "researcher", "writer", "analyst"].map(profile => {
-                const routes = (() => { try { return JSON.parse(editForm.modelRoutes || "{}"); } catch { return {}; } })();
+              <p className="text-[9px] text-gray-600">Assign specific models to agent profiles. Add custom profiles as needed.</p>
+              {(() => {
+                const routes: Record<string, string> = (() => { try { return JSON.parse(editForm.modelRoutes || "{}"); } catch { return {}; } })();
+                const profiles = Object.keys(routes);
                 return (
-                  <div key={profile} className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono text-gray-400 w-20 uppercase">{profile}</span>
-                    <Select value={routes[profile] || ""} onValueChange={(v) => {
-                      const updated = { ...routes, [profile]: v || undefined };
-                      if (!v) delete updated[profile];
-                      setEditForm({ ...editForm, modelRoutes: JSON.stringify(updated, null, 2) });
-                    }}>
-                      <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-[10px] h-7 font-mono flex-1">
-                        <SelectValue placeholder="Default" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-48">
-                        <SelectItem value="default" className="text-[10px] font-mono text-gray-500">Default</SelectItem>
-                        {availableModels.map(m => (
-                          <SelectItem key={m} value={m} className="text-[10px] font-mono">{m}</SelectItem>
+                  <>
+                    {profiles.length > 0 && (
+                      <div className="space-y-1.5">
+                        {profiles.map(profile => (
+                          <div key={profile} className="flex items-center gap-2">
+                            <span className="text-[9px] font-mono text-gray-400 w-20 uppercase shrink-0 truncate">{profile}</span>
+                            <Select value={routes[profile] || ""} onValueChange={(v) => {
+                              const updated = { ...routes };
+                              if (!v || v === "default") delete updated[profile];
+                              else updated[profile] = v;
+                              setEditForm({ ...editForm, modelRoutes: JSON.stringify(updated) });
+                            }}>
+                              <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-[10px] h-7 font-mono flex-1">
+                                <SelectValue placeholder="Default" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-48">
+                                <SelectItem value="default" className="text-[10px] font-mono text-gray-500">Default</SelectItem>
+                                {availableModels.map(m => (
+                                  <SelectItem key={m} value={m} className="text-[10px] font-mono">{m}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <button onClick={() => {
+                              const updated = { ...routes };
+                              delete updated[profile];
+                              setEditForm({ ...editForm, modelRoutes: JSON.stringify(updated) });
+                            }} className="text-red-500/50 hover:text-red-500"><X className="w-3 h-3" /></button>
+                          </div>
                         ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <Input
+                        placeholder="Profile name..."
+                        className="bg-slate-900 border-slate-800 text-white text-[10px] h-7 font-mono flex-1"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            const name = (e.target as HTMLInputElement).value.trim().toLowerCase().replace(/\s+/g, "-");
+                            if (name && !routes[name]) {
+                              setEditForm({ ...editForm, modelRoutes: JSON.stringify({ ...routes, [name]: "" }) });
+                              (e.target as HTMLInputElement).value = "";
+                            }
+                          }
+                        }}
+                      />
+                      <span className="text-[8px] text-gray-600 shrink-0">Enter to add</span>
+                    </div>
+                  </>
                 );
-              })}
+              })()}
             </div>
 
             {/* API Keys */}
