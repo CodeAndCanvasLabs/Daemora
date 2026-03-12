@@ -111,10 +111,12 @@ async function main() {
             }
             console.log(`\n  ${S.check}  Vault unlocked \u2014 ${Object.keys(secrets).length} secret(s) loaded\n`);
           } catch {
-            console.log(`\n  ${S.cross}  Wrong passphrase. Starting without vault secrets.\n`);
+            console.log(`\n  ${S.cross}  ${t.error("Wrong passphrase. Cannot start without vault secrets.")}\n`);
+            process.exit(1);
           }
         } else {
-          console.log(`\n  ${S.arrow}  Skipped vault. Starting without secrets.\n`);
+          console.log(`\n  ${S.cross}  ${t.error("Vault passphrase required. Cannot start without secrets.")}\n`);
+          process.exit(1);
         }
       }
 
