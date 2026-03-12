@@ -35,14 +35,8 @@ import { SiSignal, SiGooglechat } from "react-icons/si";
 import { BsMicrosoftTeams } from "react-icons/bs";
 import { MdEmail } from "react-icons/md";
 
-interface AvailableVar {
-  key: string;
-  section: string;
-}
-
 interface SettingsData {
   vars: Record<string, string>;
-  available: AvailableVar[];
   vaultActive?: boolean;
 }
 
@@ -514,16 +508,6 @@ export function Settings() {
     );
   }
 
-  // Keys already managed by dedicated UI controls — hide from env var sections
-  const managedKeys = new Set(["SUB_AGENT_MODEL"]);
-
-  const sections: Record<string, string[]> = {};
-  for (const v of data.available) {
-    if (managedKeys.has(v.key)) continue;
-    if (!sections[v.section]) sections[v.section] = [];
-    sections[v.section].push(v.key);
-  }
-
   // Group models by provider for the dropdown
   const modelsByProvider: Record<string, ModelOption[]> = {};
   for (const m of availableModels) {
@@ -961,55 +945,66 @@ export function Settings() {
         </div>
       </Section>
 
-      {/* ── Other Environment Variables ─────────────────────────────── */}
-      {Object.entries(sections)
-        .filter(([section, keys]) => {
-          const skip = ["ai model api keys", "channels", "default model", "server"];
-          return keys.length > 0 && !skip.includes(section.toLowerCase());
-        })
-        .map(([section, keys]) => (
-        <Section
-          key={section}
-          icon={SettingsIcon}
-          title={section}
-          subtitle={`${keys.length} variable${keys.length !== 1 ? "s" : ""}`}
-          badge={
-            keys.some((k) => data.vars[k]) ? (
-              <span className="text-[9px] font-mono text-[#00ff88] bg-[#00ff88]/10 px-2 py-0.5 rounded-md border border-[#00ff88]/20">
-                {keys.filter((k) => data.vars[k]).length}/{keys.length} set
-              </span>
-            ) : null
-          }
-          actions={<SaveBtn dirty={dirty} saving={saving} saved={saved} onSave={handleSave} />}
-        >
-          <div className="space-y-2.5">
-            {keys.map((key) => {
-              const currentMasked = data.vars[key] || "";
-              const isSet = !!currentMasked;
-              const isVisible = visibleKeys.has(key);
-              const editVal = editValues[key];
-              const hasEdit = editVal !== undefined;
-              const isSensitive = /KEY|TOKEN|SECRET|PASSWORD|PASSPHRASE|CREDENTIAL/i.test(key);
-              return (
-                <div key={key} className="p-3 bg-slate-800/20 rounded-xl border border-slate-800/40">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-[10px] font-mono text-gray-400 uppercase tracking-wider">{key}</span>
-                    {isSet && !hasEdit && <span className="text-[7px] font-mono text-[#00ff88]/60">set</span>}
-                    {data.vaultActive && isSensitive && isSet && <span className="text-[7px] font-mono text-[#00d9ff]/60 flex items-center gap-0.5"><Shield className="w-2 h-2" /> vault</span>}
-                    {hasEdit && <span className="text-[7px] font-mono text-amber-400/60">modified</span>}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input type={isVisible ? "text" : "password"} placeholder={isSet ? currentMasked : "Not set"} value={hasEdit ? editVal : ""} onChange={(e) => handleChange(key, e.target.value)} className={inputClass + " !py-2 !text-xs"} />
-                    <button onClick={() => toggleVisible(key)} className="p-2 text-gray-600 hover:text-[#00d9ff] transition-colors">
-                      {isVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
+      {/* ── Tool API Keys ─────────────────────────────────────────── */}
+      <Section
+        icon={SettingsIcon}
+        title="Tool Config"
+        subtitle="API keys and settings for built-in tools"
+        badge={(() => {
+          const toolKeys = ["ELEVENLABS_API_KEY", "GOOGLE_PLACES_API_KEY", "GOOGLE_CALENDAR_API_KEY", "HUE_API_KEY", "DATABASE_URL", "NTFY_URL"];
+          const set = toolKeys.filter(k => data.vars[k]);
+          return set.length > 0 ? (
+            <span className="text-[9px] font-mono text-[#00ff88] bg-[#00ff88]/10 px-2 py-0.5 rounded-md border border-[#00ff88]/20">
+              {set.length} configured
+            </span>
+          ) : null;
+        })()}
+        actions={<SaveBtn dirty={dirty} saving={saving} saved={saved} onSave={handleSave} />}
+      >
+        <div className="space-y-3">
+          {[
+            { name: "Text-to-Speech (ElevenLabs)", color: "#f0883e", keys: [{ key: "ELEVENLABS_API_KEY", label: "API Key" }] },
+            { name: "Google Places", color: "#4285f4", keys: [{ key: "GOOGLE_PLACES_API_KEY", label: "API Key" }] },
+            { name: "Google Calendar", color: "#0f9d58", keys: [{ key: "GOOGLE_CALENDAR_API_KEY", label: "API Key" }, { key: "GOOGLE_CALENDAR_ID", label: "Calendar ID" }, { key: "GOOGLE_CALENDAR_ACCESS_TOKEN", label: "Access Token" }] },
+            { name: "Google Contacts", color: "#4285f4", keys: [{ key: "GOOGLE_CONTACTS_ACCESS_TOKEN", label: "Access Token" }] },
+            { name: "Philips Hue", color: "#ffcc00", keys: [{ key: "HUE_BRIDGE_IP", label: "Bridge IP" }, { key: "HUE_API_KEY", label: "API Key" }] },
+            { name: "Sonos", color: "#00d9ff", keys: [{ key: "SONOS_SPEAKER_IP", label: "Speaker IP" }] },
+            { name: "Notifications (ntfy)", color: "#00ff88", keys: [{ key: "NTFY_URL", label: "Server URL" }, { key: "NTFY_TOPIC", label: "Topic" }, { key: "NTFY_TOKEN", label: "Token" }] },
+            { name: "Notifications (Pushover)", color: "#2e9afe", keys: [{ key: "PUSHOVER_API_TOKEN", label: "API Token" }, { key: "PUSHOVER_USER_KEY", label: "User Key" }] },
+            { name: "Database", color: "#a78bfa", keys: [{ key: "DATABASE_URL", label: "PostgreSQL URL" }, { key: "MYSQL_URL", label: "MySQL URL" }] },
+          ].map(({ name, color, keys }) => {
+            const anySet = keys.some(k => data.vars[k.key]);
+            return (
+              <div key={name} className="p-4 bg-slate-800/20 rounded-xl border border-slate-800/40">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[13px] font-mono font-medium" style={{ color }}>{name}</span>
+                  {anySet && <span className="text-[8px] font-mono text-[#00ff88] bg-[#00ff88]/8 px-2 py-0.5 rounded border border-[#00ff88]/15">CONFIGURED</span>}
                 </div>
-              );
-            })}
-          </div>
-        </Section>
-      ))}
+                <div className="space-y-2">
+                  {keys.map(({ key, label }) => {
+                    const isSet = !!data.vars[key];
+                    const hasEdit = editValues[key] !== undefined;
+                    return (
+                      <div key={key}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-mono text-gray-500">{label}</span>
+                          {isSet && !hasEdit && <span className="text-[7px] font-mono text-[#00ff88]/60">set</span>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input type={visibleKeys.has(key) ? "text" : "password"} placeholder={isSet ? data.vars[key] : "Not set"} value={editValues[key] ?? ""} onChange={(e) => handleChange(key, e.target.value)} className={inputClass + " !py-2 !text-xs"} />
+                          <button onClick={() => toggleVisible(key)} className="p-2 text-gray-600 hover:text-[#00d9ff] transition-colors">
+                            {visibleKeys.has(key) ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Section>
     </div>
   );
 }

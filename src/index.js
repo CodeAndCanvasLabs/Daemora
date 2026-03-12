@@ -1016,29 +1016,8 @@ app.post("/api/approvals/:id", (req, res) => {
 
 // --- Settings endpoint (read/write config — SQLite config_entries + vault) ---
 app.get("/api/settings", (req, res) => {
-  const examplePath = join(__dirname, "..", ".env.example");
-
   // Primary source: SQLite config_entries (database)
   const dbConfig = configStore.getAll();
-
-  // Parse .env.example for available vars with sections (used for UI display grouping)
-  const available = [];
-  if (existsSync(examplePath)) {
-    const lines = readFileSync(examplePath, "utf-8").split("\n");
-    let section = "General";
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith("# ===")) {
-        section = trimmed.replace(/^# =+\s*/, "").replace(/\s*=+$/, "");
-        continue;
-      }
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const eqIdx = trimmed.indexOf("=");
-      if (eqIdx === -1) continue;
-      const key = trimmed.slice(0, eqIdx).trim();
-      available.push({ key, section });
-    }
-  }
 
   // Merge vault secrets (if unlocked) — vault takes priority
   const vaultActive = secretVault.isUnlocked();
@@ -1056,7 +1035,7 @@ app.get("/api/settings", (req, res) => {
     masked[key] = "••••••••";
   }
 
-  res.json({ vars: masked, available, vaultActive });
+  res.json({ vars: masked, vaultActive });
 });
 
 app.put("/api/settings", async (req, res) => {
@@ -1285,28 +1264,7 @@ app.listen(config.port, async () => {
   console.log(`Data dir: ${config.dataDir}`);
   console.log(`Daemon mode: ${config.daemonMode}`);
 
-  // ── Phase 0: Migrate .env → SQLite config_entries (one-time bootstrap) ──
-  const dbConfig = configStore.getAll();
-  if (Object.keys(dbConfig).length === 0) {
-    const envPath = join(__dirname, "..", ".env");
-    if (existsSync(envPath)) {
-      const envVars = {};
-      const lines = readFileSync(envPath, "utf-8").split("\n");
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith("#")) continue;
-        const eqIdx = trimmed.indexOf("=");
-        if (eqIdx === -1) continue;
-        const key = trimmed.slice(0, eqIdx).trim();
-        const val = trimmed.slice(eqIdx + 1).trim();
-        if (key && val) envVars[key] = val;
-      }
-      const count = configStore.import(envVars, { skipExisting: true });
-      if (count > 0) console.log(`[Startup] Migrated ${count} .env values → SQLite config_entries`);
-    }
-  }
-
-  // Reload config from DB (picks up setup wizard + migrated .env values)
+  // Reload config from DB (picks up setup wizard values)
   try { await reloadFromDb(); } catch { /* non-fatal */ }
 
   // ── Phase 1: Load skills + embeddings (must complete before processing messages) ──
