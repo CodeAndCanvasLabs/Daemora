@@ -843,27 +843,15 @@ export async function runSetupWizard() {
   if (setupVault) {
     mkdirSync(join(ROOT_DIR, "data"), { recursive: true });
 
-    // Check if vault already exists
+    // If vault already exists, clear it for fresh setup
     const vaultExists = secretVault.exists();
-
     if (vaultExists) {
-      const vaultAction = guard(await p.select({
-        message: "An encrypted vault already exists",
-        options: [
-          { value: "unlock", label: "Unlock existing vault", hint: "Enter your current passphrase" },
-          { value: "reset",  label: "Reset vault",           hint: "Delete old vault and create a new one" },
-        ],
-      }));
-
-      if (vaultAction === "reset") {
-        const { run: dbRun } = await import("../storage/Database.js");
-        try { dbRun("DELETE FROM vault_entries"); } catch {}
-        p.log.info("Old vault cleared.");
-      }
+      const { run: dbRun } = await import("../storage/Database.js");
+      try { dbRun("DELETE FROM vault_entries"); } catch {}
     }
 
     vaultPassphrase = guard(await p.password({
-      message: vaultExists ? "Enter vault passphrase" : "Choose a master passphrase (min 8 characters)",
+      message: "Choose a master passphrase for the encrypted vault (min 8 characters)",
       validate: (v) => {
         if (!v || v.length < 8) return "Passphrase must be at least 8 characters";
       },
