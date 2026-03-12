@@ -555,29 +555,15 @@ export function Tenants() {
 
       {/* Edit Dialog */}
       <Dialog open={!!editTenant} onOpenChange={(open) => !open && setEditTenant(null)}>
-        <DialogContent className="bg-slate-950 border-slate-800 text-white border-2 shadow-[0_0_30px_rgba(0,217,255,0.1)] max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="bg-slate-950 border-slate-800 text-white border-2 shadow-[0_0_30px_rgba(0,217,255,0.1)] max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+          <DialogHeader className="shrink-0">
             <DialogTitle className="text-white uppercase font-bold tracking-widest border-b border-slate-800 pb-4">
               Edit Tenant: {editTenant?.id}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 pt-4 font-mono">
+          <div className="space-y-4 pt-4 font-mono overflow-y-auto flex-1 pr-1">
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-[10px] text-gray-500 uppercase">Default Model</label>
-                <Select value={editForm.defaultModel || "global"} onValueChange={(v) => setEditForm({ ...editForm, defaultModel: v === "global" ? "" : v })}>
-                  <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-xs">
-                    <SelectValue placeholder="Use global default" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-48">
-                    <SelectItem value="global" className="text-xs text-gray-500">Use global default</SelectItem>
-                    {availableModels.map(m => (
-                      <SelectItem key={m} value={m} className="text-[10px] font-mono">{m}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="space-y-2">
                 <label className="text-[10px] text-gray-500 uppercase">Plan</label>
                 <Select value={editForm.plan || "free"} onValueChange={(value) => setEditForm({ ...editForm, plan: value })}>
@@ -700,35 +686,6 @@ export function Tenants() {
                   ))}
                 </div>
               )}
-            </div>
-
-            {/* Sub-Agent Model */}
-            <div className="space-y-2">
-              <label className="text-[10px] text-gray-500 uppercase">Sub-Agent Model</label>
-              <p className="text-[9px] text-gray-600">Model used when this tenant's tasks spawn sub-agents. Uses tenant default if not set.</p>
-              {(() => {
-                const routes: Record<string, string> = (() => { try { return JSON.parse(editForm.modelRoutes || "{}"); } catch { return {}; } })();
-                return (
-                  <>
-                    <Select value={routes.subAgent || ""} onValueChange={(v) => {
-                      const updated = { ...routes };
-                      if (!v || v === "default") delete updated.subAgent;
-                      else updated.subAgent = v;
-                      setEditForm({ ...editForm, modelRoutes: JSON.stringify(updated) });
-                    }}>
-                      <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-[10px] h-8 font-mono">
-                        <SelectValue placeholder="Use tenant default" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-48">
-                        <SelectItem value="default" className="text-[10px] font-mono text-gray-500">Use tenant default</SelectItem>
-                        {availableModels.map(m => (
-                          <SelectItem key={m} value={m} className="text-[10px] font-mono">{m}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </>
-                );
-              })()}
             </div>
 
             {/* Tool API Keys — only show for selected tools */}
@@ -932,6 +889,48 @@ export function Tenants() {
               <label className="text-[10px] text-gray-500 uppercase">Notes</label>
               <Input value={editForm.notes || ""} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
                 placeholder="Internal notes..." className="bg-slate-900 border-slate-800 text-white text-xs" />
+            </div>
+
+            {/* Model Configuration */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[10px] text-gray-500 uppercase">Default Model</label>
+                <Select value={editForm.defaultModel || "global"} onValueChange={(v) => setEditForm({ ...editForm, defaultModel: v === "global" ? "" : v })}>
+                  <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-xs">
+                    <SelectValue placeholder="Use global default" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-48">
+                    <SelectItem value="global" className="text-xs text-gray-500">Use global default</SelectItem>
+                    {availableModels.map(m => (
+                      <SelectItem key={m} value={m} className="text-[10px] font-mono">{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] text-gray-500 uppercase">Sub-Agent Model</label>
+                {(() => {
+                  const routes: Record<string, string> = (() => { try { return JSON.parse(editForm.modelRoutes || "{}"); } catch { return {}; } })();
+                  return (
+                    <Select value={routes.subAgent || "default"} onValueChange={(v) => {
+                      const updated = { ...routes };
+                      if (!v || v === "default") delete updated.subAgent;
+                      else updated.subAgent = v;
+                      setEditForm({ ...editForm, modelRoutes: JSON.stringify(updated) });
+                    }}>
+                      <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-[10px] h-8 font-mono">
+                        <SelectValue placeholder="Use tenant default" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-48">
+                        <SelectItem value="default" className="text-[10px] font-mono text-gray-500">Use tenant default</SelectItem>
+                        {availableModels.map(m => (
+                          <SelectItem key={m} value={m} className="text-[10px] font-mono">{m}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  );
+                })()}
+              </div>
             </div>
 
             <Button onClick={handleSaveEdit}
