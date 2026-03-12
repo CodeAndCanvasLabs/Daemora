@@ -2,6 +2,7 @@ import { mkdirSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { randomBytes, createCipheriv, createDecipheriv, scryptSync } from "node:crypto";
 import { config } from "../config/default.js";
+import { resolveDefaultModel } from "../models/ModelRouter.js";
 import { queryAll, queryOne, run, transaction } from "../storage/Database.js";
 
 /**
@@ -555,7 +556,7 @@ class TenantManager {
     }
 
     return {
-      model: tenant?.model || channelModel || config.defaultModel,
+      model: tenant?.model || channelModel || config.defaultModel || resolveDefaultModel(),
       allowedPaths: effectiveAllowed,
       blockedPaths: mergedBlocked,
       restrictCommands: config.filesystem?.restrictCommands || false,

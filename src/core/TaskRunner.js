@@ -5,6 +5,7 @@ import { createSession, getSession, setMessages, appendMessage } from "../servic
 import taskQueue from "./TaskQueue.js";
 import { isDailyBudgetExceeded, isTenantDailyBudgetExceeded } from "./CostTracker.js";
 import { config } from "../config/default.js";
+import { resolveDefaultModel } from "../models/ModelRouter.js";
 import tenantManager from "../tenants/TenantManager.js";
 import tenantContext from "../tenants/TenantContext.js";
 import inputSanitizer from "../safety/InputSanitizer.js";
@@ -212,7 +213,7 @@ class TaskRunner {
     }
 
     // Resolved model for this task (used by sub-agents to inherit parent model)
-    const resolvedModel = resolvedConfig.model || task.model || config.defaultModel;
+    const resolvedModel = resolvedConfig.model || task.model || config.defaultModel || resolveDefaultModel(resolvedConfig.apiKeys);
     const apiKeys = resolvedConfig.apiKeys || {};
 
     try {

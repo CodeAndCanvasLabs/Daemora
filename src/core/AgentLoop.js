@@ -1,5 +1,5 @@
 import { generateText, tool, stepCountIs } from "ai";
-import { getModelWithFallback, resolveThinkingConfig } from "../models/ModelRouter.js";
+import { getModelWithFallback, resolveThinkingConfig, resolveDefaultModel } from "../models/ModelRouter.js";
 import { config } from "../config/default.js";
 import eventBus from "./EventBus.js";
 import hookRunner from "../hooks/HookRunner.js";
@@ -32,7 +32,7 @@ export async function runAgentLoop({
   apiKeys = {},
   onStepPersist = null,
 }) {
-  const selectedModelId = modelId || config.defaultModel;
+  const selectedModelId = modelId || config.defaultModel || resolveDefaultModel(apiKeys);
   const { model, meta, modelId: resolvedModelId } = getModelWithFallback(selectedModelId, apiKeys);
 
   const thinkingConfig = resolveThinkingConfig(resolvedModelId, config.thinkingLevel);

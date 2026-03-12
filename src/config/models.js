@@ -434,8 +434,19 @@ export const models = {
  * Fallback chains - if preferred model fails, try next in chain.
  */
 export const fallbackChains = {
-  cheap: ["openai:gpt-5-mini", "openai:gpt-4.1-mini", "anthropic:claude-haiku-4-5", "google:gemini-2.5-flash"],
-  standard: ["openai:gpt-5.2", "openai:gpt-4.1", "anthropic:claude-sonnet-4-6", "google:gemini-2.5-pro"],
-  expensive: ["anthropic:claude-opus-4-6", "openai:gpt-5.4", "anthropic:claude-sonnet-4-6", "openai:o3-pro"],
+  cheap: [
+    "openai:gpt-5-mini", "openai:gpt-4.1-mini", "anthropic:claude-haiku-4-5",
+    "google:gemini-2.5-flash", "google:gemini-2.0-flash", "deepseek:deepseek-chat",
+    "mistral:mistral-small-latest", "xai:grok-3-mini-beta", "ollama:llama3.1",
+  ],
+  standard: [
+    "openai:gpt-5.2", "openai:gpt-4.1", "anthropic:claude-sonnet-4-6",
+    "google:gemini-2.5-pro", "xai:grok-4", "mistral:mistral-large-latest",
+    "deepseek:deepseek-chat", "ollama:llama3.1",
+  ],
+  expensive: [
+    "anthropic:claude-opus-4-6", "openai:gpt-5.4", "anthropic:claude-sonnet-4-6",
+    "openai:o3-pro", "google:gemini-3.1-pro-preview", "xai:grok-4",
+  ],
   local: ["ollama:llama3.1", "ollama:qwen2.5-coder", "ollama:llama3"],
 };

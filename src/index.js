@@ -6,7 +6,7 @@ import { randomBytes } from "crypto";
 import { toolFunctions } from "./tools/index.js";
 import { getSession, listSessions, createSession, clearSession } from "./services/sessions.js";
 import { config, reloadFromDb } from "./config/default.js";
-import { listAvailableModels } from "./models/ModelRouter.js";
+import { listAvailableModels, resolveDefaultModel } from "./models/ModelRouter.js";
 import taskQueue from "./core/TaskQueue.js";
 import taskRunner from "./core/TaskRunner.js";
 import { loadTask, listTasks, listChildTasks, deleteTask } from "./storage/TaskStore.js";
@@ -1356,6 +1356,12 @@ app.listen(config.port, async () => {
 
   // Reload config from DB (picks up setup wizard values)
   try { await reloadFromDb(); } catch { /* non-fatal */ }
+
+  // Resolve default model from available providers if not explicitly set
+  if (!config.defaultModel) {
+    config.defaultModel = resolveDefaultModel();
+    console.log(`[Startup] Auto-detected default model: ${config.defaultModel}`);
+  }
 
   // ── Phase 1: Load skills + embeddings (must complete before processing messages) ──
   console.log("[Startup] Loading skills...");
