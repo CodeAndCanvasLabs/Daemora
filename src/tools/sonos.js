@@ -4,6 +4,7 @@
  * Local control (no cloud): sends SOAP requests to speaker IP on port 1400.
  * Requires SONOS_SPEAKER_IP or uses discovery.
  */
+import { resolveKey } from "./_env.js";
 
 const SONOS_PORT = 1400;
 
@@ -42,7 +43,7 @@ export async function sonos(_params) {
     ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson)
     : {};
 
-  const speakerIp = params.speakerIp || process.env.SONOS_SPEAKER_IP;
+  const speakerIp = params.speakerIp || resolveKey("SONOS_SPEAKER_IP");
   if (!speakerIp) return "Error: SONOS_SPEAKER_IP env var or speakerIp param required";
 
   try {

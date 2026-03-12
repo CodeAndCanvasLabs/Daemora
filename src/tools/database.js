@@ -4,6 +4,7 @@
  * PostgreSQL/MySQL: requires pg / mysql2 package.
  * Security: uses parameterized queries for all user-supplied values.
  */
+import { resolveKey } from "./_env.js";
 
 export async function database(_params) {
   const action = _params?.action;
@@ -70,7 +71,7 @@ export async function database(_params) {
 
   // ── PostgreSQL ──────────────────────────────────────────────────────────
   if (type === "postgres" || type === "postgresql") {
-    const connStr = connectionString || process.env.DATABASE_URL || process.env.POSTGRES_URL;
+    const connStr = connectionString || resolveKey("DATABASE_URL") || resolveKey("POSTGRES_URL");
     if (!connStr) return "Error: connectionString or DATABASE_URL env var required for PostgreSQL";
 
     let client;
@@ -116,7 +117,7 @@ export async function database(_params) {
 
   // ── MySQL ───────────────────────────────────────────────────────────────
   if (type === "mysql") {
-    const connStr = connectionString || process.env.MYSQL_URL;
+    const connStr = connectionString || resolveKey("MYSQL_URL");
     if (!connStr) return "Error: connectionString or MYSQL_URL env var required for MySQL";
 
     let conn;

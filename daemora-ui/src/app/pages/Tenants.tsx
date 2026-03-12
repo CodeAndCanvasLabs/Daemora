@@ -768,9 +768,25 @@ export function Tenants() {
                     <SelectValue placeholder="Select key to add..." />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                    {["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "ELEVENLABS_API_KEY"].filter(k => !apiKeyNames.includes(k)).map((k) => (
-                      <SelectItem key={k} value={k} className="text-[10px] font-mono">{k}</SelectItem>
-                    ))}
+                    {[
+                      { group: "LLM Providers", keys: ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY"] },
+                      { group: "Voice & Media", keys: ["ELEVENLABS_API_KEY", "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_FROM"] },
+                      { group: "Email", keys: ["RESEND_API_KEY", "RESEND_FROM", "EMAIL_USER", "EMAIL_PASSWORD", "EMAIL_SMTP_HOST", "EMAIL_SMTP_PORT"] },
+                      { group: "Search & Location", keys: ["BRAVE_API_KEY", "GOOGLE_PLACES_API_KEY"] },
+                      { group: "Notifications", keys: ["PUSHOVER_API_TOKEN", "PUSHOVER_USER_KEY", "NTFY_TOPIC", "NTFY_TOKEN", "NTFY_URL"] },
+                      { group: "IoT", keys: ["HUE_BRIDGE_IP", "HUE_API_KEY", "SONOS_SPEAKER_IP"] },
+                      { group: "Database", keys: ["DATABASE_URL", "POSTGRES_URL"] },
+                      { group: "Contacts & Calendar", keys: ["GOOGLE_CONTACTS_ACCESS_TOKEN", "GOOGLE_CALENDAR_ACCESS_TOKEN"] },
+                    ].map(({ group, keys }) => {
+                      const available = keys.filter(k => !apiKeyNames.includes(k));
+                      if (!available.length) return null;
+                      return [
+                        <SelectItem key={`__group_${group}`} value={`__group_${group}`} disabled className="text-[8px] font-mono text-gray-500 uppercase tracking-wider pointer-events-none opacity-70">{group}</SelectItem>,
+                        ...available.map(k => (
+                          <SelectItem key={k} value={k} className="text-[10px] font-mono pl-4">{k}</SelectItem>
+                        ))
+                      ];
+                    })}
                   </SelectContent>
                 </Select>
                 {newKeyName && (

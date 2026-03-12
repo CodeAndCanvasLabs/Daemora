@@ -3,6 +3,7 @@
  * macOS: osascript / terminal-notifier. Linux: notify-send. Windows: PowerShell.
  * Cross-platform mobile: Pushover, Pushbullet, Ntfy.sh.
  */
+import { resolveKey } from "./_env.js";
 import { execSync } from "node:child_process";
 
 function platform() { return process.platform; }
@@ -44,8 +45,8 @@ export async function notification(params) {
 
   // ── Ntfy.sh (HTTP push — open source, self-hostable) ───────────────────
   if (service === "ntfy") {
-    const ntfyUrl = process.env.NTFY_URL || "https://ntfy.sh";
-    const ntfyTopic = topic || process.env.NTFY_TOPIC;
+    const ntfyUrl = resolveKey("NTFY_URL") || "https://ntfy.sh";
+    const ntfyTopic = topic || resolveKey("NTFY_TOPIC");
     if (!ntfyTopic) return "Error: NTFY_TOPIC env var or topic option required for ntfy service";
 
     const { default: fetch } = await import("node-fetch").catch(() => ({ default: globalThis.fetch }));
@@ -55,7 +56,7 @@ export async function notification(params) {
       headers: {
         "Title": title,
         ...(url ? { "Click": url } : {}),
-        ...(process.env.NTFY_TOKEN ? { "Authorization": `Bearer ${process.env.NTFY_TOKEN}` } : {}),
+        ...(resolveKey("NTFY_TOKEN") ? { "Authorization": `Bearer ${resolveKey("NTFY_TOKEN")}` } : {}),
       },
     });
     if (!res.ok) return `Ntfy error: ${res.status} ${await res.text()}`;
@@ -64,8 +65,8 @@ export async function notification(params) {
 
   // ── Pushover ────────────────────────────────────────────────────────────
   if (service === "pushover") {
-    const token = process.env.PUSHOVER_API_TOKEN;
-    const user = process.env.PUSHOVER_USER_KEY;
+    const token = resolveKey("PUSHOVER_API_TOKEN");
+    const user = resolveKey("PUSHOVER_USER_KEY");
     if (!token || !user) return "Error: PUSHOVER_API_TOKEN and PUSHOVER_USER_KEY env vars required";
 
     const body = new URLSearchParams({ token, user, title, message });

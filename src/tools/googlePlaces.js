@@ -2,6 +2,7 @@
  * googlePlaces - Search and get details from Google Places API.
  * Requires GOOGLE_PLACES_API_KEY env var.
  */
+import { resolveKey } from "./_env.js";
 
 export async function googlePlaces(_params) {
   const action = _params?.action;
@@ -11,7 +12,7 @@ export async function googlePlaces(_params) {
     ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson)
     : {};
 
-  const apiKey = params.apiKey || process.env.GOOGLE_PLACES_API_KEY;
+  const apiKey = params.apiKey || resolveKey("GOOGLE_PLACES_API_KEY");
   if (!apiKey) return "Error: GOOGLE_PLACES_API_KEY env var required";
 
   const fetchFn = globalThis.fetch || (await import("node-fetch")).default;

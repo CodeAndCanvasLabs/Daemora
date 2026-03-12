@@ -3,6 +3,7 @@
  * macOS: AppleScript (Contacts app). Google: People API.
  */
 import { execSync } from "node:child_process";
+import { resolveKey } from "./_env.js";
 
 export async function contacts(_params) {
   const action = _params?.action;
@@ -96,7 +97,7 @@ export async function contacts(_params) {
 
   // ── Google People API ────────────────────────────────────────────────────
   if (provider === "google") {
-    const accessToken = process.env.GOOGLE_CONTACTS_ACCESS_TOKEN;
+    const accessToken = resolveKey("GOOGLE_CONTACTS_ACCESS_TOKEN");
     if (!accessToken) return "Error: GOOGLE_CONTACTS_ACCESS_TOKEN env var required";
 
     const fetchFn = globalThis.fetch || (await import("node-fetch")).default;

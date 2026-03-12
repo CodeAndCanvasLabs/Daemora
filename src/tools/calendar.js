@@ -4,6 +4,7 @@
  * Supports: list upcoming events, create event, delete event.
  */
 import { execSync } from "node:child_process";
+import { resolveKey } from "./_env.js";
 
 export async function calendar(_params) {
   const action = _params?.action;
@@ -100,8 +101,8 @@ export async function calendar(_params) {
 
   // ── Google Calendar (API) ────────────────────────────────────────────────
   if (provider === "google") {
-    const apiKey = process.env.GOOGLE_CALENDAR_API_KEY;
-    const calId = params.calendarId || process.env.GOOGLE_CALENDAR_ID || "primary";
+    const apiKey = resolveKey("GOOGLE_CALENDAR_API_KEY");
+    const calId = params.calendarId || resolveKey("GOOGLE_CALENDAR_ID") || "primary";
     if (!apiKey) return "Error: GOOGLE_CALENDAR_API_KEY env var required for Google Calendar provider";
 
     const fetchFn = globalThis.fetch || (await import("node-fetch")).default;
