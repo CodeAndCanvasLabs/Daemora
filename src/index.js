@@ -593,6 +593,27 @@ app.post("/api/skills/reload", (req, res) => {
   res.json({ message: "Skills reloaded", skills: skillLoader.list() });
 });
 
+// --- System Reload endpoint ---
+app.post("/api/reload", async (req, res) => {
+  const action = req.body?.action || req.query?.action || "all";
+  try {
+    const { reload } = await import("./tools/reloadTool.js");
+    const result = await reload({ action });
+    res.json({ message: result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+app.get("/api/reload/status", async (req, res) => {
+  try {
+    const { reload } = await import("./tools/reloadTool.js");
+    const result = await reload({ action: "status" });
+    res.json(JSON.parse(result));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // --- Cron endpoints ---
 app.get("/api/cron/status", (req, res) => {
   res.json(scheduler.status());
@@ -1402,6 +1423,18 @@ app.listen(config.port, async () => {
   console.log(`[Startup] Task runner: active (concurrency: 2)`);
   _serverReady = true;
   console.log("[Startup] Server ready ✓\n");
+});
+
+// SIGHUP — hot-reload all components without restart
+process.on("SIGHUP", async () => {
+  console.log("\n[Reload] SIGHUP received. Reloading all components...");
+  try {
+    const { reload } = await import("./tools/reloadTool.js");
+    const result = await reload({ action: "all" });
+    console.log(`[Reload] ${result}`);
+  } catch (e) {
+    console.error(`[Reload] Error: ${e.message}`);
+  }
 });
 
 // Graceful shutdown

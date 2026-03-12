@@ -315,10 +315,18 @@ const toolSchemas = {
   // ── Automation ───────────────────────────────────────────────────────────
   cron: {
     schema: z.object({
-      action: str("list|add|remove|run|status|update|enable|disable"),
+      action: str("list|add|remove|run|status|update|enable|disable|history"),
       params: json('{"cronExpression":"...","taskInput":"...","name":"..."}'),
     }),
     description: "Schedule recurring tasks (channel auto-detected)",
+  },
+
+  // ── System Reload ──────────────────────────────────────────────────────
+  reload: {
+    schema: z.object({
+      action: str("all|config|skills|mcp|scheduler|channels|status"),
+    }),
+    description: "Hot-reload system components without restart",
   },
 
   // ── Teams ────────────────────────────────────────────────────────────────

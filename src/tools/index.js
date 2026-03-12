@@ -50,6 +50,7 @@ import { contacts } from "./contacts.js";
 import { googlePlaces } from "./googlePlaces.js";
 import { philipsHue } from "./philipsHue.js";
 import { sonos } from "./sonos.js";
+import { reload } from "./reloadTool.js";
 
 // ─── Agent wrappers (params object → SubAgentManager) ────────────────────────
 
@@ -93,4 +94,5 @@ export const toolFunctions = {
   gitTool, clipboard, sshTool, database,
   notification, iMessageTool, calendar, contacts,
   googlePlaces, philipsHue, sonos,
+  reload,
 };
