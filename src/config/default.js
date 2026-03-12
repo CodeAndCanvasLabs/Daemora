@@ -260,8 +260,8 @@ export async function reloadFromDb() {
     // to prevent stale/plaintext values from overwriting decrypted vault secrets.
     let vaultActive = false;
     try {
-      const { secretVault } = await import("../safety/SecretVault.js");
-      vaultActive = secretVault.isUnlocked();
+      const vault = (await import("../safety/SecretVault.js")).default;
+      vaultActive = vault.isUnlocked();
     } catch { /* vault module not available — treat as inactive */ }
 
     let loaded = 0;
