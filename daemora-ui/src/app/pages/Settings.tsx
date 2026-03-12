@@ -30,6 +30,10 @@ import {
   Zap,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { FaTelegram, FaDiscord, FaSlack, FaWhatsapp, FaLine } from "react-icons/fa6";
+import { SiSignal, SiGooglechat } from "react-icons/si";
+import { BsMicrosoftTeams } from "react-icons/bs";
+import { MdEmail } from "react-icons/md";
 
 interface AvailableVar {
   key: string;
@@ -848,17 +852,127 @@ export function Settings() {
         </div>
       </Section>
 
-      {/* ── Environment Variables ──────────────────────────────────────── */}
-      {Object.entries(sections).filter(([, keys]) => keys.length > 0).map(([section, keys]) => (
+      {/* ── AI Provider Keys ──────────────────────────────────────────── */}
+      <Section
+        icon={KeyRound}
+        title="AI Provider Keys"
+        subtitle="API keys for LLM providers — encrypted in vault"
+        badge={(() => {
+          const providerKeys = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY"];
+          const set = providerKeys.filter(k => data.vars[k]);
+          return set.length > 0 ? (
+            <span className="text-[9px] font-mono text-[#00ff88] bg-[#00ff88]/10 px-2 py-0.5 rounded-md border border-[#00ff88]/20">
+              {set.length}/{providerKeys.length} set
+            </span>
+          ) : null;
+        })()}
+        actions={<SaveBtn dirty={dirty} saving={saving} saved={saved} onSave={handleSave} />}
+      >
+        <div className="space-y-3">
+          {[
+            { name: "OpenAI", key: "OPENAI_API_KEY", color: "#00d9ff" },
+            { name: "Anthropic", key: "ANTHROPIC_API_KEY", color: "#d4a574" },
+            { name: "Google AI", key: "GOOGLE_AI_API_KEY", color: "#4285f4" },
+          ].map(({ name, key, color }) => {
+            const isSet = !!data.vars[key];
+            const hasEdit = editValues[key] !== undefined;
+            return (
+              <div key={key} className="p-4 bg-slate-800/20 rounded-xl border border-slate-800/40">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <span className="text-[12px] font-mono font-medium" style={{ color }}>{name}</span>
+                  {isSet && !hasEdit && <span className="text-[8px] font-mono text-[#00ff88] bg-[#00ff88]/8 px-1.5 py-0.5 rounded border border-[#00ff88]/15">CONFIGURED</span>}
+                  {data.vaultActive && isSet && <span className="text-[8px] font-mono text-[#00d9ff] bg-[#00d9ff]/8 px-1.5 py-0.5 rounded border border-[#00d9ff]/15 flex items-center gap-0.5"><Shield className="w-2.5 h-2.5" /> vault</span>}
+                  {hasEdit && <span className="text-[8px] font-mono text-amber-400 bg-amber-400/8 px-1.5 py-0.5 rounded border border-amber-400/15">modified</span>}
+                </div>
+                <div className="flex items-center gap-3">
+                  <input type={visibleKeys.has(key) ? "text" : "password"} placeholder={isSet ? data.vars[key] : "Not set"} value={editValues[key] ?? ""} onChange={(e) => handleChange(key, e.target.value)} className={inputClass} />
+                  <button onClick={() => toggleVisible(key)} className="p-2.5 text-gray-500 hover:text-[#00d9ff] transition-colors rounded-xl hover:bg-slate-800/50">
+                    {visibleKeys.has(key) ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Section>
+
+      {/* ── Global Channels ──────────────────────────────────────────── */}
+      <Section
+        icon={Zap}
+        title="Global Channels"
+        subtitle="Default channel tokens — tenants can override with their own"
+        badge={(() => {
+          const channelTokens = ["TELEGRAM_BOT_TOKEN", "DISCORD_BOT_TOKEN", "SLACK_BOT_TOKEN", "TWILIO_ACCOUNT_SID", "LINE_CHANNEL_ACCESS_TOKEN"];
+          const set = channelTokens.filter(k => data.vars[k]);
+          return set.length > 0 ? (
+            <span className="text-[9px] font-mono text-[#00ff88] bg-[#00ff88]/10 px-2 py-0.5 rounded-md border border-[#00ff88]/20">
+              {set.length} connected
+            </span>
+          ) : null;
+        })()}
+        actions={<SaveBtn dirty={dirty} saving={saving} saved={saved} onSave={handleSave} />}
+      >
+        <div className="space-y-3">
+          {[
+            { name: "Telegram", icon: FaTelegram, color: "#29B6F6", keys: [{ key: "TELEGRAM_BOT_TOKEN", label: "Bot Token" }] },
+            { name: "Discord", icon: FaDiscord, color: "#5865F2", keys: [{ key: "DISCORD_BOT_TOKEN", label: "Bot Token" }] },
+            { name: "Slack", icon: FaSlack, color: "#E01E5A", keys: [{ key: "SLACK_BOT_TOKEN", label: "Bot Token" }, { key: "SLACK_APP_TOKEN", label: "App Token" }] },
+            { name: "WhatsApp", icon: FaWhatsapp, color: "#25D366", keys: [{ key: "TWILIO_ACCOUNT_SID", label: "Account SID" }, { key: "TWILIO_AUTH_TOKEN", label: "Auth Token" }, { key: "TWILIO_WHATSAPP_FROM", label: "From Number" }] },
+            { name: "LINE", icon: FaLine, color: "#00B900", keys: [{ key: "LINE_CHANNEL_ACCESS_TOKEN", label: "Access Token" }, { key: "LINE_CHANNEL_SECRET", label: "Channel Secret" }] },
+            { name: "Email", icon: MdEmail, color: "#a78bfa", keys: [{ key: "RESEND_API_KEY", label: "Resend API Key" }, { key: "RESEND_FROM", label: "From Address" }] },
+            { name: "Signal", icon: SiSignal, color: "#3a76f0", keys: [{ key: "SIGNAL_CLI_URL", label: "CLI URL" }, { key: "SIGNAL_PHONE_NUMBER", label: "Phone Number" }] },
+            { name: "Teams", icon: BsMicrosoftTeams, color: "#6264A7", keys: [{ key: "TEAMS_APP_ID", label: "App ID" }, { key: "TEAMS_APP_PASSWORD", label: "App Password" }] },
+            { name: "Google Chat", icon: SiGooglechat, color: "#00AC47", keys: [{ key: "GOOGLE_CHAT_SERVICE_ACCOUNT", label: "Service Account" }, { key: "GOOGLE_CHAT_PROJECT_NUMBER", label: "Project Number" }] },
+          ].map(({ name, icon: Icon, color, keys }) => {
+            const tokenKey = keys[0].key;
+            const isConnected = !!data.vars[tokenKey];
+            return (
+              <div key={name} className="p-4 bg-slate-800/20 rounded-xl border border-slate-800/40">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <Icon className="w-5 h-5" style={{ color }} />
+                    <span className="text-[13px] font-mono font-medium text-white">{name}</span>
+                  </div>
+                  {isConnected && <span className="text-[8px] font-mono text-[#00ff88] bg-[#00ff88]/8 px-2 py-0.5 rounded border border-[#00ff88]/15">CONNECTED</span>}
+                </div>
+                <div className="space-y-2">
+                  {keys.map(({ key, label }) => {
+                    const isSet = !!data.vars[key];
+                    const hasEdit = editValues[key] !== undefined;
+                    return (
+                      <div key={key}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-mono text-gray-500">{label}</span>
+                          {isSet && !hasEdit && <span className="text-[7px] font-mono text-[#00ff88]/60">set</span>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input type={visibleKeys.has(key) ? "text" : "password"} placeholder={isSet ? data.vars[key] : "Not set"} value={editValues[key] ?? ""} onChange={(e) => handleChange(key, e.target.value)} className={inputClass + " !py-2 !text-xs"} />
+                          <button onClick={() => toggleVisible(key)} className="p-2 text-gray-600 hover:text-[#00d9ff] transition-colors">
+                            {visibleKeys.has(key) ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Section>
+
+      {/* ── Other Environment Variables ─────────────────────────────── */}
+      {Object.entries(sections)
+        .filter(([section, keys]) => {
+          const skip = ["ai model api keys", "channels", "default model", "server"];
+          return keys.length > 0 && !skip.includes(section.toLowerCase());
+        })
+        .map(([section, keys]) => (
         <Section
           key={section}
-          icon={section.toLowerCase().includes("key") || section.toLowerCase().includes("api") ? KeyRound : SettingsIcon}
+          icon={SettingsIcon}
           title={section}
-          subtitle={`${keys.length} variable${keys.length !== 1 ? "s" : ""}${
-            data.vaultActive && keys.some((k) => /KEY|TOKEN|SECRET|PASSWORD|PASSPHRASE|CREDENTIAL/i.test(k))
-              ? " — sensitive keys encrypted in vault"
-              : ""
-          }`}
+          subtitle={`${keys.length} variable${keys.length !== 1 ? "s" : ""}`}
           badge={
             keys.some((k) => data.vars[k]) ? (
               <span className="text-[9px] font-mono text-[#00ff88] bg-[#00ff88]/10 px-2 py-0.5 rounded-md border border-[#00ff88]/20">
@@ -877,35 +991,17 @@ export function Settings() {
               const hasEdit = editVal !== undefined;
               const isSensitive = /KEY|TOKEN|SECRET|PASSWORD|PASSPHRASE|CREDENTIAL/i.test(key);
               return (
-                <div key={key} className="p-4 bg-slate-800/20 rounded-xl border border-slate-800/40 hover:border-slate-700/50 transition-colors">
-                  <div className="flex items-center gap-2 mb-2.5">
-                    <span className="text-[11px] font-mono text-gray-400 uppercase tracking-wider">{key}</span>
-                    {isSet && !hasEdit && (
-                      <span className="text-[8px] font-mono text-[#00ff88] bg-[#00ff88]/8 px-1.5 py-0.5 rounded uppercase border border-[#00ff88]/15">configured</span>
-                    )}
-                    {data.vaultActive && isSensitive && isSet && (
-                      <span className="text-[8px] font-mono text-[#00d9ff] bg-[#00d9ff]/8 px-1.5 py-0.5 rounded uppercase border border-[#00d9ff]/15 flex items-center gap-0.5">
-                        <Shield className="w-2.5 h-2.5" /> vault
-                      </span>
-                    )}
-                    {hasEdit && (
-                      <span className="text-[8px] font-mono text-amber-400 bg-amber-400/8 px-1.5 py-0.5 rounded uppercase border border-amber-400/15">modified</span>
-                    )}
+                <div key={key} className="p-3 bg-slate-800/20 rounded-xl border border-slate-800/40">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-[10px] font-mono text-gray-400 uppercase tracking-wider">{key}</span>
+                    {isSet && !hasEdit && <span className="text-[7px] font-mono text-[#00ff88]/60">set</span>}
+                    {data.vaultActive && isSensitive && isSet && <span className="text-[7px] font-mono text-[#00d9ff]/60 flex items-center gap-0.5"><Shield className="w-2 h-2" /> vault</span>}
+                    {hasEdit && <span className="text-[7px] font-mono text-amber-400/60">modified</span>}
                   </div>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type={isVisible ? "text" : "password"}
-                      placeholder={isSet ? currentMasked : "Not set"}
-                      value={hasEdit ? editVal : ""}
-                      onChange={(e) => handleChange(key, e.target.value)}
-                      className={inputClass}
-                    />
-                    <button
-                      onClick={() => toggleVisible(key)}
-                      className="p-2.5 text-gray-500 hover:text-[#00d9ff] transition-colors rounded-xl hover:bg-slate-800/50"
-                      title={isVisible ? "Hide" : "Show"}
-                    >
-                      {isVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  <div className="flex items-center gap-2">
+                    <input type={isVisible ? "text" : "password"} placeholder={isSet ? currentMasked : "Not set"} value={hasEdit ? editVal : ""} onChange={(e) => handleChange(key, e.target.value)} className={inputClass + " !py-2 !text-xs"} />
+                    <button onClick={() => toggleVisible(key)} className="p-2 text-gray-600 hover:text-[#00d9ff] transition-colors">
+                      {isVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 </div>

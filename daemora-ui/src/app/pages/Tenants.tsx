@@ -750,9 +750,10 @@ export function Tenants() {
                 { tools: ["calendar"], label: "Google Calendar", keys: ["GOOGLE_CALENDAR_ACCESS_TOKEN"], color: "#34d399" },
                 { tools: ["makeVoiceCall"], label: "Twilio (Voice)", keys: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_FROM"], color: "#e74c3c" },
               ];
-              // Filter: show only keys for tools this tenant has selected (or all if no allowlist)
+              // Only show key cards for explicitly selected tools — no tools selected = no keys shown
+              if (selectedTools.length === 0) return null;
               const visible = TOOL_KEYS.filter(({ tools }) =>
-                selectedTools.length === 0 || tools.some(t => selectedTools.includes(t))
+                tools.some(t => selectedTools.includes(t))
               );
               if (visible.length === 0) return null;
               return (
