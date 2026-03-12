@@ -1,0 +1,526 @@
+import { useEffect, useState, useCallback } from "react";
+import { apiFetch } from "../api";
+import {
+  Clock, Plus, Trash2, Loader2, Play, Pause, RotateCcw, History,
+  Globe, Repeat, Timer, AlertTriangle, CheckCircle2, XCircle, RefreshCw
+} from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
+import { Input } from "../components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
+import { Switch } from "../components/ui/switch";
+import { toast } from "sonner";
+
+interface CronJob {
+  id: string;
+  name: string;
+  description: string | null;
+  enabled: boolean;
+  schedule: {
+    kind: "cron" | "every" | "at";
+    expr: string | null;
+    tz: string | null;
+    everyMs: number | null;
+    at: string | null;
+    staggerMs: number;
+  };
+  taskInput: string;
+  model: string | null;
+  timeoutSeconds: number;
+  delivery: { mode: string; channel: string | null; to: string | null };
+  maxRetries: number;
+  failureAlert: unknown;
+  nextRunAt: string | null;
+  lastRunAt: string | null;
+  lastStatus: string | null;
+  lastError: string | null;
+  lastDurationMs: number | null;
+  consecutiveErrors: number;
+  runCount: number;
+  runningSince: string | null;
+  tenantId: string | null;
+  createdAt: string;
+}
+
+interface CronRun {
+  id: number;
+  job_id: string;
+  started_at: string;
+  completed_at: string | null;
+  status: string;
+  duration_ms: number | null;
+  error: string | null;
+  result_preview: string | null;
+  delivery_status: string;
+  retry_attempt: number;
+}
+
+interface SchedulerStatus {
+  running: boolean;
+  totalJobs: number;
+  enabledJobs: number;
+  runningNow: number;
+  nextWakeAt: string | null;
+}
+
+const EMPTY_FORM = {
+  name: "",
+  scheduleKind: "cron" as "cron" | "every" | "at",
+  cronExpr: "",
+  timezone: "",
+  everyInterval: "",
+  atTime: "",
+  taskInput: "",
+  model: "",
+  maxRetries: "0",
+  timeoutSeconds: "7200",
+  deliveryMode: "none",
+};
+
+export function Cron() {
+  const [jobs, setJobs] = useState<CronJob[]>([]);
+  const [status, setStatus] = useState<SchedulerStatus | null>(null);
+  const [runs, setRuns] = useState<CronRun[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [activeTab, setActiveTab] = useState("jobs");
+
+  const fetchJobs = useCallback(async () => {
+    try {
+      const [jobsRes, statusRes] = await Promise.all([
+        apiFetch("/api/cron/jobs"),
+        apiFetch("/api/cron/status"),
+      ]);
+      if (jobsRes.ok) setJobs((await jobsRes.json()).jobs || []);
+      if (statusRes.ok) setStatus(await statusRes.json());
+    } catch (e) {
+      console.error("Failed to fetch cron data", e);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const fetchRuns = useCallback(async (jobId?: string) => {
+    try {
+      const url = jobId ? `/api/cron/jobs/${jobId}/runs?limit=50` : "/api/cron/runs?limit=50";
+      const res = await apiFetch(url);
+      if (res.ok) setRuns((await res.json()).runs || []);
+    } catch (e) {
+      console.error("Failed to fetch runs", e);
+    }
+  }, []);
+
+  useEffect(() => { fetchJobs(); }, [fetchJobs]);
+
+  useEffect(() => {
+    if (activeTab === "history") fetchRuns(selectedJobId || undefined);
+  }, [activeTab, selectedJobId, fetchRuns]);
+
+  const handleCreate = async () => {
+    if (!form.taskInput) return toast.error("Task input is required");
+
+    const body: Record<string, unknown> = {
+      name: form.name || undefined,
+      taskInput: form.taskInput,
+      model: form.model || undefined,
+      maxRetries: parseInt(form.maxRetries) || 0,
+      timeoutSeconds: parseInt(form.timeoutSeconds) || 7200,
+    };
+
+    if (form.scheduleKind === "cron") {
+      if (!form.cronExpr) return toast.error("Cron expression is required");
+      body.schedule = { kind: "cron", expr: form.cronExpr, tz: form.timezone || null };
+    } else if (form.scheduleKind === "every") {
+      if (!form.everyInterval) return toast.error("Interval is required");
+      body.every = form.everyInterval;
+    } else if (form.scheduleKind === "at") {
+      if (!form.atTime) return toast.error("Date/time is required");
+      body.at = new Date(form.atTime).toISOString();
+    }
+
+    if (form.deliveryMode !== "none") {
+      body.delivery = { mode: form.deliveryMode };
+    }
+
+    try {
+      const res = await apiFetch("/api/cron/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        toast.success("Job created");
+        setIsAddOpen(false);
+        setForm(EMPTY_FORM);
+        fetchJobs();
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Failed to create job");
+      }
+    } catch {
+      toast.error("API connection error");
+    }
+  };
+
+  const handleToggle = async (id: string, enabled: boolean) => {
+    try {
+      const res = await apiFetch(`/api/cron/jobs/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      });
+      if (res.ok) {
+        toast.success(enabled ? "Job enabled" : "Job paused");
+        fetchJobs();
+      }
+    } catch {
+      toast.error("Failed to update job");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await apiFetch(`/api/cron/jobs/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Job deleted");
+        fetchJobs();
+      }
+    } catch {
+      toast.error("Failed to delete job");
+    }
+  };
+
+  const handleForceRun = async (id: string) => {
+    try {
+      const res = await apiFetch(`/api/cron/jobs/${id}/run`, { method: "POST" });
+      if (res.ok) {
+        toast.success("Job triggered");
+        setTimeout(fetchJobs, 2000);
+      }
+    } catch {
+      toast.error("Failed to trigger job");
+    }
+  };
+
+  const formatSchedule = (s: CronJob["schedule"]) => {
+    if (s.kind === "cron") return s.expr || "";
+    if (s.kind === "every" && s.everyMs) {
+      const secs = s.everyMs / 1000;
+      if (secs >= 86400) return `every ${Math.round(secs / 86400)}d`;
+      if (secs >= 3600) return `every ${Math.round(secs / 3600)}h`;
+      if (secs >= 60) return `every ${Math.round(secs / 60)}m`;
+      return `every ${secs}s`;
+    }
+    if (s.kind === "at") return `at ${new Date(s.at!).toLocaleString()}`;
+    return "unknown";
+  };
+
+  const statusIcon = (s: string | null) => {
+    if (s === "ok") return <CheckCircle2 className="w-3 h-3 text-emerald-400" />;
+    if (s === "error" || s === "timeout") return <XCircle className="w-3 h-3 text-red-400" />;
+    if (s === "skipped") return <Pause className="w-3 h-3 text-yellow-400" />;
+    return <Clock className="w-3 h-3 text-gray-600" />;
+  };
+
+  const kindIcon = (kind: string) => {
+    if (kind === "cron") return <Repeat className="w-3 h-3" />;
+    if (kind === "every") return <Timer className="w-3 h-3" />;
+    return <Clock className="w-3 h-3" />;
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="w-8 h-8 text-[#00d9ff] animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">Cron</h2>
+          <p className="text-gray-400 font-mono text-sm tracking-widest">SCHEDULED TASKS & RUN HISTORY</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button onClick={fetchJobs} variant="ghost" size="sm" className="text-gray-400 hover:text-[#00d9ff] font-mono text-[10px] uppercase">
+            <RefreshCw className="w-3 h-3 mr-2" />
+            Refresh
+          </Button>
+          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] text-white uppercase text-xs tracking-tighter">
+                <Plus className="w-3 h-3 mr-2" />
+                New Job
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-slate-950 border-slate-800 text-white font-mono max-w-lg">
+              <DialogHeader>
+                <DialogTitle className="uppercase tracking-widest text-sm border-b border-slate-800 pb-4">Create Cron Job</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-4 max-h-[70vh] overflow-y-auto">
+                <div className="space-y-1">
+                  <label className="text-[10px] text-gray-500 uppercase">Name</label>
+                  <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Daily Report" className="bg-slate-900 border-slate-800 text-xs" />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] text-gray-500 uppercase">Schedule Type</label>
+                  <Select value={form.scheduleKind} onValueChange={(v) => setForm({ ...form, scheduleKind: v as typeof form.scheduleKind })}>
+                    <SelectTrigger className="bg-slate-900 border-slate-800 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-slate-950 border-slate-800">
+                      <SelectItem value="cron">Cron Expression</SelectItem>
+                      <SelectItem value="every">Fixed Interval</SelectItem>
+                      <SelectItem value="at">One-Shot (At)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {form.scheduleKind === "cron" && (
+                  <>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-gray-500 uppercase">Cron Expression</label>
+                      <Input value={form.cronExpr} onChange={(e) => setForm({ ...form, cronExpr: e.target.value })} placeholder="0 9 * * *" className="bg-slate-900 border-slate-800 text-xs text-[#00ff88]" />
+                      <p className="text-[9px] text-gray-600">min hour day month weekday (e.g. "0 9 * * *" = daily 9am)</p>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-gray-500 uppercase">Timezone (optional)</label>
+                      <Input value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} placeholder="America/New_York" className="bg-slate-900 border-slate-800 text-xs" />
+                    </div>
+                  </>
+                )}
+
+                {form.scheduleKind === "every" && (
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-gray-500 uppercase">Interval</label>
+                    <Input value={form.everyInterval} onChange={(e) => setForm({ ...form, everyInterval: e.target.value })} placeholder="30m (30s, 5m, 2h, 1d)" className="bg-slate-900 border-slate-800 text-xs text-[#00ff88]" />
+                  </div>
+                )}
+
+                {form.scheduleKind === "at" && (
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-gray-500 uppercase">Date & Time</label>
+                    <Input type="datetime-local" value={form.atTime} onChange={(e) => setForm({ ...form, atTime: e.target.value })} className="bg-slate-900 border-slate-800 text-xs" />
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="text-[10px] text-gray-500 uppercase">Task Input (Agent Prompt)</label>
+                  <textarea
+                    value={form.taskInput}
+                    onChange={(e) => setForm({ ...form, taskInput: e.target.value })}
+                    placeholder="What should the agent do when this job runs?"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-md text-xs p-3 min-h-[80px] text-white resize-y"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-gray-500 uppercase">Model (optional)</label>
+                    <Input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} placeholder="openai:gpt-4.1-mini" className="bg-slate-900 border-slate-800 text-xs" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-gray-500 uppercase">Max Retries</label>
+                    <Input type="number" value={form.maxRetries} onChange={(e) => setForm({ ...form, maxRetries: e.target.value })} className="bg-slate-900 border-slate-800 text-xs" />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] text-gray-500 uppercase">Timeout (seconds)</label>
+                  <Input type="number" value={form.timeoutSeconds} onChange={(e) => setForm({ ...form, timeoutSeconds: e.target.value })} className="bg-slate-900 border-slate-800 text-xs" />
+                </div>
+
+                <Button onClick={handleCreate} className="w-full bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] text-white uppercase text-xs tracking-tighter">
+                  Create Job
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      {/* Status Bar */}
+      {status && (
+        <div className="flex items-center gap-6 text-xs font-mono text-gray-500">
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${status.running ? "bg-emerald-400 animate-pulse" : "bg-red-400"}`} />
+            <span className="uppercase">{status.running ? "Running" : "Stopped"}</span>
+          </div>
+          <span>{status.totalJobs} jobs</span>
+          <span>{status.enabledJobs} enabled</span>
+          {status.runningNow > 0 && <span className="text-yellow-400">{status.runningNow} running now</span>}
+          {status.nextWakeAt && <span>Next: {new Date(status.nextWakeAt).toLocaleString()}</span>}
+        </div>
+      )}
+
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="bg-slate-900/50 border border-slate-800">
+          <TabsTrigger value="jobs" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white font-mono text-xs uppercase">
+            <Clock className="w-3 h-3 mr-2" />Jobs
+          </TabsTrigger>
+          <TabsTrigger value="history" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white font-mono text-xs uppercase">
+            <History className="w-3 h-3 mr-2" />Run History
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Jobs Tab */}
+        <TabsContent value="jobs" className="mt-4">
+          {jobs.length === 0 ? (
+            <Card className="bg-slate-900/50 border-slate-800">
+              <CardContent className="py-16 text-center">
+                <Clock className="w-12 h-12 text-gray-700 mx-auto mb-4" />
+                <p className="text-gray-600 font-mono uppercase text-xs tracking-widest">No cron jobs configured</p>
+                <p className="text-gray-700 font-mono text-[10px] mt-2">Create one to schedule recurring agent tasks</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {jobs.map((job) => (
+                <Card key={job.id} className={`bg-slate-900/50 border-slate-800 hover:border-slate-700 transition-colors ${job.runningSince ? "border-yellow-500/30" : ""}`}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        {/* Top row: name + badges */}
+                        <div className="flex items-center gap-2 mb-2">
+                          {kindIcon(job.schedule.kind)}
+                          <span className="font-mono text-sm text-white uppercase tracking-tight truncate">{job.name}</span>
+                          <Badge variant="outline" className={`text-[9px] ${job.enabled ? "border-emerald-500/30 text-emerald-400" : "border-gray-700 text-gray-500"}`}>
+                            {job.runningSince ? "RUNNING" : job.enabled ? "ENABLED" : "PAUSED"}
+                          </Badge>
+                          <Badge variant="outline" className="text-[9px] border-[#00d9ff]/20 text-[#00d9ff]">
+                            {job.schedule.kind}
+                          </Badge>
+                          {job.delivery?.mode !== "none" && (
+                            <Badge variant="outline" className="text-[9px] border-purple-500/20 text-purple-400">
+                              {job.delivery.mode}
+                            </Badge>
+                          )}
+                        </div>
+
+                        {/* Schedule info */}
+                        <div className="flex items-center gap-4 text-[10px] font-mono text-gray-500 mb-2">
+                          <span className="text-[#00ff88]">{formatSchedule(job.schedule)}</span>
+                          {job.schedule.tz && (
+                            <span className="flex items-center gap-1">
+                              <Globe className="w-2.5 h-2.5" />{job.schedule.tz}
+                            </span>
+                          )}
+                          {job.maxRetries > 0 && <span>retries: {job.maxRetries}</span>}
+                        </div>
+
+                        {/* Task input preview */}
+                        <p className="text-[10px] text-gray-600 font-mono truncate lowercase italic">{job.taskInput}</p>
+
+                        {/* Stats row */}
+                        <div className="flex items-center gap-4 mt-2 text-[10px] font-mono text-gray-600">
+                          <span className="flex items-center gap-1">{statusIcon(job.lastStatus)} {job.lastStatus || "never run"}</span>
+                          <span>runs: {job.runCount}</span>
+                          {job.lastDurationMs && <span>{Math.round(job.lastDurationMs / 1000)}s</span>}
+                          {job.consecutiveErrors > 0 && (
+                            <span className="text-red-400 flex items-center gap-1">
+                              <AlertTriangle className="w-2.5 h-2.5" />{job.consecutiveErrors} errors
+                            </span>
+                          )}
+                          {job.nextRunAt && <span>next: {new Date(job.nextRunAt).toLocaleString()}</span>}
+                        </div>
+
+                        {/* Error display */}
+                        {job.lastError && (
+                          <p className="text-[9px] text-red-400/70 font-mono mt-1 truncate">{job.lastError}</p>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Switch
+                          checked={job.enabled}
+                          onCheckedChange={(v) => handleToggle(job.id, v)}
+                          className="data-[state=checked]:bg-emerald-500"
+                        />
+                        <Button variant="ghost" size="icon" onClick={() => handleForceRun(job.id)} className="text-gray-500 hover:text-[#00d9ff]" title="Run now">
+                          <Play className="w-3 h-3" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => { setSelectedJobId(job.id); setActiveTab("history"); }} className="text-gray-500 hover:text-purple-400" title="View history">
+                          <History className="w-3 h-3" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(job.id)} className="text-gray-500 hover:text-red-400" title="Delete">
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* History Tab */}
+        <TabsContent value="history" className="mt-4">
+          <Card className="bg-slate-900/50 border-slate-800">
+            <CardHeader className="border-b border-slate-800/50 pb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <History className="w-5 h-5 text-purple-400" />
+                  <div>
+                    <CardTitle className="text-white uppercase tracking-tight text-sm">Run History</CardTitle>
+                    <CardDescription className="text-gray-500 font-mono text-[10px] uppercase">
+                      {selectedJobId ? `Job ${selectedJobId.slice(0, 8)}` : "All Jobs"}
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {selectedJobId && (
+                    <Button variant="ghost" size="sm" onClick={() => { setSelectedJobId(null); fetchRuns(); }} className="text-gray-400 hover:text-white font-mono text-[10px] uppercase">
+                      Show All
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="sm" onClick={() => fetchRuns(selectedJobId || undefined)} className="text-gray-400 hover:text-[#00d9ff] font-mono text-[10px] uppercase">
+                    <RefreshCw className="w-3 h-3 mr-1" /> Refresh
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-4">
+              {runs.length === 0 ? (
+                <div className="text-center py-12 text-gray-700 font-mono uppercase text-[10px] tracking-widest">No run history</div>
+              ) : (
+                <div className="space-y-2">
+                  {runs.map((run) => (
+                    <div key={run.id} className="flex items-center gap-3 p-3 bg-slate-800/20 border border-slate-800/50 rounded-lg text-xs font-mono">
+                      {statusIcon(run.status)}
+                      <span className="text-gray-400 w-40 shrink-0">{new Date(run.started_at).toLocaleString()}</span>
+                      <Badge variant="outline" className={`text-[9px] ${
+                        run.status === "ok" ? "border-emerald-500/20 text-emerald-400"
+                        : run.status === "error" ? "border-red-500/20 text-red-400"
+                        : run.status === "timeout" ? "border-orange-500/20 text-orange-400"
+                        : "border-gray-700 text-gray-500"
+                      }`}>
+                        {run.status}
+                      </Badge>
+                      {run.duration_ms && <span className="text-gray-600">{Math.round(run.duration_ms / 1000)}s</span>}
+                      {run.retry_attempt > 0 && <span className="text-yellow-500">retry #{run.retry_attempt}</span>}
+                      {run.delivery_status !== "not-requested" && (
+                        <Badge variant="outline" className="text-[9px] border-purple-500/20 text-purple-400">{run.delivery_status}</Badge>
+                      )}
+                      {run.error && <span className="text-red-400/60 truncate flex-1">{run.error}</span>}
+                      {run.result_preview && !run.error && <span className="text-gray-600 truncate flex-1">{run.result_preview.slice(0, 80)}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

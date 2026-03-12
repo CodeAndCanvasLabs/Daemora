@@ -12,6 +12,7 @@ import { Security } from "./pages/Security";
 import { Costs } from "./pages/Costs";
 import { Tenants } from "./pages/Tenants";
 import { Settings } from "./pages/Settings";
+import { Cron } from "./pages/Cron";
 
 export const router = createBrowserRouter([
   {
@@ -26,6 +27,7 @@ export const router = createBrowserRouter([
       { path: "channels", Component: Channels },
       { path: "mcp", Component: MCP },
       { path: "skills", Component: Skills },
+      { path: "cron", Component: Cron },
       { path: "security", Component: Security },
       { path: "costs", Component: Costs },
       { path: "tenants", Component: Tenants },
