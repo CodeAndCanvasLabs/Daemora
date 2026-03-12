@@ -180,6 +180,65 @@ function _initTables(db) {
     );
     CREATE INDEX IF NOT EXISTS idx_audit_tenant_date ON audit_log(tenant_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_audit_event ON audit_log(event);
+
+    CREATE TABLE IF NOT EXISTS cron_jobs (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT,
+      name TEXT NOT NULL,
+      description TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      delete_after_run INTEGER NOT NULL DEFAULT 0,
+      schedule_kind TEXT NOT NULL DEFAULT 'cron',
+      cron_expr TEXT,
+      cron_tz TEXT,
+      every_ms INTEGER,
+      at_time TEXT,
+      stagger_ms INTEGER DEFAULT 0,
+      task_input TEXT NOT NULL,
+      model TEXT,
+      thinking TEXT,
+      timeout_seconds INTEGER DEFAULT 7200,
+      delivery_mode TEXT DEFAULT 'none',
+      delivery_channel TEXT,
+      delivery_to TEXT,
+      delivery_channel_meta TEXT,
+      max_retries INTEGER DEFAULT 0,
+      retry_backoff_ms INTEGER DEFAULT 30000,
+      failure_alert TEXT,
+      next_run_at TEXT,
+      last_run_at TEXT,
+      last_status TEXT,
+      last_error TEXT,
+      last_duration_ms INTEGER,
+      consecutive_errors INTEGER DEFAULT 0,
+      run_count INTEGER DEFAULT 0,
+      running_since TEXT,
+      last_failure_alert_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_cron_jobs_tenant ON cron_jobs(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_cron_jobs_next_run ON cron_jobs(next_run_at);
+    CREATE INDEX IF NOT EXISTS idx_cron_jobs_enabled ON cron_jobs(enabled);
+
+    CREATE TABLE IF NOT EXISTS cron_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_id TEXT NOT NULL,
+      tenant_id TEXT,
+      started_at TEXT NOT NULL,
+      completed_at TEXT,
+      status TEXT,
+      duration_ms INTEGER,
+      error TEXT,
+      result_preview TEXT,
+      task_id TEXT,
+      delivery_status TEXT DEFAULT 'not-requested',
+      delivery_error TEXT,
+      retry_attempt INTEGER DEFAULT 0,
+      cost TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_cron_runs_job ON cron_runs(job_id, started_at);
+    CREATE INDEX IF NOT EXISTS idx_cron_runs_tenant ON cron_runs(tenant_id, started_at);
   `);
 }
 
