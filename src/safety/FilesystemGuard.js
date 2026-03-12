@@ -1,4 +1,5 @@
 import { resolve, sep } from "path";
+import { realpathSync } from "fs";
 import { config } from "../config/default.js";
 import eventBus from "../core/EventBus.js";
 import tenantContext from "../tenants/TenantContext.js";
@@ -6,24 +7,24 @@ import tenantContext from "../tenants/TenantContext.js";
 /**
  * Filesystem Guard - restricts file access to safe paths.
  *
- * Two layers of protection:
+ * Layers:
+ *   1. Hardcoded BLOCKED_PATTERNS — sensitive files always blocked
+ *   2. Hardcoded WRITE_BLOCKED_PATTERNS — system dirs write-blocked
+ *   3. User blocked paths (global ∪ tenant) — always denied
+ *   4. User allowed paths (global ∩ tenant) — if set, only these accessible
+ *   5. Otherwise — allowed
  *
- * 1. HARDCODED BLOCKED PATTERNS - sensitive system files that are ALWAYS blocked
- *    (~/.ssh, .env, /etc/shadow, certificates, etc.)
- *
- * 2. USER-CONFIGURABLE SCOPING - like Docker volume mounts
- *    ALLOWED_PATHS=/Users/you/Downloads,/Users/you/Projects
- *      → Agent can ONLY access files inside those directories.
- *      → If unset: no directory restriction (global mode).
- *    BLOCKED_PATHS=/Users/you/Desktop,/Users/you/Documents
- *      → Always blocked regardless of ALLOWED_PATHS.
- *      → Useful for saying "everything except these folders".
- *
- * Examples:
- *   ALLOWED_PATHS=/home/john/workspace   → locked to workspace only
- *   BLOCKED_PATHS=/home/john/private     → blocks one folder, rest is open
- *   (neither set)                        → only hardcoded patterns blocked
+ * Path rules:
+ *   - allowedPaths set → ONLY those dirs accessible, everything else blocked
+ *   - blockedPaths set → those dirs denied, rest open
+ *   - Both set → allowed dirs minus blocked dirs
+ *   - Tenant can never exceed global (allowed = intersection, blocked = union)
+ *   - Symlinks resolved to real path before checking
+ *   - Case-insensitive comparison on macOS/Windows
  */
+
+// Detect case-insensitive filesystem (macOS APFS, Windows NTFS)
+const CASE_INSENSITIVE = process.platform === "darwin" || process.platform === "win32";
 
 // Paths the agent should NEVER read or write
 const BLOCKED_PATTERNS = [
@@ -46,15 +47,11 @@ const BLOCKED_PATTERNS = [
   /\.pem$/,
   /\.key$/,
   // ── Environment files (API keys in plaintext) ──────────────────────────────
-  // These are READ-blocked - not just write-blocked. An agent that can read
-  // .env can exfiltrate every API key regardless of SecretScanner.
   /[\/\\]\.env$/,
-  /[\/\\]\.env\.[^\/\\]+$/,    // .env.local, .env.production, etc.
-  /^\.env$/,                   // relative path .env
-  /^\.env\.[^\/\\]+$/,         // relative .env.local etc.
+  /[\/\\]\.env\.[^\/\\]+$/,
+  /^\.env$/,
+  /^\.env\.[^\/\\]+$/,
   // ── Agent config files (may contain plaintext API keys) ──────────────────
-  // config/mcp.json stores MCP server credentials (GITHUB_TOKEN, Bearer tokens, etc.)
-  // config/hooks.json and other agent config files are internal and agent-read-only.
   /[\/\\]config[\/\\]mcp\.json$/,
   /^config[\/\\]mcp\.json$/,
   /[\/\\]config[\/\\]hooks\.json$/,
@@ -62,7 +59,7 @@ const BLOCKED_PATTERNS = [
   // ── Tenant data (contains AES-encrypted API keys + sensitive config) ───────
   /[\/\\]data[\/\\]tenants[\/\\][^\/\\]+\.json$/,
   /[\/\\]tenants\.json$/,
-  // ── Audit / cost logs (operational data, not secrets, but limit exposure) ──
+  // ── Audit / cost logs ──────────────────────────────────────────────────────
   /[\/\\]data[\/\\]audit[\/\\]/,
 ];
 
@@ -77,6 +74,24 @@ const WRITE_BLOCKED_PATTERNS = [
   /\/System\//,
   /\/Library\/LaunchDaemons\//,
 ];
+
+/**
+ * Normalize a path for comparison: resolve, follow symlinks, case-fold on
+ * case-insensitive filesystems.
+ */
+function normalizePath(p) {
+  let norm = resolve(p);
+  try { norm = realpathSync(norm); } catch { /* path may not exist yet — use resolved */ }
+  if (CASE_INSENSITIVE) norm = norm.toLowerCase();
+  return norm;
+}
+
+/**
+ * Check if `child` is equal to or inside `parent`.
+ */
+function isInsideDir(child, parent) {
+  return child === parent || child.startsWith(parent + sep) || child.startsWith(parent + "/");
+}
 
 class FilesystemGuard {
   constructor() {
@@ -129,19 +144,22 @@ class FilesystemGuard {
       }
     }
 
-    // ── Resolve per-tenant or global path config ──────────────────────────────
-    // When a task runs inside tenantContext.run(), use per-tenant resolved config.
-    // Otherwise fall back to global filesystem config.
+    // ── Normalize for directory checks (symlink + case-fold) ─────────────────
+    const norm = normalizePath(filePath);
+
+    // ── Resolve per-tenant or global path config ────────────────────────────
+    // resolvedConfig already has merged paths (global ∪ tenant for blocked,
+    // global ∩ tenant for allowed) — computed by TenantManager.resolveTaskConfig().
     const store = tenantContext.getStore();
     const resolvedConfig = store?.resolvedConfig;
 
-    // ── Layer 2: User-defined blocked paths ───────────────────────────────────
+    // ── Layer 2: User-defined blocked paths (global ∪ tenant) ────────────────
     const userBlocked = resolvedConfig
       ? (resolvedConfig.blockedPaths || [])
       : (config.filesystem?.blockedPaths || []);
     for (const dir of userBlocked) {
-      const dirResolved = resolve(dir);
-      if (resolved === dirResolved || resolved.startsWith(dirResolved + sep) || resolved.startsWith(dirResolved + "/")) {
+      const dirNorm = normalizePath(dir);
+      if (isInsideDir(norm, dirNorm)) {
         this._block(operation, resolved, `user-blocked:${dir}`);
         return {
           allowed: false,
@@ -150,14 +168,14 @@ class FilesystemGuard {
       }
     }
 
-    // ── Layer 3: User-defined allowed paths (scoped mode) ─────────────────────
+    // ── Layer 3: User-defined allowed paths (scoped mode) ────────────────────
     const userAllowed = resolvedConfig
       ? (resolvedConfig.allowedPaths || [])
       : (config.filesystem?.allowedPaths || []);
     if (userAllowed.length > 0) {
       const inAllowed = userAllowed.some((dir) => {
-        const dirResolved = resolve(dir);
-        return resolved === dirResolved || resolved.startsWith(dirResolved + sep) || resolved.startsWith(dirResolved + "/");
+        const dirNorm = normalizePath(dir);
+        return isInsideDir(norm, dirNorm);
       });
 
       if (!inAllowed) {
