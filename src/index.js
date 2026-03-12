@@ -197,6 +197,10 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+app.get("/api/tools", (req, res) => {
+  res.json({ tools: Object.keys(toolFunctions).sort() });
+});
+
 // --- Chat endpoint (Async — returns taskId, client uses SSE to stream) ---
 app.post("/api/chat", (req, res) => {
   try {
