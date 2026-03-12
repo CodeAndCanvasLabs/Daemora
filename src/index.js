@@ -59,13 +59,13 @@ if (config.cleanupAfterDays > 0) {
 }
 
 // Periodic task cleaner — purge completed/failed/cancelled tasks every 5 hours
-const TASK_CLEAN_INTERVAL = 5 * 60 * 60 * 1000;
-setInterval(() => {
-  const deleted = cleanCompletedTasks();
-  if (deleted > 0) {
-    console.log(`[TaskCleaner] Purged ${deleted} completed tasks`);
-  }
-}, TASK_CLEAN_INTERVAL);
+// const TASK_CLEAN_INTERVAL = 5 * 60 * 60 * 1000;
+// setInterval(() => {
+//   const deleted = cleanCompletedTasks();
+//   if (deleted > 0) {
+//     console.log(`[TaskCleaner] Purged ${deleted} completed tasks`);
+//   }
+// }, TASK_CLEAN_INTERVAL);
 
 // Initialize task system (TaskRunner starts after full init — see startup sequence below)
 taskQueue.init();
