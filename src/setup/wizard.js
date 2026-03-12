@@ -936,11 +936,11 @@ export async function runSetupWizard() {
   if (mtChoice === "multitenant") {
     multiTenantMode = "multitenant";
     envConfig.MULTI_TENANT_ENABLED = "true";
-    envConfig.AUTO_REGISTER_TENANTS = "true";
+    envConfig.AUTO_REGISTER_TENANTS = "false";
     envConfig.TENANT_ISOLATE_FILESYSTEM = "true";
     const { randomBytes: rb } = await import("crypto");
     envConfig.DAEMORA_TENANT_KEY = rb(16).toString("hex");
-    p.log.success(`${S.check}  Multi-tenant enabled — auto-register, filesystem isolation, encryption key generated`);
+    p.log.success(`${S.check}  Multi-tenant enabled — admin-managed tenants, filesystem isolation, encryption key generated`);
   }
 
   // ━━━ Write Config ━━━
