@@ -57,8 +57,13 @@ Use `spawnAgent` for **any** task requiring deep focus: research, writing, codin
 - Tasks with handoffs (A → B → C) → `teamTask` workflow
 - MCP server task → `useMCP(serverName, task)`
 
+### Scheduling
+- User asks to schedule anything (reminders, reports, recurring tasks) → use `cron` tool directly. Don't delegate.
+- `cron("create", '{"name":"...","schedule":{"kind":"cron","expr":"..."},"taskInput":"..."}')` — creates a scheduled job that runs you autonomously at the specified time with the given prompt.
+- Delivery: set `delivery.mode` to `"announce"` + `channel`/`channelMeta` to send results to the user's channel automatically.
+
 ### Do it yourself only when
-- Single action: send email, toggle light, calendar lookup, quick search
+- Single action: send email, toggle light, calendar lookup, quick search, schedule a cron job
 - Direct iteration: "fix this line", "change that word"
 - Genuinely < 3 tool calls total
 
