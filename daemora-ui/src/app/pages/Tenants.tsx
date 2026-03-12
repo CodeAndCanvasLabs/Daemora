@@ -702,130 +702,110 @@ export function Tenants() {
               )}
             </div>
 
-            {/* Model Routes */}
+            {/* Sub-Agent Model */}
             <div className="space-y-2">
-              <label className="text-[10px] text-gray-500 uppercase">Model Routes</label>
-              <p className="text-[9px] text-gray-600">Assign specific models to agent profiles. Add custom profiles as needed.</p>
+              <label className="text-[10px] text-gray-500 uppercase">Sub-Agent Model</label>
+              <p className="text-[9px] text-gray-600">Model used when this tenant's tasks spawn sub-agents. Uses tenant default if not set.</p>
               {(() => {
                 const routes: Record<string, string> = (() => { try { return JSON.parse(editForm.modelRoutes || "{}"); } catch { return {}; } })();
-                const profiles = Object.keys(routes);
                 return (
                   <>
-                    {profiles.length > 0 && (
-                      <div className="space-y-1.5">
-                        {profiles.map(profile => (
-                          <div key={profile} className="flex items-center gap-2">
-                            <span className="text-[9px] font-mono text-gray-400 w-20 uppercase shrink-0 truncate">{profile}</span>
-                            <Select value={routes[profile] || ""} onValueChange={(v) => {
-                              const updated = { ...routes };
-                              if (!v || v === "default") delete updated[profile];
-                              else updated[profile] = v;
-                              setEditForm({ ...editForm, modelRoutes: JSON.stringify(updated) });
-                            }}>
-                              <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-[10px] h-7 font-mono flex-1">
-                                <SelectValue placeholder="Default" />
-                              </SelectTrigger>
-                              <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-48">
-                                <SelectItem value="default" className="text-[10px] font-mono text-gray-500">Default</SelectItem>
-                                {availableModels.map(m => (
-                                  <SelectItem key={m} value={m} className="text-[10px] font-mono">{m}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <button onClick={() => {
-                              const updated = { ...routes };
-                              delete updated[profile];
-                              setEditForm({ ...editForm, modelRoutes: JSON.stringify(updated) });
-                            }} className="text-red-500/50 hover:text-red-500"><X className="w-3 h-3" /></button>
-                          </div>
+                    <Select value={routes.subAgent || ""} onValueChange={(v) => {
+                      const updated = { ...routes };
+                      if (!v || v === "default") delete updated.subAgent;
+                      else updated.subAgent = v;
+                      setEditForm({ ...editForm, modelRoutes: JSON.stringify(updated) });
+                    }}>
+                      <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-[10px] h-8 font-mono">
+                        <SelectValue placeholder="Use tenant default" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-48">
+                        <SelectItem value="default" className="text-[10px] font-mono text-gray-500">Use tenant default</SelectItem>
+                        {availableModels.map(m => (
+                          <SelectItem key={m} value={m} className="text-[10px] font-mono">{m}</SelectItem>
                         ))}
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2">
-                      <Input
-                        placeholder="Profile name..."
-                        className="bg-slate-900 border-slate-800 text-white text-[10px] h-7 font-mono flex-1"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            const name = (e.target as HTMLInputElement).value.trim().toLowerCase().replace(/\s+/g, "-");
-                            if (name && !routes[name]) {
-                              setEditForm({ ...editForm, modelRoutes: JSON.stringify({ ...routes, [name]: "" }) });
-                              (e.target as HTMLInputElement).value = "";
-                            }
-                          }
-                        }}
-                      />
-                      <span className="text-[8px] text-gray-600 shrink-0">Enter to add</span>
-                    </div>
+                      </SelectContent>
+                    </Select>
                   </>
                 );
               })()}
             </div>
 
-            {/* API Keys — per-service cards */}
-            <div className="space-y-3 p-4 bg-slate-800/30 border border-slate-800 rounded-xl">
-              <div className="flex items-center gap-2">
-                <Key className="w-3.5 h-3.5 text-[#ffaa00]" />
-                <label className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">API Keys (Encrypted)</label>
-              </div>
-              <p className="text-[9px] text-gray-600">Per-tenant keys override global defaults. Only configure what this tenant needs.</p>
-
-              {[
-                { service: "LLM Providers", keys: ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY"], color: "#00d9ff" },
-                { service: "ElevenLabs TTS", keys: ["ELEVENLABS_API_KEY"], color: "#f0883e" },
-                { service: "Email (Resend)", keys: ["RESEND_API_KEY", "RESEND_FROM"], color: "#a78bfa" },
-                { service: "Email (SMTP)", keys: ["EMAIL_USER", "EMAIL_PASSWORD", "EMAIL_SMTP_HOST"], color: "#a78bfa" },
-                { service: "Brave Search", keys: ["BRAVE_API_KEY"], color: "#f97316" },
-                { service: "Google Places", keys: ["GOOGLE_PLACES_API_KEY"], color: "#4ade80" },
-                { service: "Pushover", keys: ["PUSHOVER_API_TOKEN", "PUSHOVER_USER_KEY"], color: "#38bdf8" },
-                { service: "Ntfy", keys: ["NTFY_TOPIC", "NTFY_TOKEN"], color: "#38bdf8" },
-                { service: "Database", keys: ["DATABASE_URL", "POSTGRES_URL"], color: "#fbbf24" },
-                { service: "Google Contacts", keys: ["GOOGLE_CONTACTS_ACCESS_TOKEN"], color: "#34d399" },
-                { service: "Google Calendar", keys: ["GOOGLE_CALENDAR_ACCESS_TOKEN"], color: "#34d399" },
-              ].map(({ service, keys, color }) => {
-                const connected = keys.every(k => apiKeyNames.includes(k));
-                const partial = keys.some(k => apiKeyNames.includes(k));
-                return (
-                  <div key={service} className="p-3 bg-slate-900/50 border border-slate-800 rounded-lg space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-mono font-medium" style={{ color }}>{service}</span>
-                      {connected ? (
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="bg-[#00ff88]/10 border-[#00ff88]/30 text-[#00ff88] text-[8px] font-mono">CONFIGURED</Badge>
-                          <button onClick={() => keys.forEach(k => handleDeleteApiKey(k))} className="text-red-500/50 hover:text-red-500"><X className="w-3 h-3" /></button>
-                        </div>
-                      ) : partial ? (
-                        <Badge variant="outline" className="bg-[#ffaa00]/10 border-[#ffaa00]/30 text-[#ffaa00] text-[8px] font-mono">INCOMPLETE</Badge>
-                      ) : null}
-                    </div>
-                    {!connected && (
-                      <div className="space-y-1.5 pt-1">
-                        {keys.filter(k => !apiKeyNames.includes(k)).map(k => (
-                          <Input
-                            key={k}
-                            type="password"
-                            value={newCredValues[k] || ""}
-                            onChange={(e) => setNewCredValues(v => ({ ...v, [k]: e.target.value }))}
-                            placeholder={k}
-                            className="bg-slate-900 border-slate-800 text-white text-[10px] h-8 font-mono"
-                          />
-                        ))}
-                        <Button
-                          onClick={() => handleConnectService(service, keys.filter(k => !apiKeyNames.includes(k)))}
-                          disabled={keySaving || keys.filter(k => !apiKeyNames.includes(k)).some(k => !(newCredValues[k] || "").trim())}
-                          size="sm"
-                          className="h-8 text-[10px] font-mono uppercase w-full"
-                          style={{ backgroundColor: `${color}15`, color, borderColor: `${color}30` }}
-                        >
-                          {keySaving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Plus className="w-3.5 h-3.5 mr-1" />}
-                          Save {service}
-                        </Button>
-                      </div>
-                    )}
+            {/* Tool API Keys — only show for selected tools */}
+            {(() => {
+              const selectedTools = (editForm.allowedTools || "").split(",").map((t: string) => t.trim()).filter(Boolean);
+              const TOOL_KEYS = [
+                { tools: ["generateImage", "readPDF", "imageAnalysis", "transcribeAudio"], label: "OpenAI", keys: ["OPENAI_API_KEY"], color: "#00d9ff" },
+                { tools: ["generateImage", "readPDF", "imageAnalysis"], label: "Anthropic", keys: ["ANTHROPIC_API_KEY"], color: "#d4a574" },
+                { tools: ["generateImage", "readPDF", "imageAnalysis"], label: "Google AI", keys: ["GOOGLE_AI_API_KEY"], color: "#4285f4" },
+                { tools: ["textToSpeech"], label: "ElevenLabs (TTS)", keys: ["ELEVENLABS_API_KEY"], color: "#f0883e" },
+                { tools: ["sendEmail"], label: "Email — Resend", keys: ["RESEND_API_KEY", "RESEND_FROM"], color: "#a78bfa" },
+                { tools: ["sendEmail"], label: "Email — SMTP", keys: ["EMAIL_USER", "EMAIL_PASSWORD", "EMAIL_SMTP_HOST"], color: "#a78bfa" },
+                { tools: ["webSearch"], label: "Brave Search", keys: ["BRAVE_API_KEY"], color: "#f97316" },
+                { tools: ["googlePlaces"], label: "Google Places", keys: ["GOOGLE_PLACES_API_KEY"], color: "#4ade80" },
+                { tools: ["notification"], label: "Pushover", keys: ["PUSHOVER_API_TOKEN", "PUSHOVER_USER_KEY"], color: "#38bdf8" },
+                { tools: ["notification"], label: "Ntfy", keys: ["NTFY_TOPIC", "NTFY_TOKEN"], color: "#38bdf8" },
+                { tools: ["database"], label: "Database", keys: ["DATABASE_URL"], color: "#fbbf24" },
+                { tools: ["contacts"], label: "Google Contacts", keys: ["GOOGLE_CONTACTS_ACCESS_TOKEN"], color: "#34d399" },
+                { tools: ["calendar"], label: "Google Calendar", keys: ["GOOGLE_CALENDAR_ACCESS_TOKEN"], color: "#34d399" },
+                { tools: ["makeVoiceCall"], label: "Twilio (Voice)", keys: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_FROM"], color: "#e74c3c" },
+              ];
+              // Filter: show only keys for tools this tenant has selected (or all if no allowlist)
+              const visible = TOOL_KEYS.filter(({ tools }) =>
+                selectedTools.length === 0 || tools.some(t => selectedTools.includes(t))
+              );
+              if (visible.length === 0) return null;
+              return (
+                <div className="space-y-3 p-4 bg-slate-800/30 border border-slate-800 rounded-xl">
+                  <div className="flex items-center gap-2">
+                    <Key className="w-3.5 h-3.5 text-[#ffaa00]" />
+                    <label className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Tool API Keys (Encrypted)</label>
                   </div>
-                );
-              })}
-            </div>
+                  <p className="text-[9px] text-gray-600">Keys for the tenant's selected tools. Per-tenant keys override global defaults.</p>
+
+                  {visible.map(({ tools, label, keys, color }) => {
+                    const connected = keys.every(k => apiKeyNames.includes(k));
+                    const partial = keys.some(k => apiKeyNames.includes(k));
+                    return (
+                      <div key={label} className="p-3 bg-slate-900/50 border border-slate-800 rounded-lg space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-mono font-medium" style={{ color }}>{label}</span>
+                            <span className="text-[8px] font-mono text-gray-600">{tools.join(", ")}</span>
+                          </div>
+                          {connected ? (
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="bg-[#00ff88]/10 border-[#00ff88]/30 text-[#00ff88] text-[8px] font-mono">CONFIGURED</Badge>
+                              <button onClick={() => keys.forEach(k => handleDeleteApiKey(k))} className="text-red-500/50 hover:text-red-500"><X className="w-3 h-3" /></button>
+                            </div>
+                          ) : partial ? (
+                            <Badge variant="outline" className="bg-[#ffaa00]/10 border-[#ffaa00]/30 text-[#ffaa00] text-[8px] font-mono">INCOMPLETE</Badge>
+                          ) : null}
+                        </div>
+                        {!connected && (
+                          <div className="space-y-1.5 pt-1">
+                            {keys.filter(k => !apiKeyNames.includes(k)).map(k => (
+                              <Input key={k} type="password" value={newCredValues[k] || ""}
+                                onChange={(e) => setNewCredValues(v => ({ ...v, [k]: e.target.value }))}
+                                placeholder={k} className="bg-slate-900 border-slate-800 text-white text-[10px] h-8 font-mono" />
+                            ))}
+                            <Button
+                              onClick={() => handleConnectService(label, keys.filter(k => !apiKeyNames.includes(k)))}
+                              disabled={keySaving || keys.filter(k => !apiKeyNames.includes(k)).some(k => !(newCredValues[k] || "").trim())}
+                              size="sm" className="h-8 text-[10px] font-mono uppercase w-full border"
+                              style={{ backgroundColor: `${color}15`, color, borderColor: `${color}30` }}
+                            >
+                              {keySaving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Plus className="w-3.5 h-3.5 mr-1" />}
+                              Save
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             {/* Channel Connections */}
             <div className="space-y-3 p-4 bg-slate-800/30 border border-slate-800 rounded-xl">
