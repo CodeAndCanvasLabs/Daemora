@@ -245,15 +245,41 @@ export const config = buildConfig(process.env);
  *
  * Uses dynamic import to avoid circular dependency with Database.js.
  */
+// Keys that belong in the vault, not in config_entries.
+// If any of these leak into config_entries, they are deleted on reload.
+const SENSITIVE_PATTERN = /KEY|TOKEN|SECRET|PASSWORD|PASSPHRASE|CREDENTIAL/i;
+
 export async function reloadFromDb() {
   try {
     const { getDb } = await import("../storage/Database.js");
-    const rows = getDb().prepare("SELECT key, value FROM config_entries").all();
+    const db = getDb();
+    const rows = db.prepare("SELECT key, value FROM config_entries").all();
     if (rows.length === 0) return;
 
-    // Inject SQLite config into process.env (overrides .env values)
+    // Check if vault is active — if so, skip sensitive keys from config_entries
+    // to prevent stale/plaintext values from overwriting decrypted vault secrets.
+    let vaultActive = false;
+    try {
+      const { secretVault } = await import("../safety/SecretVault.js");
+      vaultActive = secretVault.isUnlocked();
+    } catch { /* vault module not available — treat as inactive */ }
+
+    let loaded = 0;
+    const leaked = [];
     for (const { key, value } of rows) {
+      if (vaultActive && SENSITIVE_PATTERN.test(key)) {
+        leaked.push(key);
+        continue; // skip — vault has the real decrypted value
+      }
       process.env[key] = value;
+      loaded++;
+    }
+
+    // Clean up any sensitive keys that leaked into config_entries
+    if (leaked.length > 0) {
+      const del = db.prepare("DELETE FROM config_entries WHERE key = ?");
+      for (const key of leaked) del.run(key);
+      console.log(`[Config] Removed ${leaked.length} sensitive key(s) from config_entries (vault is source of truth): ${leaked.join(", ")}`);
     }
 
     // Rebuild and merge into the exported config object in-place.
@@ -261,7 +287,7 @@ export async function reloadFromDb() {
     const updated = buildConfig(process.env);
     Object.assign(config, updated);
 
-    console.log(`[Config] Reloaded ${rows.length} setting(s) from SQLite`);
+    console.log(`[Config] Reloaded ${loaded} setting(s) from SQLite`);
   } catch (err) {
     console.log(`[Config] SQLite reload skipped: ${err.message}`);
   }
