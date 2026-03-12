@@ -153,6 +153,28 @@ export function Tenants() {
     } catch { setChannelCredKeys([]); }
   };
 
+  const handleConnectService = async (serviceName: string, keys: string[]) => {
+    if (!editTenant) return;
+    setKeySaving(true);
+    const toastId = toast.loading(`Saving ${serviceName} keys...`);
+    try {
+      for (const key of keys) {
+        const value = (newCredValues[key] || "").trim();
+        if (!value) continue;
+        const res = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/apikeys/${encodeURIComponent(key)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ value }),
+        });
+        if (!res.ok) { const err = await res.json(); toast.error(err.error || `Failed to save ${key}`, { id: toastId }); return; }
+      }
+      toast.success(`${serviceName} configured`, { id: toastId });
+      setNewCredValues(v => { const next = { ...v }; keys.forEach(k => delete next[k]); return next; });
+      fetchApiKeys(editTenant.id);
+    } catch (e: any) { toast.error(e.message, { id: toastId }); }
+    finally { setKeySaving(false); }
+  };
+
   const handleConnectChannel = async (channel: string, keys: string[]) => {
     if (!editTenant) return;
     setCredSaving(true);
@@ -740,74 +762,69 @@ export function Tenants() {
               })()}
             </div>
 
-            {/* API Keys */}
+            {/* API Keys — per-service cards */}
             <div className="space-y-3 p-4 bg-slate-800/30 border border-slate-800 rounded-xl">
               <div className="flex items-center gap-2">
                 <Key className="w-3.5 h-3.5 text-[#ffaa00]" />
                 <label className="text-[10px] text-gray-400 uppercase tracking-wider font-bold">API Keys (Encrypted)</label>
               </div>
-              {apiKeyNames.length > 0 ? (
-                <div className="space-y-1.5">
-                  {apiKeyNames.map((name) => (
-                    <div key={name} className="flex items-center justify-between px-3 py-1.5 bg-slate-900/50 border border-slate-800 rounded-lg">
-                      <span className="text-[10px] font-mono text-[#00ff88]">{name}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-mono text-gray-600">••••••••</span>
-                        <button onClick={() => handleDeleteApiKey(name)} className="text-red-500/50 hover:text-red-500 transition-colors">
-                          <X className="w-3 h-3" />
-                        </button>
+              <p className="text-[9px] text-gray-600">Per-tenant keys override global defaults. Only configure what this tenant needs.</p>
+
+              {[
+                { service: "LLM Providers", keys: ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY"], color: "#00d9ff" },
+                { service: "ElevenLabs TTS", keys: ["ELEVENLABS_API_KEY"], color: "#f0883e" },
+                { service: "Email (Resend)", keys: ["RESEND_API_KEY", "RESEND_FROM"], color: "#a78bfa" },
+                { service: "Email (SMTP)", keys: ["EMAIL_USER", "EMAIL_PASSWORD", "EMAIL_SMTP_HOST"], color: "#a78bfa" },
+                { service: "Brave Search", keys: ["BRAVE_API_KEY"], color: "#f97316" },
+                { service: "Google Places", keys: ["GOOGLE_PLACES_API_KEY"], color: "#4ade80" },
+                { service: "Pushover", keys: ["PUSHOVER_API_TOKEN", "PUSHOVER_USER_KEY"], color: "#38bdf8" },
+                { service: "Ntfy", keys: ["NTFY_TOPIC", "NTFY_TOKEN"], color: "#38bdf8" },
+                { service: "Database", keys: ["DATABASE_URL", "POSTGRES_URL"], color: "#fbbf24" },
+                { service: "Google Contacts", keys: ["GOOGLE_CONTACTS_ACCESS_TOKEN"], color: "#34d399" },
+                { service: "Google Calendar", keys: ["GOOGLE_CALENDAR_ACCESS_TOKEN"], color: "#34d399" },
+              ].map(({ service, keys, color }) => {
+                const connected = keys.every(k => apiKeyNames.includes(k));
+                const partial = keys.some(k => apiKeyNames.includes(k));
+                return (
+                  <div key={service} className="p-3 bg-slate-900/50 border border-slate-800 rounded-lg space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-mono font-medium" style={{ color }}>{service}</span>
+                      {connected ? (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="bg-[#00ff88]/10 border-[#00ff88]/30 text-[#00ff88] text-[8px] font-mono">CONFIGURED</Badge>
+                          <button onClick={() => keys.forEach(k => handleDeleteApiKey(k))} className="text-red-500/50 hover:text-red-500"><X className="w-3 h-3" /></button>
+                        </div>
+                      ) : partial ? (
+                        <Badge variant="outline" className="bg-[#ffaa00]/10 border-[#ffaa00]/30 text-[#ffaa00] text-[8px] font-mono">INCOMPLETE</Badge>
+                      ) : null}
+                    </div>
+                    {!connected && (
+                      <div className="space-y-1.5 pt-1">
+                        {keys.filter(k => !apiKeyNames.includes(k)).map(k => (
+                          <Input
+                            key={k}
+                            type="password"
+                            value={newCredValues[k] || ""}
+                            onChange={(e) => setNewCredValues(v => ({ ...v, [k]: e.target.value }))}
+                            placeholder={k}
+                            className="bg-slate-900 border-slate-800 text-white text-[10px] h-8 font-mono"
+                          />
+                        ))}
+                        <Button
+                          onClick={() => handleConnectService(service, keys.filter(k => !apiKeyNames.includes(k)))}
+                          disabled={keySaving || keys.filter(k => !apiKeyNames.includes(k)).some(k => !(newCredValues[k] || "").trim())}
+                          size="sm"
+                          className="h-8 text-[10px] font-mono uppercase w-full"
+                          style={{ backgroundColor: `${color}15`, color, borderColor: `${color}30` }}
+                        >
+                          {keySaving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Plus className="w-3.5 h-3.5 mr-1" />}
+                          Save {service}
+                        </Button>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-[10px] text-gray-600 font-mono italic">No API keys configured — uses global keys</p>
-              )}
-              <div className="space-y-2 pt-1">
-                <Select value={newKeyName} onValueChange={setNewKeyName}>
-                  <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-[10px] font-mono h-8">
-                    <SelectValue placeholder="Select key to add..." />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                    {[
-                      { group: "LLM Providers", keys: ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY"] },
-                      { group: "Voice & Media", keys: ["ELEVENLABS_API_KEY"] },
-                      { group: "Email", keys: ["RESEND_API_KEY", "RESEND_FROM", "EMAIL_USER", "EMAIL_PASSWORD", "EMAIL_SMTP_HOST"] },
-                      { group: "Search & Location", keys: ["BRAVE_API_KEY", "GOOGLE_PLACES_API_KEY"] },
-                      { group: "Notifications", keys: ["PUSHOVER_API_TOKEN", "PUSHOVER_USER_KEY", "NTFY_TOPIC", "NTFY_TOKEN"] },
-                      { group: "Database", keys: ["DATABASE_URL", "POSTGRES_URL"] },
-                      { group: "Contacts & Calendar", keys: ["GOOGLE_CONTACTS_ACCESS_TOKEN", "GOOGLE_CALENDAR_ACCESS_TOKEN"] },
-                    ].map(({ group, keys }) => {
-                      const available = keys.filter(k => !apiKeyNames.includes(k));
-                      if (!available.length) return null;
-                      return [
-                        <SelectItem key={`__group_${group}`} value={`__group_${group}`} disabled className="text-[8px] font-mono text-gray-500 uppercase tracking-wider pointer-events-none opacity-70">{group}</SelectItem>,
-                        ...available.map(k => (
-                          <SelectItem key={k} value={k} className="text-[10px] font-mono pl-4">{k}</SelectItem>
-                        ))
-                      ];
-                    })}
-                  </SelectContent>
-                </Select>
-                {newKeyName && (
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Input type={showKeyValue ? "text" : "password"} value={newKeyValue}
-                        onChange={(e) => setNewKeyValue(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && handleAddApiKey()}
-                        placeholder="sk-..." className="bg-slate-900 border-slate-800 text-white text-xs h-8 pr-8 font-mono" />
-                      <button onClick={() => setShowKeyValue(!showKeyValue)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
-                        {showKeyValue ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                    <Button onClick={handleAddApiKey} disabled={keySaving || !newKeyValue} size="sm"
-                      className="bg-[#ffaa00]/15 text-[#ffaa00] border border-[#ffaa00]/30 hover:bg-[#ffaa00]/25 h-8 px-3">
-                      {keySaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                    </Button>
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })}
             </div>
 
             {/* Channel Connections */}
