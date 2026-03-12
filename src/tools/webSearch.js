@@ -2,6 +2,7 @@
  * Web Search - DuckDuckGo (free) + Brave Search (if API key set).
  * Upgraded: result caching, freshness/date filters, optionsJson support.
  */
+import { resolveKey } from "./_env.js";
 
 // Search result cache: key → { results, expiresAt }
 const searchCache = new Map();
@@ -55,7 +56,7 @@ export async function webSearch(params) {
   }
 
   let result;
-  if (provider === "ddg" || (!process.env.BRAVE_API_KEY && provider !== "brave")) {
+  if (provider === "ddg" || (!resolveKey("BRAVE_API_KEY") && provider !== "brave")) {
     result = await duckDuckGoSearch(query, limit, freshness);
   } else {
     result = await braveSearch(query, limit, freshness);
@@ -113,7 +114,7 @@ async function braveSearch(query, limit, freshness) {
       headers: {
         Accept: "application/json",
         "Accept-Encoding": "gzip",
-        "X-Subscription-Token": process.env.BRAVE_API_KEY,
+        "X-Subscription-Token": resolveKey("BRAVE_API_KEY"),
       },
       signal: AbortSignal.timeout(10000),
     });

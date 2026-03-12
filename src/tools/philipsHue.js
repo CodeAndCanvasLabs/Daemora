@@ -3,6 +3,7 @@
  * Requires HUE_BRIDGE_IP and HUE_API_KEY env vars.
  * All requests go to the local bridge — no cloud dependency.
  */
+import { resolveKey } from "./_env.js";
 
 export async function philipsHue(_params) {
   const action = _params?.action;
@@ -12,8 +13,8 @@ export async function philipsHue(_params) {
     ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson)
     : {};
 
-  const bridgeIp = params.bridgeIp || process.env.HUE_BRIDGE_IP;
-  const apiKey = params.apiKey || process.env.HUE_API_KEY;
+  const bridgeIp = params.bridgeIp || resolveKey("HUE_BRIDGE_IP");
+  const apiKey = params.apiKey || resolveKey("HUE_API_KEY");
 
   // Discovery doesn't require credentials
   if (action === "discover") {

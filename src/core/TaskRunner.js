@@ -194,6 +194,11 @@ class TaskRunner {
       ? Object.fromEntries(Object.entries(toolFunctions).filter(([k]) => resolvedConfig.tools.includes(k)))
       : { ...toolFunctions };
 
+    // Remove blocked tools
+    if (resolvedConfig.blockedTools?.length) {
+      tools = Object.fromEntries(Object.entries(tools).filter(([k]) => !resolvedConfig.blockedTools.includes(k)));
+    }
+
     // Filter MCP tools by per-tenant mcpServers allowlist (null = all allowed)
     const allowedMcpServers = resolvedConfig.mcpServers; // null = all
     if (allowedMcpServers !== null) {

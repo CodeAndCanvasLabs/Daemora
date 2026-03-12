@@ -8,7 +8,6 @@ import {
   Save,
   Loader2,
   CheckCircle,
-  User,
   Sparkles,
   Brain,
   Trash2,
@@ -16,7 +15,6 @@ import {
   X,
   ChevronDown,
   KeyRound,
-  MessageSquareText,
   Bot,
   FileCode2,
   Search,
@@ -25,16 +23,18 @@ import {
   ShieldCheck,
   Lock,
   Unlock,
+  Cpu,
+  DollarSign,
+  Zap,
 } from "lucide-react";
-
-interface AvailableVar {
-  key: string;
-  section: string;
-}
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { FaTelegram, FaDiscord, FaSlack, FaWhatsapp, FaLine } from "react-icons/fa6";
+import { SiSignal, SiGooglechat } from "react-icons/si";
+import { BsMicrosoftTeams } from "react-icons/bs";
+import { MdEmail } from "react-icons/md";
 
 interface SettingsData {
   vars: Record<string, string>;
-  available: AvailableVar[];
   vaultActive?: boolean;
 }
 
@@ -44,10 +44,6 @@ interface VaultStatus {
 }
 
 interface UserProfile {
-  name: string;
-  personality: string;
-  tone: string;
-  instructions: string;
   subAgentModel: string;
 }
 
@@ -280,7 +276,7 @@ export function Settings() {
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
 
-  const [profile, setProfile] = useState<UserProfile>({ name: "", personality: "", tone: "", instructions: "", subAgentModel: "" });
+  const [profile, setProfile] = useState<UserProfile>({ subAgentModel: "" });
   const [profileDirty, setProfileDirty] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
@@ -297,6 +293,11 @@ export function Settings() {
 
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
 
+  const [globalConfig, setGlobalConfig] = useState<Record<string, any>>({});
+  const [configDirty, setConfigDirty] = useState(false);
+  const [configSaving, setConfigSaving] = useState(false);
+  const [configSaved, setConfigSaved] = useState(false);
+
   const [vault, setVault] = useState<VaultStatus>({ exists: false, unlocked: false });
   const [vaultPassphrase, setVaultPassphrase] = useState("");
   const [vaultUnlocking, setVaultUnlocking] = useState(false);
@@ -310,14 +311,12 @@ export function Settings() {
       apiFetch("/api/memory").then((r) => r.json()),
       apiFetch("/api/models").then((r) => r.json()),
       apiFetch("/api/vault/status").then((r) => r.json()),
+      apiFetch("/api/config").then((r) => r.json()),
     ])
-      .then(([settingsData, profileData, skillsData, memoryData, modelsData, vaultData]) => {
+      .then(([settingsData, profileData, skillsData, memoryData, modelsData, vaultData, configData]) => {
         setData(settingsData);
+        setGlobalConfig(configData || {});
         setProfile({
-          name: profileData.name || "",
-          personality: profileData.personality || "",
-          tone: profileData.tone || "",
-          instructions: profileData.instructions || "",
           subAgentModel: profileData.subAgentModel || "",
         });
         setCustomSkills(skillsData.skills || []);
@@ -328,6 +327,39 @@ export function Settings() {
       })
       .catch(() => setIsLoading(false));
   }, []);
+
+  const handleConfigChange = (key: string, value: string) => {
+    setGlobalConfig((prev: Record<string, any>) => ({ ...prev, [key]: value }));
+    setConfigDirty(true);
+    setConfigSaved(false);
+  };
+
+  const handleConfigSave = async () => {
+    setConfigSaving(true);
+    try {
+      const envMap: Record<string, string> = {
+        defaultModel: "DEFAULT_MODEL",
+        permissionTier: "PERMISSION_TIER",
+        maxCostPerTask: "MAX_COST_PER_TASK",
+        maxDailyCost: "MAX_DAILY_COST",
+      };
+      const updates: Record<string, string> = {};
+      for (const [configKey, envKey] of Object.entries(envMap)) {
+        if (globalConfig[configKey] !== undefined) updates[envKey] = String(globalConfig[configKey]);
+      }
+      const res = await apiFetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates }),
+      });
+      if (res.ok) {
+        setConfigSaved(true);
+        setConfigDirty(false);
+        const d = await apiFetch("/api/config").then((r) => r.json());
+        setGlobalConfig(d);
+      }
+    } catch { /* ignore */ } finally { setConfigSaving(false); }
+  };
 
   const handleVaultUnlock = async () => {
     if (!vaultPassphrase) return;
@@ -466,16 +498,6 @@ export function Settings() {
     );
   }
 
-  // Keys already managed by dedicated UI controls — hide from env var sections
-  const managedKeys = new Set(["SUB_AGENT_MODEL"]);
-
-  const sections: Record<string, string[]> = {};
-  for (const v of data.available) {
-    if (managedKeys.has(v.key)) continue;
-    if (!sections[v.section]) sections[v.section] = [];
-    sections[v.section].push(v.key);
-  }
-
   // Group models by provider for the dropdown
   const modelsByProvider: Record<string, ModelOption[]> = {};
   for (const m of availableModels) {
@@ -494,6 +516,94 @@ export function Settings() {
         <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">Settings</h2>
         <p className="text-gray-500 font-mono text-xs tracking-widest uppercase">Configure your agent's identity, skills, memory & environment</p>
       </div>
+
+      {/* ── Global Config ────────────────────────────────────────────── */}
+      <Section
+        icon={Cpu}
+        title="Global Config"
+        subtitle="Core agent settings — model, permissions, cost limits"
+        defaultOpen={true}
+        actions={<SaveBtn dirty={configDirty} saving={configSaving} saved={configSaved} onSave={handleConfigSave} />}
+      >
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Default Model</label>
+              <ModelSelect
+                value={globalConfig.defaultModel || ""}
+                onChange={(v) => handleConfigChange("defaultModel", v)}
+                modelsByProvider={modelsByProvider}
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Permission Tier</label>
+              <Select value={globalConfig.permissionTier || "standard"} onValueChange={(v) => handleConfigChange("permissionTier", v)}>
+                <SelectTrigger className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                  <SelectItem value="minimal" className="text-xs font-mono">MINIMAL — read-only tools, no shell</SelectItem>
+                  <SelectItem value="standard" className="text-xs font-mono">STANDARD — most tools, guarded shell</SelectItem>
+                  <SelectItem value="full" className="text-xs font-mono">FULL — all tools, unrestricted</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider flex items-center gap-1.5">
+                <DollarSign className="w-3.5 h-3.5" /> Max Cost / Task
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                className={inputClass}
+                placeholder="e.g. 0.50"
+                value={globalConfig.maxCostPerTask ?? ""}
+                onChange={(e) => handleConfigChange("maxCostPerTask", e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider flex items-center gap-1.5">
+                <DollarSign className="w-3.5 h-3.5" /> Max Daily Cost
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                className={inputClass}
+                placeholder="e.g. 10.00"
+                value={globalConfig.maxDailyCost ?? ""}
+                onChange={(e) => handleConfigChange("maxDailyCost", e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Channel Status */}
+          {globalConfig.channels && (
+            <div>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5" /> Active Channels
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(globalConfig.channels as Record<string, { enabled: boolean }>).map(([ch, cfg]) => (
+                  <span key={ch} className={`text-[10px] font-mono px-2.5 py-1 rounded-lg border ${cfg.enabled ? "text-[#00ff88] bg-[#00ff88]/8 border-[#00ff88]/20" : "text-gray-600 bg-slate-800/30 border-slate-800"}`}>
+                    {ch}
+                  </span>
+                ))}
+              </div>
+              <p className="text-[10px] font-mono text-gray-600 mt-1.5">Enable/disable channels via environment variables or CLI</p>
+            </div>
+          )}
+
+          {globalConfig.daemonMode !== undefined && (
+            <div className="flex items-center gap-3 p-3 bg-slate-800/20 rounded-xl border border-slate-800/40">
+              <span className={`w-2 h-2 rounded-full ${globalConfig.daemonMode ? "bg-[#00ff88]" : "bg-gray-600"}`} />
+              <span className="text-[11px] font-mono text-gray-400">Daemon Mode: <span className={globalConfig.daemonMode ? "text-[#00ff88]" : "text-gray-500"}>{globalConfig.daemonMode ? "ACTIVE" : "OFF"}</span></span>
+            </div>
+          )}
+        </div>
+      </Section>
 
       {/* ── Secret Vault ─────────────────────────────────────────────── */}
       <Section
@@ -561,55 +671,18 @@ export function Settings() {
         )}
       </Section>
 
-      {/* ── User Profile ──────────────────────────────────────────────── */}
+      {/* ── Sub-Agent Model ──────────────────────────────────────────── */}
       <Section
-        icon={User}
-        title="User Profile"
-        subtitle="How the agent knows you and adapts its behavior"
-        defaultOpen={true}
+        icon={Bot}
+        title="Sub-Agent Model"
+        subtitle="Model used when spawning sub-agents for parallel tasks"
         actions={<SaveBtn dirty={profileDirty} saving={profileSaving} saved={profileSaved} onSave={handleProfileSave} />}
       >
-        <div className="space-y-5">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Name</label>
-              <input className={inputClass} placeholder="Your name" value={profile.name} onChange={(e) => handleProfileChange("name", e.target.value)} />
-            </div>
-            <div>
-              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Personality</label>
-              <input className={inputClass} placeholder="e.g. friendly, professional" value={profile.personality} onChange={(e) => handleProfileChange("personality", e.target.value)} />
-            </div>
-            <div>
-              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Tone</label>
-              <input className={inputClass} placeholder="e.g. casual, formal" value={profile.tone} onChange={(e) => handleProfileChange("tone", e.target.value)} />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider flex items-center gap-2">
-              <Bot className="w-3.5 h-3.5" /> Sub-Agent Model
-            </label>
-            <ModelSelect
-              value={profile.subAgentModel}
-              onChange={(v) => handleProfileChange("subAgentModel", v)}
-              modelsByProvider={modelsByProvider}
-            />
-            <p className="text-[11px] font-mono text-gray-600 mt-2">Model used when spawning sub-agents for parallel tasks</p>
-          </div>
-
-          <div>
-            <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider flex items-center gap-2">
-              <MessageSquareText className="w-3.5 h-3.5" /> Custom Instructions
-            </label>
-            <textarea
-              className={inputClass + " min-h-[100px] resize-y"}
-              placeholder="Tell the agent how you want it to behave, what to prioritize, or any rules to follow..."
-              value={profile.instructions}
-              onChange={(e) => handleProfileChange("instructions", e.target.value)}
-              rows={4}
-            />
-          </div>
-        </div>
+        <ModelSelect
+          value={profile.subAgentModel}
+          onChange={(v) => handleProfileChange("subAgentModel", v)}
+          modelsByProvider={modelsByProvider}
+        />
       </Section>
 
       {/* ── Custom Skills ─────────────────────────────────────────────── */}
@@ -716,72 +789,175 @@ export function Settings() {
         </div>
       </Section>
 
-      {/* ── Environment Variables ──────────────────────────────────────── */}
-      {Object.entries(sections).filter(([, keys]) => keys.length > 0).map(([section, keys]) => (
-        <Section
-          key={section}
-          icon={section.toLowerCase().includes("key") || section.toLowerCase().includes("api") ? KeyRound : SettingsIcon}
-          title={section}
-          subtitle={`${keys.length} variable${keys.length !== 1 ? "s" : ""}${
-            data.vaultActive && keys.some((k) => /KEY|TOKEN|SECRET|PASSWORD|PASSPHRASE|CREDENTIAL/i.test(k))
-              ? " — sensitive keys encrypted in vault"
-              : ""
-          }`}
-          badge={
-            keys.some((k) => data.vars[k]) ? (
-              <span className="text-[9px] font-mono text-[#00ff88] bg-[#00ff88]/10 px-2 py-0.5 rounded-md border border-[#00ff88]/20">
-                {keys.filter((k) => data.vars[k]).length}/{keys.length} set
-              </span>
-            ) : null
-          }
-          actions={<SaveBtn dirty={dirty} saving={saving} saved={saved} onSave={handleSave} />}
-        >
-          <div className="space-y-2.5">
-            {keys.map((key) => {
-              const currentMasked = data.vars[key] || "";
-              const isSet = !!currentMasked;
-              const isVisible = visibleKeys.has(key);
-              const editVal = editValues[key];
-              const hasEdit = editVal !== undefined;
-              const isSensitive = /KEY|TOKEN|SECRET|PASSWORD|PASSPHRASE|CREDENTIAL/i.test(key);
-              return (
-                <div key={key} className="p-4 bg-slate-800/20 rounded-xl border border-slate-800/40 hover:border-slate-700/50 transition-colors">
-                  <div className="flex items-center gap-2 mb-2.5">
-                    <span className="text-[11px] font-mono text-gray-400 uppercase tracking-wider">{key}</span>
-                    {isSet && !hasEdit && (
-                      <span className="text-[8px] font-mono text-[#00ff88] bg-[#00ff88]/8 px-1.5 py-0.5 rounded uppercase border border-[#00ff88]/15">configured</span>
-                    )}
-                    {data.vaultActive && isSensitive && isSet && (
-                      <span className="text-[8px] font-mono text-[#00d9ff] bg-[#00d9ff]/8 px-1.5 py-0.5 rounded uppercase border border-[#00d9ff]/15 flex items-center gap-0.5">
-                        <Shield className="w-2.5 h-2.5" /> vault
-                      </span>
-                    )}
-                    {hasEdit && (
-                      <span className="text-[8px] font-mono text-amber-400 bg-amber-400/8 px-1.5 py-0.5 rounded uppercase border border-amber-400/15">modified</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type={isVisible ? "text" : "password"}
-                      placeholder={isSet ? currentMasked : "Not set"}
-                      value={hasEdit ? editVal : ""}
-                      onChange={(e) => handleChange(key, e.target.value)}
-                      className={inputClass}
-                    />
-                    <button
-                      onClick={() => toggleVisible(key)}
-                      className="p-2.5 text-gray-500 hover:text-[#00d9ff] transition-colors rounded-xl hover:bg-slate-800/50"
-                      title={isVisible ? "Hide" : "Show"}
-                    >
-                      {isVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
+      {/* ── AI Provider Keys ──────────────────────────────────────────── */}
+      <Section
+        icon={KeyRound}
+        title="AI Provider Keys"
+        subtitle="API keys for LLM providers — encrypted in vault"
+        badge={(() => {
+          const providerKeys = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY"];
+          const set = providerKeys.filter(k => data.vars[k]);
+          return set.length > 0 ? (
+            <span className="text-[9px] font-mono text-[#00ff88] bg-[#00ff88]/10 px-2 py-0.5 rounded-md border border-[#00ff88]/20">
+              {set.length}/{providerKeys.length} set
+            </span>
+          ) : null;
+        })()}
+        actions={<SaveBtn dirty={dirty} saving={saving} saved={saved} onSave={handleSave} />}
+      >
+        <div className="space-y-3">
+          {[
+            { name: "OpenAI", key: "OPENAI_API_KEY", color: "#00d9ff" },
+            { name: "Anthropic", key: "ANTHROPIC_API_KEY", color: "#d4a574" },
+            { name: "Google AI", key: "GOOGLE_AI_API_KEY", color: "#4285f4" },
+          ].map(({ name, key, color }) => {
+            const isSet = !!data.vars[key];
+            const hasEdit = editValues[key] !== undefined;
+            return (
+              <div key={key} className="p-4 bg-slate-800/20 rounded-xl border border-slate-800/40">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <span className="text-[12px] font-mono font-medium" style={{ color }}>{name}</span>
+                  {isSet && !hasEdit && <span className="text-[8px] font-mono text-[#00ff88] bg-[#00ff88]/8 px-1.5 py-0.5 rounded border border-[#00ff88]/15">CONFIGURED</span>}
+                  {data.vaultActive && isSet && <span className="text-[8px] font-mono text-[#00d9ff] bg-[#00d9ff]/8 px-1.5 py-0.5 rounded border border-[#00d9ff]/15 flex items-center gap-0.5"><Shield className="w-2.5 h-2.5" /> vault</span>}
+                  {hasEdit && <span className="text-[8px] font-mono text-amber-400 bg-amber-400/8 px-1.5 py-0.5 rounded border border-amber-400/15">modified</span>}
                 </div>
-              );
-            })}
-          </div>
-        </Section>
-      ))}
+                <div className="flex items-center gap-3">
+                  <input type={visibleKeys.has(key) ? "text" : "password"} placeholder={isSet ? data.vars[key] : "Not set"} value={editValues[key] ?? ""} onChange={(e) => handleChange(key, e.target.value)} className={inputClass} />
+                  <button onClick={() => toggleVisible(key)} className="p-2.5 text-gray-500 hover:text-[#00d9ff] transition-colors rounded-xl hover:bg-slate-800/50">
+                    {visibleKeys.has(key) ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Section>
+
+      {/* ── Global Channels ──────────────────────────────────────────── */}
+      <Section
+        icon={Zap}
+        title="Global Channels"
+        subtitle="Default channel tokens — tenants can override with their own"
+        badge={(() => {
+          const channelTokens = ["TELEGRAM_BOT_TOKEN", "DISCORD_BOT_TOKEN", "SLACK_BOT_TOKEN", "TWILIO_ACCOUNT_SID", "LINE_CHANNEL_ACCESS_TOKEN"];
+          const set = channelTokens.filter(k => data.vars[k]);
+          return set.length > 0 ? (
+            <span className="text-[9px] font-mono text-[#00ff88] bg-[#00ff88]/10 px-2 py-0.5 rounded-md border border-[#00ff88]/20">
+              {set.length} connected
+            </span>
+          ) : null;
+        })()}
+        actions={<SaveBtn dirty={dirty} saving={saving} saved={saved} onSave={handleSave} />}
+      >
+        <div className="space-y-3">
+          {[
+            { name: "Telegram", icon: FaTelegram, color: "#29B6F6", keys: [{ key: "TELEGRAM_BOT_TOKEN", label: "Bot Token" }] },
+            { name: "Discord", icon: FaDiscord, color: "#5865F2", keys: [{ key: "DISCORD_BOT_TOKEN", label: "Bot Token" }] },
+            { name: "Slack", icon: FaSlack, color: "#E01E5A", keys: [{ key: "SLACK_BOT_TOKEN", label: "Bot Token" }, { key: "SLACK_APP_TOKEN", label: "App Token" }] },
+            { name: "WhatsApp", icon: FaWhatsapp, color: "#25D366", keys: [{ key: "TWILIO_ACCOUNT_SID", label: "Account SID" }, { key: "TWILIO_AUTH_TOKEN", label: "Auth Token" }, { key: "TWILIO_WHATSAPP_FROM", label: "From Number" }] },
+            { name: "LINE", icon: FaLine, color: "#00B900", keys: [{ key: "LINE_CHANNEL_ACCESS_TOKEN", label: "Access Token" }, { key: "LINE_CHANNEL_SECRET", label: "Channel Secret" }] },
+            { name: "Email", icon: MdEmail, color: "#a78bfa", keys: [{ key: "RESEND_API_KEY", label: "Resend API Key" }, { key: "RESEND_FROM", label: "From Address" }] },
+            { name: "Signal", icon: SiSignal, color: "#3a76f0", keys: [{ key: "SIGNAL_CLI_URL", label: "CLI URL" }, { key: "SIGNAL_PHONE_NUMBER", label: "Phone Number" }] },
+            { name: "Teams", icon: BsMicrosoftTeams, color: "#6264A7", keys: [{ key: "TEAMS_APP_ID", label: "App ID" }, { key: "TEAMS_APP_PASSWORD", label: "App Password" }] },
+            { name: "Google Chat", icon: SiGooglechat, color: "#00AC47", keys: [{ key: "GOOGLE_CHAT_SERVICE_ACCOUNT", label: "Service Account" }, { key: "GOOGLE_CHAT_PROJECT_NUMBER", label: "Project Number" }] },
+          ].map(({ name, icon: Icon, color, keys }) => {
+            const tokenKey = keys[0].key;
+            const isConnected = !!data.vars[tokenKey];
+            return (
+              <div key={name} className="p-4 bg-slate-800/20 rounded-xl border border-slate-800/40">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <Icon className="w-5 h-5" style={{ color }} />
+                    <span className="text-[13px] font-mono font-medium text-white">{name}</span>
+                  </div>
+                  {isConnected && <span className="text-[8px] font-mono text-[#00ff88] bg-[#00ff88]/8 px-2 py-0.5 rounded border border-[#00ff88]/15">CONNECTED</span>}
+                </div>
+                <div className="space-y-2">
+                  {keys.map(({ key, label }) => {
+                    const isSet = !!data.vars[key];
+                    const hasEdit = editValues[key] !== undefined;
+                    return (
+                      <div key={key}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-mono text-gray-500">{label}</span>
+                          {isSet && !hasEdit && <span className="text-[7px] font-mono text-[#00ff88]/60">set</span>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input type={visibleKeys.has(key) ? "text" : "password"} placeholder={isSet ? data.vars[key] : "Not set"} value={editValues[key] ?? ""} onChange={(e) => handleChange(key, e.target.value)} className={inputClass + " !py-2 !text-xs"} />
+                          <button onClick={() => toggleVisible(key)} className="p-2 text-gray-600 hover:text-[#00d9ff] transition-colors">
+                            {visibleKeys.has(key) ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Section>
+
+      {/* ── Tool API Keys ─────────────────────────────────────────── */}
+      <Section
+        icon={SettingsIcon}
+        title="Tool Config"
+        subtitle="API keys and settings for built-in tools"
+        badge={(() => {
+          const toolKeys = ["ELEVENLABS_API_KEY", "GOOGLE_PLACES_API_KEY", "GOOGLE_CALENDAR_API_KEY", "HUE_API_KEY", "DATABASE_URL", "NTFY_URL"];
+          const set = toolKeys.filter(k => data.vars[k]);
+          return set.length > 0 ? (
+            <span className="text-[9px] font-mono text-[#00ff88] bg-[#00ff88]/10 px-2 py-0.5 rounded-md border border-[#00ff88]/20">
+              {set.length} configured
+            </span>
+          ) : null;
+        })()}
+        actions={<SaveBtn dirty={dirty} saving={saving} saved={saved} onSave={handleSave} />}
+      >
+        <div className="space-y-3">
+          {[
+            { name: "Text-to-Speech (ElevenLabs)", color: "#f0883e", keys: [{ key: "ELEVENLABS_API_KEY", label: "API Key" }] },
+            { name: "Google Places", color: "#4285f4", keys: [{ key: "GOOGLE_PLACES_API_KEY", label: "API Key" }] },
+            { name: "Google Calendar", color: "#0f9d58", keys: [{ key: "GOOGLE_CALENDAR_API_KEY", label: "API Key" }, { key: "GOOGLE_CALENDAR_ID", label: "Calendar ID" }, { key: "GOOGLE_CALENDAR_ACCESS_TOKEN", label: "Access Token" }] },
+            { name: "Google Contacts", color: "#4285f4", keys: [{ key: "GOOGLE_CONTACTS_ACCESS_TOKEN", label: "Access Token" }] },
+            { name: "Philips Hue", color: "#ffcc00", keys: [{ key: "HUE_BRIDGE_IP", label: "Bridge IP" }, { key: "HUE_API_KEY", label: "API Key" }] },
+            { name: "Sonos", color: "#00d9ff", keys: [{ key: "SONOS_SPEAKER_IP", label: "Speaker IP" }] },
+            { name: "Notifications (ntfy)", color: "#00ff88", keys: [{ key: "NTFY_URL", label: "Server URL" }, { key: "NTFY_TOPIC", label: "Topic" }, { key: "NTFY_TOKEN", label: "Token" }] },
+            { name: "Notifications (Pushover)", color: "#2e9afe", keys: [{ key: "PUSHOVER_API_TOKEN", label: "API Token" }, { key: "PUSHOVER_USER_KEY", label: "User Key" }] },
+            { name: "Database", color: "#a78bfa", keys: [{ key: "DATABASE_URL", label: "PostgreSQL URL" }, { key: "MYSQL_URL", label: "MySQL URL" }] },
+          ].map(({ name, color, keys }) => {
+            const anySet = keys.some(k => data.vars[k.key]);
+            return (
+              <div key={name} className="p-4 bg-slate-800/20 rounded-xl border border-slate-800/40">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[13px] font-mono font-medium" style={{ color }}>{name}</span>
+                  {anySet && <span className="text-[8px] font-mono text-[#00ff88] bg-[#00ff88]/8 px-2 py-0.5 rounded border border-[#00ff88]/15">CONFIGURED</span>}
+                </div>
+                <div className="space-y-2">
+                  {keys.map(({ key, label }) => {
+                    const isSet = !!data.vars[key];
+                    const hasEdit = editValues[key] !== undefined;
+                    return (
+                      <div key={key}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-mono text-gray-500">{label}</span>
+                          {isSet && !hasEdit && <span className="text-[7px] font-mono text-[#00ff88]/60">set</span>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input type={visibleKeys.has(key) ? "text" : "password"} placeholder={isSet ? data.vars[key] : "Not set"} value={editValues[key] ?? ""} onChange={(e) => handleChange(key, e.target.value)} className={inputClass + " !py-2 !text-xs"} />
+                          <button onClick={() => toggleVisible(key)} className="p-2 text-gray-600 hover:text-[#00d9ff] transition-colors">
+                            {visibleKeys.has(key) ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Section>
     </div>
   );
 }

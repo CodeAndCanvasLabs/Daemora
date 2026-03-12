@@ -843,27 +843,15 @@ export async function runSetupWizard() {
   if (setupVault) {
     mkdirSync(join(ROOT_DIR, "data"), { recursive: true });
 
-    // Check if vault already exists
+    // If vault already exists, clear it for fresh setup
     const vaultExists = secretVault.exists();
-
     if (vaultExists) {
-      const vaultAction = guard(await p.select({
-        message: "An encrypted vault already exists",
-        options: [
-          { value: "unlock", label: "Unlock existing vault", hint: "Enter your current passphrase" },
-          { value: "reset",  label: "Reset vault",           hint: "Delete old vault and create a new one" },
-        ],
-      }));
-
-      if (vaultAction === "reset") {
-        const { run: dbRun } = await import("../storage/Database.js");
-        try { dbRun("DELETE FROM vault_entries"); } catch {}
-        p.log.info("Old vault cleared.");
-      }
+      const { run: dbRun } = await import("../storage/Database.js");
+      try { dbRun("DELETE FROM vault_entries"); } catch {}
     }
 
     vaultPassphrase = guard(await p.password({
-      message: vaultExists ? "Enter vault passphrase" : "Choose a master passphrase (min 8 characters)",
+      message: "Choose a master passphrase for the encrypted vault (min 8 characters)",
       validate: (v) => {
         if (!v || v.length < 8) return "Passphrase must be at least 8 characters";
       },
@@ -936,28 +924,11 @@ export async function runSetupWizard() {
   if (mtChoice === "multitenant") {
     multiTenantMode = "multitenant";
     envConfig.MULTI_TENANT_ENABLED = "true";
-
-    const autoReg = guard(await p.confirm({
-      message: "Auto-register tenants on first message?",
-      initialValue: true,
-    }));
-    envConfig.AUTO_REGISTER_TENANTS = autoReg ? "true" : "false";
-
-    const isolateFs = guard(await p.confirm({
-      message: "Isolate each tenant's filesystem? (recommended for shared deployments)",
-      initialValue: true,
-    }));
-    envConfig.TENANT_ISOLATE_FILESYSTEM = isolateFs ? "true" : "false";
-
-    const setKey = guard(await p.confirm({
-      message: "Generate a tenant encryption key? (encrypts per-tenant API keys at rest)",
-      initialValue: true,
-    }));
-    if (setKey) {
-      const { randomBytes: rb } = await import("crypto");
-      envConfig.DAEMORA_TENANT_KEY = rb(16).toString("hex");
-      p.log.success(`${S.check}  DAEMORA_TENANT_KEY generated (32 hex chars)`);
-    }
+    envConfig.AUTO_REGISTER_TENANTS = "false";
+    envConfig.TENANT_ISOLATE_FILESYSTEM = "true";
+    const { randomBytes: rb } = await import("crypto");
+    envConfig.DAEMORA_TENANT_KEY = rb(16).toString("hex");
+    p.log.success(`${S.check}  Multi-tenant enabled — admin-managed tenants, filesystem isolation, encryption key generated`);
   }
 
   // ━━━ Write Config ━━━
@@ -968,6 +939,7 @@ export async function runSetupWizard() {
   // Secrets were already vaulted above and removed from envConfig.
   const { configStore } = await import("../config/ConfigStore.js");
   const configCount = configStore.import(envConfig);
+  configStore.set("SETUP_COMPLETED", new Date().toISOString());
 
   // Write a minimal .env — only bootstrap info needed before SQLite is open.
   // Everything else is in SQLite now.
