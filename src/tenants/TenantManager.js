@@ -239,7 +239,7 @@ class TenantManager {
 
     const allowed = [
       "model", "allowedPaths", "blockedPaths", "maxCostPerTask",
-      "maxDailyCost", "tools", "suspended", "plan", "notes",
+      "maxDailyCost", "tools", "blockedTools", "suspended", "plan", "notes",
       "modelRoutes", "mcpServers", "ownMcpServers",
     ];
     for (const key of allowed) {
@@ -535,6 +535,7 @@ class TenantManager {
       maxCostPerTask: tenant?.maxCostPerTask ?? config.maxCostPerTask,
       maxDailyCost: tenant?.maxDailyCost ?? config.maxDailyCost,
       tools: tenant?.tools || null,
+      blockedTools: tenant?.blockedTools || null,
       sandbox: config.sandbox?.mode || "process",
       mcpServers: tenant?.mcpServers ?? null,
       ownMcpServers: tenant?.ownMcpServers || {},
@@ -594,6 +595,7 @@ function _defaultTenant(id) {
     maxCostPerTask: null,
     maxDailyCost: null,
     tools: null,
+    blockedTools: null,     // blocklist of tools to hide from this tenant; null = none blocked
     mcpServers: null,       // allowlist of global MCP server names; null = all allowed
     ownMcpServers: {},      // per-tenant private MCP server definitions (same format as mcp.json entries)
     modelRoutes: null,

@@ -20,12 +20,15 @@ interface Tenant {
   id: string;
   plan: string;
   status: string;
-  suspendedReason?: string;
+  suspended?: boolean;
+  suspendReason?: string;
   maxCostPerTask?: number;
   maxDailyCost?: number;
+  model?: string;
   defaultModel?: string;
   allowedPaths?: string[];
   blockedPaths?: string[];
+  tools?: string[];
   allowedTools?: string[];
   blockedTools?: string[];
   mcpServers?: string[];
@@ -34,7 +37,7 @@ interface Tenant {
   notes?: string;
   taskCount?: number;
   totalCost?: number;
-  lastSeen?: string;
+  lastSeenAt?: string;
   createdAt?: string;
 }
 
@@ -293,13 +296,13 @@ export function Tenants() {
   const openEdit = (tenant: Tenant) => {
     setEditTenant(tenant);
     setEditForm({
-      defaultModel: tenant.defaultModel || "",
+      defaultModel: (tenant as any).model || tenant.defaultModel || "",
       plan: tenant.plan || "free",
       maxCostPerTask: tenant.maxCostPerTask ?? "",
       maxDailyCost: tenant.maxDailyCost ?? "",
       allowedPaths: (tenant.allowedPaths || []).join(", "),
       blockedPaths: (tenant.blockedPaths || []).join(", "),
-      allowedTools: (tenant.allowedTools || []).join(", "),
+      allowedTools: ((tenant as any).tools || tenant.allowedTools || []).join(", "),
       blockedTools: (tenant.blockedTools || []).join(", "),
       mcpServers: (tenant.mcpServers || []).join(", "),
       modelRoutes: JSON.stringify(tenant.modelRoutes || {}, null, 2),
@@ -333,12 +336,12 @@ export function Tenants() {
       if (pathErr) { toast.error(pathErr, { id: toastId }); return; }
 
       const body: Record<string, any> = {
-        defaultModel: editForm.defaultModel || undefined,
+        model: editForm.defaultModel || null,
         plan: editForm.plan,
         notes: editForm.notes || undefined,
         allowedPaths,
         blockedPaths,
-        allowedTools: splitList(editForm.allowedTools),
+        tools: splitList(editForm.allowedTools),
         blockedTools: splitList(editForm.blockedTools),
         mcpServers: splitList(editForm.mcpServers),
         modelRoutes,
@@ -402,14 +405,14 @@ export function Tenants() {
             <Card
               key={tenant.id}
               className={`bg-slate-900/50 border-slate-800 backdrop-blur-sm shadow-xl transition-all border-l-4 ${
-                tenant.status === "suspended" ? "border-l-amber-500" : "border-l-[#00ff88]"
+                tenant.suspended ? "border-l-amber-500" : "border-l-[#00ff88]"
               }`}
             >
               <CardHeader className="py-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className={`w-2 h-2 rounded-full ${
-                      tenant.status === "suspended"
+                      tenant.suspended
                         ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"
                         : "bg-[#00ff88] shadow-[0_0_8px_rgba(0,255,136,0.5)]"
                     }`} />
@@ -419,7 +422,7 @@ export function Tenants() {
                         <Badge variant="outline" className={`font-mono text-[9px] uppercase ${planColor(tenant.plan)}`}>
                           {tenant.plan}
                         </Badge>
-                        {tenant.status === "suspended" && (
+                        {tenant.suspended && (
                           <Badge variant="outline" className="font-mono text-[9px] uppercase text-amber-500 border-amber-500/30 bg-amber-500/10">
                             Suspended
                           </Badge>
@@ -437,7 +440,7 @@ export function Tenants() {
                       className="text-[#00d9ff] hover:bg-[#00d9ff]/10 font-mono text-[10px] uppercase">
                       <Pencil className="w-3 h-3 mr-1" />Edit
                     </Button>
-                    {tenant.status === "suspended" ? (
+                    {tenant.suspended ? (
                       <Button variant="ghost" size="sm" onClick={() => handleUnsuspend(tenant.id)}
                         className="text-[#00ff88] hover:bg-[#00ff88]/10 font-mono text-[10px] uppercase">
                         <Play className="w-3 h-3 mr-1" />Unsuspend
@@ -455,10 +458,10 @@ export function Tenants() {
                   </div>
                 </div>
               </CardHeader>
-              {(tenant.defaultModel || tenant.notes || (tenant.mcpServers && tenant.mcpServers.length > 0)) && (
+              {(tenant.model || tenant.notes || (tenant.mcpServers && tenant.mcpServers.length > 0)) && (
                 <CardContent className="pb-4 pt-0">
                   <div className="flex flex-wrap gap-3 text-[10px] font-mono text-gray-500">
-                    {tenant.defaultModel && <span>Model: <span className="text-gray-300">{tenant.defaultModel}</span></span>}
+                    {tenant.model && <span>Model: <span className="text-gray-300">{tenant.model}</span></span>}
                     {tenant.mcpServers && tenant.mcpServers.length > 0 && (
                       <span>MCP: <span className="text-gray-300">{tenant.mcpServers.join(", ")}</span></span>
                     )}
