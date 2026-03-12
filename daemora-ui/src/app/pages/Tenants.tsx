@@ -629,7 +629,7 @@ export function Tenants() {
                   <SelectValue placeholder="Add tool..." />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-48">
-                  {availableTools.filter(t => !(editForm.allowedTools || "").split(",").map((x: string) => x.trim()).includes(t)).map(t => (
+                  {availableTools.filter(t => !(editForm.allowedTools || "").split(",").map((x: string) => x.trim()).includes(t) && !(editForm.blockedTools || "").split(",").map((x: string) => x.trim()).includes(t)).map(t => (
                     <SelectItem key={t} value={t} className="text-[10px] font-mono">{t}</SelectItem>
                   ))}
                 </SelectContent>
@@ -657,7 +657,7 @@ export function Tenants() {
                   <SelectValue placeholder="Block tool..." />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-48">
-                  {availableTools.filter(t => !(editForm.blockedTools || "").split(",").map((x: string) => x.trim()).includes(t)).map(t => (
+                  {availableTools.filter(t => !(editForm.blockedTools || "").split(",").map((x: string) => x.trim()).includes(t) && !(editForm.allowedTools || "").split(",").map((x: string) => x.trim()).includes(t)).map(t => (
                     <SelectItem key={t} value={t} className="text-[10px] font-mono">{t}</SelectItem>
                   ))}
                 </SelectContent>
