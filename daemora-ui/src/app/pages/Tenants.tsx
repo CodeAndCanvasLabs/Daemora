@@ -10,6 +10,7 @@ import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { toast } from "sonner";
+import { FaTelegram, FaDiscord, FaSlack, FaWhatsapp, FaLine } from "react-icons/fa6";
 
 interface OwnMcpServer {
   name: string;
@@ -42,11 +43,11 @@ interface Tenant {
 }
 
 const CHANNEL_CRED_MAP = [
-  { channel: "telegram", label: "🔵 Telegram", keys: ["TELEGRAM_BOT_TOKEN"] },
-  { channel: "discord",  label: "🟣 Discord",  keys: ["DISCORD_BOT_TOKEN"] },
-  { channel: "slack",    label: "🟡 Slack",     keys: ["SLACK_BOT_TOKEN", "SLACK_APP_TOKEN"] },
-  { channel: "whatsapp", label: "🟢 WhatsApp",  keys: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_WHATSAPP_FROM"] },
-  { channel: "line",     label: "🟢 LINE",      keys: ["LINE_CHANNEL_ACCESS_TOKEN", "LINE_CHANNEL_SECRET"] },
+  { channel: "telegram", label: "Telegram", icon: FaTelegram, color: "#29B6F6", keys: ["TELEGRAM_BOT_TOKEN"] },
+  { channel: "discord",  label: "Discord",  icon: FaDiscord,  color: "#5865F2", keys: ["DISCORD_BOT_TOKEN"] },
+  { channel: "slack",    label: "Slack",     icon: FaSlack,    color: "#E01E5A", keys: ["SLACK_BOT_TOKEN", "SLACK_APP_TOKEN"] },
+  { channel: "whatsapp", label: "WhatsApp",  icon: FaWhatsapp, color: "#25D366", keys: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_WHATSAPP_FROM"] },
+  { channel: "line",     label: "LINE",      icon: FaLine,     color: "#00B900", keys: ["LINE_CHANNEL_ACCESS_TOKEN", "LINE_CHANNEL_SECRET"] },
 ];
 
 export function Tenants() {
@@ -770,11 +771,10 @@ export function Tenants() {
                   <SelectContent className="bg-slate-950 border-slate-800 text-white">
                     {[
                       { group: "LLM Providers", keys: ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY"] },
-                      { group: "Voice & Media", keys: ["ELEVENLABS_API_KEY", "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_FROM"] },
-                      { group: "Email", keys: ["RESEND_API_KEY", "RESEND_FROM", "EMAIL_USER", "EMAIL_PASSWORD", "EMAIL_SMTP_HOST", "EMAIL_SMTP_PORT"] },
+                      { group: "Voice & Media", keys: ["ELEVENLABS_API_KEY"] },
+                      { group: "Email", keys: ["RESEND_API_KEY", "RESEND_FROM", "EMAIL_USER", "EMAIL_PASSWORD", "EMAIL_SMTP_HOST"] },
                       { group: "Search & Location", keys: ["BRAVE_API_KEY", "GOOGLE_PLACES_API_KEY"] },
-                      { group: "Notifications", keys: ["PUSHOVER_API_TOKEN", "PUSHOVER_USER_KEY", "NTFY_TOPIC", "NTFY_TOKEN", "NTFY_URL"] },
-                      { group: "IoT", keys: ["HUE_BRIDGE_IP", "HUE_API_KEY", "SONOS_SPEAKER_IP"] },
+                      { group: "Notifications", keys: ["PUSHOVER_API_TOKEN", "PUSHOVER_USER_KEY", "NTFY_TOPIC", "NTFY_TOKEN"] },
                       { group: "Database", keys: ["DATABASE_URL", "POSTGRES_URL"] },
                       { group: "Contacts & Calendar", keys: ["GOOGLE_CONTACTS_ACCESS_TOKEN", "GOOGLE_CALENDAR_ACCESS_TOKEN"] },
                     ].map(({ group, keys }) => {
@@ -821,15 +821,15 @@ export function Tenants() {
               </p>
 
               {/* Per-channel sections */}
-              {CHANNEL_CRED_MAP.map(({ channel, label, keys }) => {
+              {CHANNEL_CRED_MAP.map(({ channel, label, icon: Icon, color, keys }) => {
                 const connected = keys.every(k => channelCredKeys.includes(k));
                 const partial = keys.some(k => channelCredKeys.includes(k));
                 return (
                   <div key={channel} className="p-3 bg-slate-900/50 border border-slate-800 rounded-lg space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm">{label}</span>
-                        <span className="text-[10px] font-mono text-gray-400 uppercase">{channel}</span>
+                        <Icon className="w-5 h-5" style={{ color }} />
+                        <span className="text-sm font-medium text-white">{label}</span>
                       </div>
                       {connected ? (
                         <div className="flex items-center gap-2">

@@ -25,7 +25,11 @@ import {
   ShieldCheck,
   Lock,
   Unlock,
+  Cpu,
+  DollarSign,
+  Zap,
 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 
 interface AvailableVar {
   key: string;
@@ -297,6 +301,11 @@ export function Settings() {
 
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
 
+  const [globalConfig, setGlobalConfig] = useState<Record<string, any>>({});
+  const [configDirty, setConfigDirty] = useState(false);
+  const [configSaving, setConfigSaving] = useState(false);
+  const [configSaved, setConfigSaved] = useState(false);
+
   const [vault, setVault] = useState<VaultStatus>({ exists: false, unlocked: false });
   const [vaultPassphrase, setVaultPassphrase] = useState("");
   const [vaultUnlocking, setVaultUnlocking] = useState(false);
@@ -310,9 +319,11 @@ export function Settings() {
       apiFetch("/api/memory").then((r) => r.json()),
       apiFetch("/api/models").then((r) => r.json()),
       apiFetch("/api/vault/status").then((r) => r.json()),
+      apiFetch("/api/config").then((r) => r.json()),
     ])
-      .then(([settingsData, profileData, skillsData, memoryData, modelsData, vaultData]) => {
+      .then(([settingsData, profileData, skillsData, memoryData, modelsData, vaultData, configData]) => {
         setData(settingsData);
+        setGlobalConfig(configData || {});
         setProfile({
           name: profileData.name || "",
           personality: profileData.personality || "",
@@ -328,6 +339,39 @@ export function Settings() {
       })
       .catch(() => setIsLoading(false));
   }, []);
+
+  const handleConfigChange = (key: string, value: string) => {
+    setGlobalConfig((prev: Record<string, any>) => ({ ...prev, [key]: value }));
+    setConfigDirty(true);
+    setConfigSaved(false);
+  };
+
+  const handleConfigSave = async () => {
+    setConfigSaving(true);
+    try {
+      const envMap: Record<string, string> = {
+        defaultModel: "DEFAULT_MODEL",
+        permissionTier: "PERMISSION_TIER",
+        maxCostPerTask: "MAX_COST_PER_TASK",
+        maxDailyCost: "MAX_DAILY_COST",
+      };
+      const updates: Record<string, string> = {};
+      for (const [configKey, envKey] of Object.entries(envMap)) {
+        if (globalConfig[configKey] !== undefined) updates[envKey] = String(globalConfig[configKey]);
+      }
+      const res = await apiFetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates }),
+      });
+      if (res.ok) {
+        setConfigSaved(true);
+        setConfigDirty(false);
+        const d = await apiFetch("/api/config").then((r) => r.json());
+        setGlobalConfig(d);
+      }
+    } catch { /* ignore */ } finally { setConfigSaving(false); }
+  };
 
   const handleVaultUnlock = async () => {
     if (!vaultPassphrase) return;
@@ -494,6 +538,94 @@ export function Settings() {
         <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">Settings</h2>
         <p className="text-gray-500 font-mono text-xs tracking-widest uppercase">Configure your agent's identity, skills, memory & environment</p>
       </div>
+
+      {/* ── Global Config ────────────────────────────────────────────── */}
+      <Section
+        icon={Cpu}
+        title="Global Config"
+        subtitle="Core agent settings — model, permissions, cost limits"
+        defaultOpen={true}
+        actions={<SaveBtn dirty={configDirty} saving={configSaving} saved={configSaved} onSave={handleConfigSave} />}
+      >
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Default Model</label>
+              <ModelSelect
+                value={globalConfig.defaultModel || ""}
+                onChange={(v) => handleConfigChange("defaultModel", v)}
+                modelsByProvider={modelsByProvider}
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Permission Tier</label>
+              <Select value={globalConfig.permissionTier || "standard"} onValueChange={(v) => handleConfigChange("permissionTier", v)}>
+                <SelectTrigger className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                  <SelectItem value="minimal" className="text-xs font-mono">MINIMAL — read-only tools, no shell</SelectItem>
+                  <SelectItem value="standard" className="text-xs font-mono">STANDARD — most tools, guarded shell</SelectItem>
+                  <SelectItem value="full" className="text-xs font-mono">FULL — all tools, unrestricted</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider flex items-center gap-1.5">
+                <DollarSign className="w-3.5 h-3.5" /> Max Cost / Task
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                className={inputClass}
+                placeholder="e.g. 0.50"
+                value={globalConfig.maxCostPerTask ?? ""}
+                onChange={(e) => handleConfigChange("maxCostPerTask", e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider flex items-center gap-1.5">
+                <DollarSign className="w-3.5 h-3.5" /> Max Daily Cost
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                className={inputClass}
+                placeholder="e.g. 10.00"
+                value={globalConfig.maxDailyCost ?? ""}
+                onChange={(e) => handleConfigChange("maxDailyCost", e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Channel Status */}
+          {globalConfig.channels && (
+            <div>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5" /> Active Channels
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(globalConfig.channels as Record<string, { enabled: boolean }>).map(([ch, cfg]) => (
+                  <span key={ch} className={`text-[10px] font-mono px-2.5 py-1 rounded-lg border ${cfg.enabled ? "text-[#00ff88] bg-[#00ff88]/8 border-[#00ff88]/20" : "text-gray-600 bg-slate-800/30 border-slate-800"}`}>
+                    {ch}
+                  </span>
+                ))}
+              </div>
+              <p className="text-[10px] font-mono text-gray-600 mt-1.5">Enable/disable channels via environment variables or CLI</p>
+            </div>
+          )}
+
+          {globalConfig.daemonMode !== undefined && (
+            <div className="flex items-center gap-3 p-3 bg-slate-800/20 rounded-xl border border-slate-800/40">
+              <span className={`w-2 h-2 rounded-full ${globalConfig.daemonMode ? "bg-[#00ff88]" : "bg-gray-600"}`} />
+              <span className="text-[11px] font-mono text-gray-400">Daemon Mode: <span className={globalConfig.daemonMode ? "text-[#00ff88]" : "text-gray-500"}>{globalConfig.daemonMode ? "ACTIVE" : "OFF"}</span></span>
+            </div>
+          )}
+        </div>
+      </Section>
 
       {/* ── Secret Vault ─────────────────────────────────────────────── */}
       <Section
