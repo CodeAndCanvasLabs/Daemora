@@ -8,7 +8,6 @@ import {
   Save,
   Loader2,
   CheckCircle,
-  User,
   Sparkles,
   Brain,
   Trash2,
@@ -16,7 +15,6 @@ import {
   X,
   ChevronDown,
   KeyRound,
-  MessageSquareText,
   Bot,
   FileCode2,
   Search,
@@ -46,10 +44,6 @@ interface VaultStatus {
 }
 
 interface UserProfile {
-  name: string;
-  personality: string;
-  tone: string;
-  instructions: string;
   subAgentModel: string;
 }
 
@@ -282,7 +276,7 @@ export function Settings() {
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
 
-  const [profile, setProfile] = useState<UserProfile>({ name: "", personality: "", tone: "", instructions: "", subAgentModel: "" });
+  const [profile, setProfile] = useState<UserProfile>({ subAgentModel: "" });
   const [profileDirty, setProfileDirty] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
@@ -323,10 +317,6 @@ export function Settings() {
         setData(settingsData);
         setGlobalConfig(configData || {});
         setProfile({
-          name: profileData.name || "",
-          personality: profileData.personality || "",
-          tone: profileData.tone || "",
-          instructions: profileData.instructions || "",
           subAgentModel: profileData.subAgentModel || "",
         });
         setCustomSkills(skillsData.skills || []);
@@ -681,55 +671,18 @@ export function Settings() {
         )}
       </Section>
 
-      {/* ── User Profile ──────────────────────────────────────────────── */}
+      {/* ── Sub-Agent Model ──────────────────────────────────────────── */}
       <Section
-        icon={User}
-        title="User Profile"
-        subtitle="How the agent knows you and adapts its behavior"
-        defaultOpen={true}
+        icon={Bot}
+        title="Sub-Agent Model"
+        subtitle="Model used when spawning sub-agents for parallel tasks"
         actions={<SaveBtn dirty={profileDirty} saving={profileSaving} saved={profileSaved} onSave={handleProfileSave} />}
       >
-        <div className="space-y-5">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Name</label>
-              <input className={inputClass} placeholder="Your name" value={profile.name} onChange={(e) => handleProfileChange("name", e.target.value)} />
-            </div>
-            <div>
-              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Personality</label>
-              <input className={inputClass} placeholder="e.g. friendly, professional" value={profile.personality} onChange={(e) => handleProfileChange("personality", e.target.value)} />
-            </div>
-            <div>
-              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Tone</label>
-              <input className={inputClass} placeholder="e.g. casual, formal" value={profile.tone} onChange={(e) => handleProfileChange("tone", e.target.value)} />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider flex items-center gap-2">
-              <Bot className="w-3.5 h-3.5" /> Sub-Agent Model
-            </label>
-            <ModelSelect
-              value={profile.subAgentModel}
-              onChange={(v) => handleProfileChange("subAgentModel", v)}
-              modelsByProvider={modelsByProvider}
-            />
-            <p className="text-[11px] font-mono text-gray-600 mt-2">Model used when spawning sub-agents for parallel tasks</p>
-          </div>
-
-          <div>
-            <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider flex items-center gap-2">
-              <MessageSquareText className="w-3.5 h-3.5" /> Custom Instructions
-            </label>
-            <textarea
-              className={inputClass + " min-h-[100px] resize-y"}
-              placeholder="Tell the agent how you want it to behave, what to prioritize, or any rules to follow..."
-              value={profile.instructions}
-              onChange={(e) => handleProfileChange("instructions", e.target.value)}
-              rows={4}
-            />
-          </div>
-        </div>
+        <ModelSelect
+          value={profile.subAgentModel}
+          onChange={(v) => handleProfileChange("subAgentModel", v)}
+          modelsByProvider={modelsByProvider}
+        />
       </Section>
 
       {/* ── Custom Skills ─────────────────────────────────────────────── */}
