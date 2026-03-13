@@ -170,12 +170,12 @@ class TaskRunner {
       }
     }
 
-    // ── Auto-link channel identity for per-tenant channels ────────────────────
-    // When a message arrives through a per-tenant channel (e.g. telegram::umar),
-    // auto-link the sender's identity + full routing metadata to the tenant.
-    // This enables cross-channel sends (e.g. "send to telegram" from discord)
-    // by storing chatId, channelId, phone, etc. per channel type.
-    if (tenant && task.channelMeta?.tenantId && task.channel) {
+    // ── Auto-link channel identity + routing metadata ───────────────────────
+    // On every channel message (global or per-tenant), store the sender's
+    // routing metadata (chatId, channelId, phone, sender, etc.) in tenant_channels.
+    // This enables cross-channel sends (e.g. "send to telegram" from discord).
+    // Works for all channel types — Telegram, Discord, Slack, WhatsApp, LINE, etc.
+    if (tenant && task.channel && task.channelMeta) {
       const cm = task.channelMeta;
       const senderId = cm.chatId || cm.userId || cm.phone || cm.sender || cm.chatGuid || cm.senderPubkey;
       if (senderId) {
