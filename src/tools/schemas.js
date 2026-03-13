@@ -315,19 +315,19 @@ const toolSchemas = {
   // ── Automation ───────────────────────────────────────────────────────────
   cron: {
     schema: z.object({
-      action: str("list|add|remove|run|status|update|enable|disable|history"),
-      params: json('{"cronExpression":"...","taskInput":"...","name":"..."}'),
+      action: str("add|list|status|update|enable|disable|remove|run|history"),
+      id: optStr("Job ID (required for update/enable/disable/remove/run/history)"),
+      name: optStr("Human-readable job name"),
+      taskInput: optStr("The prompt to execute autonomously (required for add)"),
+      cronExpression: optStr("Cron expression for recurring: '0 9 * * *' (daily 9am), '*/30 * * * *' (every 30min)"),
+      every: optStr("Interval shorthand for repeating: '30m', '2h', '1d'"),
+      at: optStr("ISO timestamp for one-shot: '2026-03-15T10:00:00Z'. Use for 'in X minutes' — compute the timestamp"),
+      timezone: optStr("IANA timezone: 'America/New_York'"),
+      model: optStr("Model override for this job"),
+      deleteAfterRun: optBool("Auto-delete after one-shot run (use with 'at')"),
+      delivery: json('Cross-channel delivery override: {"mode":"announce","channel":"discord","channelMeta":{"channel":"discord","chatId":"...","channelId":"..."}}. Auto-set to calling channel if omitted'),
     }),
-    description:
-      'Schedule and manage cron jobs. action "add" params: ' +
-      'taskInput (required, the prompt you will execute autonomously), name (human label), ' +
-      'Schedule — pick ONE: cronExpression ("0 9 * * *" for recurring), every ("30m"/"2h" for intervals), at (ISO timestamp "2026-03-15T10:00:00Z" for one-shot). ' +
-      'Use "at" for "in X minutes/hours" — compute the ISO timestamp yourself. Use "every" for repeating intervals. Use cronExpression for complex recurring (daily at 9, every Monday, etc.). ' +
-      'Delivery: auto-set to calling channel. For cross-channel: set delivery: {"mode":"announce","channel":"discord","channelMeta":{"channel":"discord","chatId":"...","channelId":"..."}}. ' +
-      'Optional: model, timeoutSeconds, maxRetries, retryBackoffMs, deleteAfterRun (true for one-shots), ' +
-      'failureAlert: {"channel":"telegram","channelMeta":{...},"after":3,"cooldownMs":3600000}. ' +
-      'Other actions: list (show all jobs), status (scheduler info), update ({"id":"...","taskInput":"..."}), ' +
-      'enable/disable ({"id":"..."}), remove ({"id":"..."}), run ({"id":"..."} trigger now), history ({"id":"...","limit":10}).',
+    description: "Schedule and manage cron jobs. Delivery auto-routes to calling channel. Schedule types: cronExpression (recurring), every (interval), at (one-shot timestamp).",
   },
 
   // ── System Reload ──────────────────────────────────────────────────────

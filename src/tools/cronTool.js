@@ -25,9 +25,12 @@ function _getChannelMeta() {
 
 export function cron(toolParams) {
   const action = toolParams?.action;
-  const paramsJson = toolParams?.params;
   try {
-    const params = paramsJson ? JSON.parse(paramsJson) : {};
+    // Support both flat fields (new schema) and legacy JSON params string
+    const paramsJson = toolParams?.params;
+    const legacyParams = paramsJson ? JSON.parse(paramsJson) : {};
+    const { params: _discard, action: _discard2, ...flatFields } = toolParams || {};
+    const params = { ...legacyParams, ...flatFields };
     const tenantId = _getTenantId();
 
     switch (action) {
@@ -187,10 +190,5 @@ function _parseInterval(str) {
 }
 
 export const cronDescription =
-  'cron(action, paramsJson?) - Schedule and manage cron jobs. ' +
-  'action "add" params: taskInput (required — the prompt you execute autonomously), name (label). ' +
-  'Schedule — pick ONE: cronExpression ("0 9 * * *" for recurring), every ("30m"/"2h" for intervals), at (ISO timestamp for one-shot). ' +
-  'Use "at" for "in X minutes" — compute the ISO timestamp. Use "every" for repeating intervals. Use cronExpression for complex recurring. ' +
-  'Delivery: auto-set to calling channel. For cross-channel delivery set delivery: {"mode":"announce","channel":"discord","channelMeta":{"channel":"discord","chatId":"...","channelId":"..."}}. ' +
-  'Optional: model, timeoutSeconds, maxRetries, deleteAfterRun (true for one-shots). ' +
-  'Other actions: list, status, update ({"id":"..."}), enable/disable ({"id":"..."}), remove ({"id":"..."}), run ({"id":"..."}), history ({"id":"...","limit":10}).';
+  'cron(action, ...) - Schedule and manage cron jobs. Delivery auto-routes to calling channel. ' +
+  'Schedule types: cronExpression (recurring), every (interval), at (one-shot ISO timestamp).';
