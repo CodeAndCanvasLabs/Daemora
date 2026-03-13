@@ -137,9 +137,9 @@ const toolSchemas = {
     schema: z.object({
       filePath: str("Absolute path to file"),
       caption: optStr("File caption"),
-      channel: optStr("Channel to send on — must match current channel"),
+      channel: optStr("Target channel: 'telegram', 'discord', 'slack', etc. Cross-channel auto-resolved from tenant's linked accounts — no chat ID needed"),
     }),
-    description: "Send file back to the current user on their channel",
+    description: "Send file to user. Omit channel = current channel. Set channel = cross-channel delivery (auto-resolved, never ask user for IDs).",
   },
   replyWithFile: {
     schema: z.object({
