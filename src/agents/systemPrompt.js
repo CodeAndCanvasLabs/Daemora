@@ -299,15 +299,22 @@ Read before editing. Verify after changes. Save verbose output to files. Return 
 
 function renderRuntime(meta = {}) {
   const now = new Date();
-  const date = now.toISOString().split("T")[0];
-  const time = now.toTimeString().split(" ")[0];
+  // ISO with offset so agent computes correct UTC timestamps
+  const offsetMin = now.getTimezoneOffset();
+  const sign = offsetMin <= 0 ? "+" : "-";
+  const absMin = Math.abs(offsetMin);
+  const offsetStr = `${sign}${String(Math.floor(absMin / 60)).padStart(2, "0")}:${String(absMin % 60).padStart(2, "0")}`;
+  const localISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}T${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}${offsetStr}`;
+  const utcISO = now.toISOString();
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const parts = [];
   if (meta.model) parts.push(`Model: ${meta.model}`);
   if (meta.thinkingLevel) parts.push(`Thinking: ${meta.thinkingLevel}`);
   if (meta.agentId) parts.push(`Agent: ${meta.agentId}`);
   return `# Environment
 
-- Date: ${date} ${time}
+- Local time: ${localISO} (${tz})
+- UTC: ${utcISO}
 - OS: ${process.platform}/${process.arch}
 - CWD: ${process.cwd()}
 ${parts.length > 0 ? parts.map(p => `- ${p}`).join("\n") + "\n" : ""}`;
