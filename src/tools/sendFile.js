@@ -40,21 +40,21 @@ export async function sendFile(params) {
       return `Error: File too large (${(size / 1024 / 1024).toFixed(1)} MB). Maximum is 50 MB.`;
     }
 
-    // Always send to the current user's channel — target is derived from TenantContext,
-    // never a free-form ID. This prevents sending files to arbitrary external users.
+    // Resolve target channel and metadata.
+    // Priority: explicit channel param → current channel from TenantContext.
+    // Cross-channel and no-context (cron) sends look up tenant's linked channels.
     const store = tenantContext.getStore();
     const channelMeta = store?.channelMeta;
+    const targetChannel = requestedChannel?.toLowerCase() || channelMeta?.channel;
 
-    if (!channelMeta?.channel || (!channelMeta?.chatId && !channelMeta?.channelId)) {
-      return "Error: No active channel context. Cannot determine where to send the file.";
+    if (!targetChannel) {
+      return "Error: No active channel context and no channel specified. Pass channel param (e.g. 'discord', 'telegram').";
     }
 
-    const targetChannel = requestedChannel?.toLowerCase() || channelMeta.channel;
-
-    // Resolve the channelMeta to use for sending
     let targetMeta = channelMeta;
-    if (targetChannel !== channelMeta.channel) {
-      // Cross-channel send — look up the tenant's identity on the requested channel
+
+    // Cross-channel or no-context (cron/autonomous) — look up tenant's linked channel identity
+    if (!channelMeta?.channel || targetChannel !== channelMeta.channel) {
       const tenantId = store?.tenant?.id;
       if (!tenantId) {
         return `Error: No tenant context — cannot determine your identity on "${targetChannel}".`;
@@ -64,7 +64,6 @@ export async function sendFile(params) {
       if (!linked) {
         return `Error: Your account has no "${targetChannel}" identity linked. Link it first: daemora tenant link ${tenantId} ${targetChannel} <userId>`;
       }
-      // Build a minimal channelMeta for the target channel using the tenant's known ID
       targetMeta = { channel: targetChannel, chatId: linked.user_id, channelId: linked.user_id, userId: linked.user_id };
     }
 
