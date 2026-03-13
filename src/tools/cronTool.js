@@ -187,10 +187,10 @@ function _parseInterval(str) {
 }
 
 export const cronDescription =
-  'cron(action, paramsJson?) - Manage scheduled/recurring tasks. ' +
-  'Actions: "status", "list", ' +
-  '"add" ({"cronExpression":"0 9 * * *","taskInput":"...","name":"Morning check"} or {"every":"30m","taskInput":"..."} or {"at":"2026-03-15T10:00:00Z","taskInput":"..."}), ' +
-  '"update" ({"id":"...","cronExpression":"0 10 * * *","name":"...","model":"...","maxRetries":3}), ' +
-  '"enable" ({"id":"..."}), "disable" ({"id":"..."}), ' +
-  '"remove" ({"id":"..."}), "run" ({"id":"..."}), ' +
-  '"history" ({"id":"...","limit":10}).';
+  'cron(action, paramsJson?) - Schedule and manage cron jobs. ' +
+  'action "add" params: taskInput (required — the prompt you execute autonomously), name (label). ' +
+  'Schedule — pick ONE: cronExpression ("0 9 * * *" for recurring), every ("30m"/"2h" for intervals), at (ISO timestamp for one-shot). ' +
+  'Use "at" for "in X minutes" — compute the ISO timestamp. Use "every" for repeating intervals. Use cronExpression for complex recurring. ' +
+  'Delivery: auto-set to calling channel. For cross-channel delivery set delivery: {"mode":"announce","channel":"discord","channelMeta":{"channel":"discord","chatId":"...","channelId":"..."}}. ' +
+  'Optional: model, timeoutSeconds, maxRetries, deleteAfterRun (true for one-shots). ' +
+  'Other actions: list, status, update ({"id":"..."}), enable/disable ({"id":"..."}), remove ({"id":"..."}), run ({"id":"..."}), history ({"id":"...","limit":10}).';

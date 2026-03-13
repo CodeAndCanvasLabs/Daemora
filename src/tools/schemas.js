@@ -318,7 +318,16 @@ const toolSchemas = {
       action: str("list|add|remove|run|status|update|enable|disable|history"),
       params: json('{"cronExpression":"...","taskInput":"...","name":"..."}'),
     }),
-    description: "Schedule recurring tasks (channel auto-detected)",
+    description:
+      'Schedule and manage cron jobs. action "add" params: ' +
+      'taskInput (required, the prompt you will execute autonomously), name (human label), ' +
+      'Schedule — pick ONE: cronExpression ("0 9 * * *" for recurring), every ("30m"/"2h" for intervals), at (ISO timestamp "2026-03-15T10:00:00Z" for one-shot). ' +
+      'Use "at" for "in X minutes/hours" — compute the ISO timestamp yourself. Use "every" for repeating intervals. Use cronExpression for complex recurring (daily at 9, every Monday, etc.). ' +
+      'Delivery: auto-set to calling channel. For cross-channel: set delivery: {"mode":"announce","channel":"discord","channelMeta":{"channel":"discord","chatId":"...","channelId":"..."}}. ' +
+      'Optional: model, timeoutSeconds, maxRetries, retryBackoffMs, deleteAfterRun (true for one-shots), ' +
+      'failureAlert: {"channel":"telegram","channelMeta":{...},"after":3,"cooldownMs":3600000}. ' +
+      'Other actions: list (show all jobs), status (scheduler info), update ({"id":"...","taskInput":"..."}), ' +
+      'enable/disable ({"id":"..."}), remove ({"id":"..."}), run ({"id":"..."} trigger now), history ({"id":"...","limit":10}).',
   },
 
   // ── System Reload ──────────────────────────────────────────────────────
