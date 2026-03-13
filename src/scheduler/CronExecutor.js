@@ -66,7 +66,7 @@ export async function executeJob(job, { isRetry = false, retryAttempt = 0, onCom
     }
 
     // ── Enqueue task ──────────────────────────────────────────────────────
-    taskId = taskQueue.enqueue({
+    const enqueuedTask = taskQueue.enqueue({
       input: job.taskInput,
       channel: job.delivery?.channel || "cron",
       channelMeta: job.delivery?.channelMeta || null,
@@ -76,6 +76,7 @@ export async function executeJob(job, { isRetry = false, retryAttempt = 0, onCom
       type: "cron",
       tenantId: job.tenantId,
     });
+    taskId = enqueuedTask.id;
 
     // ── Wait for completion ───────────────────────────────────────────────
     const timeoutMs = (job.timeoutSeconds || 7200) * 1000;

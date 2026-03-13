@@ -265,6 +265,13 @@ function _runMigrations(db) {
   _addCol("sub_agents", "TEXT");
   _addCol("cost", "TEXT");
 
+  // Add meta column to tenant_channels for storing full routing metadata (chatId, channelId, phone, etc.)
+  const _tcCols = () => db.prepare("PRAGMA table_info(tenant_channels)").all().map(r => r.name);
+  if (!_tcCols().includes("meta")) {
+    db.exec("ALTER TABLE tenant_channels ADD COLUMN meta TEXT");
+    console.log("[Database] Migration: added tenant_channels.meta");
+  }
+
   // Backfill tenant_channels from existing "channel:userId" tenant IDs (idempotent)
   const tenants = db.prepare("SELECT id FROM tenants").all();
   for (const { id } of tenants) {

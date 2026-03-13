@@ -125,9 +125,14 @@ class TenantManager {
   /**
    * Link an additional channel identity to an existing tenant.
    * Enables the same person to be recognized across Discord, Telegram, Slack, etc.
+   * Stores routing metadata (chatId, channelId, phone, etc.) for cross-channel sends.
    * Throws if the channel identity is already linked to a different tenant.
+   * @param {string} tenantId
+   * @param {string} channel - "telegram", "discord", "slack", etc.
+   * @param {string} userId - Platform-specific user/chat ID
+   * @param {object} [routingMeta] - Full channelMeta for cross-channel routing (chatId, channelId, phone, etc.)
    */
-  linkChannel(tenantId, channel, userId) {
+  linkChannel(tenantId, channel, userId, routingMeta = null) {
     const row = queryOne("SELECT id FROM tenants WHERE id = $id", { $id: tenantId });
     if (!row) throw new Error(`Tenant "${tenantId}" not found`);
 
@@ -139,10 +144,22 @@ class TenantManager {
       throw new Error(`${channel}:${userId} is already linked to tenant "${existing.tenant_id}"`);
     }
 
-    run(
-      "INSERT OR IGNORE INTO tenant_channels (channel, user_id, tenant_id) VALUES ($ch, $uid, $tid)",
-      { $ch: channel, $uid: userId, $tid: tenantId }
-    );
+    const metaJson = routingMeta ? JSON.stringify(routingMeta) : null;
+
+    if (existing) {
+      // Update routing metadata if we have new data
+      if (metaJson) {
+        run(
+          "UPDATE tenant_channels SET meta = $meta WHERE channel = $ch AND user_id = $uid",
+          { $ch: channel, $uid: userId, $meta: metaJson }
+        );
+      }
+    } else {
+      run(
+        "INSERT INTO tenant_channels (channel, user_id, tenant_id, meta) VALUES ($ch, $uid, $tid, $meta)",
+        { $ch: channel, $uid: userId, $tid: tenantId, $meta: metaJson }
+      );
+    }
     return true;
   }
 
@@ -166,13 +183,17 @@ class TenantManager {
   }
 
   /**
-   * List all channel identities linked to a tenant.
+   * List all channel identities linked to a tenant (with routing metadata).
    */
   getChannels(tenantId) {
-    return queryAll(
-      "SELECT channel, user_id, linked_at FROM tenant_channels WHERE tenant_id = $tid ORDER BY linked_at ASC",
+    const rows = queryAll(
+      "SELECT channel, user_id, linked_at, meta FROM tenant_channels WHERE tenant_id = $tid ORDER BY linked_at ASC",
       { $tid: tenantId }
     );
+    return rows.map(r => ({
+      ...r,
+      meta: r.meta ? JSON.parse(r.meta) : null,
+    }));
   }
 
   /**

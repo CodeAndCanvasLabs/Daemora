@@ -62,12 +62,18 @@ export async function sendFile(params) {
       const linkedChannels = tenantManager.getChannels(tenantId);
       const linked = linkedChannels.find(c => c.channel === targetChannel);
       if (!linked) {
-        return `Error: Your account has no "${targetChannel}" identity linked. Link it first: daemora tenant link ${tenantId} ${targetChannel} <userId>`;
+        return `Error: Your account has no "${targetChannel}" identity linked. Send a message to your ${targetChannel} bot first so the identity is auto-linked.`;
       }
-      targetMeta = { channel: targetChannel, chatId: linked.user_id, channelId: linked.user_id, userId: linked.user_id };
+      // Use stored routing metadata if available, otherwise fall back to user_id
+      targetMeta = linked.meta
+        ? { channel: targetChannel, ...linked.meta }
+        : { channel: targetChannel, chatId: linked.user_id, channelId: linked.user_id, userId: linked.user_id };
     }
 
-    const ch = channelRegistry.get(targetMeta.channel);
+    // Try per-tenant channel instance first (e.g. "telegram::umar"), fall back to global
+    const tenantId = store?.tenant?.id;
+    const instanceKey = tenantId ? `${targetMeta.channel}::${tenantId}` : null;
+    const ch = channelRegistry.get(targetMeta.channel, instanceKey);
     if (!ch) {
       const available = channelRegistry.list().map((c) => c.name).join(", ");
       return `Error: Channel "${targetMeta.channel}" not found. Available: ${available || "none"}`;

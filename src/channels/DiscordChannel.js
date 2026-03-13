@@ -53,13 +53,16 @@ export class DiscordChannel extends BaseChannel {
       partials: [Partials.Channel, Partials.Message, Partials.Reaction],
     });
 
-    this.client.once("ready", (c) => {
-      this.botUserId = c.user.id;
-      this.running = true;
-      console.log(`[Channel:Discord] Logged in as ${c.user.tag}`);
-      if (this.config.allowlist?.length) {
-        console.log(`[Channel:Discord] Allowlist active - ${this.config.allowlist.length} authorized user(s)`);
-      }
+    this._readyPromise = new Promise(resolve => {
+      this.client.once("ready", (c) => {
+        this.botUserId = c.user.id;
+        this.running = true;
+        console.log(`[Channel:Discord] Logged in as ${c.user.tag}`);
+        if (this.config.allowlist?.length) {
+          console.log(`[Channel:Discord] Allowlist active - ${this.config.allowlist.length} authorized user(s)`);
+        }
+        resolve();
+      });
     });
 
     this.client.on("messageCreate", async (message) => {
@@ -178,6 +181,12 @@ export class DiscordChannel extends BaseChannel {
 
     try {
       await this.client.login(this.config.token);
+      // Wait for 'ready' so this.running=true before start() returns.
+      // Without this, startTenantChannel sees running=false and never registers the instance.
+      await Promise.race([
+        this._readyPromise,
+        new Promise((_, rej) => setTimeout(() => rej(new Error("Discord ready timeout (30s)")), 30000)),
+      ]);
     } catch (err) {
       console.log(`[Channel:Discord] Login failed: ${err.message}`);
       this.running = false;
