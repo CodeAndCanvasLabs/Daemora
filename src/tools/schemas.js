@@ -444,6 +444,9 @@ const toolSchemas = {
   },
 };
 
+// Tools whose descriptions should include active channel names
+const CHANNEL_AWARE_TOOLS = new Set(["messageChannel", "sendFile", "cron"]);
+
 // ── Exports ──────────────────────────────────────────────────────────────────
 
 /**
@@ -471,10 +474,17 @@ export function validateToolParams(toolName, params) {
 }
 
 /**
- * Get one-line description for a tool.
+ * Get one-line description for a tool, enriched with runtime context.
+ * @param {string} toolName
+ * @param {object} [context] - { activeChannels: string[] }
  */
-export function getToolDescription(toolName) {
-  return toolSchemas[toolName]?.description || null;
+export function getToolDescription(toolName, context = {}) {
+  const desc = toolSchemas[toolName]?.description;
+  if (!desc) return null;
+  if (CHANNEL_AWARE_TOOLS.has(toolName) && context.activeChannels?.length) {
+    return `${desc} Connected channels: ${context.activeChannels.join(", ")}`;
+  }
+  return desc;
 }
 
 /**
