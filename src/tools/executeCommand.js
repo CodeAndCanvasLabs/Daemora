@@ -16,6 +16,7 @@ import { checkCommand } from "../safety/CommandGuard.js";
 import execApproval from "../safety/ExecApproval.js";
 import dockerSandbox from "../safety/DockerSandbox.js";
 import tenantContext from "../tenants/TenantContext.js";
+import { mergeLegacyOptions } from "../utils/mergeToolParams.js";
 
 const DEFAULT_TIMEOUT_MS = 120_000;   // 2 minutes default
 const MAX_TIMEOUT_MS = 600_000;       // 10 minutes hard max
@@ -23,8 +24,7 @@ const MAX_BUFFER = 10 * 1024 * 1024; // 10MB
 
 export async function executeCommand(params) {
   const cmd = params?.command || params?.cmd;
-  const optionsJson = params?.options;
-  const opts = optionsJson ? JSON.parse(optionsJson) : {};
+  const opts = mergeLegacyOptions(params, ["command", "cmd"]);
   const {
     cwd: cwdRaw = null,
     timeout: timeoutRaw = null,

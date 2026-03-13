@@ -4,6 +4,7 @@
  */
 import { convert } from "html-to-text";
 import { URL } from "node:url";
+import { mergeLegacyOptions as _mergeLegacyOpts } from "../utils/mergeToolParams.js";
 
 // Private IP ranges - SSRF protection
 const PRIVATE_RANGES = [
@@ -59,8 +60,7 @@ function setCache(url, content) {
 
 export async function webFetch(params) {
   let url = params?.url;
-  const optionsJson = params?.options;
-  const opts = optionsJson ? JSON.parse(optionsJson) : {};
+  const opts = _mergeLegacyOpts(params, ["url"]);
   const maxChars = opts.maxChars ? parseInt(opts.maxChars) : 50000;
 
   console.log(`      [webFetch] Fetching: ${url}`);

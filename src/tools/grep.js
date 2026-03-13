@@ -5,6 +5,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, extname, relative } from "node:path";
 import filesystemGuard from "../safety/FilesystemGuard.js";
+import { mergeLegacyOptions } from "../utils/mergeToolParams.js";
 
 const EXCLUDED_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", ".cache"]);
 
@@ -28,9 +29,8 @@ function walkDir(dir, fileType, results = []) {
 
 export function grep(params) {
   const pattern = params?.pattern;
-  const optionsJson = params?.options;
   try {
-    const opts = optionsJson ? JSON.parse(optionsJson) : {};
+    const opts = mergeLegacyOptions(params, ["pattern"]);
     const {
       directory = process.cwd(),
       contextLines = 0,

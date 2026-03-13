@@ -3,14 +3,12 @@
  * Requires GOOGLE_PLACES_API_KEY env var.
  */
 import { resolveKey } from "./_env.js";
+import { mergeLegacyParams as _mergeLegacy } from "../utils/mergeToolParams.js";
 
 export async function googlePlaces(_params) {
   const action = _params?.action;
-  const paramsJson = _params?.params;
   if (!action) return "Error: action required. Valid: search, details, nearby, autocomplete";
-  const params = paramsJson
-    ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson)
-    : {};
+  const params = _mergeLegacy(_params);
 
   const apiKey = params.apiKey || resolveKey("GOOGLE_PLACES_API_KEY");
   if (!apiKey) return "Error: GOOGLE_PLACES_API_KEY env var required";

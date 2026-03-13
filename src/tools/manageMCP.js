@@ -1,4 +1,5 @@
 import mcpManager from "../mcp/MCPManager.js";
+import { mergeLegacyParams as _mergeLegacy } from "../utils/mergeToolParams.js";
 
 /**
  * Strip credentials from an MCP server config object before it can reach agent output.
@@ -33,10 +34,7 @@ function _stripCredentials(serverConfig) {
  */
 export async function manageMCP(toolParams) {
   const action = toolParams?.action;
-  const paramsJson = toolParams?.params;
-  const params = paramsJson
-    ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson)
-    : {};
+  const params = _mergeLegacy(toolParams);
 
   switch (action) {
 

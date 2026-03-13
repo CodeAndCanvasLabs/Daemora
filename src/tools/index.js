@@ -56,16 +56,22 @@ import { reload } from "./reloadTool.js";
 
 function spawnAgent(params) {
   const taskDescription = params?.taskDescription;
+  // Merge flat fields with legacy options JSON
   const optionsStr = params?.options;
-  const options = typeof optionsStr === "string" ? JSON.parse(optionsStr) : (optionsStr || {});
+  const legacyOpts = optionsStr ? (typeof optionsStr === "string" ? JSON.parse(optionsStr) : optionsStr) : {};
+  const { taskDescription: _, options: _o, ...flatFields } = params || {};
+  const options = { ...legacyOpts, ...flatFields };
   return spawnSubAgent(taskDescription, options);
 }
 
 function parallelAgents(params) {
-  const tasksStr = params?.tasks;
+  // New schema: tasks is array of objects, sharedContext is flat string
+  // Legacy: tasks is JSON string, sharedOptions is JSON string
+  const tasksRaw = params?.tasks;
+  const tasks = typeof tasksRaw === "string" ? JSON.parse(tasksRaw) : (tasksRaw || []);
   const sharedStr = params?.sharedOptions;
-  const tasks = typeof tasksStr === "string" ? JSON.parse(tasksStr) : (tasksStr || []);
-  const sharedOptions = typeof sharedStr === "string" ? JSON.parse(sharedStr) : (sharedStr || {});
+  const legacyShared = sharedStr ? (typeof sharedStr === "string" ? JSON.parse(sharedStr) : sharedStr) : {};
+  const sharedOptions = params?.sharedContext ? { ...legacyShared, sharedContext: params.sharedContext } : legacyShared;
   return spawnParallelAgents(tasks, sharedOptions);
 }
 

@@ -17,11 +17,11 @@ import { platform } from "node:os";
 import { join } from "node:path";
 import filesystemGuard from "../safety/FilesystemGuard.js";
 import { getTenantTmpDir } from "./_paths.js";
+import { mergeLegacyOptions as _mergeLegacyOpts } from "../utils/mergeToolParams.js";
 
 export function screenCapture(params) {
-  const optionsJson = params?.options;
   try {
-    const opts = optionsJson ? JSON.parse(optionsJson) : {};
+    const opts = _mergeLegacyOpts(params);
     const outputDir = opts.outputDir || getTenantTmpDir("daemora-captures");
     const region    = opts.region;                   // { x, y, width, height } - screenshot only
     const mode      = (opts.mode || "screenshot").toLowerCase();

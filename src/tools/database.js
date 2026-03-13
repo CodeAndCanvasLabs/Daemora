@@ -5,14 +5,12 @@
  * Security: uses parameterized queries for all user-supplied values.
  */
 import { resolveKey } from "./_env.js";
+import { mergeLegacyParams as _mergeLegacy } from "../utils/mergeToolParams.js";
 
 export async function database(_params) {
   const action = _params?.action;
-  const paramsJson = _params?.params;
   if (!action) return "Error: action required. Valid: query, execute, schema, list";
-  const params = paramsJson
-    ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson)
-    : {};
+  const params = _mergeLegacy(_params);
 
   const { type = "sqlite", dbPath, connectionString, query, values = [], table } = params;
 

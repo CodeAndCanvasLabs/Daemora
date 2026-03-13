@@ -4,14 +4,12 @@
  * Uses osascript (AppleScript) — no external deps.
  */
 import { execSync } from "node:child_process";
+import { mergeLegacyParams as _mergeLegacy } from "../utils/mergeToolParams.js";
 
 export async function iMessageTool(_params) {
   const action = _params?.action;
-  const paramsJson = _params?.params;
   if (!action) return "Error: action required. Valid: send, read";
-  const params = paramsJson
-    ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson)
-    : {};
+  const params = _mergeLegacy(_params);
 
   if (process.platform !== "darwin") {
     return "Error: iMessage tool is macOS-only (requires Messages app via AppleScript)";

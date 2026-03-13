@@ -5,6 +5,7 @@ import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import filesystemGuard from "../safety/FilesystemGuard.js";
+import { mergeLegacyParams } from "../utils/mergeToolParams.js";
 
 const MAX_OUTPUT = 8000;
 
@@ -14,10 +15,9 @@ function run(cmd, cwd) {
 
 export async function gitTool(_params) {
   const action = _params?.action;
-  const paramsJson = _params?.params;
   if (!action) return 'Error: action required. Valid: clone, status, diff, log, commit, push, pull, branch, checkout, stash, add, reset, remote';
 
-  const params = paramsJson ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson) : {};
+  const params = mergeLegacyParams(_params);
 
   const repoPath = params.path ? resolve(params.path) : process.cwd();
 

@@ -5,6 +5,7 @@
  * Covers full team lifecycle: create, teammates, tasks, messaging, status, disband.
  */
 
+import { mergeLegacyParams as _mergeLegacy } from "../utils/mergeToolParams.js";
 import {
   createTeam,
   addTeammate,
@@ -20,10 +21,7 @@ import {
 
 export function teamTask(toolParams) {
   const action = toolParams?.action;
-  const paramsJson = toolParams?.params;
-  const params = paramsJson
-    ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson)
-    : {};
+  const params = _mergeLegacy(toolParams);
 
   try {
     switch (action) {

@@ -10,6 +10,7 @@
  */
 
 import tenantContext from "../tenants/TenantContext.js";
+import { mergeLegacyOptions as _mergeLegacyOpts } from "../utils/mergeToolParams.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -98,16 +99,12 @@ export async function sendEmail(params) {
   const to = params?.to;
   const subject = params?.subject;
   const body = params?.body;
-  const optionsJson = params?.options;
   if (!to || !subject || !body) {
     return "Error: to, subject, and body are all required.";
   }
 
-  // Parse options
-  let opts = {};
-  if (optionsJson) {
-    try { opts = JSON.parse(optionsJson); } catch {}
-  }
+  // Merge flat fields with legacy options JSON
+  const opts = _mergeLegacyOpts(params, ["to", "subject", "body"]);
 
   const cc = opts.cc ? parseAddressList(opts.cc) : null;
   const bcc = opts.bcc ? parseAddressList(opts.bcc) : null;
