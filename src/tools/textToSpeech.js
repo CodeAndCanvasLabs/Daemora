@@ -18,18 +18,18 @@ import { join } from "node:path";
 import filesystemGuard from "../safety/FilesystemGuard.js";
 import { getTenantTmpDir } from "./_paths.js";
 import tenantContext from "../tenants/TenantContext.js";
+import { mergeLegacyOptions as _mergeLegacyOpts } from "../utils/mergeToolParams.js";
 const OPENAI_CHAR_LIMIT = 4096;
 const ELEVENLABS_CHAR_LIMIT = 5000;
 
 export async function textToSpeech(params) {
   const text = params?.text;
-  const optionsJson = params?.options;
   try {
     if (!text || text.trim().length === 0) {
       return "Error: text is required";
     }
 
-    const opts = optionsJson ? JSON.parse(optionsJson) : {};
+    const opts = _mergeLegacyOpts(params, ["text"]);
     const provider = opts.provider?.toLowerCase() || "openai";
 
     // Prefer ElevenLabs if key is present and provider not forced

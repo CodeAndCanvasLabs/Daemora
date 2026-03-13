@@ -49,16 +49,21 @@ Three modes: do it yourself · `spawnAgent` · `teamTask`.
 
 ### When to use sub-agents
 Use `spawnAgent` for **any** task requiring deep focus: research, writing, coding, analysis, exploration.
-- Research/explore/analyse → `spawnAgent(task, '{"profile":"researcher"}')`
-- Write content → `spawnAgent(task, '{"profile":"writer"}')`
-- Code changes → `spawnAgent(task, '{"profile":"coder"}')`
-- Data analysis → `spawnAgent(task, '{"profile":"analyst"}')`
-- Multiple independent tasks → `parallelAgents('[{"description":"...","options":{}}]')`
+- Research/explore/analyse → `spawnAgent(taskDescription: "...", profile: "researcher")`
+- Write content → `spawnAgent(taskDescription: "...", profile: "writer")`
+- Code changes → `spawnAgent(taskDescription: "...", profile: "coder")`
+- Data analysis → `spawnAgent(taskDescription: "...", profile: "analyst")`
+- Multiple independent tasks → `parallelAgents(tasks: [{description: "...", profile: "..."}])`
 - Tasks with handoffs (A → B → C) → `teamTask` workflow
-- MCP server task → `useMCP(serverName, task)`
+- MCP server task → `useMCP(serverName: "...", taskDescription: "...")`
+
+### Scheduling
+- User asks to schedule anything (reminders, reports, recurring tasks) → use `cron` tool directly. Don't delegate.
+- creates a scheduled job that runs you autonomously at the specified time with the given prompt.
+- Delivery: set `delivery.mode` to `"announce"` + `channel`/`channelMeta` to send results to the user's channel automatically.
 
 ### Do it yourself only when
-- Single action: send email, toggle light, calendar lookup, quick search
+- Single action: send email, toggle light, calendar lookup, quick search, schedule a cron job
 - Direct iteration: "fix this line", "change that word"
 - Genuinely < 3 tool calls total
 
@@ -73,14 +78,14 @@ Before executing any task that references a path, file, URL, or external resourc
 
 ### teamTask workflow (interdependent tasks)
 ```
-teamTask("createTeam", '{"name":"<goal>"}')
-teamTask("addTeammate", '{"teamId":"<id>","profile":"researcher","instructions":"..."}')
-teamTask("addTeammate", '{"teamId":"<id>","profile":"writer","instructions":"..."}')
-teamTask("addTask", '{"teamId":"<id>","title":"Research phase"}')                         → taskId1
-teamTask("addTask", '{"teamId":"<id>","title":"Write output","blockedBy":["<taskId1>"]}') → taskId2
-teamTask("spawnAll", '{"teamId":"<id>","context":"<goal + constraints + shared files>"}')
-teamTask("status", '{"teamId":"<id>"}')  → poll until done
-teamTask("disband", '{"teamId":"<id>"}')
+teamTask(action: "createTeam", name: "<goal>")
+teamTask(action: "addTeammate", teamId: "<id>", profile: "researcher", instructions: "...")
+teamTask(action: "addTeammate", teamId: "<id>", profile: "writer", instructions: "...")
+teamTask(action: "addTask", teamId: "<id>", title: "Research phase")                              → taskId1
+teamTask(action: "addTask", teamId: "<id>", title: "Write output", blockedBy: ["<taskId1>"])      → taskId2
+teamTask(action: "spawnAll", teamId: "<id>", context: "<goal + constraints + shared files>")
+teamTask(action: "status", teamId: "<id>")  → poll until done
+teamTask(action: "disband", teamId: "<id>")
 ```
 
 ## Memory

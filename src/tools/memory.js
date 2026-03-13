@@ -254,7 +254,6 @@ export function writeDailyLog(params) {
 
 export async function searchMemory(params) {
   const query = params?.query;
-  const optionsJson = params?.options;
   const tenantId = _getTenantId();
   console.log(`      [memory] Searching memory for: "${query}"`);
 
@@ -262,8 +261,10 @@ export async function searchMemory(params) {
     return "Error: search query is required.";
   }
 
-  let opts = {};
-  if (optionsJson) { try { opts = JSON.parse(optionsJson); } catch {} }
+  // Merge flat fields with legacy options JSON
+  const _optStr = params?.options;
+  const _legacy = _optStr ? (typeof _optStr === "string" ? JSON.parse(_optStr) : _optStr) : {};
+  const opts = { ..._legacy, ...params };
 
   const filterCategory = opts.category || null;
   const limit          = opts.limit ? parseInt(opts.limit) : 20;

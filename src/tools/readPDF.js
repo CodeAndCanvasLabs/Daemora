@@ -6,18 +6,17 @@ import { execSync } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
 import filesystemGuard from "../safety/FilesystemGuard.js";
 import tenantContext from "../tenants/TenantContext.js";
+import { mergeLegacyOptions as _mergeLegacyOpts } from "../utils/mergeToolParams.js";
 
 export async function readPDF(params) {
   const filePath = params?.filePath;
-  const optionsJson = params?.options;
   if (!filePath) return "Error: filePath is required.";
 
   const guard = filesystemGuard.checkRead(filePath);
   if (!guard.allowed) return `Access denied: ${guard.reason}`;
   if (!existsSync(filePath)) return `Error: File not found: ${filePath}`;
 
-  let opts = {};
-  if (optionsJson) { try { opts = JSON.parse(optionsJson); } catch {} }
+  const opts = _mergeLegacyOpts(params, ["filePath"]);
   const { pages = null, method = "auto" } = opts;
 
   // Method 1: pdftotext (poppler-utils) — fast, no API cost

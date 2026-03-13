@@ -1,5 +1,5 @@
 import { generateText, tool, stepCountIs } from "ai";
-import { getModelWithFallback, resolveThinkingConfig } from "../models/ModelRouter.js";
+import { getModelWithFallback, resolveThinkingConfig, resolveDefaultModel } from "../models/ModelRouter.js";
 import { config } from "../config/default.js";
 import eventBus from "./EventBus.js";
 import hookRunner from "../hooks/HookRunner.js";
@@ -9,8 +9,9 @@ import circuitBreaker from "../safety/CircuitBreaker.js";
 import permissionGuard from "../safety/PermissionGuard.js";
 import supervisor from "../agents/Supervisor.js";
 import gitRollback from "../safety/GitRollback.js";
-import { validateToolParams, getSchemaToolNames } from "../tools/schemas.js";
+import { validateToolParams, getSchemaToolNames, getToolDescription } from "../tools/schemas.js";
 import toolSchemas from "../tools/schemas.js";
+import channelRegistry from "../channels/index.js";
 import { msgText } from "../utils/msgText.js";
 
 /**
@@ -32,7 +33,7 @@ export async function runAgentLoop({
   apiKeys = {},
   onStepPersist = null,
 }) {
-  const selectedModelId = modelId || config.defaultModel;
+  const selectedModelId = modelId || config.defaultModel || resolveDefaultModel(apiKeys);
   const { model, meta, modelId: resolvedModelId } = getModelWithFallback(selectedModelId, apiKeys);
 
   const thinkingConfig = resolveThinkingConfig(resolvedModelId, config.thinkingLevel);
@@ -68,13 +69,17 @@ export async function runAgentLoop({
     if (!tools[name]) availableToolNames.delete(name);
   }
 
+  // Runtime context for enriching tool descriptions
+  const activeChannels = channelRegistry.list().filter(c => c.running).map(c => c.name);
+  const toolContext = { activeChannels };
+
   const aiTools = {};
   for (const name of availableToolNames) {
     const entry = toolSchemas[name];
     if (!entry) continue;
 
     aiTools[name] = tool({
-      description: entry.description,
+      description: getToolDescription(name, toolContext) || entry.description,
       inputSchema: entry.schema,
       execute: async (params) => {
         stepCount++;

@@ -7,14 +7,13 @@ import { join } from "node:path";
 import tenantContext from "../tenants/TenantContext.js";
 import filesystemGuard from "../safety/FilesystemGuard.js";
 import { getTenantTmpDir } from "./_paths.js";
+import { mergeLegacyOptions as _mergeLegacyOpts } from "../utils/mergeToolParams.js";
 
 export async function generateImage(params) {
   const prompt = params?.prompt;
-  const optionsJson = params?.options;
   if (!prompt) return "Error: prompt is required.";
 
-  let opts = {};
-  if (optionsJson) { try { opts = JSON.parse(optionsJson); } catch { return "Error: optionsJson must be valid JSON."; } }
+  const opts = _mergeLegacyOpts(params, ["prompt"]);
 
   const {
     model = "dall-e-3",

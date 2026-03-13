@@ -42,8 +42,9 @@ function buildConfig(env) {
     soulPath: join(ROOT_DIR, "SOUL.md"),
     memoryPath: join(ROOT_DIR, "MEMORY.md"),
 
-    // Default model (provider:model format)
-    defaultModel: env.DEFAULT_MODEL || "openai:gpt-5.1-mini",
+    // Default model (provider:model format) — resolved at runtime by ModelRouter.resolveDefaultModel()
+    // if not explicitly set. This placeholder is overridden after startup.
+    defaultModel: env.DEFAULT_MODEL || null,
 
     // Sub-agent model — used for all sub-agents when no profile-specific model is set.
     subAgentModel: env.SUB_AGENT_MODEL || null,

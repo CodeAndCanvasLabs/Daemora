@@ -17,12 +17,11 @@ import tenantContext from "../tenants/TenantContext.js";
  *   getTask     - get full task details + children
  */
 
+import { mergeLegacyParams as _mergeLegacy } from "../utils/mergeToolParams.js";
+
 export function taskManager(toolParams) {
   const action = toolParams?.action;
-  const paramsJson = toolParams?.params;
-  const params = paramsJson
-    ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson)
-    : {};
+  const params = _mergeLegacy(toolParams);
 
   // Get current context for parentTaskId linkage
   const store = tenantContext.getStore();

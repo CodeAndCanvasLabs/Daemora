@@ -4,14 +4,12 @@
  * All requests go to the local bridge — no cloud dependency.
  */
 import { resolveKey } from "./_env.js";
+import { mergeLegacyParams as _mergeLegacy } from "../utils/mergeToolParams.js";
 
 export async function philipsHue(_params) {
   const action = _params?.action;
-  const paramsJson = _params?.params;
   if (!action) return "Error: action required. Valid: list, on, off, color, brightness, scene, discover";
-  const params = paramsJson
-    ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson)
-    : {};
+  const params = _mergeLegacy(_params);
 
   const bridgeIp = params.bridgeIp || resolveKey("HUE_BRIDGE_IP");
   const apiKey = params.apiKey || resolveKey("HUE_API_KEY");

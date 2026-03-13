@@ -4,6 +4,7 @@
  */
 import { convert } from "html-to-text";
 import { URL } from "node:url";
+import { mergeLegacyOptions as _mergeLegacyOpts } from "../utils/mergeToolParams.js";
 
 // Private IP ranges - SSRF protection
 const PRIVATE_RANGES = [
@@ -23,6 +24,8 @@ const PRIVATE_RANGES = [
 const cache = new Map();
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const MAX_CACHE_SIZE = 100;
+
+export function clearFetchCache() { cache.clear(); return cache.size; }
 
 function isPrivateIP(hostname) {
   return PRIVATE_RANGES.some((r) => r.test(hostname));
@@ -57,8 +60,7 @@ function setCache(url, content) {
 
 export async function webFetch(params) {
   let url = params?.url;
-  const optionsJson = params?.options;
-  const opts = optionsJson ? JSON.parse(optionsJson) : {};
+  const opts = _mergeLegacyOpts(params, ["url"]);
   const maxChars = opts.maxChars ? parseInt(opts.maxChars) : 50000;
 
   console.log(`      [webFetch] Fetching: ${url}`);

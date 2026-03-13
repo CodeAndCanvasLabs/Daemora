@@ -8,95 +8,102 @@
 export const models = {
   // ─── OpenAI ──────────────────────────────────────────────────────────────────
 
-  // GPT-5.4
+  // GPT-5.4 (1M context)
   "openai:gpt-5.4": {
     provider: "openai", model: "gpt-5.4",
-    contextWindow: 128_000, compactAt: 90_000,
+    contextWindow: 1_000_000, compactAt: 700_000,
     costPer1kInput: 0.0025, costPer1kOutput: 0.015,
-    capabilities: ["text", "tools", "structured-output"],
-    tier: "expensive",
+    capabilities: ["text", "tools", "structured-output", "vision", "computer-use"],
+    tier: "standard",
   },
   "openai:gpt-5.4-pro": {
     provider: "openai", model: "gpt-5.4-pro",
-    contextWindow: 128_000, compactAt: 90_000,
+    contextWindow: 1_000_000, compactAt: 700_000,
     costPer1kInput: 0.030, costPer1kOutput: 0.180,
-    capabilities: ["text", "tools", "structured-output", "reasoning"],
+    capabilities: ["text", "tools", "structured-output", "vision", "reasoning", "computer-use"],
     tier: "expensive",
   },
 
-  // GPT-5.2
+  // GPT-5.2 (400K context)
   "openai:gpt-5.2": {
     provider: "openai", model: "gpt-5.2",
-    contextWindow: 128_000, compactAt: 90_000,
+    contextWindow: 400_000, compactAt: 280_000,
     costPer1kInput: 0.00175, costPer1kOutput: 0.014,
-    capabilities: ["text", "tools", "structured-output"],
+    capabilities: ["text", "tools", "structured-output", "vision"],
     tier: "standard",
   },
   "openai:gpt-5.2-pro": {
     provider: "openai", model: "gpt-5.2-pro",
-    contextWindow: 128_000, compactAt: 90_000,
+    contextWindow: 400_000, compactAt: 280_000,
     costPer1kInput: 0.021, costPer1kOutput: 0.168,
-    capabilities: ["text", "tools", "structured-output", "reasoning"],
+    capabilities: ["text", "tools", "structured-output", "vision", "reasoning"],
     tier: "expensive",
   },
 
   // GPT-5.1
   "openai:gpt-5.1": {
     provider: "openai", model: "gpt-5.1",
-    contextWindow: 128_000, compactAt: 90_000,
+    contextWindow: 400_000, compactAt: 280_000,
     costPer1kInput: 0.00125, costPer1kOutput: 0.010,
-    capabilities: ["text", "tools", "structured-output"],
+    capabilities: ["text", "tools", "structured-output", "vision"],
     tier: "standard",
   },
 
-  // GPT-5
+  // GPT-5 (400K context)
   "openai:gpt-5": {
     provider: "openai", model: "gpt-5",
-    contextWindow: 128_000, compactAt: 90_000,
+    contextWindow: 400_000, compactAt: 280_000,
     costPer1kInput: 0.00125, costPer1kOutput: 0.010,
-    capabilities: ["text", "tools", "structured-output"],
+    capabilities: ["text", "tools", "structured-output", "vision"],
     tier: "standard",
   },
   "openai:gpt-5-pro": {
     provider: "openai", model: "gpt-5-pro",
-    contextWindow: 128_000, compactAt: 90_000,
+    contextWindow: 400_000, compactAt: 280_000,
     costPer1kInput: 0.015, costPer1kOutput: 0.120,
-    capabilities: ["text", "tools", "structured-output", "reasoning"],
+    capabilities: ["text", "tools", "structured-output", "vision", "reasoning"],
     tier: "expensive",
   },
   "openai:gpt-5-mini": {
     provider: "openai", model: "gpt-5-mini",
-    contextWindow: 128_000, compactAt: 90_000,
-    costPer1kInput: 0.00025, costPer1kOutput: 0.002,
-    capabilities: ["text", "tools", "structured-output"],
+    contextWindow: 400_000, compactAt: 280_000,
+    costPer1kInput: 0.0005, costPer1kOutput: 0.004,
+    capabilities: ["text", "tools", "structured-output", "vision"],
     tier: "cheap",
   },
   "openai:gpt-5-nano": {
     provider: "openai", model: "gpt-5-nano",
-    contextWindow: 128_000, compactAt: 90_000,
+    contextWindow: 400_000, compactAt: 280_000,
     costPer1kInput: 0.00005, costPer1kOutput: 0.0004,
-    capabilities: ["text", "tools", "structured-output"],
+    capabilities: ["text", "tools", "structured-output", "vision"],
     tier: "cheap",
   },
 
   // GPT-5 Codex
   "openai:gpt-5.3-codex": {
     provider: "openai", model: "gpt-5.3-codex",
-    contextWindow: 128_000, compactAt: 90_000,
+    contextWindow: 400_000, compactAt: 280_000,
     costPer1kInput: 0.00175, costPer1kOutput: 0.014,
     capabilities: ["text", "tools", "structured-output"],
     tier: "standard",
   },
   "openai:gpt-5.1-codex": {
     provider: "openai", model: "gpt-5.1-codex",
-    contextWindow: 128_000, compactAt: 90_000,
+    contextWindow: 400_000, compactAt: 280_000,
     costPer1kInput: 0.00125, costPer1kOutput: 0.010,
     capabilities: ["text", "tools", "structured-output"],
     tier: "standard",
   },
+  "openai:gpt-5.1-codex-mini": {
+    provider: "openai", model: "gpt-5.1-codex-mini",
+    contextWindow: 400_000, compactAt: 280_000,
+    costPer1kInput: 0.00025, costPer1kOutput: 0.002,
+    capabilities: ["text", "tools", "structured-output"],
+    tier: "cheap",
+  },
   "openai:gpt-5-codex": {
     provider: "openai", model: "gpt-5-codex",
-    contextWindow: 128_000, compactAt: 90_000,
+    contextWindow: 400_000, compactAt: 280_000,
     costPer1kInput: 0.00125, costPer1kOutput: 0.010,
     capabilities: ["text", "tools", "structured-output"],
     tier: "standard",
@@ -146,43 +153,43 @@ export const models = {
     provider: "openai", model: "o1",
     contextWindow: 200_000, compactAt: 140_000,
     costPer1kInput: 0.015, costPer1kOutput: 0.060,
-    capabilities: ["text", "tools", "reasoning"],
+    capabilities: ["text", "tools", "reasoning", "vision"],
     tier: "expensive",
   },
   "openai:o1-pro": {
     provider: "openai", model: "o1-pro",
     contextWindow: 200_000, compactAt: 140_000,
     costPer1kInput: 0.150, costPer1kOutput: 0.600,
-    capabilities: ["text", "tools", "reasoning"],
+    capabilities: ["text", "tools", "reasoning", "vision"],
     tier: "expensive",
   },
   "openai:o3-pro": {
     provider: "openai", model: "o3-pro",
     contextWindow: 200_000, compactAt: 140_000,
     costPer1kInput: 0.020, costPer1kOutput: 0.080,
-    capabilities: ["text", "tools", "reasoning"],
+    capabilities: ["text", "tools", "reasoning", "vision"],
     tier: "expensive",
   },
   "openai:o3": {
     provider: "openai", model: "o3",
     contextWindow: 200_000, compactAt: 140_000,
     costPer1kInput: 0.002, costPer1kOutput: 0.008,
-    capabilities: ["text", "tools", "reasoning"],
+    capabilities: ["text", "tools", "reasoning", "vision"],
     tier: "standard",
   },
   "openai:o4-mini": {
     provider: "openai", model: "o4-mini",
     contextWindow: 200_000, compactAt: 140_000,
     costPer1kInput: 0.0011, costPer1kOutput: 0.0044,
-    capabilities: ["text", "tools", "reasoning"],
-    tier: "standard",
+    capabilities: ["text", "tools", "reasoning", "vision"],
+    tier: "cheap",
   },
   "openai:o3-mini": {
     provider: "openai", model: "o3-mini",
     contextWindow: 200_000, compactAt: 140_000,
     costPer1kInput: 0.0011, costPer1kOutput: 0.0044,
     capabilities: ["text", "tools", "reasoning"],
-    tier: "standard",
+    tier: "cheap",
   },
 
   // Specialized
@@ -200,14 +207,14 @@ export const models = {
     provider: "anthropic", model: "claude-opus-4-6",
     contextWindow: 200_000, compactAt: 140_000,
     costPer1kInput: 0.005, costPer1kOutput: 0.025,
-    capabilities: ["text", "tools", "structured-output", "vision"],
+    capabilities: ["text", "tools", "structured-output", "vision", "reasoning"],
     tier: "expensive",
   },
   "anthropic:claude-opus-4-5": {
     provider: "anthropic", model: "claude-opus-4-5",
     contextWindow: 200_000, compactAt: 140_000,
     costPer1kInput: 0.005, costPer1kOutput: 0.025,
-    capabilities: ["text", "tools", "structured-output", "vision"],
+    capabilities: ["text", "tools", "structured-output", "vision", "reasoning"],
     tier: "expensive",
   },
   "anthropic:claude-opus-4-1": {
@@ -228,14 +235,14 @@ export const models = {
     provider: "anthropic", model: "claude-sonnet-4-6",
     contextWindow: 200_000, compactAt: 140_000,
     costPer1kInput: 0.003, costPer1kOutput: 0.015,
-    capabilities: ["text", "tools", "structured-output", "vision"],
+    capabilities: ["text", "tools", "structured-output", "vision", "reasoning"],
     tier: "standard",
   },
   "anthropic:claude-sonnet-4-5": {
     provider: "anthropic", model: "claude-sonnet-4-5",
     contextWindow: 200_000, compactAt: 140_000,
     costPer1kInput: 0.003, costPer1kOutput: 0.015,
-    capabilities: ["text", "tools", "structured-output", "vision"],
+    capabilities: ["text", "tools", "structured-output", "vision", "reasoning"],
     tier: "standard",
   },
   "anthropic:claude-sonnet-4": {
@@ -248,8 +255,8 @@ export const models = {
   "anthropic:claude-haiku-4-5": {
     provider: "anthropic", model: "claude-haiku-4-5",
     contextWindow: 200_000, compactAt: 140_000,
-    costPer1kInput: 0.001, costPer1kOutput: 0.005,
-    capabilities: ["text", "tools", "structured-output", "vision"],
+    costPer1kInput: 0.00025, costPer1kOutput: 0.00125,
+    capabilities: ["text", "tools", "structured-output", "vision", "reasoning"],
     tier: "cheap",
   },
   "anthropic:claude-haiku-3-5": {
@@ -259,13 +266,6 @@ export const models = {
     capabilities: ["text", "tools", "structured-output"],
     tier: "cheap",
   },
-  "anthropic:claude-haiku-3": {
-    provider: "anthropic", model: "claude-haiku-3",
-    contextWindow: 200_000, compactAt: 140_000,
-    costPer1kInput: 0.00025, costPer1kOutput: 0.00125,
-    capabilities: ["text", "tools"],
-    tier: "cheap",
-  },
 
   // ─── Google ──────────────────────────────────────────────────────────────────
 
@@ -273,56 +273,56 @@ export const models = {
     provider: "google", model: "gemini-3.1-pro-preview",
     contextWindow: 1_000_000, compactAt: 700_000,
     costPer1kInput: 0.002, costPer1kOutput: 0.012,
-    capabilities: ["text", "tools", "structured-output"],
+    capabilities: ["text", "tools", "structured-output", "vision", "reasoning"],
     tier: "standard",
   },
   "google:gemini-3.1-flash-lite-preview": {
     provider: "google", model: "gemini-3.1-flash-lite-preview",
     contextWindow: 1_000_000, compactAt: 700_000,
     costPer1kInput: 0.00025, costPer1kOutput: 0.0015,
-    capabilities: ["text", "tools", "structured-output"],
+    capabilities: ["text", "tools", "structured-output", "vision"],
     tier: "cheap",
   },
   "google:gemini-3-pro-preview": {
     provider: "google", model: "gemini-3-pro-preview",
     contextWindow: 1_000_000, compactAt: 700_000,
     costPer1kInput: 0.002, costPer1kOutput: 0.012,
-    capabilities: ["text", "tools", "structured-output"],
+    capabilities: ["text", "tools", "structured-output", "vision"],
     tier: "standard",
   },
   "google:gemini-3-flash-preview": {
     provider: "google", model: "gemini-3-flash-preview",
     contextWindow: 1_000_000, compactAt: 700_000,
     costPer1kInput: 0.0005, costPer1kOutput: 0.003,
-    capabilities: ["text", "tools", "structured-output"],
+    capabilities: ["text", "tools", "structured-output", "vision"],
     tier: "cheap",
   },
   "google:gemini-2.5-pro": {
     provider: "google", model: "gemini-2.5-pro",
     contextWindow: 1_000_000, compactAt: 700_000,
     costPer1kInput: 0.00125, costPer1kOutput: 0.010,
-    capabilities: ["text", "tools", "structured-output"],
+    capabilities: ["text", "tools", "structured-output", "vision", "reasoning"],
     tier: "standard",
   },
   "google:gemini-2.5-flash": {
     provider: "google", model: "gemini-2.5-flash",
     contextWindow: 1_000_000, compactAt: 700_000,
     costPer1kInput: 0.0003, costPer1kOutput: 0.0025,
-    capabilities: ["text", "tools", "structured-output"],
+    capabilities: ["text", "tools", "structured-output", "vision", "reasoning"],
     tier: "cheap",
   },
   "google:gemini-2.5-flash-lite": {
     provider: "google", model: "gemini-2.5-flash-lite",
     contextWindow: 1_000_000, compactAt: 700_000,
     costPer1kInput: 0.0001, costPer1kOutput: 0.0004,
-    capabilities: ["text", "tools", "structured-output"],
+    capabilities: ["text", "tools", "structured-output", "vision"],
     tier: "cheap",
   },
   "google:gemini-2.0-flash": {
     provider: "google", model: "gemini-2.0-flash",
     contextWindow: 1_000_000, compactAt: 700_000,
     costPer1kInput: 0.00015, costPer1kOutput: 0.0006,
-    capabilities: ["text", "tools", "structured-output"],
+    capabilities: ["text", "tools", "structured-output", "vision"],
     tier: "cheap",
   },
   "google:gemini-2.0-flash-lite": {
@@ -337,10 +337,24 @@ export const models = {
 
   "xai:grok-4": {
     provider: "xai", model: "grok-4",
-    contextWindow: 131_072, compactAt: 90_000,
+    contextWindow: 2_000_000, compactAt: 1_400_000,
     costPer1kInput: 0.003, costPer1kOutput: 0.015,
-    capabilities: ["text", "tools", "structured-output"],
+    capabilities: ["text", "tools", "structured-output", "vision", "reasoning"],
     tier: "standard",
+  },
+  "xai:grok-4.1-fast": {
+    provider: "xai", model: "grok-4.1-fast",
+    contextWindow: 2_000_000, compactAt: 1_400_000,
+    costPer1kInput: 0.0002, costPer1kOutput: 0.0005,
+    capabilities: ["text", "tools", "structured-output", "vision"],
+    tier: "cheap",
+  },
+  "xai:grok-4-fast": {
+    provider: "xai", model: "grok-4-fast",
+    contextWindow: 2_000_000, compactAt: 1_400_000,
+    costPer1kInput: 0.0002, costPer1kOutput: 0.0005,
+    capabilities: ["text", "tools", "structured-output", "vision"],
+    tier: "cheap",
   },
   "xai:grok-3-beta": {
     provider: "xai", model: "grok-3-beta",
@@ -361,16 +375,16 @@ export const models = {
 
   "deepseek:deepseek-chat": {
     provider: "deepseek", model: "deepseek-chat",
-    contextWindow: 128_000, compactAt: 90_000,
-    costPer1kInput: 0.00027, costPer1kOutput: 0.0011,
+    contextWindow: 1_000_000, compactAt: 700_000,
+    costPer1kInput: 0.00028, costPer1kOutput: 0.00042,
     capabilities: ["text", "tools", "structured-output"],
     tier: "cheap",
   },
   "deepseek:deepseek-reasoner": {
     provider: "deepseek", model: "deepseek-reasoner",
-    contextWindow: 128_000, compactAt: 90_000,
-    costPer1kInput: 0.00055, costPer1kOutput: 0.0022,
-    capabilities: ["text", "reasoning"],
+    contextWindow: 1_000_000, compactAt: 700_000,
+    costPer1kInput: 0.0005, costPer1kOutput: 0.00218,
+    capabilities: ["text", "tools", "reasoning"],
     tier: "cheap",
   },
 
@@ -378,27 +392,41 @@ export const models = {
 
   "mistral:mistral-large-latest": {
     provider: "mistral", model: "mistral-large-latest",
-    contextWindow: 128_000, compactAt: 90_000,
-    costPer1kInput: 0.002, costPer1kOutput: 0.006,
-    capabilities: ["text", "tools", "structured-output"],
+    contextWindow: 262_000, compactAt: 180_000,
+    costPer1kInput: 0.0005, costPer1kOutput: 0.0015,
+    capabilities: ["text", "tools", "structured-output", "vision"],
     tier: "standard",
   },
   "mistral:mistral-medium-latest": {
     provider: "mistral", model: "mistral-medium-latest",
     contextWindow: 128_000, compactAt: 90_000,
     costPer1kInput: 0.0004, costPer1kOutput: 0.002,
-    capabilities: ["text", "tools"],
+    capabilities: ["text", "tools", "vision"],
+    tier: "cheap",
+  },
+  "mistral:mistral-small-latest": {
+    provider: "mistral", model: "mistral-small-latest",
+    contextWindow: 128_000, compactAt: 90_000,
+    costPer1kInput: 0.00006, costPer1kOutput: 0.00018,
+    capabilities: ["text", "tools", "vision"],
     tier: "cheap",
   },
   "mistral:codestral-latest": {
     provider: "mistral", model: "codestral-latest",
     contextWindow: 256_000, compactAt: 180_000,
-    costPer1kInput: 0.0003, costPer1kOutput: 0.0009,
+    costPer1kInput: 0.0002, costPer1kOutput: 0.0006,
     capabilities: ["text", "tools"],
     tier: "cheap",
   },
-  "mistral:mistral-small-latest": {
-    provider: "mistral", model: "mistral-small-latest",
+  "mistral:devstral-2512": {
+    provider: "mistral", model: "devstral-2512",
+    contextWindow: 256_000, compactAt: 180_000,
+    costPer1kInput: 0.0004, costPer1kOutput: 0.002,
+    capabilities: ["text", "tools"],
+    tier: "standard",
+  },
+  "mistral:devstral-small-2": {
+    provider: "mistral", model: "devstral-small-2",
     contextWindow: 128_000, compactAt: 90_000,
     costPer1kInput: 0.0001, costPer1kOutput: 0.0003,
     capabilities: ["text", "tools"],
@@ -407,11 +435,18 @@ export const models = {
 
   // ─── Ollama (local — no cost) ────────────────────────────────────────────────
 
-  "ollama:llama3": {
-    provider: "ollama", model: "llama3",
-    contextWindow: 8_192, compactAt: 5_600,
+  "ollama:llama4:scout": {
+    provider: "ollama", model: "llama4:scout",
+    contextWindow: 512_000, compactAt: 350_000,
     costPer1kInput: 0, costPer1kOutput: 0,
-    capabilities: ["text"],
+    capabilities: ["text", "tools", "vision"],
+    tier: "free",
+  },
+  "ollama:llama4:maverick": {
+    provider: "ollama", model: "llama4:maverick",
+    contextWindow: 1_000_000, compactAt: 700_000,
+    costPer1kInput: 0, costPer1kOutput: 0,
+    capabilities: ["text", "tools", "vision"],
     tier: "free",
   },
   "ollama:llama3.1": {
@@ -419,6 +454,13 @@ export const models = {
     contextWindow: 128_000, compactAt: 90_000,
     costPer1kInput: 0, costPer1kOutput: 0,
     capabilities: ["text", "tools"],
+    tier: "free",
+  },
+  "ollama:llama3": {
+    provider: "ollama", model: "llama3",
+    contextWindow: 8_192, compactAt: 5_600,
+    costPer1kInput: 0, costPer1kOutput: 0,
+    capabilities: ["text"],
     tier: "free",
   },
   "ollama:qwen2.5-coder": {
@@ -434,8 +476,19 @@ export const models = {
  * Fallback chains - if preferred model fails, try next in chain.
  */
 export const fallbackChains = {
-  cheap: ["openai:gpt-5-mini", "openai:gpt-4.1-mini", "anthropic:claude-haiku-4-5", "google:gemini-2.5-flash"],
-  standard: ["openai:gpt-5.2", "openai:gpt-4.1", "anthropic:claude-sonnet-4-6", "google:gemini-2.5-pro"],
-  expensive: ["anthropic:claude-opus-4-6", "openai:gpt-5.4", "anthropic:claude-sonnet-4-6", "openai:o3-pro"],
-  local: ["ollama:llama3.1", "ollama:qwen2.5-coder", "ollama:llama3"],
+  cheap: [
+    "openai:gpt-5-mini", "openai:gpt-4.1-mini", "anthropic:claude-haiku-4-5",
+    "google:gemini-2.5-flash", "google:gemini-2.0-flash", "deepseek:deepseek-chat",
+    "mistral:mistral-small-latest", "xai:grok-4.1-fast", "xai:grok-4-fast", "ollama:llama3.1",
+  ],
+  standard: [
+    "openai:gpt-5.2", "openai:gpt-4.1", "anthropic:claude-sonnet-4-6",
+    "google:gemini-2.5-pro", "xai:grok-4", "mistral:mistral-large-latest",
+    "deepseek:deepseek-chat", "ollama:llama3.1",
+  ],
+  expensive: [
+    "anthropic:claude-opus-4-6", "openai:gpt-5.4", "anthropic:claude-sonnet-4-6",
+    "openai:o3-pro", "google:gemini-3.1-pro-preview", "xai:grok-4",
+  ],
+  local: ["ollama:llama4:scout", "ollama:llama4:maverick", "ollama:llama3.1", "ollama:qwen2.5-coder", "ollama:llama3"],
 };

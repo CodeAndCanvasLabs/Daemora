@@ -3,6 +3,7 @@
  * Upgraded: result caching, freshness/date filters, optionsJson support.
  */
 import { resolveKey } from "./_env.js";
+import { mergeLegacyOptions as _mergeLegacyOpts } from "../utils/mergeToolParams.js";
 
 // Search result cache: key → { results, expiresAt }
 const searchCache = new Map();
@@ -24,6 +25,8 @@ function getFromCache(key) {
   return null;
 }
 
+export function clearSearchCache() { searchCache.clear(); return searchCache.size; }
+
 function setCache(key, results) {
   if (searchCache.size >= 50) {
     searchCache.delete(searchCache.keys().next().value);
@@ -33,14 +36,7 @@ function setCache(key, results) {
 
 export async function webSearch(params) {
   const query = params?.query;
-  const optionsJson = params?.options;
-  // Support both old API (maxResults as string) and new API (optionsJson)
-  let opts = {};
-  if (optionsJson && !isNaN(parseInt(optionsJson))) {
-    opts = { maxResults: parseInt(optionsJson) };
-  } else if (optionsJson) {
-    try { opts = JSON.parse(optionsJson); } catch {}
-  }
+  const opts = _mergeLegacyOpts(params, ["query"]);
 
   const limit = opts.maxResults ? parseInt(opts.maxResults) : 5;
   const freshness = opts.freshness; // day | week | month | year

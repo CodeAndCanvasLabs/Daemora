@@ -14,15 +14,15 @@
 import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, statSync } from "node:fs";
 import { platform } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import filesystemGuard from "../safety/FilesystemGuard.js";
 import { getTenantTmpDir } from "./_paths.js";
+import { mergeLegacyOptions as _mergeLegacyOpts } from "../utils/mergeToolParams.js";
 
 export function screenCapture(params) {
-  const optionsJson = params?.options;
   try {
-    const opts = optionsJson ? JSON.parse(optionsJson) : {};
-    const outputDir = opts.outputDir || getTenantTmpDir("daemora-captures");
+    const opts = _mergeLegacyOpts(params);
+    const outputDir = resolve(opts.outputDir || getTenantTmpDir("daemora-captures"));
     const region    = opts.region;                   // { x, y, width, height } - screenshot only
     const mode      = (opts.mode || "screenshot").toLowerCase();
     const duration  = parseInt(opts.duration || "10", 10); // seconds - video only

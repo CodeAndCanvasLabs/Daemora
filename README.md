@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-black" alt="platform" />
 </p>
 
-Daemora runs on your own machine. It connects to your messaging apps, accepts tasks in plain language, executes them autonomously with 54 built-in tools across 20 channels, and reports back — without you watching over it.
+Daemora runs on your own machine. It connects to your messaging apps, accepts tasks in plain language, executes them autonomously with 55 built-in tools across 20 channels, and reports back — without you watching over it.
 
 Unlike cloud AI assistants, nothing leaves your infrastructure except the tokens you intentionally send to model APIs. You own the data, the keys, and the security boundary.
 
@@ -27,7 +27,7 @@ Unlike cloud AI assistants, nothing leaves your infrastructure except the tokens
 |---|---|
 | **Code** | Write, edit, run, test, and debug code across multiple files. Takes screenshots of UIs to verify output. Fixes failing tests. Ships working software. |
 | **Research** | Search the web, read pages, analyse images, cross-reference sources, write reports. Spawns parallel sub-agents for speed. |
-| **Automation** | Schedule recurring tasks via cron. Monitor repos, inboxes, or APIs. React to events. Runs while you sleep. |
+| **Automation** | Production-grade cron scheduling (one-shot, interval, cron expressions) with overlap prevention, retry with backoff, channel delivery, failure alerts, and run history. Runs while you sleep. |
 | **Communicate** | Send emails, Telegram messages, Slack posts, Discord messages — autonomously. Screenshots, files, and media sent directly back to you via `replyWithFile`. |
 | **Tools** | Connect to any MCP server — create Notion pages, open GitHub issues, update Linear tasks, manage Shopify products, query databases. |
 | **Multi-Agent** | Spawn parallel sub-agents (researcher + coder + writer working simultaneously). Create agent teams with shared task lists, dependencies, and inter-agent messaging. |
@@ -259,7 +259,7 @@ daemora mcp remove github     # Remove permanently
 
 ## Built-in Tools
 
-54 tools the agent uses autonomously:
+55 tools the agent uses autonomously:
 
 | Category | Tools |
 |---|---|
@@ -281,6 +281,7 @@ daemora mcp remove github     # Remove permanently
 | **IoT** | philipsHue, sonos |
 | **Apple** | iMessageTool (macOS only) |
 | **Location** | googlePlaces |
+| **Admin** | reload (config, models, vault, caches) |
 
 ---
 
@@ -359,10 +360,10 @@ Always follow this order when deploying:
 
 ## Multi-Tenant Mode
 
-Run Daemora as a shared agent serving multiple users. Each user gets isolated memory, filesystem, API keys, cost limits, and optionally their own model tier.
+Run Daemora as a shared agent serving multiple users. Each user gets isolated memory, filesystem, API keys, cost limits, per-tenant channel instances, and optionally their own model tier.
 
 ```bash
-# List all tenants (auto-created on first message per user)
+# List all tenants
 daemora tenant list
 
 # Set a per-user daily cost cap
@@ -379,6 +380,11 @@ daemora tenant plan telegram:123 pro
 
 # Store a tenant's own OpenAI key (AES-256-GCM encrypted at rest)
 daemora tenant apikey set telegram:123 OPENAI_API_KEY sk-their-key
+
+# Per-tenant channel instances (tenant gets their own bot)
+# Configured via UI → Tenant Edit → Channel Connections
+# Each tenant can have separate Telegram, Discord, Slack, etc. bots
+# Channel identities auto-linked on first message — enables cross-channel sends
 
 # Manage per-tenant workspace paths
 daemora tenant workspace telegram:123                  # Show workspace paths
@@ -403,6 +409,8 @@ Per-tenant isolation:
 | MCP servers | `mcpServers` field restricts which servers a tenant can call |
 | Tools | `tools` allowlist limits which tools the agent can use for this user |
 | Channel context | `channelMeta` auto-carried in TenantContext — tools like `replyWithFile` send files back without LLM knowing channel details |
+| Channel identity | Auto-linked routing metadata per channel — enables cross-channel sends (e.g. "send to telegram" from discord) |
+| Per-tenant channels | Each tenant can have their own channel instances (`telegram::tenantId`) with separate bot tokens |
 
 All isolation runs via `AsyncLocalStorage` — concurrent tasks from different users cannot read each other's context.
 
@@ -437,25 +445,19 @@ daemora doctor
 
 ## Data Storage
 
-All data is file-based (no database required). Default location: `data/` in the install directory.
+SQLite database (`data/daemora.db`) stores configuration, sessions, tasks, tenants, cron jobs, vault secrets, and channel identities. File-based storage is used for memory, audit logs, cost tracking, and tenant workspaces.
 
 ```
 data/
-├── tasks/          Task JSON files (one per task)
-├── sessions/       Conversation history (main + sub-agent sessions)
-│   ├── telegram-123.json           Main session
-│   ├── telegram-123--coder.json    Persistent sub-agent session
-│   └── telegram-123--researcher.json
+├── daemora.db      SQLite database (config, sessions, tasks, tenants, vault, cron)
 ├── memory/         MEMORY.md + daily logs + skill embeddings
 ├── audit/          Append-only JSONL audit logs (secrets stripped)
 ├── costs/          Per-day cost tracking logs
-├── tenants/        Per-tenant config, memory, and workspaces
+├── tenants/        Per-tenant memory and workspaces
 │   └── {tenantId}/
-│       ├── tenant.json
 │       ├── MEMORY.md
 │       └── workspace/
-├── projects/       Project tracker data
-└── workspaces/     Global workspace data
+└── skill-embeddings.json
 ```
 
 ### Data Cleanup
@@ -595,10 +597,10 @@ Use nginx or Caddy as a reverse proxy for HTTPS if exposing the API port.
 | Testing | Vitest (unit + integration), Playwright (E2E) |
 | MCP | `@modelcontextprotocol/sdk` — stdio, HTTP, SSE |
 | Channels | grammy, twilio, discord.js, @slack/bolt, nodemailer/imap, botbuilder, google-auth-library |
-| Scheduling | node-cron |
+| Scheduling | croner — production-grade cron with overlap prevention, retry, delivery |
 | Vault | Node.js `crypto` built-in — AES-256-GCM + scrypt, no binary deps |
 | Sandbox | Node.js tool-level path enforcement — no Docker required |
-| Storage | File-based (Markdown + JSON) — no database |
+| Storage | SQLite (`node:sqlite`) + file-based (Markdown, JSONL) |
 
 ---
 
@@ -621,7 +623,7 @@ Daemora was built in response to OpenClaw's security weaknesses. Key differences
 | Task-type model routing | CODE_MODEL / RESEARCH_MODEL / etc. | None |
 | Sub-agent model routing | SUB_AGENT_MODEL + profile routing + parent inheritance | Falls back to default |
 | Setup | `npm install -g daemora && daemora start` | Complex multi-step with Docker/WSL |
-| Codebase size | ~26k LOC, no build | 80k+ LOC, TypeScript build |
+| Codebase size | ~31k LOC, no build | 80k+ LOC, TypeScript build |
 
 ---
 

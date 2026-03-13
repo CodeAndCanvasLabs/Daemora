@@ -39,7 +39,7 @@ export const ConfigSchema = z.object({
   memoryPath:    z.string(),
 
   // Models
-  defaultModel:   modelString.default("openai:gpt-5.1-mini"),
+  defaultModel:   modelString.nullable().default(null),
   subAgentModel:  stringOrNull,
 
   // Agent loop

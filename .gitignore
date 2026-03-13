@@ -24,6 +24,7 @@ docs/                # internal planning docs
 PHASES.md            # internal phase planning
 STATUS.md            # internal status tracking
 DEEP_RESEARCH_REPORT.md
+ANALYSIS.md
 GIT_RULES.md         # local dev notes
 
 # ── Claude Code project context ───────────────────────────────────────────────

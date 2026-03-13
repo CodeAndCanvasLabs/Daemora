@@ -9,12 +9,12 @@ import {
 import { listSessions, getSession, clearSession } from "../services/sessions.js";
 import tenantContext from "../tenants/TenantContext.js";
 import { msgText } from "../utils/msgText.js";
+import { mergeLegacyParams as _mergeLegacy } from "../utils/mergeToolParams.js";
 
 export function manageAgents(toolParams) {
   const action = toolParams?.action;
-  const paramsJson = toolParams?.params;
   try {
-    const params = paramsJson ? JSON.parse(paramsJson) : {};
+    const params = _mergeLegacy(toolParams);
 
     switch (action) {
       case "list": {

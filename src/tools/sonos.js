@@ -5,6 +5,7 @@
  * Requires SONOS_SPEAKER_IP or uses discovery.
  */
 import { resolveKey } from "./_env.js";
+import { mergeLegacyParams as _mergeLegacy } from "../utils/mergeToolParams.js";
 
 const SONOS_PORT = 1400;
 
@@ -37,11 +38,8 @@ async function sonosSoap(speakerIp, service, action, body = "") {
 
 export async function sonos(_params) {
   const action = _params?.action;
-  const paramsJson = _params?.params;
   if (!action) return "Error: action required. Valid: play, pause, stop, next, prev, volume, mute, queue, info";
-  const params = paramsJson
-    ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson)
-    : {};
+  const params = _mergeLegacy(_params);
 
   const speakerIp = params.speakerIp || resolveKey("SONOS_SPEAKER_IP");
   if (!speakerIp) return "Error: SONOS_SPEAKER_IP env var or speakerIp param required";

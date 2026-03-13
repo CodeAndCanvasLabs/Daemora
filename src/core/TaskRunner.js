@@ -5,6 +5,7 @@ import { createSession, getSession, setMessages, appendMessage } from "../servic
 import taskQueue from "./TaskQueue.js";
 import { isDailyBudgetExceeded, isTenantDailyBudgetExceeded } from "./CostTracker.js";
 import { config } from "../config/default.js";
+import { resolveDefaultModel } from "../models/ModelRouter.js";
 import tenantManager from "../tenants/TenantManager.js";
 import tenantContext from "../tenants/TenantContext.js";
 import inputSanitizer from "../safety/InputSanitizer.js";
@@ -155,15 +156,37 @@ class TaskRunner {
     // ──────────────────────────────────────────────────────────────────────────
 
     // ── Multi-tenant: resolve tenant and effective config ──────────────────────
-    // Per-tenant channel instances embed tenantId directly in channelMeta — use it directly.
-    // Global channel instances derive userId from sessionId and look up via getOrCreate.
+    // Priority: explicit tenantId on task (cron/internal) > channelMeta.tenantId (per-tenant channel)
+    //           > sessionId derivation (global channel, auto-create)
     let tenant = null;
-    if (task.channelMeta?.tenantId) {
+    if (task.tenantId) {
+      tenant = tenantManager.get(task.tenantId);
+    } else if (task.channelMeta?.tenantId) {
       tenant = tenantManager.get(task.channelMeta.tenantId);
     } else if (task.channel && task.sessionId) {
       const userId = task.sessionId.slice(task.channel.length + 1);
       if (userId) {
         tenant = tenantManager.getOrCreate(task.channel, userId);
+      }
+    }
+
+    // ── Auto-link channel identity + routing metadata ───────────────────────
+    // On every channel message (global or per-tenant), store the sender's
+    // routing metadata (chatId, channelId, phone, sender, etc.) in tenant_channels.
+    // This enables cross-channel sends (e.g. "send to telegram" from discord).
+    // Works for all channel types — Telegram, Discord, Slack, WhatsApp, LINE, etc.
+    if (tenant && task.channel && task.channelMeta) {
+      const cm = task.channelMeta;
+      const senderId = cm.chatId || cm.userId || cm.phone || cm.sender || cm.chatGuid || cm.senderPubkey;
+      if (senderId) {
+        // Store only routing-relevant fields (strip internal/transient data)
+        const routingMeta = {};
+        for (const key of ["chatId", "userId", "channelId", "phone", "sender", "chatGuid",
+                           "senderPubkey", "spaceName", "roomId", "target", "senderId",
+                           "userName", "guildId", "threadTs", "replyToken"]) {
+          if (cm[key] !== undefined) routingMeta[key] = cm[key];
+        }
+        try { tenantManager.linkChannel(tenant.id, task.channel, senderId, routingMeta); } catch {}
       }
     }
 
@@ -212,7 +235,7 @@ class TaskRunner {
     }
 
     // Resolved model for this task (used by sub-agents to inherit parent model)
-    const resolvedModel = resolvedConfig.model || task.model || config.defaultModel;
+    const resolvedModel = resolvedConfig.model || task.model || config.defaultModel || resolveDefaultModel(resolvedConfig.apiKeys);
     const apiKeys = resolvedConfig.apiKeys || {};
 
     try {

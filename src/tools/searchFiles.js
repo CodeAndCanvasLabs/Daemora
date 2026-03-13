@@ -5,6 +5,7 @@
 import { execSync } from "node:child_process";
 import { statSync } from "node:fs";
 import filesystemGuard from "../safety/FilesystemGuard.js";
+import { mergeLegacyOptions } from "../utils/mergeToolParams.js";
 
 function escapeShellArg(str) {
   return `'${str.replace(/'/g, "'\\''")}'`;
@@ -13,11 +14,7 @@ function escapeShellArg(str) {
 export function searchFiles(params) {
   const pattern = params?.pattern;
   const directory = params?.directory || ".";
-  const optionsJson = params?.options;
-  let opts = {};
-  if (optionsJson) {
-    try { opts = JSON.parse(optionsJson); } catch {}
-  }
+  const opts = mergeLegacyOptions(params, ["pattern", "directory"]);
 
   const sortBy = opts.sortBy; // "modified" | undefined
   const maxDepth = opts.maxDepth ? parseInt(opts.maxDepth) : null;

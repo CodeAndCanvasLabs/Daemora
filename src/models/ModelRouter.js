@@ -5,16 +5,39 @@ import { createOllama } from "ollama-ai-provider";
 import { models, fallbackChains } from "../config/models.js";
 
 /**
+ * Provider registry — maps provider name → { envKey, baseURL (for OpenAI-compat), factory }.
+ * xAI, DeepSeek, Mistral use OpenAI-compatible APIs with custom baseURL.
+ */
+const PROVIDERS = {
+  openai:    { envKey: "OPENAI_API_KEY" },
+  anthropic: { envKey: "ANTHROPIC_API_KEY" },
+  google:    { envKey: "GOOGLE_AI_API_KEY" },
+  xai:       { envKey: "XAI_API_KEY",      baseURL: "https://api.x.ai/v1" },
+  deepseek:  { envKey: "DEEPSEEK_API_KEY",  baseURL: "https://api.deepseek.com" },
+  mistral:   { envKey: "MISTRAL_API_KEY",   baseURL: "https://api.mistral.ai/v1" },
+  ollama:    { envKey: null },
+};
+
+/**
  * Provider factory - lazily created so vault secrets are available.
  * Per-tenant apiKeys overlay: if apiKeys[KEY] is set, create a fresh provider instance
  * (never cached) to avoid cross-tenant bleed in concurrent requests.
  */
 const providerCache = {};
 
+function _createProvider(name, apiKey) {
+  const info = PROVIDERS[name];
+  if (name === "openai")    return createOpenAI({ apiKey });
+  if (name === "anthropic") return createAnthropic({ apiKey });
+  if (name === "google")    return createGoogleGenerativeAI({ apiKey });
+  // OpenAI-compatible providers (xAI, DeepSeek, Mistral)
+  if (info?.baseURL)        return createOpenAI({ apiKey, baseURL: info.baseURL });
+  return null;
+}
+
 function getProvider(name, apiKeys = {}) {
-  const keyMap = { openai: "OPENAI_API_KEY", anthropic: "ANTHROPIC_API_KEY", google: "GOOGLE_AI_API_KEY" };
-  const envKeyName = keyMap[name];
-  const tenantKey = envKeyName ? apiKeys[envKeyName] : null;
+  const info = PROVIDERS[name];
+  if (!info) return null;
 
   if (name === "ollama") {
     if (providerCache[name]) return providerCache[name];
@@ -22,21 +45,16 @@ function getProvider(name, apiKeys = {}) {
     return providerCache[name];
   }
 
-  const globalKey = envKeyName ? process.env[envKeyName] : null;
+  const tenantKey = info.envKey ? apiKeys[info.envKey] : null;
+  const globalKey = info.envKey ? process.env[info.envKey] : null;
   if (!tenantKey && !globalKey) return null;
 
-  if (tenantKey) {
-    // Per-tenant key: always create a fresh instance - never cache, prevents cross-tenant bleed
-    if (name === "openai")    return createOpenAI({ apiKey: tenantKey });
-    if (name === "anthropic") return createAnthropic({ apiKey: tenantKey });
-    if (name === "google")    return createGoogleGenerativeAI({ apiKey: tenantKey });
-  }
+  // Per-tenant key: always create a fresh instance — never cache, prevents cross-tenant bleed
+  if (tenantKey) return _createProvider(name, tenantKey);
 
-  // Global key: existing singleton cache behavior (zero overhead for single-user mode)
+  // Global key: singleton cache (zero overhead for single-user mode)
   if (providerCache[name]) return providerCache[name];
-  if (name === "openai")    providerCache[name] = createOpenAI({ apiKey: globalKey });
-  if (name === "anthropic") providerCache[name] = createAnthropic({ apiKey: globalKey });
-  if (name === "google")    providerCache[name] = createGoogleGenerativeAI({ apiKey: globalKey });
+  providerCache[name] = _createProvider(name, globalKey);
   return providerCache[name] || null;
 }
 
@@ -54,7 +72,7 @@ export function getModel(modelId, apiKeys = {}) {
   // create a dynamic entry so new models work without updating the registry.
   if (!meta && modelId.includes(":")) {
     const [providerName, modelName] = modelId.split(":", 2);
-    const knownProviders = ["openai", "anthropic", "google", "ollama"];
+    const knownProviders = Object.keys(PROVIDERS);
     if (knownProviders.includes(providerName)) {
       console.log(`[ModelRouter] Model "${modelId}" not in registry — using dynamic passthrough`);
       meta = {
@@ -81,10 +99,75 @@ export function getModel(modelId, apiKeys = {}) {
     );
   }
 
-  // Use Chat Completions API for OpenAI (not Responses API) — better tool schema compat
-  const model = meta.provider === "openai" ? provider.chat(meta.model) : provider(meta.model);
+  // Use Chat Completions API for OpenAI + OpenAI-compatible providers (xAI, DeepSeek, Mistral)
+  const openaiCompat = PROVIDERS[meta.provider]?.baseURL || meta.provider === "openai";
+  const model = openaiCompat ? provider.chat(meta.model) : provider(meta.model);
 
   return { model, meta };
+}
+
+/**
+ * Detect which providers have API keys configured.
+ * Returns set of provider names with available keys (global or tenant).
+ */
+/**
+ * Clear cached provider instances so new API keys take effect.
+ */
+export function clearProviderCache() {
+  for (const key of Object.keys(providerCache)) delete providerCache[key];
+}
+
+function _availableProviders(apiKeys = {}) {
+  const available = new Set();
+  for (const [name, info] of Object.entries(PROVIDERS)) {
+    if (name === "ollama") {
+      // Ollama is always "available" (local, no key required)
+      available.add(name);
+      continue;
+    }
+    if (!info.envKey) continue;
+    if (apiKeys[info.envKey] || process.env[info.envKey]) available.add(name);
+  }
+  return available;
+}
+
+/**
+ * Resolve the default model based on available provider keys.
+ * Priority: DEFAULT_MODEL env → first available provider's best standard model.
+ * Never crashes — returns first available model from any configured provider.
+ *
+ * @param {object} apiKeys - Per-tenant API key overlay
+ * @returns {string} Resolved model ID (e.g. "anthropic:claude-sonnet-4-6")
+ */
+export function resolveDefaultModel(apiKeys = {}) {
+  const explicit = process.env.DEFAULT_MODEL;
+  if (explicit) {
+    // Verify the explicit default is actually usable
+    const provider = explicit.split(":")[0];
+    const available = _availableProviders(apiKeys);
+    if (available.has(provider)) return explicit;
+    console.log(`[ModelRouter] DEFAULT_MODEL "${explicit}" provider not configured — auto-detecting`);
+  }
+
+  const available = _availableProviders(apiKeys);
+
+  // Preferred defaults per provider (best standard-tier model for each)
+  const providerDefaults = [
+    { provider: "anthropic", model: "anthropic:claude-sonnet-4-6" },
+    { provider: "openai",    model: "openai:gpt-5.2" },
+    { provider: "google",    model: "google:gemini-2.5-pro" },
+    { provider: "xai",       model: "xai:grok-4" },
+    { provider: "deepseek",  model: "deepseek:deepseek-chat" },
+    { provider: "mistral",   model: "mistral:mistral-large-latest" },
+    { provider: "ollama",    model: "ollama:llama3.1" },
+  ];
+
+  for (const { provider, model } of providerDefaults) {
+    if (available.has(provider)) return model;
+  }
+
+  // Absolute last resort (should never reach here — ollama is always available)
+  return "ollama:llama3.1";
 }
 
 /**
@@ -129,7 +212,11 @@ export function getModelWithFallback(preferredModelId, apiKeys = {}) {
  * @param {object} apiKeys - Per-tenant API key overlay
  */
 export function getCheapModel(apiKeys = {}) {
-  const cheapChain = ["google:gemini-2.0-flash", "openai:gpt-4.1-mini", "anthropic:claude-haiku-4-5"];
+  const cheapChain = [
+    "google:gemini-2.0-flash", "openai:gpt-4.1-mini", "anthropic:claude-haiku-4-5",
+    "google:gemini-2.5-flash", "deepseek:deepseek-chat", "mistral:mistral-small-latest",
+    "xai:grok-3-mini-beta", "ollama:llama3.1",
+  ];
   for (const modelId of cheapChain) {
     try {
       const result = getModel(modelId, apiKeys);
@@ -138,8 +225,8 @@ export function getCheapModel(apiKeys = {}) {
       continue;
     }
   }
-  // Last resort: whatever the default is
-  const defaultId = process.env.DEFAULT_MODEL || "openai:gpt-4.1-mini";
+  // Last resort: use whatever provider is available
+  const defaultId = resolveDefaultModel(apiKeys);
   return { ...getModel(defaultId, apiKeys), modelId: defaultId };
 }
 
@@ -213,6 +300,6 @@ export function resolveThinkingConfig(modelId, level = "auto") {
  * @param {string|null} parentModel - Parent agent's resolved model
  * @returns {string} Resolved model ID
  */
-export function resolveSubAgentModel(parentModel = null) {
-  return process.env.SUB_AGENT_MODEL || parentModel || process.env.DEFAULT_MODEL || "openai:gpt-4.1-mini";
+export function resolveSubAgentModel(parentModel = null, apiKeys = {}) {
+  return process.env.SUB_AGENT_MODEL || parentModel || resolveDefaultModel(apiKeys);
 }

@@ -1,7 +1,8 @@
 import { mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { randomBytes, createCipheriv, createDecipheriv, scryptSync } from "node:crypto";
 import { config } from "../config/default.js";
+import { resolveDefaultModel } from "../models/ModelRouter.js";
 import { queryAll, queryOne, run, transaction } from "../storage/Database.js";
 
 /**
@@ -124,9 +125,14 @@ class TenantManager {
   /**
    * Link an additional channel identity to an existing tenant.
    * Enables the same person to be recognized across Discord, Telegram, Slack, etc.
+   * Stores routing metadata (chatId, channelId, phone, etc.) for cross-channel sends.
    * Throws if the channel identity is already linked to a different tenant.
+   * @param {string} tenantId
+   * @param {string} channel - "telegram", "discord", "slack", etc.
+   * @param {string} userId - Platform-specific user/chat ID
+   * @param {object} [routingMeta] - Full channelMeta for cross-channel routing (chatId, channelId, phone, etc.)
    */
-  linkChannel(tenantId, channel, userId) {
+  linkChannel(tenantId, channel, userId, routingMeta = null) {
     const row = queryOne("SELECT id FROM tenants WHERE id = $id", { $id: tenantId });
     if (!row) throw new Error(`Tenant "${tenantId}" not found`);
 
@@ -138,10 +144,22 @@ class TenantManager {
       throw new Error(`${channel}:${userId} is already linked to tenant "${existing.tenant_id}"`);
     }
 
-    run(
-      "INSERT OR IGNORE INTO tenant_channels (channel, user_id, tenant_id) VALUES ($ch, $uid, $tid)",
-      { $ch: channel, $uid: userId, $tid: tenantId }
-    );
+    const metaJson = routingMeta ? JSON.stringify(routingMeta) : null;
+
+    if (existing) {
+      // Update routing metadata if we have new data
+      if (metaJson) {
+        run(
+          "UPDATE tenant_channels SET meta = $meta WHERE channel = $ch AND user_id = $uid",
+          { $ch: channel, $uid: userId, $meta: metaJson }
+        );
+      }
+    } else {
+      run(
+        "INSERT INTO tenant_channels (channel, user_id, tenant_id, meta) VALUES ($ch, $uid, $tid, $meta)",
+        { $ch: channel, $uid: userId, $tid: tenantId, $meta: metaJson }
+      );
+    }
     return true;
   }
 
@@ -165,13 +183,17 @@ class TenantManager {
   }
 
   /**
-   * List all channel identities linked to a tenant.
+   * List all channel identities linked to a tenant (with routing metadata).
    */
   getChannels(tenantId) {
-    return queryAll(
-      "SELECT channel, user_id, linked_at FROM tenant_channels WHERE tenant_id = $tid ORDER BY linked_at ASC",
+    const rows = queryAll(
+      "SELECT channel, user_id, linked_at, meta FROM tenant_channels WHERE tenant_id = $tid ORDER BY linked_at ASC",
       { $tid: tenantId }
     );
+    return rows.map(r => ({
+      ...r,
+      meta: r.meta ? JSON.parse(r.meta) : null,
+    }));
   }
 
   /**
@@ -511,26 +533,53 @@ class TenantManager {
   /**
    * Resolve the effective config for a task, merging:
    *   tenant config > channel config > global config > defaults
+   *
+   * Path merging rules:
+   *   - blockedPaths: union (global ∪ tenant) — tenant can add blocks, never remove global blocks
+   *   - allowedPaths: intersection (tenant ∩ global) — tenant can narrow, never widen beyond global
+   *   - Workspace: if sandbox enabled + no tenant allowed + no global allowed, lock to workspace
    */
   resolveTaskConfig(tenant, channelModel) {
     const sandboxEnabled = config.sandbox?.mode === "docker" || config.multiTenant?.isolateFilesystem;
 
-    let allowedPaths = tenant?.allowedPaths?.length
-      ? tenant.allowedPaths
-      : config.filesystem?.allowedPaths || [];
+    const globalAllowed = config.filesystem?.allowedPaths || [];
+    const globalBlocked = config.filesystem?.blockedPaths || [];
+    const tenantAllowed = tenant?.allowedPaths || [];
+    const tenantBlocked = tenant?.blockedPaths || [];
 
-    if (sandboxEnabled && allowedPaths.length === 0 && tenant?.id) {
-      allowedPaths = [this.getWorkspace(tenant.id)];
+    // ── Blocked: always union (global + tenant) — tenant can only add more blocks ──
+    const mergedBlocked = [...new Set([...globalBlocked, ...tenantBlocked])];
+
+    // ── Allowed: intersection logic — tenant can never exceed global ──
+    let effectiveAllowed;
+    if (globalAllowed.length > 0 && tenantAllowed.length > 0) {
+      // Tenant paths must be inside a global allowed path (intersection)
+      effectiveAllowed = tenantAllowed.filter((tp) => {
+        const tpNorm = resolve(tp);
+        return globalAllowed.some((gp) => {
+          const gpNorm = resolve(gp);
+          return tpNorm === gpNorm || tpNorm.startsWith(gpNorm + sep) || tpNorm.startsWith(gpNorm + "/");
+        });
+      });
+    } else if (globalAllowed.length > 0) {
+      // No tenant override → use global
+      effectiveAllowed = globalAllowed;
+    } else if (tenantAllowed.length > 0) {
+      // No global restriction → tenant can scope itself
+      effectiveAllowed = tenantAllowed;
+    } else {
+      effectiveAllowed = [];
     }
 
-    const blockedPaths = tenant?.blockedPaths?.length
-      ? tenant.blockedPaths
-      : config.filesystem?.blockedPaths || [];
+    // ── Workspace fallback: sandbox enabled + no allowed paths → lock to workspace ──
+    if (sandboxEnabled && effectiveAllowed.length === 0 && tenant?.id) {
+      effectiveAllowed = [this.getWorkspace(tenant.id)];
+    }
 
     return {
-      model: tenant?.model || channelModel || config.defaultModel,
-      allowedPaths,
-      blockedPaths,
+      model: tenant?.model || channelModel || config.defaultModel || resolveDefaultModel(),
+      allowedPaths: effectiveAllowed,
+      blockedPaths: mergedBlocked,
       restrictCommands: config.filesystem?.restrictCommands || false,
       maxCostPerTask: tenant?.maxCostPerTask ?? config.maxCostPerTask,
       maxDailyCost: tenant?.maxDailyCost ?? config.maxDailyCost,

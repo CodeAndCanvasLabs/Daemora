@@ -4,6 +4,7 @@
  */
 import { execSync } from "node:child_process";
 import filesystemGuard from "../safety/FilesystemGuard.js";
+import { mergeLegacyOptions } from "../utils/mergeToolParams.js";
 
 function escapeShellArg(str) {
   return `'${str.replace(/'/g, "'\\''")}'`;
@@ -12,14 +13,7 @@ function escapeShellArg(str) {
 export function searchContent(params) {
   const pattern = params?.pattern;
   const directory = params?.directory || ".";
-  const optionsJson = params?.options;
-  // Support old 3-arg API (pattern, directory, limitStr) and new optionsJson
-  let opts = {};
-  if (optionsJson && !isNaN(parseInt(optionsJson))) {
-    opts = { limit: parseInt(optionsJson) };
-  } else if (optionsJson) {
-    try { opts = JSON.parse(optionsJson); } catch {}
-  }
+  const opts = mergeLegacyOptions(params, ["pattern", "directory"]);
 
   const limit = opts.limit || 50;
   const caseInsensitive = opts.caseInsensitive || false;

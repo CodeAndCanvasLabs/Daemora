@@ -5,17 +5,17 @@
  */
 import { resolveKey } from "./_env.js";
 import { execSync } from "node:child_process";
+import { mergeLegacyOptions as _mergeLegacyOpts } from "../utils/mergeToolParams.js";
 
 function platform() { return process.platform; }
 
 export async function notification(params) {
   const title = params?.title;
   const message = params?.message;
-  const options = params?.options || {};
   if (!title) return "Error: title is required";
   if (!message) return "Error: message is required";
 
-  const opts = typeof options === "string" ? JSON.parse(options) : (options || {});
+  const opts = _mergeLegacyOpts(params, ["title", "message"]);
   const { sound = false, url = null, service = "desktop", topic = null } = opts;
 
   // ── Desktop notification ────────────────────────────────────────────────

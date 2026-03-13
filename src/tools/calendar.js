@@ -5,14 +5,12 @@
  */
 import { execSync } from "node:child_process";
 import { resolveKey } from "./_env.js";
+import { mergeLegacyParams as _mergeLegacy } from "../utils/mergeToolParams.js";
 
 export async function calendar(_params) {
   const action = _params?.action;
-  const paramsJson = _params?.params;
   if (!action) return "Error: action required. Valid: list, create, delete, search";
-  const params = paramsJson
-    ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson)
-    : {};
+  const params = _mergeLegacy(_params);
 
   const { provider = "macos" } = params;
 

@@ -6,7 +6,7 @@ import { randomBytes } from "crypto";
 import { toolFunctions } from "./tools/index.js";
 import { getSession, listSessions, createSession, clearSession } from "./services/sessions.js";
 import { config, reloadFromDb } from "./config/default.js";
-import { listAvailableModels } from "./models/ModelRouter.js";
+import { listAvailableModels, resolveDefaultModel } from "./models/ModelRouter.js";
 import taskQueue from "./core/TaskQueue.js";
 import taskRunner from "./core/TaskRunner.js";
 import { loadTask, listTasks, listChildTasks, deleteTask } from "./storage/TaskStore.js";
@@ -27,7 +27,7 @@ import voiceWebhook from "./voice/VoiceWebhook.js";
 import daemonManager from "./daemon/DaemonManager.js";
 import secretVault from "./safety/SecretVault.js";
 import tenantManager from "./tenants/TenantManager.js";
-import { runCleanup } from "./services/cleanup.js";
+import { runCleanup, cleanCompletedTasks } from "./services/cleanup.js";
 import webhookHandler from "./webhooks/WebhookHandler.js";
 import execApproval from "./safety/ExecApproval.js";
 import openaiCompat from "./api/openai-compat.js";
@@ -58,11 +58,20 @@ if (config.cleanupAfterDays > 0) {
   }
 }
 
+// Periodic task cleaner — purge completed/failed/cancelled tasks every 5 hours
+// const TASK_CLEAN_INTERVAL = 5 * 60 * 60 * 1000;
+// setInterval(() => {
+//   const deleted = cleanCompletedTasks();
+//   if (deleted > 0) {
+//     console.log(`[TaskCleaner] Purged ${deleted} completed tasks`);
+//   }
+// }, TASK_CLEAN_INTERVAL);
+
 // Initialize task system (TaskRunner starts after full init — see startup sequence below)
 taskQueue.init();
 supervisor.start();
 auditLog.start();
-scheduler.start();
+scheduler.start().catch(e => console.log(`[Scheduler] Start error: ${e.message}`));
 heartbeat.start();
 
 const app = express();
@@ -593,15 +602,116 @@ app.post("/api/skills/reload", (req, res) => {
   res.json({ message: "Skills reloaded", skills: skillLoader.list() });
 });
 
-// --- Schedule endpoints ---
+// --- System Reload endpoint ---
+app.post("/api/reload", async (req, res) => {
+  const action = req.body?.action || req.query?.action || "all";
+  try {
+    const { reload } = await import("./tools/reloadTool.js");
+    const result = await reload({ action });
+    res.json({ message: result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+app.get("/api/reload/status", async (req, res) => {
+  try {
+    const { reload } = await import("./tools/reloadTool.js");
+    const result = await reload({ action: "status" });
+    res.json(JSON.parse(result));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// --- Cron endpoints ---
+app.get("/api/cron/status", (req, res) => {
+  res.json(scheduler.status());
+});
+
+app.get("/api/cron/jobs", (req, res) => {
+  const tenantId = req.query.tenantId || null;
+  res.json({ jobs: scheduler.list(tenantId) });
+});
+
+app.post("/api/cron/jobs", (req, res) => {
+  try {
+    const job = scheduler.create(req.body);
+    res.status(201).json(job);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.get("/api/cron/jobs/:id", (req, res) => {
+  try {
+    const jobs = scheduler.list();
+    const job = jobs.find(j => j.id === req.params.id || j.id.startsWith(req.params.id));
+    if (!job) return res.status(404).json({ error: "Job not found" });
+    res.json(job);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.patch("/api/cron/jobs/:id", (req, res) => {
+  try {
+    const job = scheduler.update(req.params.id, req.body);
+    res.json(job);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.delete("/api/cron/jobs/:id", (req, res) => {
+  try {
+    scheduler.delete(req.params.id);
+    res.json({ message: "Job deleted" });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.post("/api/cron/jobs/:id/run", async (req, res) => {
+  try {
+    const result = await scheduler.forceRun(req.params.id);
+    res.json({ message: result });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.get("/api/cron/jobs/:id/runs", (req, res) => {
+  try {
+    const runs = scheduler.getHistory(req.params.id, {
+      limit: parseInt(req.query.limit) || 50,
+      offset: parseInt(req.query.offset) || 0,
+      status: req.query.status || null,
+    });
+    res.json({ runs });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.get("/api/cron/runs", (req, res) => {
+  try {
+    const runs = scheduler.getAllHistory({
+      tenantId: req.query.tenantId || null,
+      limit: parseInt(req.query.limit) || 50,
+      offset: parseInt(req.query.offset) || 0,
+      status: req.query.status || null,
+    });
+    res.json({ runs });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// --- Legacy schedule endpoints (deprecated, proxy to new cron API) ---
 app.post("/api/schedules", (req, res) => {
   try {
-    const { cronExpression, taskInput, channel, model, name } = req.body;
-    if (!cronExpression || !taskInput) {
-      return res.status(400).json({ error: "cronExpression and taskInput are required" });
-    }
-    const schedule = scheduler.create({ cronExpression, taskInput, channel, model, name });
-    res.status(201).json(schedule);
+    const job = scheduler.create(req.body);
+    res.status(201).json(job);
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -612,8 +722,12 @@ app.get("/api/schedules", (req, res) => {
 });
 
 app.delete("/api/schedules/:id", (req, res) => {
-  scheduler.delete(req.params.id);
-  res.json({ message: "Schedule deleted" });
+  try {
+    scheduler.delete(req.params.id);
+    res.json({ message: "Schedule deleted" });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
 });
 
 // --- Audit endpoint ---
@@ -1273,6 +1387,12 @@ app.listen(config.port, async () => {
   // Reload config from DB (picks up setup wizard values)
   try { await reloadFromDb(); } catch { /* non-fatal */ }
 
+  // Resolve default model from available providers if not explicitly set
+  if (!config.defaultModel) {
+    config.defaultModel = resolveDefaultModel();
+    console.log(`[Startup] Auto-detected default model: ${config.defaultModel}`);
+  }
+
   // ── Phase 1: Load skills + embeddings (must complete before processing messages) ──
   console.log("[Startup] Loading skills...");
   skillLoader.load();
@@ -1312,6 +1432,18 @@ app.listen(config.port, async () => {
   console.log(`[Startup] Task runner: active (concurrency: 2)`);
   _serverReady = true;
   console.log("[Startup] Server ready ✓\n");
+});
+
+// SIGHUP — hot-reload all components without restart
+process.on("SIGHUP", async () => {
+  console.log("\n[Reload] SIGHUP received. Reloading all components...");
+  try {
+    const { reload } = await import("./tools/reloadTool.js");
+    const result = await reload({ action: "all" });
+    console.log(`[Reload] ${result}`);
+  } catch (e) {
+    console.error(`[Reload] Error: ${e.message}`);
+  }
 });
 
 // Graceful shutdown

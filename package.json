@@ -1,6 +1,6 @@
 {
   "name": "daemora",
-  "version": "2026.1.0-beta.11",
+  "version": "2026.1.0-beta.12",
   "description": "A powerful open-source AI agent that runs on your machine. Connects to any AI model, any MCP server, any channel. Fully autonomous - plans, codes, tests, browses, emails, and manages your tools without asking permission.",
   "main": "src/index.js",
   "bin": {
@@ -74,6 +74,7 @@
     "ai": "^6.0.105",
     "botbuilder": "^4.23.1",
     "chalk": "^5.6.2",
+    "croner": "^10.0.1",
     "discord.js": "^14.25.1",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",

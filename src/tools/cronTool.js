@@ -1,113 +1,194 @@
 /**
- * cron(action, paramsJson?) - Schedule recurring tasks from within the agent.
- * Bridge to the existing Scheduler. Inspired by OpenClaw's cron tool.
+ * cron(action, paramsJson?) - Manage scheduled tasks.
  *
  * Actions:
- *   status  - show scheduler status
- *   list    - list all schedules
- *   add     - create a new schedule
- *   update  - patch an existing schedule (change expression, name, or taskInput)
- *   enable  - re-enable a disabled schedule
- *   disable - pause a schedule without deleting it
- *   remove  - delete a schedule permanently
- *   run     - trigger a schedule immediately (regardless of cron timing)
+ *   status   - scheduler status (jobs, next wake, running count)
+ *   list     - list all jobs (tenant-scoped if in tenant context)
+ *   add      - create a new job (cron, every, or at schedule)
+ *   update   - patch an existing job
+ *   enable   - re-enable a disabled job
+ *   disable  - pause a job without deleting it
+ *   remove   - delete a job permanently
+ *   run      - trigger a job immediately
+ *   history  - get run history for a job
  */
 import scheduler from "../scheduler/Scheduler.js";
 import tenantContext from "../tenants/TenantContext.js";
 
+function _getTenantId() {
+  return tenantContext.getStore()?.tenant?.id || null;
+}
+
+function _getChannelMeta() {
+  return tenantContext.getStore()?.channelMeta || null;
+}
+
 export function cron(toolParams) {
   const action = toolParams?.action;
-  const paramsJson = toolParams?.params;
   try {
-    const params = paramsJson ? JSON.parse(paramsJson) : {};
+    // Support both flat fields (new schema) and legacy JSON params string
+    const paramsJson = toolParams?.params;
+    const legacyParams = paramsJson ? JSON.parse(paramsJson) : {};
+    const { params: _discard, action: _discard2, ...flatFields } = toolParams || {};
+    const params = { ...legacyParams, ...flatFields };
+    const tenantId = _getTenantId();
 
     switch (action) {
       case "status": {
-        const schedules = scheduler.list();
-        return JSON.stringify({
-          running: scheduler.running,
-          total: schedules.length,
-          enabled: schedules.filter((s) => s.enabled).length,
-          disabled: schedules.filter((s) => !s.enabled).length,
-        });
+        return JSON.stringify(scheduler.status());
       }
 
       case "list": {
-        const schedules = scheduler.list();
-        if (schedules.length === 0) return "No schedules configured.";
-        return schedules
-          .map(
-            (s) =>
-              `• ${s.id.slice(0, 8)} - "${s.name}" | ${s.cronExpression} | ${s.enabled ? "enabled" : "DISABLED"} | runs: ${s.runCount} | last: ${s.lastRun || "never"}`
-          )
-          .join("\n");
+        const jobs = scheduler.list(tenantId);
+        if (jobs.length === 0) return "No cron jobs configured.";
+        return jobs.map((j) => {
+          const sched = j.schedule.kind === "cron" ? j.schedule.expr
+            : j.schedule.kind === "every" ? `every ${Math.round(j.schedule.everyMs / 1000)}s`
+            : `at ${j.schedule.at}`;
+          const tz = j.schedule.tz ? ` (${j.schedule.tz})` : "";
+          const status = j.runningSince ? "RUNNING" : j.enabled ? "enabled" : "DISABLED";
+          const delivery = j.delivery?.mode !== "none" ? ` → ${j.delivery.mode}` : "";
+          return `• ${j.id.slice(0, 8)} "${j.name}" | ${sched}${tz} | ${status} | runs: ${j.runCount} | last: ${j.lastStatus || "never"} | next: ${j.nextRunAt || "n/a"}${delivery}`;
+        }).join("\n");
       }
 
       case "add": {
-        if (!params.cronExpression) return 'Error: cronExpression is required. Example: "0 9 * * *" for daily at 9am.';
-        if (!params.taskInput) return "Error: taskInput is required - the task/message to send when triggered.";
-        // Auto-inherit channel + channelMeta from current context
-        const store = tenantContext.getStore();
-        const channel = params.channel || store?.channelMeta?.channel || "scheduler";
-        const channelMeta = store?.channelMeta || null;
-        const schedule = scheduler.create({
-          cronExpression: params.cronExpression,
+        if (!params.taskInput) return "Error: taskInput is required.";
+
+        // Build schedule from params
+        let schedule;
+        if (params.schedule) {
+          schedule = params.schedule;
+        } else if (params.cronExpression) {
+          schedule = { kind: "cron", expr: params.cronExpression, tz: params.timezone || null };
+        } else if (params.every) {
+          schedule = { kind: "every", everyMs: _parseInterval(params.every) };
+        } else if (params.at) {
+          schedule = { kind: "at", at: params.at };
+        } else {
+          return 'Error: schedule is required. Use cronExpression ("0 9 * * *"), every ("30m"), or at ("2026-03-15T10:00:00Z").';
+        }
+
+        if (params.staggerMs) schedule.staggerMs = params.staggerMs;
+
+        // Build delivery from context
+        const channelMeta = _getChannelMeta();
+        let delivery = params.delivery || { mode: "none" };
+        if (delivery.mode === "none" && channelMeta) {
+          // Auto-announce to calling channel
+          delivery = { mode: "announce", channel: channelMeta.channel, to: null, channelMeta };
+        }
+
+        const job = scheduler.create({
+          schedule,
           taskInput: params.taskInput,
           name: params.name,
-          channel,
-          channelMeta,
+          tenantId,
           model: params.model,
+          thinking: params.thinking,
+          timeoutSeconds: params.timeoutSeconds,
+          delivery,
+          maxRetries: params.maxRetries,
+          retryBackoffMs: params.retryBackoffMs,
+          failureAlert: params.failureAlert,
+          deleteAfterRun: params.deleteAfterRun,
         });
-        return `Schedule created: "${schedule.name}" | ${schedule.cronExpression} | channel: ${channel} | ID: ${schedule.id.slice(0, 8)}`;
+
+        const schedDesc = schedule.kind === "cron" ? schedule.expr
+          : schedule.kind === "every" ? `every ${Math.round(schedule.everyMs / 1000)}s`
+          : `at ${schedule.at}`;
+
+        return `Job created: "${job.name}" | ${schedDesc} | delivery: ${delivery.mode} | ID: ${job.id.slice(0, 8)} | next: ${job.nextRunAt || "now"}`;
       }
 
       case "update": {
-        if (!params.id) return 'Error: id is required. Use cron("list") to see schedule IDs.';
-        // Allow partial prefix ID match (first 8 chars is enough)
-        const schedule = scheduler.update(params.id, {
-          cronExpression: params.cronExpression,
-          taskInput: params.taskInput,
-          name: params.name,
-        });
-        return `Schedule updated: "${schedule.name}" | ${schedule.cronExpression} | ID: ${schedule.id.slice(0, 8)}`;
+        if (!params.id) return 'Error: id is required. Use cron("list") to see job IDs.';
+        const patch = { ...params };
+        delete patch.id;
+
+        // Handle legacy cronExpression in patch
+        if (patch.cronExpression && !patch.schedule) {
+          patch.schedule = { kind: "cron", expr: patch.cronExpression, tz: patch.timezone || null };
+          delete patch.cronExpression;
+          delete patch.timezone;
+        }
+        // Handle every/at shorthand in patch
+        if (patch.every && !patch.schedule) {
+          patch.schedule = { kind: "every", everyMs: _parseInterval(patch.every) };
+          delete patch.every;
+        }
+        if (patch.at && !patch.schedule) {
+          patch.schedule = { kind: "at", at: patch.at };
+          delete patch.at;
+        }
+
+        const job = scheduler.update(params.id, patch, tenantId);
+        return `Job updated: "${job.name}" | ID: ${job.id.slice(0, 8)}`;
       }
 
       case "enable": {
-        if (!params.id) return 'Error: id is required.';
-        const schedule = scheduler.update(params.id, { enabled: true });
-        return `Schedule "${schedule.name}" (${params.id.slice(0, 8)}) enabled - will run on next trigger.`;
+        if (!params.id) return "Error: id is required.";
+        const job = scheduler.update(params.id, { enabled: true }, tenantId);
+        return `Job "${job.name}" enabled — next run: ${job.nextRunAt || "computing..."}`;
       }
 
       case "disable": {
-        if (!params.id) return 'Error: id is required.';
-        const schedule = scheduler.update(params.id, { enabled: false });
-        return `Schedule "${schedule.name}" (${params.id.slice(0, 8)}) disabled - cron job paused, not deleted.`;
+        if (!params.id) return "Error: id is required.";
+        const job = scheduler.update(params.id, { enabled: false }, tenantId);
+        return `Job "${job.name}" disabled — paused, not deleted.`;
       }
 
       case "remove": {
-        if (!params.id) return 'Error: id is required. Use cron("list") to see schedule IDs.';
-        scheduler.delete(params.id);
-        return `Schedule ${params.id.slice(0, 8)} removed.`;
+        if (!params.id) return 'Error: id is required.';
+        scheduler.delete(params.id, tenantId);
+        return `Job ${params.id.slice(0, 8)} removed.`;
       }
 
       case "run": {
-        if (!params.id) return 'Error: id is required. Use cron("list") to see schedule IDs.';
-        scheduler.triggerSchedule(params.id);
-        return `Schedule ${params.id.slice(0, 8)} triggered manually.`;
+        if (!params.id) return "Error: id is required.";
+        // Fire-and-forget — don't await, just trigger
+        scheduler.forceRun(params.id, tenantId).catch(e =>
+          console.log(`[cron] Force-run error: ${e.message}`)
+        );
+        return `Job ${params.id.slice(0, 8)} triggered. Check history for results.`;
+      }
+
+      case "history": {
+        if (!params.id) return "Error: id is required.";
+        const runs = scheduler.getHistory(params.id, {
+          limit: params.limit || 10,
+          offset: params.offset || 0,
+          status: params.status || null,
+        });
+        if (runs.length === 0) return "No run history for this job.";
+        return runs.map(r =>
+          `[${r.started_at}] ${r.status}${r.duration_ms ? ` (${Math.round(r.duration_ms / 1000)}s)` : ""}${r.error ? ` — ${r.error.slice(0, 100)}` : ""}${r.delivery_status !== "not-requested" ? ` | delivery: ${r.delivery_status}` : ""}`
+        ).join("\n");
       }
 
       default:
-        return `Unknown action: "${action}". Available: status, list, add, update, enable, disable, remove, run`;
+        return `Unknown action: "${action}". Available: status, list, add, update, enable, disable, remove, run, history`;
     }
   } catch (error) {
     return `Cron error: ${error.message}`;
   }
 }
 
+/**
+ * Parse interval shorthand: "30s", "5m", "2h", "1d" → milliseconds.
+ */
+function _parseInterval(str) {
+  if (typeof str === "number") return str;
+  const match = String(str).match(/^(\d+)\s*(s|m|h|d)$/i);
+  if (!match) throw new Error(`Invalid interval: "${str}". Use format like "30s", "5m", "2h", "1d".`);
+  const n = parseInt(match[1]);
+  const unit = match[2].toLowerCase();
+  const multipliers = { s: 1000, m: 60000, h: 3600000, d: 86400000 };
+  const ms = n * multipliers[unit];
+  if (ms < 10000) throw new Error("Interval must be at least 10 seconds.");
+  return ms;
+}
+
 export const cronDescription =
-  'cron(action, paramsJson?) - Manage scheduled recurring tasks. ' +
-  'Actions: "status", "list", ' +
-  '"add" ({"cronExpression":"0 9 * * *","taskInput":"Check emails","name":"Morning"}), ' +
-  '"update" ({"id":"...","cronExpression":"0 10 * * *"}), ' +
-  '"enable" ({"id":"..."}), "disable" ({"id":"..."}), ' +
-  '"remove" ({"id":"..."}), "run" ({"id":"..."}).';
+  'cron(action, ...) - Schedule and manage cron jobs. Delivery auto-routes to calling channel. ' +
+  'Schedule types: cronExpression (recurring), every (interval), at (one-shot ISO timestamp).';

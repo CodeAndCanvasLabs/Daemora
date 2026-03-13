@@ -74,7 +74,11 @@ function _buildSayTwiML(message, voice = "Polly.Joanna", language = "en-US") {
 export async function makeVoiceCall(params) {
   const action = params?.action;
   const phoneNumberOrSessionId = params?.target;
-  const optionsJson = params?.options;
+  // Merge flat fields with legacy options JSON for backward compat
+  const _optStr = params?.options;
+  const _legacy = _optStr ? (typeof _optStr === "string" ? JSON.parse(_optStr) : _optStr) : {};
+  const { options: _discard, action: _a, target: _t, ...flatFields } = params || {};
+  const _mergedOpts = { ..._legacy, ...flatFields };
   if (!action) return 'Error: action required. Use: initiate|listen|speak|end|status|list  (or "call" for one-shot)';
 
   const { accountSid, authToken, fromNumber } = _getCreds();
@@ -89,9 +93,7 @@ export async function makeVoiceCall(params) {
     if (!session) return `Error: No active session "${sessionId}". Did the call end?`;
     if (session.status === "ended") return "Call has already ended.";
 
-    let opts = {};
-    if (optionsJson) { try { opts = JSON.parse(optionsJson); } catch {} }
-    const timeout = (opts.timeout || 120) * 1000;
+    const timeout = (_mergedOpts.timeout || 120) * 1000;
 
     try {
       const text = await session.waitForCallerInput(timeout);
@@ -108,10 +110,8 @@ export async function makeVoiceCall(params) {
     if (!session) return `Error: No active session "${sessionId}".`;
     if (session.status === "ended") return "Call has already ended.";
 
-    let opts = {};
-    if (optionsJson) { try { opts = JSON.parse(optionsJson); } catch {} }
-    const message = opts.message;
-    if (!message) return 'Error: optionsJson {"message":"..."} is required for speak.';
+    const message = _mergedOpts.message;
+    if (!message) return 'Error: message param is required for speak.';
 
     session.setAgentResponse(message);
     return `Speaking to caller: "${message}"`;
@@ -144,8 +144,7 @@ export async function makeVoiceCall(params) {
     return "Error: Twilio not configured. Set TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN in .env, or: daemora tenant channel set <id> twilio_account_sid <sid>";
   }
 
-  let opts = {};
-  if (optionsJson) { try { opts = JSON.parse(optionsJson); } catch { return "Error: optionsJson must be valid JSON."; } }
+  const opts = _mergedOpts;
 
   // ── initiate — start an interactive call ────────────────────────────────────
   if (action === "initiate") {

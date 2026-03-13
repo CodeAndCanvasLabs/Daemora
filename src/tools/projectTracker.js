@@ -52,18 +52,17 @@ const STATUS_ICON = {
   skipped:     "⏭️",
 };
 
+import { mergeLegacyParams as _mergeLegacy } from "../utils/mergeToolParams.js";
+
 const VALID_TASK_STATUSES = ["pending", "in_progress", "done", "failed", "skipped"];
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function projectTracker(toolParams) {
   const action = toolParams?.action;
-  const paramsJson = toolParams?.params;
   ensureDir();
 
-  const params = paramsJson
-    ? (typeof paramsJson === "string" ? JSON.parse(paramsJson) : paramsJson)
-    : {};
+  const params = _mergeLegacy(toolParams);
 
   switch (action) {
 
