@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import { apiFetch } from "../api";
 import {
+  Settings as SettingsIcon,
   Eye,
   EyeOff,
   Save,
@@ -27,6 +28,10 @@ import {
   Zap,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { FaTelegram, FaDiscord, FaSlack, FaWhatsapp, FaLine } from "react-icons/fa6";
+import { SiSignal, SiGooglechat } from "react-icons/si";
+import { BsMicrosoftTeams } from "react-icons/bs";
+import { MdEmail } from "react-icons/md";
 
 interface SettingsData {
   vars: Record<string, string>;
@@ -821,6 +826,132 @@ export function Settings() {
                   <button onClick={() => toggleVisible(key)} className="p-2.5 text-gray-500 hover:text-[#00d9ff] transition-colors rounded-xl hover:bg-slate-800/50">
                     {visibleKeys.has(key) ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Section>
+
+      {/* ── Global Channels ──────────────────────────────────────────── */}
+      <Section
+        icon={Zap}
+        title="Global Channels"
+        subtitle="Default channel tokens — tenants can override with their own"
+        badge={(() => {
+          const channelTokens = ["TELEGRAM_BOT_TOKEN", "DISCORD_BOT_TOKEN", "SLACK_BOT_TOKEN", "TWILIO_ACCOUNT_SID", "LINE_CHANNEL_ACCESS_TOKEN"];
+          const set = channelTokens.filter(k => data.vars[k]);
+          return set.length > 0 ? (
+            <span className="text-[9px] font-mono text-[#00ff88] bg-[#00ff88]/10 px-2 py-0.5 rounded-md border border-[#00ff88]/20">
+              {set.length} connected
+            </span>
+          ) : null;
+        })()}
+        actions={<SaveBtn dirty={dirty} saving={saving} saved={saved} onSave={handleSave} />}
+      >
+        <div className="space-y-3">
+          {[
+            { name: "Telegram", icon: FaTelegram, color: "#29B6F6", keys: [{ key: "TELEGRAM_BOT_TOKEN", label: "Bot Token" }] },
+            { name: "Discord", icon: FaDiscord, color: "#5865F2", keys: [{ key: "DISCORD_BOT_TOKEN", label: "Bot Token" }] },
+            { name: "Slack", icon: FaSlack, color: "#E01E5A", keys: [{ key: "SLACK_BOT_TOKEN", label: "Bot Token" }, { key: "SLACK_APP_TOKEN", label: "App Token" }] },
+            { name: "WhatsApp", icon: FaWhatsapp, color: "#25D366", keys: [{ key: "TWILIO_ACCOUNT_SID", label: "Account SID" }, { key: "TWILIO_AUTH_TOKEN", label: "Auth Token" }, { key: "TWILIO_WHATSAPP_FROM", label: "From Number" }] },
+            { name: "LINE", icon: FaLine, color: "#00B900", keys: [{ key: "LINE_CHANNEL_ACCESS_TOKEN", label: "Access Token" }, { key: "LINE_CHANNEL_SECRET", label: "Channel Secret" }] },
+            { name: "Email", icon: MdEmail, color: "#a78bfa", keys: [{ key: "RESEND_API_KEY", label: "Resend API Key" }, { key: "RESEND_FROM", label: "From Address" }] },
+            { name: "Signal", icon: SiSignal, color: "#3a76f0", keys: [{ key: "SIGNAL_CLI_URL", label: "CLI URL" }, { key: "SIGNAL_PHONE_NUMBER", label: "Phone Number" }] },
+            { name: "Teams", icon: BsMicrosoftTeams, color: "#6264A7", keys: [{ key: "TEAMS_APP_ID", label: "App ID" }, { key: "TEAMS_APP_PASSWORD", label: "App Password" }] },
+            { name: "Google Chat", icon: SiGooglechat, color: "#00AC47", keys: [{ key: "GOOGLE_CHAT_SERVICE_ACCOUNT", label: "Service Account" }, { key: "GOOGLE_CHAT_PROJECT_NUMBER", label: "Project Number" }] },
+          ].map(({ name, icon: Icon, color, keys }) => {
+            const tokenKey = keys[0].key;
+            const isConnected = !!data.vars[tokenKey];
+            return (
+              <div key={name} className="p-4 bg-slate-800/20 rounded-xl border border-slate-800/40">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <Icon className="w-5 h-5" style={{ color }} />
+                    <span className="text-[13px] font-mono font-medium text-white">{name}</span>
+                  </div>
+                  {isConnected && <span className="text-[8px] font-mono text-[#00ff88] bg-[#00ff88]/8 px-2 py-0.5 rounded border border-[#00ff88]/15">CONNECTED</span>}
+                </div>
+                <div className="space-y-2">
+                  {keys.map(({ key, label }) => {
+                    const isSet = !!data.vars[key];
+                    const hasEdit = editValues[key] !== undefined;
+                    return (
+                      <div key={key}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-mono text-gray-500">{label}</span>
+                          {isSet && !hasEdit && <span className="text-[7px] font-mono text-[#00ff88]/60">set</span>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input type={visibleKeys.has(key) ? "text" : "password"} placeholder={isSet ? data.vars[key] : "Not set"} value={editValues[key] ?? ""} onChange={(e) => handleChange(key, e.target.value)} className={inputClass + " !py-2 !text-xs"} />
+                          <button onClick={() => toggleVisible(key)} className="p-2 text-gray-600 hover:text-[#00d9ff] transition-colors">
+                            {visibleKeys.has(key) ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Section>
+
+      {/* ── Tool API Keys ─────────────────────────────────────────── */}
+      <Section
+        icon={SettingsIcon}
+        title="Tool Config"
+        subtitle="API keys and settings for built-in tools"
+        badge={(() => {
+          const toolKeys = ["ELEVENLABS_API_KEY", "GOOGLE_PLACES_API_KEY", "GOOGLE_CALENDAR_API_KEY", "HUE_API_KEY", "DATABASE_URL", "NTFY_URL"];
+          const set = toolKeys.filter(k => data.vars[k]);
+          return set.length > 0 ? (
+            <span className="text-[9px] font-mono text-[#00ff88] bg-[#00ff88]/10 px-2 py-0.5 rounded-md border border-[#00ff88]/20">
+              {set.length} configured
+            </span>
+          ) : null;
+        })()}
+        actions={<SaveBtn dirty={dirty} saving={saving} saved={saved} onSave={handleSave} />}
+      >
+        <div className="space-y-3">
+          {[
+            { name: "Text-to-Speech (ElevenLabs)", color: "#f0883e", keys: [{ key: "ELEVENLABS_API_KEY", label: "API Key" }] },
+            { name: "Google Places", color: "#4285f4", keys: [{ key: "GOOGLE_PLACES_API_KEY", label: "API Key" }] },
+            { name: "Google Calendar", color: "#0f9d58", keys: [{ key: "GOOGLE_CALENDAR_API_KEY", label: "API Key" }, { key: "GOOGLE_CALENDAR_ID", label: "Calendar ID" }, { key: "GOOGLE_CALENDAR_ACCESS_TOKEN", label: "Access Token" }] },
+            { name: "Google Contacts", color: "#4285f4", keys: [{ key: "GOOGLE_CONTACTS_ACCESS_TOKEN", label: "Access Token" }] },
+            { name: "Philips Hue", color: "#ffcc00", keys: [{ key: "HUE_BRIDGE_IP", label: "Bridge IP" }, { key: "HUE_API_KEY", label: "API Key" }] },
+            { name: "Sonos", color: "#00d9ff", keys: [{ key: "SONOS_SPEAKER_IP", label: "Speaker IP" }] },
+            { name: "Notifications (ntfy)", color: "#00ff88", keys: [{ key: "NTFY_URL", label: "Server URL" }, { key: "NTFY_TOPIC", label: "Topic" }, { key: "NTFY_TOKEN", label: "Token" }] },
+            { name: "Notifications (Pushover)", color: "#2e9afe", keys: [{ key: "PUSHOVER_API_TOKEN", label: "API Token" }, { key: "PUSHOVER_USER_KEY", label: "User Key" }] },
+            { name: "Database", color: "#a78bfa", keys: [{ key: "DATABASE_URL", label: "PostgreSQL URL" }, { key: "MYSQL_URL", label: "MySQL URL" }] },
+          ].map(({ name, color, keys }) => {
+            const anySet = keys.some(k => data.vars[k.key]);
+            return (
+              <div key={name} className="p-4 bg-slate-800/20 rounded-xl border border-slate-800/40">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[13px] font-mono font-medium" style={{ color }}>{name}</span>
+                  {anySet && <span className="text-[8px] font-mono text-[#00ff88] bg-[#00ff88]/8 px-2 py-0.5 rounded border border-[#00ff88]/15">CONFIGURED</span>}
+                </div>
+                <div className="space-y-2">
+                  {keys.map(({ key, label }) => {
+                    const isSet = !!data.vars[key];
+                    const hasEdit = editValues[key] !== undefined;
+                    return (
+                      <div key={key}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-mono text-gray-500">{label}</span>
+                          {isSet && !hasEdit && <span className="text-[7px] font-mono text-[#00ff88]/60">set</span>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input type={visibleKeys.has(key) ? "text" : "password"} placeholder={isSet ? data.vars[key] : "Not set"} value={editValues[key] ?? ""} onChange={(e) => handleChange(key, e.target.value)} className={inputClass + " !py-2 !text-xs"} />
+                          <button onClick={() => toggleVisible(key)} className="p-2 text-gray-600 hover:text-[#00d9ff] transition-colors">
+                            {visibleKeys.has(key) ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );
