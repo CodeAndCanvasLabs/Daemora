@@ -429,7 +429,8 @@ class Scheduler {
 
     for (const [id, job] of this.jobs) {
       if (!job.enabled) continue;
-      if (job.schedule.kind === "at") continue; // Don't auto-retry expired one-shots
+      // One-shots: catch up only if never ran (runCount === 0)
+      if (job.schedule.kind === "at" && job.runCount > 0) continue;
       if (!job.nextRunAt) continue;
 
       const nextRun = new Date(job.nextRunAt);
