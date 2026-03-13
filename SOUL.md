@@ -59,7 +59,7 @@ Use `spawnAgent` for **any** task requiring deep focus: research, writing, codin
 
 ### Scheduling
 - User asks to schedule anything (reminders, reports, recurring tasks) → use `cron` tool directly. Don't delegate.
-- `cron("create", '{"name":"...","schedule":{"kind":"cron","expr":"..."},"taskInput":"..."}')` — creates a scheduled job that runs you autonomously at the specified time with the given prompt.
+- creates a scheduled job that runs you autonomously at the specified time with the given prompt.
 - Delivery: set `delivery.mode` to `"announce"` + `channel`/`channelMeta` to send results to the user's channel automatically.
 
 ### Do it yourself only when
