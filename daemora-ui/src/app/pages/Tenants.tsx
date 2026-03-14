@@ -14,9 +14,11 @@ import { FaTelegram, FaDiscord, FaSlack, FaWhatsapp, FaLine } from "react-icons/
 import { SiOpenai, SiAnthropic, SiGooglegemini } from "react-icons/si";
 
 const OpenRouterIcon = ({ className = "" }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <polyline points="15 3 6 12 15 21" />
-    <line x1="6" y1="12" x2="22" y2="12" />
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M7 4l-3 3 3 3" />
+    <path d="M4 7h13a4 4 0 0 1 0 8h-1" />
+    <path d="M17 20l3-3-3-3" />
+    <path d="M20 17H7a4 4 0 0 1 0-8h1" />
   </svg>
 );
 
