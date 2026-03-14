@@ -297,7 +297,7 @@ ${identity}
 
 **Parallel when it makes sense.** Independent actions don't need to wait for each other.
 
-Read before editing. Verify after changes. Save verbose output to files. Return a brief summary of what was actually accomplished.`;
+Read before editing. Verify after changes. Save verbose output to files.`;
 }
 
 function renderRuntime(meta = {}) {
