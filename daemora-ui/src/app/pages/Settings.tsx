@@ -29,9 +29,16 @@ import {
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { FaTelegram, FaDiscord, FaSlack, FaWhatsapp, FaLine } from "react-icons/fa6";
-import { SiSignal, SiGooglechat } from "react-icons/si";
+import { SiSignal, SiGooglechat, SiOpenai, SiAnthropic, SiGooglegemini } from "react-icons/si";
 import { BsMicrosoftTeams } from "react-icons/bs";
 import { MdEmail } from "react-icons/md";
+
+const OpenRouterIcon = ({ className = "" }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <polyline points="15 3 6 12 15 21" />
+    <line x1="6" y1="12" x2="22" y2="12" />
+  </svg>
+);
 
 interface SettingsData {
   vars: Record<string, string>;
@@ -795,7 +802,7 @@ export function Settings() {
         title="AI Provider Keys"
         subtitle="API keys for LLM providers — encrypted in vault"
         badge={(() => {
-          const providerKeys = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY"];
+          const providerKeys = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "OPENROUTER_API_KEY"];
           const set = providerKeys.filter(k => data.vars[k]);
           return set.length > 0 ? (
             <span className="text-[9px] font-mono text-[#00ff88] bg-[#00ff88]/10 px-2 py-0.5 rounded-md border border-[#00ff88]/20">
@@ -807,15 +814,17 @@ export function Settings() {
       >
         <div className="space-y-3">
           {[
-            { name: "OpenAI", key: "OPENAI_API_KEY", color: "#00d9ff" },
-            { name: "Anthropic", key: "ANTHROPIC_API_KEY", color: "#d4a574" },
-            { name: "Google AI", key: "GOOGLE_AI_API_KEY", color: "#4285f4" },
-          ].map(({ name, key, color }) => {
+            { name: "OpenAI", key: "OPENAI_API_KEY", color: "#00d9ff", icon: <SiOpenai className="w-3.5 h-3.5" /> },
+            { name: "Anthropic", key: "ANTHROPIC_API_KEY", color: "#d4a574", icon: <SiAnthropic className="w-3.5 h-3.5" /> },
+            { name: "Google AI", key: "GOOGLE_AI_API_KEY", color: "#4285f4", icon: <SiGooglegemini className="w-3.5 h-3.5" /> },
+            { name: "OpenRouter", key: "OPENROUTER_API_KEY", color: "#6366f1", icon: <OpenRouterIcon className="w-3.5 h-3.5" /> },
+          ].map(({ name, key, color, icon }) => {
             const isSet = !!data.vars[key];
             const hasEdit = editValues[key] !== undefined;
             return (
               <div key={key} className="p-4 bg-slate-800/20 rounded-xl border border-slate-800/40">
                 <div className="flex items-center gap-2 mb-2.5">
+                  <span style={{ color }}>{icon}</span>
                   <span className="text-[12px] font-mono font-medium" style={{ color }}>{name}</span>
                   {isSet && !hasEdit && <span className="text-[8px] font-mono text-[#00ff88] bg-[#00ff88]/8 px-1.5 py-0.5 rounded border border-[#00ff88]/15">CONFIGURED</span>}
                   {data.vaultActive && isSet && <span className="text-[8px] font-mono text-[#00d9ff] bg-[#00d9ff]/8 px-1.5 py-0.5 rounded border border-[#00d9ff]/15 flex items-center gap-0.5"><Shield className="w-2.5 h-2.5" /> vault</span>}

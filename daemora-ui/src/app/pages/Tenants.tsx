@@ -11,6 +11,14 @@ import { Textarea } from "../components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { toast } from "sonner";
 import { FaTelegram, FaDiscord, FaSlack, FaWhatsapp, FaLine } from "react-icons/fa6";
+import { SiOpenai, SiAnthropic, SiGooglegemini } from "react-icons/si";
+
+const OpenRouterIcon = ({ className = "" }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <polyline points="15 3 6 12 15 21" />
+    <line x1="6" y1="12" x2="22" y2="12" />
+  </svg>
+);
 
 interface OwnMcpServer {
   name: string;
@@ -695,6 +703,7 @@ export function Tenants() {
                 { tools: ["generateImage", "readPDF", "imageAnalysis", "transcribeAudio"], label: "OpenAI", keys: ["OPENAI_API_KEY"], color: "#00d9ff" },
                 { tools: ["generateImage", "readPDF", "imageAnalysis"], label: "Anthropic", keys: ["ANTHROPIC_API_KEY"], color: "#d4a574" },
                 { tools: ["generateImage", "readPDF", "imageAnalysis"], label: "Google AI", keys: ["GOOGLE_AI_API_KEY"], color: "#4285f4" },
+                { tools: ["generateImage", "readPDF", "imageAnalysis"], label: "OpenRouter", keys: ["OPENROUTER_API_KEY"], color: "#6366f1" },
                 { tools: ["textToSpeech"], label: "ElevenLabs (TTS)", keys: ["ELEVENLABS_API_KEY"], color: "#f0883e" },
                 { tools: ["sendEmail"], label: "Email — Resend", keys: ["RESEND_API_KEY", "RESEND_FROM"], color: "#a78bfa" },
                 { tools: ["sendEmail"], label: "Email — SMTP", keys: ["EMAIL_USER", "EMAIL_PASSWORD", "EMAIL_SMTP_HOST"], color: "#a78bfa" },
