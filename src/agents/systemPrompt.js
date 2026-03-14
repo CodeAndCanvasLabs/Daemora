@@ -202,20 +202,22 @@ async function renderSkills(taskInput, limit = 20, isSubAgent = false) {
   if (!summaries || summaries.length === 0) return "";
 
   const items = summaries.map(s =>
-    `  <skill name="${s.name}" path="${s.path}">${s.description}</skill>`
+    `  <skill>\n    <name>${s.name}</name>\n    <description>${s.description}</description>\n    <location>${s.location}</location>\n  </skill>`
   );
   const remaining = totalCount - summaries.length;
   const dirHint = remaining > 0
-    ? `\n  <!-- ${totalCount} skills total in ${config.skillsDir} -->`
+    ? `\n  <!-- ${totalCount} skills total -->`
     : "";
 
   const preamble = isSubAgent
-    ? `Before acting: scan list. If one clearly applies → readFile its path, follow it. Skip "confirm with user" steps. If multiple → pick most specific. If none → proceed.`
-    : `Before acting: scan list below.
-- Exactly one clearly applies → readFile its path, follow it.
-- Multiple could apply → pick the most specific one, read/follow it.
-- None clearly apply → proceed without loading.
-Constraint: never load more than one skill up front.`;
+    ? `Before acting: scan <available_skills> <description> entries.
+If one clearly applies → readFile its <location>, follow it. Skip "confirm with user" steps. If multiple → pick most specific. If none → proceed.`
+    : `Before replying: scan <available_skills> <description> entries.
+- If exactly one skill clearly applies: read its SKILL.md at <location> with readFile, then follow it.
+- If multiple could apply: choose the most specific one, then read/follow it.
+- If none clearly apply: do not read any SKILL.md.
+Constraints: never read more than one skill up front; only read after selecting.
+- When a skill drives external API writes, assume rate limits: prefer fewer larger writes, avoid tight one-item loops, serialize bursts when possible, and respect 429/Retry-After.`;
 
   return `## Skills (mandatory)
 

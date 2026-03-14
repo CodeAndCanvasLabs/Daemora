@@ -115,14 +115,20 @@ class SkillLoader {
           // Flat file: skills/coding.md
           const content = readFileSync(entryPath, "utf-8");
           const skill = this.parseSkill(content, entry);
-          if (skill) this.skills.set(skill.name, skill);
+          if (skill) {
+            skill.filePath = entryPath;
+            this.skills.set(skill.name, skill);
+          }
         } else if (stat.isDirectory()) {
           // Subdirectory: skills/webapp-testing/SKILL.md
           const skillMd = join(entryPath, "SKILL.md");
           if (existsSync(skillMd)) {
             const content = readFileSync(skillMd, "utf-8");
             const skill = this.parseSkill(content, `${entry}/SKILL.md`);
-            if (skill) this.skills.set(skill.name, skill);
+            if (skill) {
+              skill.filePath = skillMd;
+              this.skills.set(skill.name, skill);
+            }
           }
         }
       } catch (error) {
@@ -281,11 +287,12 @@ class SkillLoader {
     if (!this.loaded) this.load();
     if (this.skills.size === 0) return [];
 
-    const toSummary = (skill) => ({
-      name: skill.name,
-      description: skill.description,
-      path: join(config.skillsDir, `${skill.name}.md`),
-    });
+    const home = process.env.HOME || process.env.USERPROFILE || "";
+    const toSummary = (skill) => {
+      const fullPath = skill.filePath || join(config.skillsDir, `${skill.name}.md`);
+      const location = home && fullPath.startsWith(home) ? "~" + fullPath.slice(home.length) : fullPath;
+      return { name: skill.name, description: skill.description, location };
+    };
 
     // 1. Embedding match (OpenAI/Google/Ollama/TF-IDF — whatever is available)
     if (taskInput) {

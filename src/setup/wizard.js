@@ -868,7 +868,7 @@ export async function runSetupWizard() {
       const secretKeys = [
         // AI providers
         "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY",
-        "XAI_API_KEY", "DEEPSEEK_API_KEY", "MISTRAL_API_KEY",
+        "XAI_API_KEY", "DEEPSEEK_API_KEY", "MISTRAL_API_KEY", "OPENROUTER_API_KEY",
         // Channel tokens
         "TELEGRAM_BOT_TOKEN", "DISCORD_BOT_TOKEN",
         "SLACK_BOT_TOKEN", "SLACK_APP_TOKEN",
