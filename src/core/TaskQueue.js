@@ -145,7 +145,7 @@ class TaskQueue {
    * Wait for a task to complete (used by sync HTTP callers).
    * @returns {Promise<object>} The completed task
    */
-  waitForCompletion(taskId, timeoutMs = 300000) {
+  waitForCompletion(taskId, timeoutMs = 1800000) {
     return new Promise((resolve, reject) => {
       // Check if already done
       const existing = loadTask(taskId);
@@ -160,8 +160,8 @@ class TaskQueue {
         const timeoutMsg = `Task is still running after ${timeoutMs / 1000}s — you'll receive the result when it completes.`;
         resolve({
           id: taskId,
-          status: "failed",
-          error: timeoutMsg,
+          status: "pending",
+          error: null,
           result: timeoutMsg,
         });
       }, timeoutMs);
