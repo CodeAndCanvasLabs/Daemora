@@ -21,6 +21,7 @@ import { getTenantTmpDir } from "./_paths.js";
 
 let browser = null;
 let browserContext = null;
+let browserConnected = false;
 const pages = new Map();        // targetId → page
 let activeTargetId = null;
 let targetCounter = 0;
@@ -78,6 +79,7 @@ function resetInactivityTimer() {
 function cleanup() {
   browser = null;
   browserContext = null;
+  browserConnected = false;
   pages.clear();
   consoleLogs.clear();
   snapshotRefs.clear();
@@ -133,7 +135,7 @@ function attachConsoleLogs(targetId, page) {
 async function ensureBrowser(profileName = "default") {
   resetInactivityTimer();
 
-  if (browser && browser?.browser()?.isConnected()) {
+  if (browser && browserConnected) {
     if (!activeTargetId || !pages.has(activeTargetId) || pages.get(activeTargetId).isClosed()) {
       const page = await browserContext.newPage();
       page.setDefaultTimeout(15000);
@@ -157,6 +159,9 @@ async function ensureBrowser(profileName = "default") {
       userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     });
     browserContext = browser;
+    browserConnected = true;
+
+    browserContext.on("close", () => cleanup());
 
     browserContext.on("dialog", async (dialog) => {
       lastDialog = { type: dialog.type(), message: dialog.message(), defaultValue: dialog.defaultValue(), timestamp: Date.now() };
@@ -934,7 +939,7 @@ export async function browserAction(params) {
       }
 
       case "status": {
-        const connected = browser && browser?.browser()?.isConnected();
+        const connected = browser && browserConnected;
         const tabCount = pages.size;
         if (!connected) return "Browser: not running";
         const routeCount = activeRoutes.size > 0 ? ` | Routes: ${activeRoutes.size}` : "";
