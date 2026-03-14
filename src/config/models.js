@@ -438,6 +438,51 @@ export const models = {
   // Pricing varies per upstream model — these are representative defaults.
   // Any openrouter:* model not listed here works via dynamic passthrough.
 
+  // Free tier models (no cost, rate-limited)
+  "openrouter:nousresearch/hermes-3-llama-3.1-405b:free": {
+    provider: "openrouter", model: "nousresearch/hermes-3-llama-3.1-405b:free",
+    contextWindow: 128_000, compactAt: 90_000,
+    costPer1kInput: 0, costPer1kOutput: 0,
+    capabilities: ["text", "tools"],
+    tier: "free",
+  },
+  "openrouter:qwen/qwen3-4b:free": {
+    provider: "openrouter", model: "qwen/qwen3-4b:free",
+    contextWindow: 32_000, compactAt: 22_000,
+    costPer1kInput: 0, costPer1kOutput: 0,
+    capabilities: ["text", "tools"],
+    tier: "free",
+  },
+  "openrouter:openai/gpt-oss-20b:free": {
+    provider: "openrouter", model: "openai/gpt-oss-20b:free",
+    contextWindow: 128_000, compactAt: 90_000,
+    costPer1kInput: 0, costPer1kOutput: 0,
+    capabilities: ["text", "tools"],
+    tier: "free",
+  },
+  "openrouter:openai/gpt-oss-120b:free": {
+    provider: "openrouter", model: "openai/gpt-oss-120b:free",
+    contextWindow: 128_000, compactAt: 90_000,
+    costPer1kInput: 0, costPer1kOutput: 0,
+    capabilities: ["text", "tools"],
+    tier: "free",
+  },
+  "openrouter:qwen/qwen3-coder:free": {
+    provider: "openrouter", model: "qwen/qwen3-coder:free",
+    contextWindow: 128_000, compactAt: 90_000,
+    costPer1kInput: 0, costPer1kOutput: 0,
+    capabilities: ["text", "tools"],
+    tier: "free",
+  },
+  "openrouter:z-ai/glm-4.5-air:free": {
+    provider: "openrouter", model: "z-ai/glm-4.5-air:free",
+    contextWindow: 128_000, compactAt: 90_000,
+    costPer1kInput: 0, costPer1kOutput: 0,
+    capabilities: ["text", "tools"],
+    tier: "free",
+  },
+
+  // Paid models
   "openrouter:anthropic/claude-opus-4-6": {
     provider: "openrouter", model: "anthropic/claude-opus-4-6",
     contextWindow: 200_000, compactAt: 140_000,
