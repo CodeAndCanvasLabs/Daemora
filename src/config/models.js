@@ -439,6 +439,13 @@ export const models = {
   // Any openrouter:* model not listed here works via dynamic passthrough.
 
   // Free tier models (no cost, rate-limited)
+  "openrouter:stepfun/step-3.5-flash:free": {
+    provider: "openrouter", model: "stepfun/step-3.5-flash:free",
+    contextWindow: 128_000, compactAt: 90_000,
+    costPer1kInput: 0, costPer1kOutput: 0,
+    capabilities: ["text", "tools"],
+    tier: "free",
+  },
   "openrouter:openrouter/free": {
     provider: "openrouter", model: "openrouter/free",
     contextWindow: 128_000, compactAt: 90_000,
