@@ -283,9 +283,13 @@ class SkillLoader {
    * Uses hybrid ranking: embeddings (API or local) → keyword fallback → list all.
    * Returns up to `limit` skills, sorted by relevance.
    */
-  async getMatchedSkillSummaries(taskInput, limit = 20) {
+  async getMatchedSkillSummaries(taskInput, limit = 10) {
     if (!this.loaded) this.load();
     if (this.skills.size === 0) return [];
+
+    // Skip skills for trivial/greeting inputs — no point wasting tokens
+    const TRIVIAL = /^(hi|hello|hey|thanks|thank you|ok|okay|yes|no|sure|yep|nope|bye|good morning|good evening|gm|gn|sup|yo)\s*[!.?]*$/i;
+    if (!taskInput || taskInput.trim().length < 8 || TRIVIAL.test(taskInput.trim())) return [];
 
     const home = process.env.HOME || process.env.USERPROFILE || "";
     const toSummary = (skill) => {
@@ -294,42 +298,43 @@ class SkillLoader {
       return { name: skill.name, description: skill.description, location };
     };
 
-    // 1. Embedding match (OpenAI/Google/Ollama/TF-IDF — whatever is available)
-    if (taskInput) {
-      const vectorsAvailable = Object.keys(this._skillVectors).length > 0;
-      if (getEmbeddingProvider() && vectorsAvailable) {
-        const queryVector = await this._generateEmbedding(taskInput);
-        if (queryVector) {
-          const scored = [];
-          for (const [name, skill] of this.skills) {
-            const cached = this._skillVectors[name];
-            if (!cached?.vector) continue;
-            const score = this._cosineSim(queryVector, cached.vector);
+    // 1. Embedding match — only return skills above similarity threshold
+    const SKILL_MATCH_THRESHOLD = 0.25;
+    const vectorsAvailable = Object.keys(this._skillVectors).length > 0;
+    if (getEmbeddingProvider() && vectorsAvailable) {
+      const queryVector = await this._generateEmbedding(taskInput);
+      if (queryVector) {
+        const scored = [];
+        for (const [name, skill] of this.skills) {
+          const cached = this._skillVectors[name];
+          if (!cached?.vector) continue;
+          const score = this._cosineSim(queryVector, cached.vector);
+          if (score >= SKILL_MATCH_THRESHOLD) {
             scored.push({ skill, score });
           }
-          scored.sort((a, b) => b.score - a.score);
-          const top = scored.slice(0, limit);
-          if (top.length > 0) {
-            console.log(`[SkillLoader] Ranked top ${top.length}/${this.skills.size} skills (embedding): [${top.map(s => s.skill.name).join(", ")}]`);
-            return top.map((s) => toSummary(s.skill));
-          }
         }
-      }
-
-      // 2. Keyword fallback — matched first, then fill remaining up to limit
-      const keywordMatched = this.matchSkills(taskInput);
-      if (keywordMatched.length > 0) {
-        const matchedNames = new Set(keywordMatched.map((s) => s.name));
-        const rest = [...this.skills.values()].filter((s) => !matchedNames.has(s.name));
-        const combined = [...keywordMatched, ...rest].slice(0, limit);
-        console.log(`[SkillLoader] Ranked top ${combined.length}/${this.skills.size} skills (keyword): [${combined.map(s => s.name).join(", ")}]`);
-        return combined.map(toSummary);
+        scored.sort((a, b) => b.score - a.score);
+        const top = scored.slice(0, limit);
+        if (top.length > 0) {
+          console.log(`[SkillLoader] Matched ${top.length}/${this.skills.size} skills above threshold (${top.map(s => `${s.skill.name}:${s.score.toFixed(2)}`).join(", ")})`);
+          return top.map((s) => toSummary(s.skill));
+        }
+        // No skills above threshold — return empty (don't fall through to keyword)
+        console.log(`[SkillLoader] No skills above similarity threshold (${SKILL_MATCH_THRESHOLD})`);
+        return [];
       }
     }
 
-    // 3. No match or no input — return first N alphabetically
-    const all = [...this.skills.values()].slice(0, limit);
-    return all.map(toSummary);
+    // 2. Keyword fallback — only return actual matches, don't pad with unrelated skills
+    const keywordMatched = this.matchSkills(taskInput);
+    if (keywordMatched.length > 0) {
+      const top = keywordMatched.slice(0, limit);
+      console.log(`[SkillLoader] Keyword matched ${top.length} skills: [${top.map(s => s.name).join(", ")}]`);
+      return top.map(toSummary);
+    }
+
+    // 3. No matches — return empty instead of dumping random skills
+    return [];
   }
 
   // ── Sync keyword API (fallback) ───────────────────────────────────────────────

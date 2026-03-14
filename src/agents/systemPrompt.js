@@ -50,7 +50,7 @@ export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeM
         renderResponseFormat(),
         renderToolList(true),
         renderMCPTools(),
-        renderSkills(taskInput, 20, true),
+        renderSkills(taskInput, 5, true),
         renderMemory(),
         renderSubagentContext(runtimeMeta.profile),
       ])
