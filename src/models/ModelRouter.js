@@ -31,6 +31,8 @@ function _createProvider(name, apiKey) {
   if (name === "openai")    return createOpenAI({ apiKey });
   if (name === "anthropic") return createAnthropic({ apiKey });
   if (name === "google")    return createGoogleGenerativeAI({ apiKey });
+  // OpenRouter — include ranking headers
+  if (name === "openrouter") return createOpenAI({ apiKey, baseURL: info.baseURL, headers: { "HTTP-Referer": "https://daemora.com", "X-OpenRouter-Title": "Daemora" } });
   // OpenAI-compatible providers (xAI, DeepSeek, Mistral)
   if (info?.baseURL)        return createOpenAI({ apiKey, baseURL: info.baseURL });
   return null;
