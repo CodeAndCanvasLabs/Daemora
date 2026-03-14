@@ -133,7 +133,7 @@ function attachConsoleLogs(targetId, page) {
 async function ensureBrowser(profileName = "default") {
   resetInactivityTimer();
 
-  if (browser && browser.isConnected()) {
+  if (browser && browser?.browser()?.isConnected()) {
     if (!activeTargetId || !pages.has(activeTargetId) || pages.get(activeTargetId).isClosed()) {
       const page = await browserContext.newPage();
       page.setDefaultTimeout(15000);
@@ -934,7 +934,7 @@ export async function browserAction(params) {
       }
 
       case "status": {
-        const connected = browser && browser.isConnected();
+        const connected = browser && browser?.browser()?.isConnected();
         const tabCount = pages.size;
         if (!connected) return "Browser: not running";
         const routeCount = activeRoutes.size > 0 ? ` | Routes: ${activeRoutes.size}` : "";
