@@ -84,6 +84,7 @@ export async function runSetupWizard() {
       { value: "xai",       label: "xAI",        hint: "Grok 4 \u2014 conversational & capable" },
       { value: "deepseek",  label: "DeepSeek",   hint: "DeepSeek V3 / R1 \u2014 excellent coder, cheap" },
       { value: "mistral",   label: "Mistral",    hint: "Mistral Large \u2014 European AI, GDPR-friendly" },
+      { value: "openrouter", label: "OpenRouter", hint: "Any model via openrouter.ai \u2014 one key, all providers" },
       { value: "ollama",    label: "Ollama",     hint: "Local models \u2014 free, private, offline" },
     ],
   }));
@@ -99,6 +100,7 @@ export async function runSetupWizard() {
     xai:       { env: "XAI_API_KEY",       prompt: "xAI API key" },
     deepseek:  { env: "DEEPSEEK_API_KEY",  prompt: "DeepSeek API key (sk-...)" },
     mistral:   { env: "MISTRAL_API_KEY",   prompt: "Mistral API key" },
+    openrouter: { env: "OPENROUTER_API_KEY", prompt: "OpenRouter API key (sk-or-...)" },
   };
 
   if (provider === "ollama") {
