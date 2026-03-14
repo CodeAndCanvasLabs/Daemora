@@ -15,6 +15,7 @@ const PROVIDERS = {
   xai:       { envKey: "XAI_API_KEY",      baseURL: "https://api.x.ai/v1" },
   deepseek:  { envKey: "DEEPSEEK_API_KEY",  baseURL: "https://api.deepseek.com" },
   mistral:   { envKey: "MISTRAL_API_KEY",   baseURL: "https://api.mistral.ai/v1" },
+  openrouter: { envKey: "OPENROUTER_API_KEY", baseURL: "https://openrouter.ai/api/v1" },
   ollama:    { envKey: null },
 };
 

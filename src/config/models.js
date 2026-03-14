@@ -433,6 +433,54 @@ export const models = {
     tier: "cheap",
   },
 
+  // ─── OpenRouter (any model via openrouter.ai) ───────────────────────────────
+  // OpenRouter proxies multiple providers. Model IDs use provider/model format.
+  // Pricing varies per upstream model — these are representative defaults.
+  // Any openrouter:* model not listed here works via dynamic passthrough.
+
+  "openrouter:anthropic/claude-opus-4-6": {
+    provider: "openrouter", model: "anthropic/claude-opus-4-6",
+    contextWindow: 200_000, compactAt: 140_000,
+    costPer1kInput: 0.015, costPer1kOutput: 0.075,
+    capabilities: ["text", "tools", "vision"],
+    tier: "expensive",
+  },
+  "openrouter:anthropic/claude-sonnet-4-6": {
+    provider: "openrouter", model: "anthropic/claude-sonnet-4-6",
+    contextWindow: 200_000, compactAt: 140_000,
+    costPer1kInput: 0.003, costPer1kOutput: 0.015,
+    capabilities: ["text", "tools", "vision"],
+    tier: "standard",
+  },
+  "openrouter:openai/gpt-4o": {
+    provider: "openrouter", model: "openai/gpt-4o",
+    contextWindow: 128_000, compactAt: 90_000,
+    costPer1kInput: 0.0025, costPer1kOutput: 0.010,
+    capabilities: ["text", "tools", "vision"],
+    tier: "standard",
+  },
+  "openrouter:google/gemini-2.5-pro": {
+    provider: "openrouter", model: "google/gemini-2.5-pro",
+    contextWindow: 1_000_000, compactAt: 700_000,
+    costPer1kInput: 0.00125, costPer1kOutput: 0.010,
+    capabilities: ["text", "tools", "vision"],
+    tier: "standard",
+  },
+  "openrouter:deepseek/deepseek-chat-v3": {
+    provider: "openrouter", model: "deepseek/deepseek-chat-v3",
+    contextWindow: 64_000, compactAt: 45_000,
+    costPer1kInput: 0.00014, costPer1kOutput: 0.00028,
+    capabilities: ["text", "tools"],
+    tier: "cheap",
+  },
+  "openrouter:meta-llama/llama-4-scout": {
+    provider: "openrouter", model: "meta-llama/llama-4-scout",
+    contextWindow: 512_000, compactAt: 350_000,
+    costPer1kInput: 0.00015, costPer1kOutput: 0.0006,
+    capabilities: ["text", "tools", "vision"],
+    tier: "cheap",
+  },
+
   // ─── Ollama (local — no cost) ────────────────────────────────────────────────
 
   "ollama:llama4:scout": {
