@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import tenantContext from "../tenants/TenantContext.js";
-import { generateEmbedding, getEmbeddingProvider } from "../utils/Embeddings.js";
+import { generateEmbedding, getEmbeddingProvider, cosineSim } from "../utils/Embeddings.js";
 import { queryAll, queryOne, run } from "../storage/Database.js";
 
 /**
@@ -44,17 +44,8 @@ function _escapeForPrompt(text) {
   );
 }
 
-// Standard cosine similarity
-function _cosineSim(a, b) {
-  let dot = 0, na = 0, nb = 0;
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    na  += a[i] * a[i];
-    nb  += b[i] * b[i];
-  }
-  if (!na || !nb) return 0;
-  return dot / (Math.sqrt(na) * Math.sqrt(nb));
-}
+// cosineSim imported from Embeddings.js (shared utility)
+const _cosineSim = cosineSim;
 
 function _generateEmbedding(text) {
   return generateEmbedding(text);

@@ -14,7 +14,7 @@
  */
 
 import { join, basename } from "path";
-import { mkdirSync, existsSync } from "fs";
+import { mkdirSync, existsSync, readdirSync } from "fs";
 import { config } from "../config/default.js";
 import filesystemGuard from "../safety/FilesystemGuard.js";
 import { getTenantTmpDir } from "./_paths.js";
@@ -34,6 +34,21 @@ const MAX_CONSOLE_LOGS = 100;
 // Snapshot ref cache — maps ref numbers to element handles
 let snapshotRefs = new Map();   // "e1" → { selector, role, name }
 let snapshotCounter = 0;
+
+// Download tracking — persistent across actions
+const downloads = new Map();    // downloadId → { id, filename, url, path, status, timestamp }
+let downloadCounter = 0;
+
+// Dialog handling — configurable behavior
+let lastDialog = null;          // { type, message, defaultValue, timestamp }
+let dialogMode = "auto";        // auto | accept | dismiss | manual
+const pendingDialogs = [];      // queue for manual mode
+
+// Network interception routes
+const activeRoutes = new Map(); // pattern → "block" | "modify"
+
+// Current profile name (for status reporting)
+let currentProfileName = "default";
 
 // ── Navigation guard ─────────────────────────────────────────────────────────
 const NAV_BLOCKLIST = [
@@ -66,7 +81,13 @@ function cleanup() {
   pages.clear();
   consoleLogs.clear();
   snapshotRefs.clear();
+  downloads.clear();
+  activeRoutes.clear();
   activeTargetId = null;
+  lastDialog = null;
+  dialogMode = "auto";
+  pendingDialogs.length = 0;
+  currentProfileName = "default";
 }
 
 // ── Browser lifecycle ────────────────────────────────────────────────────────
@@ -84,6 +105,28 @@ function attachConsoleLogs(targetId, page) {
   page.on("pageerror", (err) => {
     logs.push({ type: "error", text: err.message, ts: Date.now() });
     if (logs.length > MAX_CONSOLE_LOGS) logs.shift();
+  });
+  // Track downloads automatically
+  page.on("download", (download) => {
+    const id = `dl-${++downloadCounter}`;
+    const safeName = basename(download.suggestedFilename()).replace(/[^a-zA-Z0-9._-]/g, "_") || "download";
+    downloads.set(id, {
+      id, filename: safeName, url: download.url(), path: null,
+      status: "pending", timestamp: Date.now(), _download: download,
+    });
+    download.path().then(p => {
+      const dl = downloads.get(id);
+      if (dl) { dl.path = p; dl.status = "completed"; }
+    }).catch(() => {
+      const dl = downloads.get(id);
+      if (dl && dl.status === "pending") dl.status = "needs-save";
+    });
+    // Cap at 50 tracked downloads
+    if (downloads.size > 50) {
+      const oldest = downloads.keys().next().value;
+      downloads.delete(oldest);
+    }
+    console.log(`[browser] Download tracked: ${id} - ${safeName}`);
   });
 }
 
@@ -116,9 +159,21 @@ async function ensureBrowser(profileName = "default") {
     browserContext = browser;
 
     browserContext.on("dialog", async (dialog) => {
-      console.log(`[browser] Auto-dismissed dialog: ${dialog.type()} - "${dialog.message().slice(0, 80)}"`);
-      await dialog.dismiss();
+      lastDialog = { type: dialog.type(), message: dialog.message(), defaultValue: dialog.defaultValue(), timestamp: Date.now() };
+      console.log(`[browser] Dialog (${dialogMode}): ${dialog.type()} - "${dialog.message().slice(0, 80)}"`);
+      if (dialogMode === "accept") {
+        await dialog.accept();
+      } else if (dialogMode === "dismiss") {
+        await dialog.dismiss();
+      } else if (dialogMode === "manual") {
+        pendingDialogs.push(dialog);
+      } else {
+        // auto: dismiss by default
+        await dialog.dismiss();
+      }
     });
+
+    currentProfileName = profileName;
 
     const existingPages = browserContext.pages();
     const page = existingPages.length > 0 ? existingPages[0] : await browserContext.newPage();
@@ -261,6 +316,14 @@ function wrapError(error) {
   }
   if (msg.includes("Unknown ref")) return msg;
   return `Browser error: ${msg}`;
+}
+
+// ── Safe evaluate with timeout ────────────────────────────────────────────
+async function safeEvaluate(page, fn, arg, timeout = 10000) {
+  return Promise.race([
+    typeof fn === "string" ? page.evaluate(fn) : page.evaluate(fn, arg),
+    new Promise((_, rej) => setTimeout(() => rej(new Error("Evaluate timed out after " + timeout + "ms")), timeout)),
+  ]);
 }
 
 // ── Main action handler ──────────────────────────────────────────────────────
@@ -697,8 +760,27 @@ export async function browserAction(params) {
         return `Highlighted "${param1}" for 3 seconds.`;
       }
 
-      // ── Dialog handling ─────────────────────────────────────────────────
+      // ── Dialog handling (overhauled) ──────────────────────────────────────
+      case "configureDialog": {
+        const mode = param1 || "auto";
+        if (!["auto", "accept", "dismiss", "manual"].includes(mode)) {
+          return `Error: mode must be auto|accept|dismiss|manual. Got: "${mode}"`;
+        }
+        dialogMode = mode;
+        pendingDialogs.length = 0;
+        return `Dialog mode set to "${mode}". ${mode === "manual" ? "Dialogs will queue — use handleDialog to respond." : ""}`;
+      }
+
       case "handleDialog": {
+        if (dialogMode === "manual" && pendingDialogs.length > 0) {
+          const dialog = pendingDialogs.shift();
+          const dialogAction = param1 || "accept";
+          const text = param2 || "";
+          if (dialogAction === "accept") await dialog.accept(text);
+          else await dialog.dismiss();
+          return `Dialog ${dialogAction}ed${text ? ` with: "${text}"` : ""}. ${pendingDialogs.length} pending.`;
+        }
+        // Legacy one-shot mode
         const dialogAction = param1 || "accept";
         const text = param2 || "";
         currentPage().once("dialog", async (dialog) => {
@@ -706,6 +788,11 @@ export async function browserAction(params) {
           else await dialog.dismiss();
         });
         return `Next dialog will be ${dialogAction}ed${text ? ` with: "${text}"` : ""}.`;
+      }
+
+      case "getLastDialog": {
+        if (!lastDialog) return "No dialogs have appeared yet.";
+        return JSON.stringify(lastDialog, null, 2);
       }
 
       // ── Session management ──────────────────────────────────────────────
@@ -719,12 +806,140 @@ export async function browserAction(params) {
         return `New session started (profile: ${profile}). Auth/cookies from this profile are preserved.`;
       }
 
+      // ── Batch actions ─────────────────────────────────────────────────────
+      case "batch": {
+        if (!param1) return "Error: JSON array of [action, param1?, param2?] required.";
+        let actions;
+        try { actions = JSON.parse(param1); } catch { return "Error: param1 must be valid JSON array."; }
+        if (!Array.isArray(actions)) return "Error: param1 must be a JSON array.";
+        if (actions.length > 100) return "Error: max 100 actions per batch.";
+        if (actions.length === 0) return "Error: batch cannot be empty.";
+        const results = [];
+        for (const entry of actions) {
+          const [act, p1, p2] = Array.isArray(entry) ? entry : [entry.action, entry.param1, entry.param2];
+          if (act === "batch") { results.push({ action: act, ok: false, error: "Nested batches not allowed" }); break; }
+          try {
+            const r = await browserAction({ action: act, param1: p1, param2: p2 });
+            results.push({ action: act, ok: true, result: r });
+          } catch (e) {
+            results.push({ action: act, ok: false, error: e.message });
+            break; // stop on error
+          }
+        }
+        return JSON.stringify({ total: actions.length, executed: results.length, results }, null, 2);
+      }
+
+      // ── ARIA Snapshot (Playwright 1.49+ YAML tree) ──────────────────────
+      case "ariaSnapshot": {
+        const p = await ensureBrowser();
+        const selector = param1 || "body";
+        try {
+          const locator = p.locator(selector);
+          const yaml = await locator.ariaSnapshot();
+          return `ARIA Snapshot (YAML):\n\n${yaml}`;
+        } catch (e) {
+          if (e.message.includes("ariaSnapshot")) {
+            return "Error: ariaSnapshot requires Playwright 1.49+. Update playwright: pnpm add playwright@latest";
+          }
+          throw e;
+        }
+      }
+
+      // ── Download tracking ──────────────────────────────────────────────
+      case "listDownloads": {
+        if (downloads.size === 0) return "No tracked downloads.";
+        const entries = [...downloads.values()].slice(-20).map(d =>
+          `  ${d.id}: ${d.filename} (${d.status}) ${d.path || "not saved"}`
+        );
+        return `Downloads (${downloads.size}):\n${entries.join("\n")}`;
+      }
+
+      case "saveDownload": {
+        if (!param1) return "Error: downloadId required.";
+        const dl = downloads.get(param1);
+        if (!dl) return `Error: download "${param1}" not found. Use listDownloads.`;
+        if (!dl._download) return `Error: download "${param1}" has no pending download object.`;
+        const savePath = param2 || join(config.dataDir, "browser", "downloads", dl.filename);
+        const sc = filesystemGuard.checkWrite(savePath);
+        if (!sc.allowed) return `Error: ${sc.reason}`;
+        mkdirSync(join(savePath, ".."), { recursive: true });
+        await dl._download.saveAs(savePath);
+        dl.path = savePath;
+        dl.status = "saved";
+        return `Download saved: ${savePath}`;
+      }
+
+      // ── Network interception ──────────────────────────────────────────
+      case "interceptNetwork": {
+        if (!param1) return 'Error: config JSON required. e.g., {"block":["*.ads.*"],"modify":[{"match":"*api*","status":200}]}';
+        const cfg = JSON.parse(param1);
+        const page = currentPage();
+        let count = 0;
+        if (cfg.block && Array.isArray(cfg.block)) {
+          for (const pattern of cfg.block) {
+            await page.route(pattern, route => route.abort());
+            activeRoutes.set(pattern, "block");
+            count++;
+          }
+        }
+        if (cfg.modify && Array.isArray(cfg.modify)) {
+          for (const rule of cfg.modify) {
+            const { match, headers, status, body } = rule;
+            if (!match) continue;
+            await page.route(match, async route => {
+              const response = await route.fetch();
+              await route.fulfill({
+                status: status || response.status(),
+                headers: { ...response.headers(), ...(headers || {}) },
+                body: body || await response.body(),
+              });
+            });
+            activeRoutes.set(match, "modify");
+            count++;
+          }
+        }
+        return `${count} interception(s) added. Active: ${activeRoutes.size}`;
+      }
+
+      case "clearInterceptions": {
+        const page = currentPage();
+        await page.unrouteAll({ behavior: "ignoreErrors" });
+        const count = activeRoutes.size;
+        activeRoutes.clear();
+        return `Cleared ${count} network interception(s).`;
+      }
+
+      // ── Browser profiles listing ──────────────────────────────────────
+      case "listProfiles": {
+        const profileDir = join(config.dataDir, "browser");
+        if (!existsSync(profileDir)) return "No browser profiles found.";
+        const dirs = readdirSync(profileDir, { withFileTypes: true })
+          .filter(d => d.isDirectory() && d.name !== "downloads")
+          .map(d => d.name);
+        if (dirs.length === 0) return "No browser profiles found.";
+        return `Browser profiles: ${dirs.join(", ")}${currentProfileName ? ` (active: ${currentProfileName})` : ""}`;
+      }
+
+      // ── Error recovery ────────────────────────────────────────────────
+      case "recoverStuck": {
+        const page = currentPage();
+        try {
+          const client = await page.context().newCDPSession(page);
+          await client.send("Runtime.terminateExecution");
+          await client.detach();
+          return "Terminated stuck JavaScript execution. Page should be responsive now.";
+        } catch (e) {
+          return `Recovery failed: ${e.message}. Try closing and re-navigating.`;
+        }
+      }
+
       case "status": {
         const connected = browser && browser.isConnected();
         const tabCount = pages.size;
-        const profile = "default"; // TODO: track current profile
         if (!connected) return "Browser: not running";
-        return `Browser: running | Tabs: ${tabCount} | Active: ${activeTargetId} | URL: ${currentPage().url()}`;
+        const routeCount = activeRoutes.size > 0 ? ` | Routes: ${activeRoutes.size}` : "";
+        const dlCount = downloads.size > 0 ? ` | Downloads: ${downloads.size}` : "";
+        return `Browser: running | Profile: ${currentProfileName} | Tabs: ${tabCount} | Active: ${activeTargetId} | URL: ${currentPage().url()}${routeCount}${dlCount}`;
       }
 
       case "close": {
@@ -737,7 +952,7 @@ export async function browserAction(params) {
       }
 
       default:
-        return `Unknown action: "${action}". Available: navigate, snapshot, click, fill, type, hover, selectOption, pressKey, scroll, drag, getText, getContent, screenshot, pdf, evaluate, getLinks, console, waitFor, waitForNavigation, reload, goBack, goForward, newTab, switchTab, listTabs, closeTab, getCookies, setCookie, clearCookies, getStorage, setStorage, clearStorage, upload, download, resize, highlight, handleDialog, newSession, status, close`;
+        return `Unknown action: "${action}". Available: navigate, snapshot, ariaSnapshot, click, fill, type, hover, selectOption, pressKey, scroll, drag, getText, getContent, screenshot, pdf, evaluate, getLinks, console, waitFor, waitForNavigation, reload, goBack, goForward, newTab, switchTab, listTabs, closeTab, getCookies, setCookie, clearCookies, getStorage, setStorage, clearStorage, upload, download, resize, highlight, configureDialog, handleDialog, getLastDialog, batch, listDownloads, saveDownload, interceptNetwork, clearInterceptions, listProfiles, recoverStuck, newSession, status, close`;
     }
   } catch (error) {
     console.log(`      [browser] Error: ${error.message}`);
@@ -746,4 +961,13 @@ export async function browserAction(params) {
 }
 
 export const browserActionDescription =
-  'browserAction(action, param1?, param2?) - Heavy Playwright browser automation. Actions: navigate(url), snapshot(opts?), click(selector|ref,opts?), fill(selector|ref,value), type(selector|ref,text), hover(selector|ref), selectOption(selector|ref,value), pressKey(key), scroll(direction|selector|ref,amount?), drag(source,target), getText(selector|ref?), getContent(selector?), screenshot(path|selector?,full?), pdf(path?), evaluate(js), getLinks, console(filter?,limit?), waitFor(condition,timeout?) — conditions: selector, "text:...", "url:...", "js:...", "load", "networkidle", waitForNavigation(timeout?), reload, goBack, goForward, newTab(url?), switchTab(targetId), listTabs, closeTab(targetId?), getCookies(domain?), setCookie(json), clearCookies, getStorage(local|session,key?), setStorage(json), clearStorage(local|session), upload(selector|ref,filePath), download(selector|ref), resize(WxH), highlight(selector|ref), handleDialog(accept|dismiss,text?), newSession(profile?), status, close. Supports ref-based interaction: take snapshot first, then use refs (e1, e5) instead of CSS selectors.';
+  'browserAction(action, param1?, param2?) - Heavy Playwright browser automation. ' +
+  'Actions: navigate(url), snapshot(opts?), ariaSnapshot(selector?), click(selector|ref,opts?), fill(selector|ref,value), type(selector|ref,text), hover(selector|ref), selectOption(selector|ref,value), pressKey(key), scroll(direction|selector|ref,amount?), drag(source,target), getText(selector|ref?), getContent(selector?), screenshot(path|selector?,full?), pdf(path?), evaluate(js), getLinks, console(filter?,limit?), waitFor(condition,timeout?), waitForNavigation(timeout?), reload, goBack, goForward, ' +
+  'newTab(url?), switchTab(targetId), listTabs, closeTab(targetId?), getCookies(domain?), setCookie(json), clearCookies, getStorage(local|session,key?), setStorage(json), clearStorage(local|session), upload(selector|ref,filePath), download(selector|ref), resize(WxH), highlight(selector|ref), ' +
+  'batch(actionsJson) — execute up to 100 actions sequentially in one call. param1: JSON array of [action,param1?,param2?]. Massive token saver. ' +
+  'configureDialog(auto|accept|dismiss|manual), handleDialog(accept|dismiss,text?), getLastDialog, ' +
+  'listDownloads, saveDownload(downloadId,savePath?), ' +
+  'interceptNetwork(configJson) — block/modify network requests. e.g. {"block":["*.ads.*"],"modify":[{"match":"*api*","headers":{"x-test":"1"}}]}, clearInterceptions, ' +
+  'listProfiles, recoverStuck — kill stuck JS execution via CDP, ' +
+  'newSession(profile?), status, close. ' +
+  'Supports ref-based interaction: take snapshot first, then use refs (e1, e5) instead of CSS selectors.';

@@ -36,6 +36,7 @@ import { manageMCP } from "./manageMCP.js";
 import { useMCP } from "./useMCP.js";
 import { makeVoiceCall } from "./makeVoiceCall.js";
 import { teamTask } from "./teamTool.js";
+import { meetingAction } from "./meetingTool.js";
 import { replyToUser } from "./replyToUser.js";
 import { generateImage } from "./generateImage.js";
 import { readPDF } from "./readPDF.js";
@@ -96,6 +97,7 @@ export const toolFunctions = {
   manageMCP, useMCP,
   makeVoiceCall,
   teamTask,
+  meetingAction,
   generateImage, readPDF,
   gitTool, clipboard, sshTool, database,
   notification, iMessageTool, calendar, contacts,

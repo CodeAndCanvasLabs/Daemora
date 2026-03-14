@@ -466,6 +466,31 @@ const toolSchemas = {
     description: "Outbound voice calls via Twilio",
   },
 
+  // ── Meetings + Voice Cloning ─────────────────────────────────────────────
+  meetingAction: {
+    schema: z.object({
+      action: str("join|leave|speak|listen|transcript|status|participants|mute|unmute|cloneVoice|listVoices|deleteVoice|voiceInfo|voiceSettings|setVoice"),
+      url: optStr("Meeting URL (required for join)"),
+      sessionId: optStr("Session ID (required for most actions)"),
+      displayName: optStr("Bot display name in meeting (for join)"),
+      profile: optStr("Browser profile name (for join)"),
+      voiceId: optStr("ElevenLabs voice ID (for join, setVoice, voiceInfo, voiceSettings, deleteVoice)"),
+      sttProvider: optStr("STT provider: 'whisper' | 'deepgram' | 'groq' (for join)"),
+      ttsProvider: optStr("TTS provider: 'elevenlabs' | 'openai' (for join)"),
+      text: optStr("Text to speak (required for speak)"),
+      last: optNum("Number of transcript entries to return (for listen/transcript)"),
+      name: optStr("Voice name (required for cloneVoice)"),
+      samplePaths: optStr("Audio sample file paths, comma-separated (required for cloneVoice)"),
+      description: optStr("Voice description (for cloneVoice)"),
+      source: optStr("Voice list source: 'tenant' | 'all' (for listVoices)"),
+      stability: optNum("Voice stability 0-1 (for voiceSettings)"),
+      similarityBoost: optNum("Voice similarity boost 0-1 (for voiceSettings)"),
+      style: optNum("Voice style 0-1 (for voiceSettings)"),
+      useSpeakerBoost: optBool("Use speaker boost (for voiceSettings)"),
+    }),
+    description: "Join video meetings (Zoom/Meet/Teams), speak/listen with voice cloning (ElevenLabs). Manage meeting sessions and cloned voices.",
+  },
+
   // ── Git ──────────────────────────────────────────────────────────────────
   gitTool: {
     schema: z.object({

@@ -155,6 +155,8 @@ export function addTeammate(teamId, { id, profile, instructions } = {}) {
     result: null,
     error: null,
     spawnedAt: null,
+    restartCount: 0,
+    lastRestartAt: null,
   };
   team.teammates.set(teammateId, teammate);
   eventBus.emitEvent("team:teammate_added", { teamId, teammateId, profile });
@@ -295,6 +297,56 @@ export function getTeamStatus(teamId) {
       total: team.mailbox.count(),
     },
   };
+}
+
+/**
+ * Restart a finished/failed teammate — unclaim its tasks, reset state, re-spawn.
+ * @param {string} teamId
+ * @param {string} teammateId
+ * @param {object} [opts]
+ * @param {string} [opts.context] - Additional context for the restarted teammate
+ * @returns {{teammateId: string, status: string, restartCount: number}}
+ */
+export function restartTeammate(teamId, teammateId, { context } = {}) {
+  const team = _getTeam(teamId);
+  const mate = team.teammates.get(teammateId);
+  if (!mate) throw new Error(`Teammate "${teammateId}" not found in team "${teamId}"`);
+
+  if (mate.status === "running") {
+    throw new Error(`Teammate "${teammateId}" is still running. Kill it first or wait for it to finish.`);
+  }
+  if (mate.status === "idle") {
+    throw new Error(`Teammate "${teammateId}" is idle — use spawnTeammate instead.`);
+  }
+
+  const MAX_RESTARTS = 3;
+  if (mate.restartCount >= MAX_RESTARTS) {
+    throw new Error(`Teammate "${teammateId}" has reached maximum restarts (${MAX_RESTARTS}). Add a new teammate instead.`);
+  }
+
+  // Unclaim any tasks this teammate had claimed (recycle back to pending)
+  const taskList = team.taskList;
+  const claimedTasks = taskList.list({ status: "claimed", assignee: teammateId });
+  for (const task of claimedTasks) {
+    try { taskList.unclaim(task.id); } catch { /* already unclaimed or not claimed */ }
+  }
+
+  // Reset teammate state
+  mate.status = "idle";
+  mate.result = null;
+  mate.error = null;
+  mate.promise = null;
+  mate.steerQueue = [];
+  mate.restartCount++;
+  mate.lastRestartAt = Date.now();
+
+  console.log(`[TeamManager] Restarted teammate "${teammateId}" in team "${team.name}" (restart #${mate.restartCount}, ${claimedTasks.length} tasks unclaimed)`);
+  eventBus.emitEvent("team:teammate_restarted", { teamId, teammateId, restartCount: mate.restartCount, unclaimedTasks: claimedTasks.length });
+
+  // Re-spawn immediately
+  const result = spawnTeammate(teamId, teammateId, { context });
+
+  return { teammateId, status: result.status, restartCount: mate.restartCount };
 }
 
 /**

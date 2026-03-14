@@ -152,6 +152,24 @@ export default class TeamTaskList {
     return counts;
   }
 
+  /**
+   * Unclaim a claimed task — release it back to pending.
+   * Used when a teammate is restarted and its claimed tasks need recycling.
+   * @param {string} taskId
+   * @returns {object} Updated task
+   */
+  unclaim(taskId) {
+    const task = this._tasks.get(taskId);
+    if (!task) throw new Error(`Task "${taskId}" not found`);
+    if (task.status !== "claimed") {
+      throw new Error(`Task "${taskId}" is ${task.status}, not claimed — cannot unclaim`);
+    }
+    task.status = "pending";
+    task.assignee = null;
+    task.updatedAt = Date.now();
+    return this._serialize(task);
+  }
+
   /** Get a single task by ID. */
   get(taskId) {
     const task = this._tasks.get(taskId);

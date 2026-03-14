@@ -11,6 +11,7 @@ import {
   addTeammate,
   spawnTeammate,
   spawnAll,
+  restartTeammate,
   messageTeammate,
   broadcastToTeam,
   getTeamStatus,
@@ -53,6 +54,12 @@ export function teamTask(toolParams) {
         return results.length > 0
           ? `Spawned ${results.length} teammate(s): ${results.map(r => r.teammateId).join(", ")}`
           : "No idle teammates to spawn.";
+      }
+
+      case "restart": {
+        const { teamId, teammateId, context } = params;
+        if (!teamId || !teammateId) return "Error: teamId and teammateId are required";
+        return JSON.stringify(restartTeammate(teamId, teammateId, { context }));
       }
 
       // ── Shared task list ────────────────────────────────────────────────────
@@ -161,7 +168,7 @@ export function teamTask(toolParams) {
       }
 
       default:
-        return `Unknown action: "${action}". Valid: createTeam, addTeammate, spawnTeammate, spawnAll, addTask, claim, complete, failTask, listTasks, claimable, sendMessage, broadcast, readMail, mailHistory, status, disband`;
+        return `Unknown action: "${action}". Valid: createTeam, addTeammate, spawnTeammate, spawnAll, restart, addTask, claim, complete, failTask, listTasks, claimable, sendMessage, broadcast, readMail, mailHistory, status, disband`;
     }
   } catch (err) {
     return `Error: ${err.message}`;
@@ -175,6 +182,7 @@ export const teamTaskDescription =
     addTeammate    - {"teamId":"...","profile":"coder|researcher|writer|analyst","instructions":"...","id":"..."} → register teammate
     spawnTeammate  - {"teamId":"...","teammateId":"...","context":"..."} → start one teammate
     spawnAll       - {"teamId":"...","context":"..."} → start all idle teammates
+    restart        - {"teamId":"...","teammateId":"...","context":"..."} → restart finished/failed teammate (max 3 restarts, auto-unclaims tasks)
     addTask        - {"teamId":"...","title":"...","description":"...","blockedBy":["taskId"]} → add to shared task list
     claim          - {"teamId":"...","taskId":"...","teammateId":"..."} → lock task for self
     complete       - {"teamId":"...","taskId":"...","teammateId":"...","result":"..."} → mark done
@@ -187,4 +195,4 @@ export const teamTaskDescription =
     mailHistory    - {"teamId":"...","limit":50} → full message log
     status         - {"teamId":"..."} → full team status (teammates, tasks, messages)
     disband        - {"teamId":"..."} → stop all teammates, cleanup
-  Workflow: createTeam → addTeammate(s) → addTask(s) with blockedBy deps → spawnAll → monitor via status/readMail → disband`;
+  Workflow: createTeam → addTeammate(s) → addTask(s) with blockedBy deps → spawnAll → monitor via status/readMail → restart if needed → disband`;

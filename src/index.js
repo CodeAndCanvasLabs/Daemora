@@ -1293,6 +1293,137 @@ app.delete("/api/skills/custom/:name", (req, res) => {
   res.json({ message: "Custom skill deleted" });
 });
 
+// --- Agent Profiles endpoints ---
+import { getProfile as getAgentProfile, listProfiles, saveProfile, deleteProfile, getAvailableTools } from "./config/AgentProfileManager.js";
+import { createSession as createMeetingSession, getSession as getMeetingSession, listSessions as listMeetingSessions } from "./meeting/MeetingSessionManager.js";
+import { joinMeeting, leaveMeeting, getTranscript, getParticipants } from "./meeting/BrowserMeetingBot.js";
+import { createClone, listVoices, deleteVoice, listTenantVoices } from "./voice/VoiceCloneManager.js";
+
+app.get("/api/agent-profiles", (req, res) => {
+  try {
+    const tenantId = req.query.tenantId || null;
+    const profiles = listProfiles(tenantId);
+    res.json(profiles);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get("/api/agent-profiles/tools", (req, res) => {
+  res.json(getAvailableTools());
+});
+
+app.post("/api/agent-profiles", (req, res) => {
+  try {
+    const { tenantId, ...profile } = req.body;
+    const saved = saveProfile(profile, tenantId || null);
+    res.json(saved);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.put("/api/agent-profiles/:id", (req, res) => {
+  try {
+    const { tenantId, ...profile } = req.body;
+    const saved = saveProfile({ ...profile, id: req.params.id }, tenantId || null);
+    res.json(saved);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.delete("/api/agent-profiles/:id", (req, res) => {
+  try {
+    const tenantId = req.query.tenantId || null;
+    const result = deleteProfile(req.params.id, tenantId);
+    res.json(result);
+  } catch (e) {
+    const status = e.message.includes("built-in") ? 403 : e.message.includes("not found") ? 404 : 400;
+    res.status(status).json({ error: e.message });
+  }
+});
+
+// --- Meeting endpoints ---
+app.get("/api/meetings", (req, res) => {
+  res.json(listMeetingSessions());
+});
+
+app.get("/api/meetings/:id", (req, res) => {
+  const session = getMeetingSession(req.params.id);
+  if (!session) return res.status(404).json({ error: "Session not found" });
+  res.json(session);
+});
+
+app.post("/api/meetings/join", async (req, res) => {
+  try {
+    const { url, displayName, profile, voiceId, sttProvider, ttsProvider } = req.body;
+    if (!url) return res.status(400).json({ error: "url is required" });
+    const session = createMeetingSession(url, { displayName, profileName: profile, voiceId, sttProvider, ttsProvider });
+    const result = await joinMeeting(session.id);
+    res.json({ ...session, joinResult: result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/meetings/:id/leave", async (req, res) => {
+  try {
+    const result = await leaveMeeting(req.params.id);
+    res.json({ message: result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/meetings/:id/transcript", (req, res) => {
+  try {
+    const last = parseInt(req.query.last || "50");
+    const transcript = getTranscript(req.params.id, last);
+    res.json({ transcript });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/meetings/:id/participants", async (req, res) => {
+  try {
+    const participants = await getParticipants(req.params.id);
+    res.json({ participants });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// --- Voice clone endpoints ---
+app.get("/api/voices", async (req, res) => {
+  try {
+    const source = req.query.source;
+    if (source === "tenant") {
+      res.json(listTenantVoices());
+    } else {
+      res.json(await listVoices());
+    }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/voices/clone", async (req, res) => {
+  try {
+    const { name, samplePaths, description } = req.body;
+    if (!name || !samplePaths) return res.status(400).json({ error: "name and samplePaths required" });
+    const paths = Array.isArray(samplePaths) ? samplePaths : samplePaths.split(",").map(s => s.trim());
+    const result = await createClone(name, paths, { description });
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete("/api/voices/:voiceId", async (req, res) => {
+  try {
+    await deleteVoice(req.params.voiceId);
+    res.json({ deleted: true, voiceId: req.params.voiceId });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // --- Memory endpoints ---
 app.get("/api/memory", (req, res) => {
   const memoryPath = config.memoryPath;

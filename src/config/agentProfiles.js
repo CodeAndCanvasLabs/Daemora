@@ -130,4 +130,6 @@ export const defaultSubAgentTools = [
   "useMCP",
   // Agent Teams
   "teamTask",
+  // Meetings + Voice
+  "meetingAction",
 ];

@@ -20,6 +20,7 @@ const TOOL_REQUIRED_KEYS = {
   sonos:           ["SONOS_HOST"],
   database:        ["DATABASE_URL", "MYSQL_URL"],
   sshTool:         ["SSH_DEFAULT_HOST"],
+  meetingAction:   ["ELEVENLABS_API_KEY"],
 };
 
 function _getConfiguredKeys() {

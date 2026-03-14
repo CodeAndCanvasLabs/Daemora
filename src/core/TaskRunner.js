@@ -11,6 +11,9 @@ import tenantContext from "../tenants/TenantContext.js";
 import inputSanitizer from "../safety/InputSanitizer.js";
 import eventBus from "./EventBus.js";
 import { msgText, compactForSession } from "../utils/msgText.js";
+import { generateEmbedding, cosineSim } from "../utils/Embeddings.js";
+import { writeDailyLog } from "../tools/memory.js";
+import { queryAll } from "../storage/Database.js";
 
 /**
  * Filter out internal tool call/result JSON from messages before saving to session.
@@ -43,6 +46,65 @@ export function filterCleanMessages(messages) {
 
     return false;
   });
+}
+
+// ── Auto-capture: log task summaries after completion ────────────────────────
+const _GREETING_PATTERN = /^(hi|hello|hey|thanks|thank you|ok|okay|yes|no|sure|yep|nope|bye|good morning|good evening|gm|gn)\s*[!.?]*$/i;
+
+async function _autoCapture(task, result, resolvedConfig) {
+  try {
+    // Skip if disabled
+    if (resolvedConfig.autoCapture === false) return;
+
+    // Skip trivial inputs
+    const input = task.input || "";
+    if (input.length < 50) return;
+    if (_GREETING_PATTERN.test(input.trim())) return;
+
+    // Skip if no result
+    const resultText = result.text || "";
+    if (!resultText) return;
+
+    // Build summary
+    const toolNames = (result.toolCalls || []).map(tc => tc.tool || tc.name).filter(Boolean);
+    const toolStr = toolNames.length > 0 ? ` | Tools: ${[...new Set(toolNames)].slice(0, 5).join(", ")}` : "";
+    const summary = `User: ${input.slice(0, 100)}${input.length > 100 ? "…" : ""} → Result: ${resultText.slice(0, 100)}${resultText.length > 100 ? "…" : ""}${toolStr}`;
+
+    // Dedup via embeddings — skip if too similar to recent auto-captures
+    const summaryVec = await generateEmbedding(summary);
+    if (summaryVec) {
+      const tenantId = task.tenantId || null;
+      const today = new Date().toISOString().split("T")[0];
+
+      // Load recent auto-capture entries from daily_logs
+      let recentRows;
+      if (tenantId) {
+        recentRows = queryAll(
+          "SELECT entry FROM daily_logs WHERE tenant_id = $tid AND date = $date AND entry LIKE '%[auto]%' ORDER BY id DESC LIMIT 50",
+          { $tid: tenantId, $date: today }
+        );
+      } else {
+        recentRows = queryAll(
+          "SELECT entry FROM daily_logs WHERE tenant_id IS NULL AND date = $date AND entry LIKE '%[auto]%' ORDER BY id DESC LIMIT 50",
+          { $date: today }
+        );
+      }
+
+      // Check cosine similarity against recent entries
+      for (const row of recentRows) {
+        const entryVec = await generateEmbedding(row.entry);
+        if (entryVec && cosineSim(summaryVec, entryVec) > 0.95) {
+          return; // Too similar — skip
+        }
+      }
+    }
+
+    // Write to daily log
+    writeDailyLog({ entry: `[auto] ${summary}` });
+    console.log(`[TaskRunner] Auto-captured task summary to daily log`);
+  } catch {
+    // Silent — auto-capture is best-effort
+  }
 }
 
 /**
@@ -344,6 +406,9 @@ class TaskRunner {
         const costStr = estimatedCost ? ` cost: $${estimatedCost.toFixed(4)}` : "";
         const tenantStr = tenant ? ` tenant: ${tenant.id}` : "";
         console.log(`[TaskRunner] Task ${task.id} completed (${costStr}${tenantStr})`);
+
+        // Auto-capture to daily log (non-blocking, fire-and-forget)
+        _autoCapture(task, result, resolvedConfig).catch(() => {});
       });
     } catch (error) {
       console.error(`[TaskRunner] Task ${task.id} failed:`, error.message);

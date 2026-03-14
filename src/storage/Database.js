@@ -221,6 +221,20 @@ function _initTables(db) {
     CREATE INDEX IF NOT EXISTS idx_cron_jobs_next_run ON cron_jobs(next_run_at);
     CREATE INDEX IF NOT EXISTS idx_cron_jobs_enabled ON cron_jobs(enabled);
 
+    CREATE TABLE IF NOT EXISTS agent_profiles (
+      id TEXT NOT NULL,
+      tenant_id TEXT,
+      name TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      tools TEXT NOT NULL DEFAULT '[]',
+      system_instructions TEXT DEFAULT '',
+      model TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (id, COALESCE(tenant_id, '__global__'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_agent_profiles_tenant ON agent_profiles(tenant_id);
+
     CREATE TABLE IF NOT EXISTS cron_runs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       job_id TEXT NOT NULL,

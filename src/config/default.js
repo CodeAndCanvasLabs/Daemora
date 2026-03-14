@@ -67,6 +67,9 @@ function buildConfig(env) {
     maxCostPerTask: parseFloat(env.MAX_COST_PER_TASK || "0.50"),
     maxDailyCost: parseFloat(env.MAX_DAILY_COST || "10.00"),
 
+    // Auto-capture: log task summaries to daily log after each substantive task
+    autoCapture: env.AUTO_CAPTURE !== "false",
+
     // Cleanup
     cleanupAfterDays: parseInt(env.CLEANUP_AFTER_DAYS || "30", 10),
 
