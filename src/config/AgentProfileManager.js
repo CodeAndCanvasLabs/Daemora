@@ -176,7 +176,7 @@ export function saveProfile(profile, tenantId = null) {
 
   const now = new Date().toISOString();
   const existing = queryOne(
-    "SELECT id FROM agent_profiles WHERE id = $id AND COALESCE(tenant_id, '__global__') = $scope",
+    "SELECT id FROM agent_profiles WHERE id = $id AND tenant_id = $scope",
     { $id: id, $scope: tenantId || "__global__" }
   );
 
@@ -184,7 +184,7 @@ export function saveProfile(profile, tenantId = null) {
     run(
       `UPDATE agent_profiles SET name = $name, description = $desc, tools = $tools,
        system_instructions = $si, model = $model, updated_at = $now
-       WHERE id = $id AND COALESCE(tenant_id, '__global__') = $scope`,
+       WHERE id = $id AND tenant_id = $scope`,
       {
         $id: id, $name: name, $desc: description || "",
         $tools: JSON.stringify(tools), $si: systemInstructions || "",
@@ -196,7 +196,7 @@ export function saveProfile(profile, tenantId = null) {
       `INSERT INTO agent_profiles (id, tenant_id, name, description, tools, system_instructions, model, created_at, updated_at)
        VALUES ($id, $tid, $name, $desc, $tools, $si, $model, $now, $now)`,
       {
-        $id: id, $tid: tenantId || null, $name: name, $desc: description || "",
+        $id: id, $tid: tenantId || "__global__", $name: name, $desc: description || "",
         $tools: JSON.stringify(tools), $si: systemInstructions || "",
         $model: model || null, $now: now,
       }
@@ -224,7 +224,7 @@ export function deleteProfile(id, tenantId = null) {
   }
 
   const result = run(
-    "DELETE FROM agent_profiles WHERE id = $id AND COALESCE(tenant_id, '__global__') = $scope",
+    "DELETE FROM agent_profiles WHERE id = $id AND tenant_id = $scope",
     { $id: id, $scope: tenantId || "__global__" }
   );
 
