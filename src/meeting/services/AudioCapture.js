@@ -175,20 +175,23 @@ export const AUDIO_STOP_SCRIPT = `
 `;
 
 /**
- * Teams RTCPeerConnection hook — injected BEFORE page loads via addInitScript.
- * Wraps RTCPeerConnection to mirror remote audio tracks into hidden <audio> elements
- * that AudioCapture can discover. Based on Vexa's teams/join.ts.
+ * Universal RTCPeerConnection hook — injected BEFORE page loads via addInitScript.
+ * Tracks all PeerConnections for:
+ * 1. Teams: mirror remote audio tracks into hidden <audio> elements
+ * 2. TTS: replace audio sender track with TTS audio for speaking
+ * Based on Vexa's teams/join.ts.
  */
-export const TEAMS_RTC_HOOK_SCRIPT = `
+export const RTC_HOOK_SCRIPT = `
 (function() {
   if (window.__daemoraRTCHooked) return;
   window.__daemoraRTCHooked = true;
+  window.__daemoraPeerConnections = [];
   window.__daemoraInjectedAudioElements = [];
-  window.__daemoraCapturedStreams = [];
 
   const OrigRTC = window.RTCPeerConnection;
   window.RTCPeerConnection = function(...args) {
     const pc = new OrigRTC(...args);
+    window.__daemoraPeerConnections.push(pc);
 
     pc.addEventListener('track', function(event) {
       if (event.track.kind === 'audio') {
@@ -202,10 +205,7 @@ export const TEAMS_RTC_HOOK_SCRIPT = `
         audioEl.style.cssText = 'position:absolute;left:-9999px;width:1px;height:1px;';
         document.body.appendChild(audioEl);
         audioEl.play().catch(() => {});
-
         window.__daemoraInjectedAudioElements.push(audioEl);
-        window.__daemoraCapturedStreams.push(stream);
-        console.log("[Daemora:RTC] Captured remote audio track");
       }
     });
 
@@ -214,3 +214,6 @@ export const TEAMS_RTC_HOOK_SCRIPT = `
   window.RTCPeerConnection.prototype = OrigRTC.prototype;
 })();
 `;
+
+// Alias for backward compat
+export const TEAMS_RTC_HOOK_SCRIPT = RTC_HOOK_SCRIPT;

@@ -21,7 +21,7 @@ import {
 } from "./MeetingSessionManager.js";
 import { textToSpeech } from "../tools/textToSpeech.js";
 import { readFileSync } from "node:fs";
-import { AUDIO_CAPTURE_SCRIPT, AUDIO_STOP_SCRIPT, TEAMS_RTC_HOOK_SCRIPT } from "./services/AudioCapture.js";
+import { AUDIO_CAPTURE_SCRIPT, AUDIO_STOP_SCRIPT, RTC_HOOK_SCRIPT } from "./services/AudioCapture.js";
 import WavRecorder from "./services/WavRecorder.js";
 import Transcriber from "./services/Transcriber.js";
 import { joinGoogleMeet, leaveGoogleMeet, startRemovalMonitor as meetRemovalMonitor, SPEAKER_DETECTION_SCRIPT, SPEAKER_DETECTION_STOP_SCRIPT } from "./platforms/googlemeet.js";
@@ -48,11 +48,11 @@ export async function joinMeeting(sessionId) {
     const page = getActivePage();
     if (!page) throw new Error("No browser page available after launch");
 
-    // Teams needs RTCPeerConnection hook BEFORE navigation
-    if (session.platform === "teams") {
-      await page.addInitScript(TEAMS_RTC_HOOK_SCRIPT);
-      console.log("[Meeting] Teams RTC hook injected");
-    }
+    // RTCPeerConnection hook BEFORE navigation — captures peer connections for:
+    // - Teams: mirror remote audio tracks into hidden <audio> elements
+    // - All platforms: track PeerConnections for TTS audio injection via replaceTrack
+    await page.addInitScript(RTC_HOOK_SCRIPT);
+    console.log("[Meeting] RTC hook injected");
 
     // Platform-specific join
     let joinResult;
@@ -178,20 +178,78 @@ export async function speakInMeeting(sessionId, text) {
     const audioBuffer = readFileSync(pathMatch[1]);
     const base64 = audioBuffer.toString("base64");
 
+    // Inject TTS audio via WebRTC audio track replacement
+    // 1. Decode audio into AudioBuffer
+    // 2. Create MediaStreamDestination from AudioBuffer playback
+    // 3. Replace the microphone track in RTCPeerConnection with our audio track
+    // 4. Restore original mic track after playback completes
     await page.evaluate((b64) => {
-      (async function() {
+      return new Promise(async (resolve) => {
         try {
           const ctx = window.__daemoraCaptureCtx || new AudioContext();
           const binary = atob(b64);
           const bytes = new Uint8Array(binary.length);
           for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-          const buf = await ctx.decodeAudioData(bytes.buffer);
+          const audioBuf = await ctx.decodeAudioData(bytes.buffer);
+
+          // Create a MediaStream from the audio
+          const dest = ctx.createMediaStreamDestination();
           const source = ctx.createBufferSource();
-          source.buffer = buf;
+          source.buffer = audioBuf;
+          source.connect(dest);
+
+          // Also play locally so we know it worked
           source.connect(ctx.destination);
+
+          // Find RTCPeerConnections and replace audio track
+          const pcs = window.__daemoraPeerConnections || [];
+          // Collect all PeerConnections if not already tracked
+          if (pcs.length === 0 && window.RTCPeerConnection) {
+            // Try to find existing connections via senders
+            document.querySelectorAll("audio, video").forEach(el => {
+              if (el.srcObject) {
+                el.srcObject.getAudioTracks().forEach(t => {
+                  // Track exists, connection must exist
+                });
+              }
+            });
+          }
+
+          const ttsTrack = dest.stream.getAudioTracks()[0];
+          const originalTracks = [];
+
+          // Replace audio tracks in all peer connections
+          if (pcs.length > 0) {
+            for (const pc of pcs) {
+              try {
+                const senders = pc.getSenders();
+                for (const sender of senders) {
+                  if (sender.track?.kind === "audio") {
+                    originalTracks.push({ sender, track: sender.track });
+                    await sender.replaceTrack(ttsTrack);
+                  }
+                }
+              } catch {}
+            }
+          }
+
           source.start();
-        } catch (e) { console.error("[Daemora:TTS]", e); }
-      })();
+
+          // Restore original tracks after playback
+          source.onended = async () => {
+            for (const { sender, track } of originalTracks) {
+              try { await sender.replaceTrack(track); } catch {}
+            }
+            resolve("played");
+          };
+
+          // Timeout fallback
+          setTimeout(() => resolve("played-timeout"), (audioBuf.duration + 1) * 1000);
+        } catch (e) {
+          console.error("[Daemora:TTS]", e);
+          resolve("error: " + e.message);
+        }
+      });
     }, base64);
 
     addTranscript(sessionId, { speaker: session.displayName, text });
@@ -236,13 +294,30 @@ export async function getParticipants(sessionId) {
           const els = document.querySelectorAll(sel);
           if (els.length > 0) {
             els.forEach(el => {
-              const name = el.textContent.trim().split("\n")[0].trim();
-              if (name && name.length < 100) participants.push(name);
+              // Try data-self-name first (cleanest)
+              const selfName = el.querySelector("[data-self-name]");
+              if (selfName) {
+                const n = selfName.getAttribute("data-self-name");
+                if (n && n.length > 1 && n.length < 80) { participants.push(n); return; }
+              }
+              // Fallback: first text node only (avoid nested "devices" etc.)
+              let name = "";
+              for (const node of el.childNodes) {
+                if (node.nodeType === 3 && node.textContent.trim()) {
+                  name = node.textContent.trim();
+                  break;
+                }
+              }
+              if (!name) name = el.innerText?.split("\n")[0]?.trim() || "";
+              // Clean up common suffixes
+              name = name.replace(/\s*(devices?|you|host|meeting host)\s*$/i, "").trim();
+              if (name && name.length > 1 && name.length < 80) participants.push(name);
             });
             break;
           }
         }
-        return participants;
+        // Deduplicate
+        return [...new Set(participants)];
       });
       if (Array.isArray(result) && result.length > 0) {
         updateParticipants(sessionId, result.map(name => ({ name })));
