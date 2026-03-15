@@ -110,7 +110,7 @@ export function createSession(url, opts = {}) {
     transcript: [],
     audioConfig: {
       sttProvider: opts.sttProvider || "whisper",
-      ttsProvider: opts.ttsProvider || "elevenlabs",
+      ttsProvider: opts.ttsProvider || "auto",
       voiceId: opts.voiceId || null,
     },
     startedAt: Date.now(),
