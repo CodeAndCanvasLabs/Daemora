@@ -24,6 +24,7 @@ tools:
   - glob
   - grep
   - executeCommand
+  - cron
   - webFetch
   - readMemory
   - writeMemory

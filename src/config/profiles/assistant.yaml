@@ -31,6 +31,7 @@ tools:
   - writeMemory
   - searchMemory
   - notification
+  - cron
   - teamTask
   - replyToUser
 

@@ -29,6 +29,7 @@ tools:
   - writeMemory
   - searchMemory
   - projectTracker
+  - cron
   - teamTask
   - replyToUser
 
