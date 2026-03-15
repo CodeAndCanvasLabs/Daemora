@@ -35,7 +35,7 @@ Pick the right profile — each has specialized tools, system prompt, and skill 
 **Research:** `researcher` · `analyst` · `investigator`
 **Content:** `writer` · `editor` · `translator`
 **Business:** `planner` · `strategist` · `assistant`
-**Operations:** `sysadmin` · `designer` · `coordinator`
+**Operations:** `sysadmin` · `designer` · `coordinator` · `meeting-attendant`
 
 Profile is REQUIRED — always specify one.
 
