@@ -493,17 +493,15 @@ class BatchTranscriber {
   }
 
   async _transcribe(wavBuffer) {
-    // Try OpenAI Whisper
+    // Priority: 1) OpenAI Whisper API  2) Groq Whisper API  3) Local Whisper (free, no API key)
     if (process.env.OPENAI_API_KEY) {
       return this._transcribeWhisper(wavBuffer);
     }
-    // Try Groq Whisper
     if (process.env.GROQ_API_KEY) {
       return this._transcribeGroq(wavBuffer);
     }
-    // No STT provider available
-    console.log(`[Meeting:STT] No STT provider configured (set OPENAI_API_KEY or GROQ_API_KEY)`);
-    return null;
+    // Free fallback — local Whisper via @huggingface/transformers
+    return this._transcribeLocal(wavBuffer);
   }
 
   async _transcribeWhisper(wavBuffer) {
@@ -538,6 +536,51 @@ class BatchTranscriber {
     if (!res.ok) throw new Error(`Groq API ${res.status}: ${await res.text()}`);
     const data = await res.json();
     return data.text;
+  }
+
+  /**
+   * Local Whisper transcription via @huggingface/transformers.
+   * Free, no API key, runs on CPU. Downloads model on first use (~75MB whisper-tiny).
+   * Slower than API providers (~3-5s per 10s chunk on CPU) but works offline.
+   */
+  async _transcribeLocal(wavBuffer) {
+    if (!BatchTranscriber._localPipeline) {
+      try {
+        console.log("[Meeting:STT] Loading local Whisper model (first use downloads ~75MB)...");
+        const { pipeline } = await import("@huggingface/transformers");
+        BatchTranscriber._localPipeline = await pipeline(
+          "automatic-speech-recognition",
+          "onnx-community/whisper-tiny",
+          { dtype: "q8", device: "cpu" }
+        );
+        console.log("[Meeting:STT] Local Whisper model loaded");
+      } catch (e) {
+        console.log(`[Meeting:STT] Local Whisper failed to load: ${e.message}`);
+        console.log(`[Meeting:STT] No STT provider available. Set OPENAI_API_KEY or GROQ_API_KEY, or install @huggingface/transformers`);
+        return null;
+      }
+    }
+
+    try {
+      // Convert WAV buffer to Float32Array for the pipeline
+      // Skip 44-byte WAV header, read Int16 PCM, convert to Float32
+      const pcmData = new Int16Array(wavBuffer.buffer, wavBuffer.byteOffset + 44, (wavBuffer.length - 44) / 2);
+      const float32 = new Float32Array(pcmData.length);
+      for (let i = 0; i < pcmData.length; i++) {
+        float32[i] = pcmData[i] / 32768.0;
+      }
+
+      const result = await BatchTranscriber._localPipeline(float32, {
+        sampling_rate: this.sampleRate,
+        language: "en",
+        task: "transcribe",
+      });
+
+      return result?.text || null;
+    } catch (e) {
+      console.log(`[Meeting:STT] Local transcription error: ${e.message}`);
+      return null;
+    }
   }
 
   _float32ToWav(float32Data) {

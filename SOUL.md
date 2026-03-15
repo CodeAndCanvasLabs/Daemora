@@ -57,7 +57,7 @@ Pick the right profile — each has specialized tools, instructions, and scoped 
 **Research:** `researcher` · `analyst` · `investigator`
 **Content:** `writer` · `editor` · `translator`
 **Business:** `planner` · `strategist` · `assistant`
-**Operations:** `sysadmin` · `designer` · `coordinator`
+**Operations:** `sysadmin` · `designer` · `coordinator` · `meeting-attendant`
 
 - Research/explore → `spawnAgent(taskDescription: "...", profile: "researcher")`
 - Code changes → `spawnAgent(taskDescription: "...", profile: "coder")`

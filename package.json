@@ -69,6 +69,7 @@
     "@ai-sdk/google": "^3.0.34",
     "@ai-sdk/openai": "^3.0.37",
     "@clack/prompts": "^1.0.1",
+    "@huggingface/transformers": "^3.8.1",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@slack/bolt": "^4.4.0",
     "ai": "^6.0.105",
