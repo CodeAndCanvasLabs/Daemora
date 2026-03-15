@@ -24,7 +24,7 @@ import { readFileSync } from "node:fs";
 import { AUDIO_CAPTURE_SCRIPT, AUDIO_STOP_SCRIPT, TEAMS_RTC_HOOK_SCRIPT } from "./services/AudioCapture.js";
 import WavRecorder from "./services/WavRecorder.js";
 import Transcriber from "./services/Transcriber.js";
-import { joinGoogleMeet, leaveGoogleMeet, startRemovalMonitor as meetRemovalMonitor } from "./platforms/googlemeet.js";
+import { joinGoogleMeet, leaveGoogleMeet, startRemovalMonitor as meetRemovalMonitor, SPEAKER_DETECTION_SCRIPT, SPEAKER_DETECTION_STOP_SCRIPT } from "./platforms/googlemeet.js";
 import { joinTeams, leaveTeams, startRemovalMonitor as teamsRemovalMonitor } from "./platforms/teams.js";
 import { joinZoom, leaveZoom, startRemovalMonitor as zoomRemovalMonitor } from "./platforms/zoom.js";
 
@@ -310,15 +310,22 @@ async function startServices(sessionId) {
   recorder.start();
   session._wavRecorder = recorder;
 
-  // 2. Transcriber
+  // 2. Speaker tracking — tracks who is currently speaking
+  let currentSpeaker = "participant";
+  session._currentSpeaker = currentSpeaker;
+
+  // 3. Transcriber — uses current speaker name for attribution
   const transcriber = new Transcriber(sessionId, {
-    onTranscript: (entry) => addTranscript(sessionId, entry),
+    onTranscript: (entry) => {
+      entry.speaker = session._currentSpeaker || "participant";
+      addTranscript(sessionId, entry);
+    },
     flushIntervalMs: 10000,
   });
   transcriber.start();
   session._transcriber = transcriber;
 
-  // 3. Expose audio callback + inject capture script
+  // 4. Expose callbacks + inject scripts
   try {
     await page.exposeFunction("__daemoraSendAudio", (jsonChunk) => {
       try {
@@ -329,13 +336,33 @@ async function startServices(sessionId) {
       } catch {}
     });
   } catch (e) {
-    console.log(`[Meeting] exposeFunction: ${e.message}`);
+    console.log(`[Meeting] exposeFunction audio: ${e.message}`);
+  }
+
+  // Speaker detection callback (Google Meet only for now)
+  if (session.platform === "meet") {
+    try {
+      await page.exposeFunction("__daemoraSpeakerChanged", (speakerName) => {
+        if (speakerName && speakerName !== session._currentSpeaker) {
+          session._currentSpeaker = speakerName;
+          console.log(`[Meeting:Speaker] Active speaker: ${speakerName}`);
+        }
+      });
+    } catch (e) {
+      console.log(`[Meeting] exposeFunction speaker: ${e.message}`);
+    }
   }
 
   const captureResult = await page.evaluate(AUDIO_CAPTURE_SCRIPT);
   console.log(`[Meeting] Audio capture: ${captureResult}`);
 
-  // 4. Removal monitor
+  // Start speaker detection (Google Meet)
+  if (session.platform === "meet") {
+    const speakerResult = await page.evaluate(SPEAKER_DETECTION_SCRIPT).catch(() => "failed");
+    console.log(`[Meeting] Speaker detection: ${speakerResult}`);
+  }
+
+  // 5. Removal monitor
   const stopMonitor = session.platform === "meet"
     ? meetRemovalMonitor(page, (reason) => {
         console.log(`[Meeting] Removed from meeting: ${reason}`);
@@ -367,10 +394,15 @@ async function stopServices(sessionId) {
     session._stopRemovalMonitor = null;
   }
 
-  // Stop audio capture in browser
+  // Stop audio capture + speaker detection in browser
   try {
     const page = getActivePage();
-    if (page) await page.evaluate(AUDIO_STOP_SCRIPT);
+    if (page) {
+      await page.evaluate(AUDIO_STOP_SCRIPT);
+      if (session.platform === "meet") {
+        await page.evaluate(SPEAKER_DETECTION_STOP_SCRIPT).catch(() => {});
+      }
+    }
   } catch {}
 
   // Stop transcriber (flushes remaining audio)

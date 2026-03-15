@@ -63,6 +63,98 @@ const SELECTORS = {
   ],
 };
 
+/**
+ * Browser-side speaker detection script.
+ * Google Meet adds CSS classes to participant tiles when they speak.
+ * MutationObserver watches for these classes and reports active speaker.
+ * Calls window.__daemoraSpeakerChanged(name) when speaker changes.
+ */
+export const SPEAKER_DETECTION_SCRIPT = `
+(function() {
+  if (window.__daemoraSpeakerDetectionActive) return "already-active";
+  window.__daemoraSpeakerDetectionActive = true;
+
+  // Google Meet speaking CSS classes (from Vexa's selectors.ts)
+  const SPEAKING_CLASSES = ['Oaajhc', 'HX2H7', 'wEsLMd', 'OgVli'];
+
+  // Name selectors for participant tiles
+  const NAME_SELECTORS = [
+    '[data-self-name]',
+    '.zWGUib',    // participant name in tile
+    '.cS7aqe',   // name text
+    '.XEazBc',   // alternative name class
+    '.ZjFb7c',   // another name variant
+  ];
+
+  let lastSpeaker = null;
+
+  function findSpeakerName(element) {
+    // Walk up from the element with the speaking class to find the participant container
+    let container = element;
+    for (let i = 0; i < 10; i++) {
+      if (!container.parentElement) break;
+      container = container.parentElement;
+
+      // Check for name within this container
+      for (const sel of NAME_SELECTORS) {
+        const nameEl = container.querySelector(sel);
+        if (nameEl) {
+          const name = nameEl.getAttribute('data-self-name') || nameEl.textContent?.trim();
+          if (name && name.length > 0 && name.length < 80) return name;
+        }
+      }
+
+      // Check aria-label on the container itself
+      const ariaLabel = container.getAttribute('aria-label');
+      if (ariaLabel && ariaLabel.length > 0 && ariaLabel.length < 80) return ariaLabel;
+    }
+    return null;
+  }
+
+  // Check all participant tiles for speaking classes
+  function checkSpeakers() {
+    for (const className of SPEAKING_CLASSES) {
+      const elements = document.querySelectorAll('.' + className);
+      for (const el of elements) {
+        const name = findSpeakerName(el);
+        if (name && name !== lastSpeaker) {
+          lastSpeaker = name;
+          if (window.__daemoraSpeakerChanged) {
+            window.__daemoraSpeakerChanged(name);
+          }
+        }
+      }
+    }
+  }
+
+  // MutationObserver on the meeting container
+  const observer = new MutationObserver(() => checkSpeakers());
+  observer.observe(document.body, {
+    attributes: true,
+    attributeFilter: ['class'],
+    subtree: true,
+  });
+
+  // Also poll every 2 seconds as fallback
+  setInterval(checkSpeakers, 2000);
+
+  window.__daemoraSpeakerObserver = observer;
+  console.log("[Daemora:Speaker] Speaker detection started");
+  return "speaker-detection-started";
+})();
+`;
+
+export const SPEAKER_DETECTION_STOP_SCRIPT = `
+(function() {
+  if (window.__daemoraSpeakerObserver) {
+    window.__daemoraSpeakerObserver.disconnect();
+    window.__daemoraSpeakerObserver = null;
+  }
+  window.__daemoraSpeakerDetectionActive = false;
+  return "speaker-detection-stopped";
+})();
+`;
+
 const debugDir = join(config.dataDir, "meetings");
 
 function _screenshot(page, name) {
