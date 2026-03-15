@@ -59,6 +59,16 @@ function autoInstallPulseAudio() {
           }
         }
       }
+    } else if (platform === "win32") {
+      // Windows — check for VB-Cable virtual audio device
+      try {
+        execSync("powershell -Command \"Get-PnpDevice -FriendlyName '*CABLE*' -ErrorAction SilentlyContinue\"", { stdio: "ignore", timeout: 5000 });
+        console.log("[MeetingTTS] VB-Cable detected on Windows");
+        pulseAudioAvailable = false; // Can't use paplay on Windows, but VB-Cable works differently
+        return false; // TODO: implement VB-Cable audio routing
+      } catch {}
+      console.log("[MeetingTTS] Windows: install VB-Cable for meeting speaking → https://vb-audio.com/Cable/");
+      return false;
     } else {
       console.log(`[MeetingTTS] Auto-install not supported on ${platform}`);
       return false;
