@@ -8,8 +8,11 @@
  */
 
 import { v4 as uuidv4 } from "uuid";
+import { appendFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
 import eventBus from "../core/EventBus.js";
 import tenantContext from "../tenants/TenantContext.js";
+import { config } from "../config/default.js";
 
 const MAX_SESSIONS = 5;
 const MAX_TRANSCRIPT = 2000; // max transcript entries per session
@@ -179,12 +182,24 @@ export function updateState(id, newState, error = null) {
 export function addTranscript(id, entry) {
   const session = sessions.get(id);
   if (!session) return;
-  session.transcript.push({
+  const transcriptEntry = {
     speaker: entry.speaker || "unknown",
     text: entry.text,
     timestamp: Date.now(),
-  });
-  // Cap transcript
+  };
+  session.transcript.push(transcriptEntry);
+
+  // Persist to disk (JSONL — one JSON object per line, survives restarts)
+  try {
+    if (!session._transcriptPath) {
+      const dir = join(config.dataDir, "meetings");
+      mkdirSync(dir, { recursive: true });
+      session._transcriptPath = join(dir, `transcript-${id}.jsonl`);
+    }
+    appendFileSync(session._transcriptPath, JSON.stringify(transcriptEntry) + "\n");
+  } catch {}
+
+  // Cap in-memory transcript
   if (session.transcript.length > MAX_TRANSCRIPT) {
     session.transcript = session.transcript.slice(-MAX_TRANSCRIPT);
   }
@@ -252,5 +267,7 @@ function _serialize(session) {
     error: session.error,
     muted: session.muted,
     targetId: session.targetId,
+    transcriptPath: session._transcriptPath || null,
+    recordingPath: session._wavRecorder?.path || null,
   };
 }
