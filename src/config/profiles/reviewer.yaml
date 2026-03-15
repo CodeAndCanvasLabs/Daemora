@@ -29,8 +29,8 @@ tools:
   - replyToUser
 
 skills:
-  include: [code-review, security, quality, best-practices]
-  exclude: [deployment, ci-cd, writing-style]
+  include: [coding, debugging, api-development, web-development, healthcheck]
+  exclude: [orchestration]
 
 capabilities:
   - code-review

@@ -33,8 +33,8 @@ tools:
   - replyToUser
 
 skills:
-  include: [security, vulnerability, audit, owasp, encryption]
-  exclude: [writing-style, data, research-methodology]
+  include: [coding, debugging, api-development, web-development, healthcheck, system-admin, browser]
+  exclude: [orchestration]
 
 capabilities:
   - vulnerability-analysis

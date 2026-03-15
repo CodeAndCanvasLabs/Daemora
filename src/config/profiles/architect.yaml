@@ -34,8 +34,8 @@ tools:
   - replyToUser
 
 skills:
-  include: [architecture, design, planning, api-design]
-  exclude: [debugging, testing, deployment]
+  include: [planning, api-development, coding, web-development, documents, summarize]
+  exclude: [orchestration]
 
 capabilities:
   - system-design

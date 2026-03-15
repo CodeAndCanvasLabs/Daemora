@@ -32,8 +32,8 @@ tools:
   - replyToUser
 
 skills:
-  include: [writing, editing, content, documentation]
-  exclude: [coding, debugging, deployment]
+  include: [content-research-writer, documents, docx, pdf, pptx, xlsx, brand-guidelines, summarize, email]
+  exclude: [orchestration, coding, debugging, devops]
 
 capabilities:
   - writing

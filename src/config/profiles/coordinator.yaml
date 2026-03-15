@@ -34,8 +34,8 @@ tools:
   - replyToUser
 
 skills:
-  include: [orchestration, delegation, tracking, coordination]
-  exclude: [coding, debugging, deployment]
+  include: [orchestration, planning, summarize, trello]
+  exclude: []
 
 capabilities:
   - orchestration

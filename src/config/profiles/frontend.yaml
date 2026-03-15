@@ -35,8 +35,8 @@ tools:
   - replyToUser
 
 skills:
-  include: [ui, css, accessibility, frontend, react, components]
-  exclude: [research-methodology, data, deployment]
+  include: [frontend-design, web-development, coding, debugging, browser, image-gen, image-enhancer]
+  exclude: [orchestration]
 
 capabilities:
   - frontend-development

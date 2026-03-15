@@ -33,8 +33,8 @@ tools:
   - replyToUser
 
 skills:
-  include: [strategy, market-analysis, competitive, business]
-  exclude: [coding, debugging, deployment]
+  include: [research, lead-research, data-analysis, summarize, documents, browser, planning]
+  exclude: [orchestration, coding, devops]
 
 capabilities:
   - market-analysis

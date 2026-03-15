@@ -34,8 +34,8 @@ tools:
   - replyToUser
 
 skills:
-  include: [investigation, osint, verification, research]
-  exclude: [coding, deployment, ci-cd]
+  include: [research, lead-research, browser, summarize, content-research]
+  exclude: [orchestration, coding, devops]
 
 capabilities:
   - investigation

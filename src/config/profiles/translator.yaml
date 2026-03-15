@@ -30,8 +30,8 @@ tools:
   - replyToUser
 
 skills:
-  include: [translation, localization, language]
-  exclude: [coding, deployment, data]
+  include: [content-research-writer, documents, docx, summarize]
+  exclude: [orchestration, coding, devops]
 
 capabilities:
   - translation

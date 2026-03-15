@@ -35,8 +35,8 @@ tools:
   - replyToUser
 
 skills:
-  include: [research, analysis, sourcing, data-gathering]
-  exclude: [coding, deployment, ci-cd]
+  include: [research, data-analysis, lead-research, content-research, summarize, browser, planning]
+  exclude: [orchestration, coding, devops]
 
 capabilities:
   - research

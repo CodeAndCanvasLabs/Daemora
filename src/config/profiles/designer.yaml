@@ -36,8 +36,8 @@ tools:
   - replyToUser
 
 skills:
-  include: [design, ui, ux, accessibility, prototyping]
-  exclude: [deployment, data, sysadmin]
+  include: [frontend-design, web-development, browser, image-gen, image-enhancer, brand-guidelines]
+  exclude: [orchestration, devops, system-admin]
 
 capabilities:
   - ui-design

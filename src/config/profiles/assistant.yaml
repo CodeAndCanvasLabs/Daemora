@@ -36,8 +36,8 @@ tools:
   - replyToUser
 
 skills:
-  include: [email, scheduling, organization, communication]
-  exclude: [coding, debugging, deployment, data]
+  include: [email, apple-notes, apple-reminders, things, obsidian, planning, summarize, file-organizer, invoice-organizer, weather, spotify]
+  exclude: [orchestration, coding, devops]
 
 capabilities:
   - email-management

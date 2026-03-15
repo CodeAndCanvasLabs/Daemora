@@ -33,8 +33,8 @@ tools:
   - replyToUser
 
 skills:
-  include: [sysadmin, networking, monitoring, linux, security]
-  exclude: [research, writing-style, data]
+  include: [system-admin, devops, healthcheck, tmux, coding, debugging]
+  exclude: [orchestration]
 
 capabilities:
   - server-management

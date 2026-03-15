@@ -30,8 +30,8 @@ tools:
   - replyToUser
 
 skills:
-  include: [editing, grammar, style, proofreading]
-  exclude: [coding, deployment, data]
+  include: [content-research-writer, documents, docx, summarize, brand-guidelines]
+  exclude: [orchestration, coding, devops]
 
 capabilities:
   - proofreading

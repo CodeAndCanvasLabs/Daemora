@@ -32,8 +32,8 @@ tools:
   - replyToUser
 
 skills:
-  include: [api-design, rest, graphql, authentication, validation]
-  exclude: [research, writing-style, data]
+  include: [api-development, coding, debugging, web-development, healthcheck]
+  exclude: [orchestration]
 
 capabilities:
   - api-design

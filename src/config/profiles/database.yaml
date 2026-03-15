@@ -31,8 +31,8 @@ tools:
   - replyToUser
 
 skills:
-  include: [database, queries, migrations, sql, indexing]
-  exclude: [research, writing-style, deployment]
+  include: [coding, api-development, data-analysis]
+  exclude: [orchestration]
 
 capabilities:
   - schema-design

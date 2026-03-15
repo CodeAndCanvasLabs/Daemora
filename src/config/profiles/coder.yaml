@@ -40,8 +40,8 @@ tools:
   - replyToUser
 
 skills:
-  include: [coding, debugging, testing, deployment, git]
-  exclude: [research-methodology, writing-style]
+  include: [coding, debugging, api-development, web-development, frontend-design, devops, browser, changelog, healthcheck, tmux, git]
+  exclude: [orchestration]
 
 capabilities:
   - code-generation

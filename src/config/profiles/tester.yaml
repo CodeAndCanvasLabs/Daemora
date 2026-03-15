@@ -31,8 +31,8 @@ tools:
   - replyToUser
 
 skills:
-  include: [testing, validation, coverage, quality]
-  exclude: [research, writing-style, deployment]
+  include: [coding, debugging, api-development, web-development, browser, healthcheck]
+  exclude: [orchestration]
 
 capabilities:
   - unit-testing

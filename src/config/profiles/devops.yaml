@@ -32,8 +32,8 @@ tools:
   - replyToUser
 
 skills:
-  include: [deployment, ci-cd, infrastructure, docker, monitoring]
-  exclude: [research, writing-style, data]
+  include: [devops, system-admin, healthcheck, coding, tmux]
+  exclude: [orchestration]
 
 capabilities:
   - deployment
