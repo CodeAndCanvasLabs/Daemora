@@ -320,9 +320,11 @@ class SkillLoader {
     };
 
     // 1. Embedding match — only return skills above similarity threshold
-    const SKILL_MATCH_THRESHOLD = 0.25;
+    // TF-IDF produces lower scores (0.05-0.20) than neural embeddings (0.3-0.9)
+    const provider = getEmbeddingProvider();
+    const SKILL_MATCH_THRESHOLD = provider === "tfidf" ? 0.05 : 0.25;
     const vectorsAvailable = Object.keys(this._skillVectors).length > 0;
-    if (getEmbeddingProvider() && vectorsAvailable) {
+    if (provider && vectorsAvailable) {
       const queryVector = await this._generateEmbedding(taskInput);
       if (queryVector) {
         const scored = [];
