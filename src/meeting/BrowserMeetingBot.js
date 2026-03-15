@@ -19,8 +19,7 @@ import {
   updateParticipants,
   setMuted as setSessionMuted,
 } from "./MeetingSessionManager.js";
-import { textToSpeech } from "../tools/textToSpeech.js";
-import { readFileSync } from "node:fs";
+import { meetingSpeak } from "./services/MeetingTTS.js";
 import { AUDIO_CAPTURE_SCRIPT, AUDIO_STOP_SCRIPT, RTC_HOOK_SCRIPT } from "./services/AudioCapture.js";
 import WavRecorder from "./services/WavRecorder.js";
 import Transcriber from "./services/Transcriber.js";
@@ -148,115 +147,13 @@ export async function leaveMeeting(sessionId) {
 }
 
 /**
- * Speak text in meeting via TTS → audio injection.
+ * Speak text in meeting — PulseAudio (real mic) → Web Audio fallback.
  */
 export async function speakInMeeting(sessionId, text) {
   const session = _getRawSession(sessionId);
   if (!session) throw new Error(`Session "${sessionId}" not found`);
   if (session.muted) return "Cannot speak — microphone is muted.";
-
-  const ttsOpts = {
-    text,
-    provider: session.audioConfig.ttsProvider || "openai",
-    format: "mp3",
-  };
-  if (session.audioConfig.voiceId) {
-    ttsOpts.voiceId = session.audioConfig.voiceId;
-    ttsOpts.provider = "elevenlabs";
-  }
-
-  const ttsResult = await textToSpeech(ttsOpts);
-  if (ttsResult.startsWith("Error")) return ttsResult;
-
-  const pathMatch = ttsResult.match(/saved to: (.+)/);
-  if (!pathMatch) return `TTS failed: ${ttsResult}`;
-
-  const page = getActivePage();
-  if (!page) return "Error: no browser page active";
-
-  try {
-    const audioBuffer = readFileSync(pathMatch[1]);
-    const base64 = audioBuffer.toString("base64");
-
-    // Inject TTS audio via WebRTC audio track replacement
-    // 1. Decode audio into AudioBuffer
-    // 2. Create MediaStreamDestination from AudioBuffer playback
-    // 3. Replace the microphone track in RTCPeerConnection with our audio track
-    // 4. Restore original mic track after playback completes
-    await page.evaluate((b64) => {
-      return new Promise(async (resolve) => {
-        try {
-          const ctx = window.__daemoraCaptureCtx || new AudioContext();
-          const binary = atob(b64);
-          const bytes = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-          const audioBuf = await ctx.decodeAudioData(bytes.buffer);
-
-          // Create a MediaStream from the audio
-          const dest = ctx.createMediaStreamDestination();
-          const source = ctx.createBufferSource();
-          source.buffer = audioBuf;
-          source.connect(dest);
-
-          // Also play locally so we know it worked
-          source.connect(ctx.destination);
-
-          // Find RTCPeerConnections and replace audio track
-          const pcs = window.__daemoraPeerConnections || [];
-          // Collect all PeerConnections if not already tracked
-          if (pcs.length === 0 && window.RTCPeerConnection) {
-            // Try to find existing connections via senders
-            document.querySelectorAll("audio, video").forEach(el => {
-              if (el.srcObject) {
-                el.srcObject.getAudioTracks().forEach(t => {
-                  // Track exists, connection must exist
-                });
-              }
-            });
-          }
-
-          const ttsTrack = dest.stream.getAudioTracks()[0];
-          const originalTracks = [];
-
-          // Replace audio tracks in all peer connections
-          if (pcs.length > 0) {
-            for (const pc of pcs) {
-              try {
-                const senders = pc.getSenders();
-                for (const sender of senders) {
-                  if (sender.track?.kind === "audio") {
-                    originalTracks.push({ sender, track: sender.track });
-                    await sender.replaceTrack(ttsTrack);
-                  }
-                }
-              } catch {}
-            }
-          }
-
-          source.start();
-
-          // Restore original tracks after playback
-          source.onended = async () => {
-            for (const { sender, track } of originalTracks) {
-              try { await sender.replaceTrack(track); } catch {}
-            }
-            resolve("played");
-          };
-
-          // Timeout fallback
-          setTimeout(() => resolve("played-timeout"), (audioBuf.duration + 1) * 1000);
-        } catch (e) {
-          console.error("[Daemora:TTS]", e);
-          resolve("error: " + e.message);
-        }
-      });
-    }, base64);
-
-    addTranscript(sessionId, { speaker: session.displayName, text });
-    return `Spoke: "${text.slice(0, 80)}${text.length > 80 ? "…" : ""}"`;
-  } catch (e) {
-    return `Audio injection failed: ${e.message}`;
-  }
+  return meetingSpeak(sessionId, text, session, getActivePage);
 }
 
 /**
