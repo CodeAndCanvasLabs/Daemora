@@ -197,14 +197,24 @@ class SkillLoader {
    * Called once at startup as fire-and-forget. Only re-embeds skills whose content changed.
    */
   async embedSkills() {
-    if (!getEmbeddingProvider()) return;
+    const provider = getEmbeddingProvider();
+    if (!provider) return;
     if (!this.loaded) this.load();
+
+    // TF-IDF vectors depend on entire vocabulary — invalidate when skill count changes
+    if (provider === "tfidf") {
+      const cachedCount = Object.keys(this._skillVectors).length;
+      if (cachedCount > 0 && cachedCount !== this.skills.size) {
+        console.log(`[SkillLoader] TF-IDF vocab changed (${cachedCount} cached, ${this.skills.size} skills) — re-embedding all`);
+        this._skillVectors = {};
+      }
+    }
 
     let changed = false;
 
     for (const [name, skill] of this.skills) {
       const hash = this._contentHash(skill);
-      if (this._skillVectors[name]?.hash === hash) continue;  // Cache hit - skip
+      if (this._skillVectors[name]?.hash === hash) continue;
 
       // Text to embed: name + description + triggers + first 500 chars of body
       const text = [
