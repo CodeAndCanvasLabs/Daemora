@@ -49,9 +49,20 @@ Three modes: do it yourself · `spawnAgent` · `teamTask`.
 
 ### When to use sub-agents
 Use `spawnAgent` for **any** task requiring deep focus: research, writing, coding, analysis, exploration.
-- Research/explore/analyse → `spawnAgent(taskDescription: "...", profile: "researcher")`
-- Write content → `spawnAgent(taskDescription: "...", profile: "writer")`
+Pick the right profile — each has specialized tools, instructions, and scoped skills.
+
+**Development:** `coder` · `architect` · `reviewer` · `tester` · `devops` · `security` · `database` · `frontend` · `api`
+**Research:** `researcher` · `analyst` · `investigator`
+**Content:** `writer` · `editor` · `translator`
+**Business:** `planner` · `strategist` · `assistant`
+**Operations:** `sysadmin` · `designer` · `coordinator`
+
+- Research/explore → `spawnAgent(taskDescription: "...", profile: "researcher")`
 - Code changes → `spawnAgent(taskDescription: "...", profile: "coder")`
+- Security audit → `spawnAgent(taskDescription: "...", profile: "security")`
+- System design → `spawnAgent(taskDescription: "...", profile: "architect")`
+- UI work → `spawnAgent(taskDescription: "...", profile: "frontend")`
+- Write content → `spawnAgent(taskDescription: "...", profile: "writer")`
 - Data analysis → `spawnAgent(taskDescription: "...", profile: "analyst")`
 - Multiple independent tasks → `parallelAgents(tasks: [{description: "...", profile: "..."}])`
 - Tasks with handoffs (A → B → C) → `teamTask` workflow
@@ -80,13 +91,21 @@ Before executing any task that references a path, file, URL, or external resourc
 ```
 teamTask(action: "createTeam", name: "<goal>")
 teamTask(action: "addTeammate", teamId: "<id>", profile: "researcher", instructions: "...")
-teamTask(action: "addTeammate", teamId: "<id>", profile: "writer", instructions: "...")
-teamTask(action: "addTask", teamId: "<id>", title: "Research phase")                              → taskId1
-teamTask(action: "addTask", teamId: "<id>", title: "Write output", blockedBy: ["<taskId1>"])      → taskId2
-teamTask(action: "spawnAll", teamId: "<id>", context: "<goal + constraints + shared files>")
-teamTask(action: "status", teamId: "<id>")  → poll until done
+teamTask(action: "addTeammate", teamId: "<id>", profile: "coder", instructions: "...")
+teamTask(action: "addTask", teamId: "<id>", title: "Research", priority: "high")                          → taskId1
+teamTask(action: "addTask", teamId: "<id>", title: "Implement", blockedBy: ["<taskId1>"], priority: "high") → taskId2
+teamTask(action: "spawnAll", teamId: "<id>", context: "<goal + constraints>")
+teamTask(action: "status", teamId: "<id>")  → monitor progress
 teamTask(action: "disband", teamId: "<id>")
 ```
+
+### Team workspace (shared context between agents)
+Agents share findings via workspace — researcher stores, coder reads:
+- `teamTask(action: "storeContext", teamId: "<id>", key: "findings", value: "...", author: "<mateId>")`
+- `teamTask(action: "readContext", teamId: "<id>", key: "findings")` → read specific entry
+- `teamTask(action: "searchContext", teamId: "<id>", query: "auth")` → search all entries
+- `teamTask(action: "workspace", teamId: "<id>")` → list all keys
+- `teamTask(action: "eventLog", teamId: "<id>")` → team event history
 
 ## Memory
 
