@@ -395,7 +395,7 @@ async function startServices(sessionId) {
       entry.speaker = session._currentSpeaker || "participant";
       addTranscript(sessionId, entry);
     },
-    flushIntervalMs: 10000,
+    flushIntervalMs: 3000,
   });
   transcriber.start();
   session._transcriber = transcriber;
