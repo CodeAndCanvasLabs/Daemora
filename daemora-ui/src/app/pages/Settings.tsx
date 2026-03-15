@@ -348,6 +348,7 @@ export function Settings() {
         permissionTier: "PERMISSION_TIER",
         maxCostPerTask: "MAX_COST_PER_TASK",
         maxDailyCost: "MAX_DAILY_COST",
+        sttModel: "STT_MODEL",
       };
       const updates: Record<string, string> = {};
       for (const [configKey, envKey] of Object.entries(envMap)) {
@@ -554,6 +555,21 @@ export function Settings() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div>
+            <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Transcription Model (STT)</label>
+            <Select value={globalConfig.sttModel || "gpt-4o-mini-transcribe"} onValueChange={(v) => handleConfigChange("sttModel", v)}>
+              <SelectTrigger className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                <SelectItem value="gpt-4o-mini-transcribe" className="text-xs font-mono">gpt-4o-mini-transcribe — $0.003/min (fast, cheap)</SelectItem>
+                <SelectItem value="gpt-4o-transcribe" className="text-xs font-mono">gpt-4o-transcribe — $0.006/min (best accuracy)</SelectItem>
+                <SelectItem value="gpt-4o-transcribe-diarize" className="text-xs font-mono">gpt-4o-transcribe-diarize — $0.006/min (speaker ID)</SelectItem>
+                <SelectItem value="whisper-1" className="text-xs font-mono">whisper-1 — $0.006/min (legacy)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

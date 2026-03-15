@@ -12,6 +12,15 @@ import { config } from "../../config/default.js";
 
 const SAMPLE_RATE = 16000;
 
+// Configurable via STT_MODEL env/config — default to best available
+// Read STT model from config at call time (not import time) — picks up SQLite/vault changes
+// Set via: Settings UI, CLI (daemora config set STT_MODEL gpt-4o-transcribe-diarize), or .env
+// Options: gpt-4o-mini-transcribe | gpt-4o-transcribe | gpt-4o-transcribe-diarize | whisper-1
+function getSTTModel(provider) {
+  if (provider === "groq") return process.env.STT_MODEL_GROQ || "whisper-large-v3-turbo";
+  return process.env.STT_MODEL || "gpt-4o-mini-transcribe";
+}
+
 export default class Transcriber {
   constructor(sessionId, { onTranscript, flushIntervalMs = 3000 } = {}) {
     this.sessionId = sessionId;
@@ -158,20 +167,46 @@ export default class Transcriber {
   }
 
   async _whisperAPI(wav) {
+    const model = getSTTModel("openai");
     const fd = new FormData();
-    fd.append("file", new Blob([wav], { type: "audio/wav" }), "a.wav");
-    fd.append("model", "whisper-1");
-    const r = await fetch("https://api.openai.com/v1/audio/transcriptions", { method: "POST", headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }, body: fd });
-    if (!r.ok) throw new Error(`Whisper ${r.status}`);
-    return (await r.json()).text;
+    fd.append("file", new Blob([wav], { type: "audio/wav" }), "audio.wav");
+    fd.append("model", model);
+    const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+      body: fd,
+    });
+    if (!r.ok) throw new Error(`OpenAI STT (${model}) ${r.status}: ${await r.text().catch(() => "")}`);
+    const data = await r.json();
+
+    // gpt-4o-transcribe-diarize returns speaker-attributed segments
+    if (data.segments && model.includes("diarize")) {
+      for (const seg of data.segments) {
+        if (seg.text?.trim()) {
+          this.onTranscript({
+            speaker: seg.speaker || "participant",
+            text: seg.text.trim(),
+            timestamp: Date.now(),
+          });
+        }
+      }
+      return null; // already emitted via onTranscript
+    }
+
+    return data.text;
   }
 
   async _groqAPI(wav) {
+    const model = getSTTModel("groq");
     const fd = new FormData();
-    fd.append("file", new Blob([wav], { type: "audio/wav" }), "a.wav");
-    fd.append("model", "whisper-large-v3");
-    const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", { method: "POST", headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` }, body: fd });
-    if (!r.ok) throw new Error(`Groq ${r.status}`);
+    fd.append("file", new Blob([wav], { type: "audio/wav" }), "audio.wav");
+    fd.append("model", model);
+    const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+      body: fd,
+    });
+    if (!r.ok) throw new Error(`Groq STT (${model}) ${r.status}: ${await r.text().catch(() => "")}`);
     return (await r.json()).text;
   }
 
