@@ -38,7 +38,12 @@ export async function textToSpeech(params) {
     if (provider === "openai") return hasOpenAI ? _openAI(text.trim(), opts) : "Error: OPENAI_API_KEY required";
     if (provider === "edge") return _edgeTTS(text.trim(), opts);
 
-    // Auto: OpenAI → ElevenLabs → Edge TTS (free fallback)
+    // Explicit provider
+    if (provider === "groq") return _groqTTS(text.trim(), opts);
+
+    // Auto: cheapest available. Groq (free) → Edge (free) → OpenAI → ElevenLabs
+    const hasGroq = _keys.GROQ_API_KEY || process.env.GROQ_API_KEY;
+    if (hasGroq) return _groqTTS(text.trim(), opts);
     if (hasOpenAI) return _openAI(text.trim(), opts);
     if (hasElevenLabs) return _elevenLabs(text.trim(), opts);
     return _edgeTTS(text.trim(), opts);
@@ -123,6 +128,44 @@ async function _elevenLabs(text, opts) {
   return `Audio saved to: ${filePath}`;
 }
 
+// ── Groq TTS (free tier, OpenAI-compatible) ──────────────────────────────────
+
+async function _groqTTS(text, opts) {
+  const store = tenantContext.getStore();
+  const apiKeys = store?.apiKeys || {};
+  const apiKey = apiKeys.GROQ_API_KEY || process.env.GROQ_API_KEY;
+  if (!apiKey) return "Error: GROQ_API_KEY required";
+
+  const model = "playai-tts";
+  const voice = opts.voice || "Arista-PlayAI";
+  const format = opts.format || "wav";
+
+  const res = await fetch("https://api.groq.com/openai/v1/audio/speech", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      input: text.slice(0, 4096),
+      voice,
+      response_format: format,
+    }),
+    signal: AbortSignal.timeout(60000),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    return `Error: Groq TTS HTTP ${res.status}${body ? `: ${body.slice(0, 200)}` : ""}`;
+  }
+
+  const ttsDir = getTenantTmpDir("daemora-tts");
+  const filePath = join(ttsDir, `speech-groq-${Date.now()}.${format}`);
+  writeFileSync(filePath, Buffer.from(await res.arrayBuffer()));
+  return `Audio saved to: ${filePath}`;
+}
+
 // ── Edge TTS (free, no API key) ──────────────────────────────────────────────
 
 async function _edgeTTS(text, opts) {
@@ -169,6 +212,6 @@ function _splitText(text, maxLength) {
 
 export const textToSpeechDescription =
   'textToSpeech(text, optionsJson?) - Convert text to audio. ' +
-  'Providers: OpenAI (gpt-4o-mini-tts, 14 voices), ElevenLabs (voice cloning), Edge TTS (free, no key). ' +
-  'Options: {"voice":"nova|alloy|ash|coral|echo|fable|shimmer|sage|juniper|...","speed":1.0,"format":"mp3","model":"gpt-4o-mini-tts|tts-1|tts-1-hd","provider":"openai|elevenlabs|edge","instructions":"speak cheerfully"}. ' +
-  'Auto-detects provider: OpenAI → ElevenLabs → Edge TTS (free fallback). Chain with sendFile() to deliver.';
+  'Providers: Groq (free), Edge TTS (free, no key), OpenAI (gpt-4o-mini-tts), ElevenLabs (voice cloning). ' +
+  'Options: {"voice":"nova|alloy|ash|coral|echo|fable|shimmer","speed":1.0,"format":"mp3","provider":"groq|openai|elevenlabs|edge","instructions":"speak cheerfully"}. ' +
+  'Auto-detects cheapest: Groq (free) → Edge TTS (free) → OpenAI → ElevenLabs. Chain with sendFile() to deliver.';

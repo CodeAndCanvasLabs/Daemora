@@ -580,10 +580,11 @@ export function Settings() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                  <SelectItem value="groq" className="text-xs font-mono">Groq PlayAI — free tier</SelectItem>
+                  <SelectItem value="edge" className="text-xs font-mono">Edge TTS — free, no API key</SelectItem>
                   <SelectItem value="gpt-4o-mini-tts" className="text-xs font-mono">gpt-4o-mini-tts — steerable, 14 voices</SelectItem>
                   <SelectItem value="tts-1" className="text-xs font-mono">tts-1 — standard</SelectItem>
                   <SelectItem value="tts-1-hd" className="text-xs font-mono">tts-1-hd — high quality</SelectItem>
-                  <SelectItem value="edge" className="text-xs font-mono">Edge TTS — free, no API key</SelectItem>
                 </SelectContent>
               </Select>
             </div>
