@@ -1293,49 +1293,27 @@ app.delete("/api/skills/custom/:name", (req, res) => {
   res.json({ message: "Custom skill deleted" });
 });
 
-// --- Agent Profiles endpoints ---
-import { getProfile as getAgentProfile, listProfiles, saveProfile, deleteProfile, getAvailableTools } from "./config/AgentProfileManager.js";
+// --- Agent Profiles endpoints (YAML-based, read-only API) ---
+import { listProfiles as listYamlProfiles, getProfile as getYamlProfile } from "./config/ProfileLoader.js";
+import { defaultSubAgentTools } from "./config/agentProfiles.js";
 import { createSession as createMeetingSession, getSession as getMeetingSession, listSessions as listMeetingSessions } from "./meeting/MeetingSessionManager.js";
 import { joinMeeting, leaveMeeting, getTranscript, getParticipants } from "./meeting/BrowserMeetingBot.js";
 import { createClone, listVoices, deleteVoice, listTenantVoices } from "./voice/VoiceCloneManager.js";
 
 app.get("/api/agent-profiles", (req, res) => {
   try {
-    const tenantId = req.query.tenantId || null;
-    const profiles = listProfiles(tenantId);
-    res.json(profiles);
+    res.json(listYamlProfiles());
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get("/api/agent-profiles/tools", (req, res) => {
-  res.json(getAvailableTools());
+  res.json([...defaultSubAgentTools]);
 });
 
-app.post("/api/agent-profiles", (req, res) => {
-  try {
-    const { tenantId, ...profile } = req.body;
-    const saved = saveProfile(profile, tenantId || null);
-    res.json(saved);
-  } catch (e) { res.status(400).json({ error: e.message }); }
-});
-
-app.put("/api/agent-profiles/:id", (req, res) => {
-  try {
-    const { tenantId, ...profile } = req.body;
-    const saved = saveProfile({ ...profile, id: req.params.id }, tenantId || null);
-    res.json(saved);
-  } catch (e) { res.status(400).json({ error: e.message }); }
-});
-
-app.delete("/api/agent-profiles/:id", (req, res) => {
-  try {
-    const tenantId = req.query.tenantId || null;
-    const result = deleteProfile(req.params.id, tenantId);
-    res.json(result);
-  } catch (e) {
-    const status = e.message.includes("built-in") ? 403 : e.message.includes("not found") ? 404 : 400;
-    res.status(status).json({ error: e.message });
-  }
+app.get("/api/agent-profiles/:id", (req, res) => {
+  const profile = getYamlProfile(req.params.id);
+  if (!profile) return res.status(404).json({ error: "Profile not found" });
+  res.json(profile);
 });
 
 // --- Meeting endpoints ---

@@ -16,7 +16,7 @@ HEARTBEAT.md
 # data/skill-embeddings.json
 
 # ── Local-only dirs — never push to GitHub (files kept locally) ──────────────
-agents/
+/agents/
 aegis-ui/            # web dashboard (separate repo)
 components/          # scratch UI components
 daemoreDir/          # scratch directory

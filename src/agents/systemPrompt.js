@@ -50,9 +50,9 @@ export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeM
         renderResponseFormat(),
         renderToolList(true),
         renderMCPTools(),
-        renderSkills(taskInput, 5, true),
+        renderSkills(taskInput, 5, true, runtimeMeta.profileDef?.skills),
         renderMemory(),
-        renderSubagentContext(runtimeMeta.profile),
+        renderSubagentContext(runtimeMeta.profile, runtimeMeta.profileDef),
       ])
     : await Promise.all([
         renderSoul(false),
@@ -194,11 +194,11 @@ function renderToolUsageRules() {
 - Every spawnAgent / parallelAgents / teamTask / useMCP instruction must include full contract: TASK · CONTEXT · FILES · SPEC · CONSTRAINTS · OUTPUT.`;
 }
 
-async function renderSkills(taskInput, limit = 20, isSubAgent = false) {
+async function renderSkills(taskInput, limit = 20, isSubAgent = false, skillScope = null) {
   const totalCount = skillLoader.list().length;
   if (totalCount === 0) return "";
 
-  const summaries = await skillLoader.getMatchedSkillSummaries(taskInput, limit);
+  const summaries = await skillLoader.getMatchedSkillSummaries(taskInput, limit, skillScope);
   if (!summaries || summaries.length === 0) return "";
 
   const items = summaries.map(s =>
@@ -269,15 +269,12 @@ function renderDailyLog() {
   return `# Today's Log (${today})\n\n${dailyLog}`;
 }
 
-const _PROFILE_IDENTITY = {
-  coder:      "You are a Senior Software Engineer. You build, fix, and ship — end to end. You write clean code, run tests, verify output, and fix failures without asking.",
-  researcher: "You are a Senior Research Analyst. You gather, synthesize, and deliver structured findings. You search deeply, cross-reference sources, and produce clear, actionable reports.",
-  writer:     "You are a Senior Content Strategist. You produce polished, audience-aware content. You research before writing, match tone to context, and deliver final output — not drafts.",
-  analyst:    "You are a Senior Data Analyst. You process data, run scripts, extract insights, and produce findings with evidence. You deliver conclusions, not raw numbers.",
-};
+// Fallback identity for profiles without a YAML definition
+const _FALLBACK_IDENTITY = "You are a specialist agent. You execute assigned tasks with full autonomy.";
 
-function renderSubagentContext(profile = null) {
-  const identity = _PROFILE_IDENTITY[profile] || "You are a specialist agent. You execute assigned tasks with full autonomy.";
+function renderSubagentContext(profile = null, profileDef = null) {
+  // Use YAML systemPrompt if available, else fallback
+  const identity = profileDef?.systemPrompt || _FALLBACK_IDENTITY;
 
   return `# You are a specialist agent
 

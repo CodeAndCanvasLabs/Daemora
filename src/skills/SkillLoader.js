@@ -283,7 +283,12 @@ class SkillLoader {
    * Uses hybrid ranking: embeddings (API or local) → keyword fallback → list all.
    * Returns up to `limit` skills, sorted by relevance.
    */
-  async getMatchedSkillSummaries(taskInput, limit = 10) {
+  /**
+   * @param {string} taskInput
+   * @param {number} limit
+   * @param {object|null} skillScope - { include: string[], exclude: string[] } from profile YAML
+   */
+  async getMatchedSkillSummaries(taskInput, limit = 10, skillScope = null) {
     if (!this.loaded) this.load();
     if (this.skills.size === 0) return [];
 
@@ -298,6 +303,22 @@ class SkillLoader {
       return { name: skill.name, description: skill.description, location };
     };
 
+    // ── Skill scoping filter — profile-based tag matching ────────────────────
+    // Match skill name + description + triggers against include/exclude tags
+    const isInScope = (skill) => {
+      if (!skillScope) return true; // no scoping = all skills
+      const haystack = `${skill.name} ${skill.description} ${(skill.triggers || []).join(" ")}`.toLowerCase();
+      // Exclude check first
+      if (skillScope.exclude?.length > 0) {
+        if (skillScope.exclude.some(tag => haystack.includes(tag.toLowerCase()))) return false;
+      }
+      // Include check — at least one include tag must match
+      if (skillScope.include?.length > 0) {
+        return skillScope.include.some(tag => haystack.includes(tag.toLowerCase()));
+      }
+      return true;
+    };
+
     // 1. Embedding match — only return skills above similarity threshold
     const SKILL_MATCH_THRESHOLD = 0.25;
     const vectorsAvailable = Object.keys(this._skillVectors).length > 0;
@@ -306,6 +327,7 @@ class SkillLoader {
       if (queryVector) {
         const scored = [];
         for (const [name, skill] of this.skills) {
+          if (!isInScope(skill)) continue; // skip out-of-scope skills
           const cached = this._skillVectors[name];
           if (!cached?.vector) continue;
           const score = this._cosineSim(queryVector, cached.vector);
@@ -316,17 +338,16 @@ class SkillLoader {
         scored.sort((a, b) => b.score - a.score);
         const top = scored.slice(0, limit);
         if (top.length > 0) {
-          console.log(`[SkillLoader] Matched ${top.length}/${this.skills.size} skills above threshold (${top.map(s => `${s.skill.name}:${s.score.toFixed(2)}`).join(", ")})`);
+          console.log(`[SkillLoader] Matched ${top.length}/${this.skills.size} skills above threshold${skillScope ? ` (scoped: ${skillScope.include?.join(",") || "all"})` : ""}`);
           return top.map((s) => toSummary(s.skill));
         }
-        // No skills above threshold — return empty (don't fall through to keyword)
         console.log(`[SkillLoader] No skills above similarity threshold (${SKILL_MATCH_THRESHOLD})`);
         return [];
       }
     }
 
     // 2. Keyword fallback — only return actual matches, don't pad with unrelated skills
-    const keywordMatched = this.matchSkills(taskInput);
+    const keywordMatched = this.matchSkills(taskInput).filter(isInScope);
     if (keywordMatched.length > 0) {
       const top = keywordMatched.slice(0, limit);
       console.log(`[SkillLoader] Keyword matched ${top.length} skills: [${top.map(s => s.name).join(", ")}]`);

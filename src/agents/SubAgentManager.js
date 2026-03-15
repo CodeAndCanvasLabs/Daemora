@@ -1,8 +1,8 @@
 import { runAgentLoop } from "../core/AgentLoop.js";
 import { buildSystemPrompt } from "./systemPrompt.js";
 import { toolFunctions } from "../tools/index.js";
-import { agentProfiles, defaultSubAgentTools } from "../config/agentProfiles.js";
-import { getProfile as getCustomProfile } from "../config/AgentProfileManager.js";
+import { defaultSubAgentTools } from "../config/agentProfiles.js";
+import { getProfile } from "../config/ProfileLoader.js";
 import { config } from "../config/default.js";
 import eventBus from "../core/EventBus.js";
 import { v4 as uuidv4 } from "uuid";
@@ -158,31 +158,19 @@ export async function spawnSubAgent(taskDescription, options = {}) {
       // Caller provided explicit list - use as-is
       toolNames = [...allowedTools];
     } else if (profile) {
-      // Resolve profile: custom (tenant → global) → built-in
-      const tenantId = store?.tenant?.id || null;
-      const customProfile = getCustomProfile(profile, tenantId);
-      if (customProfile) {
-        toolNames = [...customProfile.tools];
-        // Inject custom system instructions via parentContext if present
-        if (customProfile.systemInstructions && !systemPromptOverride) {
-          const profileInstructions = `[Profile Instructions — ${customProfile.name}]:\n${customProfile.systemInstructions}`;
-          options.parentContext = options.parentContext
-            ? `${profileInstructions}\n\n${options.parentContext}`
-            : profileInstructions;
-        }
+      // Resolve profile from YAML (tenant override → custom → built-in)
+      const profileDef = getProfile(profile);
+      if (profileDef && profileDef.tools.length > 0) {
+        toolNames = [...profileDef.tools];
         // Use profile model if set and no explicit model override
-        if (customProfile.model && !model) {
-          options.model = customProfile.model;
+        if (profileDef.model && !model) {
+          options.model = profileDef.model;
         }
+        // Store profile definition for system prompt building
+        options._profileDef = profileDef;
       } else {
-        // Fallback to built-in profiles
-        const preset = agentProfiles[profile];
-        if (!preset) {
-          console.warn(`[SubAgent:${agentId}] Unknown profile "${profile}", using default`);
-          toolNames = [...defaultSubAgentTools];
-        } else {
-          toolNames = [...preset];
-        }
+        console.warn(`[SubAgent:${agentId}] Unknown profile "${profile}", using default`);
+        toolNames = [...defaultSubAgentTools];
       }
     } else {
       // No profile specified - use sensible default (not all 33 tools)
@@ -321,6 +309,7 @@ export async function spawnSubAgent(taskDescription, options = {}) {
           agentId,
           taskDescription,
           profile,
+          profileDef: options._profileDef || null,
         }),
         tools:        agentTools,
         modelId:      resolvedModel,
