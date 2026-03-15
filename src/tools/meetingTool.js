@@ -67,7 +67,19 @@ export async function meetingAction(toolParams) {
       case "listen": {
         const { sessionId, last } = params;
         if (!sessionId) return "Error: sessionId is required";
-        return getTranscript(sessionId, parseInt(last || "20"));
+
+        // Wait for new transcript content instead of returning empty instantly.
+        // This prevents the agent from burning through its step budget calling listen in a tight loop.
+        const existing = getTranscript(sessionId, parseInt(last || "20"));
+        if (existing !== "No transcript entries yet.") return existing;
+
+        // Poll for up to 10 seconds waiting for first transcript
+        for (let i = 0; i < 10; i++) {
+          await new Promise(r => setTimeout(r, 1000));
+          const result = getTranscript(sessionId, parseInt(last || "20"));
+          if (result !== "No transcript entries yet.") return result;
+        }
+        return "Listening... no speech detected in the last 10 seconds. Call listen again to keep monitoring.";
       }
 
       case "transcript": {

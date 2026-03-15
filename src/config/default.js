@@ -50,7 +50,7 @@ function buildConfig(env) {
     subAgentModel: env.SUB_AGENT_MODEL || null,
 
     // Agent loop
-    maxLoops: 40,
+    maxLoops: 100,
     maxSubAgentDepth: 3,
 
     // Thinking level: "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh"
