@@ -349,6 +349,7 @@ export function Settings() {
         maxCostPerTask: "MAX_COST_PER_TASK",
         maxDailyCost: "MAX_DAILY_COST",
         sttModel: "STT_MODEL",
+        ttsModel: "TTS_MODEL",
       };
       const updates: Record<string, string> = {};
       for (const [configKey, envKey] of Object.entries(envMap)) {
@@ -557,19 +558,35 @@ export function Settings() {
             </div>
           </div>
 
-          <div>
-            <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Transcription Model (STT)</label>
-            <Select value={globalConfig.sttModel || "gpt-4o-mini-transcribe"} onValueChange={(v) => handleConfigChange("sttModel", v)}>
-              <SelectTrigger className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                <SelectItem value="gpt-4o-mini-transcribe" className="text-xs font-mono">gpt-4o-mini-transcribe — $0.003/min (fast, cheap)</SelectItem>
-                <SelectItem value="gpt-4o-transcribe" className="text-xs font-mono">gpt-4o-transcribe — $0.006/min (best accuracy)</SelectItem>
-                <SelectItem value="gpt-4o-transcribe-diarize" className="text-xs font-mono">gpt-4o-transcribe-diarize — $0.006/min (speaker ID)</SelectItem>
-                <SelectItem value="whisper-1" className="text-xs font-mono">whisper-1 — $0.006/min (legacy)</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Transcription Model (STT)</label>
+              <Select value={globalConfig.sttModel || "gpt-4o-mini-transcribe"} onValueChange={(v) => handleConfigChange("sttModel", v)}>
+                <SelectTrigger className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                  <SelectItem value="gpt-4o-mini-transcribe" className="text-xs font-mono">gpt-4o-mini-transcribe — $0.003/min</SelectItem>
+                  <SelectItem value="gpt-4o-transcribe" className="text-xs font-mono">gpt-4o-transcribe — $0.006/min (best)</SelectItem>
+                  <SelectItem value="gpt-4o-transcribe-diarize" className="text-xs font-mono">gpt-4o-transcribe-diarize — speaker ID</SelectItem>
+                  <SelectItem value="whisper-1" className="text-xs font-mono">whisper-1 — legacy</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Speech Model (TTS)</label>
+              <Select value={globalConfig.ttsModel || "gpt-4o-mini-tts"} onValueChange={(v) => handleConfigChange("ttsModel", v)}>
+                <SelectTrigger className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-950 border-slate-800 text-white">
+                  <SelectItem value="gpt-4o-mini-tts" className="text-xs font-mono">gpt-4o-mini-tts — steerable, 14 voices</SelectItem>
+                  <SelectItem value="tts-1" className="text-xs font-mono">tts-1 — standard</SelectItem>
+                  <SelectItem value="tts-1-hd" className="text-xs font-mono">tts-1-hd — high quality</SelectItem>
+                  <SelectItem value="edge" className="text-xs font-mono">Edge TTS — free, no API key</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

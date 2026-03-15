@@ -78,6 +78,7 @@
     "croner": "^10.0.1",
     "discord.js": "^14.25.1",
     "dotenv": "^17.3.1",
+    "edge-tts-universal": "^1.4.0",
     "express": "^5.2.1",
     "glob": "^13.0.6",
     "google-auth-library": "^9.15.0",
