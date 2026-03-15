@@ -187,6 +187,13 @@ export function addTranscript(id, entry) {
     text: entry.text,
     timestamp: Date.now(),
   };
+
+  // Dedup — skip if same text within 2 seconds of last entry
+  const last = session.transcript[session.transcript.length - 1];
+  if (last && last.text === transcriptEntry.text && (transcriptEntry.timestamp - last.timestamp) < 2000) {
+    return; // duplicate
+  }
+
   session.transcript.push(transcriptEntry);
 
   // Persist to disk (JSONL — one JSON object per line, survives restarts)
