@@ -294,22 +294,22 @@ const toolSchemas = {
   spawnAgent: {
     schema: z.object({
       taskDescription: str("Complete task brief — include what, constraints, files/APIs, expected output. Agent has zero other context."),
-      profile: optStr("Agent profile: 'coder' | 'researcher' | 'writer' | 'analyst'"),
+      profile: optStr("Agent profile — Dev: coder|architect|reviewer|tester|devops|security|database|frontend|api. Research: researcher|analyst|investigator. Content: writer|editor|translator. Business: planner|strategist|assistant. Ops: sysadmin|designer|coordinator"),
       parentContext: optStr("Extra context from parent task"),
       extraTools: z.array(z.string()).optional().describe("Additional tool names to enable"),
       skills: z.array(z.string()).optional().describe("Skill names to load"),
     }),
-    description: "Spawn specialist sub-agent. Use for any deep-focus task: research, writing, coding, analysis. Profile sets identity.",
+    description: "Spawn specialist sub-agent. Use for any deep-focus task. Profile sets identity, tools, and skill scope.",
   },
   parallelAgents: {
     schema: z.object({
       tasks: z.array(z.object({
-        description: str("Task description"),
-        profile: optStr("Agent profile: 'coder' | 'researcher' | 'writer' | 'analyst'"),
-      })).describe("Array of tasks to run in parallel"),
+        description: str("Task description — full brief, agent has zero context"),
+        profile: optStr("Agent profile — Dev: coder|architect|reviewer|tester|devops|security|database|frontend|api. Research: researcher|analyst|investigator. Content: writer|editor|translator. Business: planner|strategist|assistant. Ops: sysadmin|designer|coordinator"),
+      })).describe("Array of tasks to run simultaneously"),
       sharedContext: optStr("Context shared across all agents"),
     }),
-    description: "Spawn multiple sub-agents simultaneously for independent tasks.",
+    description: "Spawn multiple sub-agents simultaneously for independent tasks. Each gets its own profile, tools, and skill scope.",
   },
   delegateToAgent: {
     schema: z.object({

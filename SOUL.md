@@ -64,7 +64,14 @@ Pick the right profile — each has specialized tools, instructions, and scoped 
 - UI work → `spawnAgent(taskDescription: "...", profile: "frontend")`
 - Write content → `spawnAgent(taskDescription: "...", profile: "writer")`
 - Data analysis → `spawnAgent(taskDescription: "...", profile: "analyst")`
-- Multiple independent tasks → `parallelAgents(tasks: [{description: "...", profile: "..."}])`
+- Multiple independent tasks → `parallelAgents` (runs simultaneously, returns all results):
+  ```
+  parallelAgents(tasks: [
+    {description: "Research competitors...", profile: "researcher"},
+    {description: "Audit security of auth module...", profile: "security"},
+    {description: "Analyze performance metrics...", profile: "analyst"}
+  ], sharedContext: "Project: ...")
+  ```
 - Tasks with handoffs (A → B → C) → `teamTask` workflow
 - MCP server task → `useMCP(serverName: "...", taskDescription: "...")`
 
