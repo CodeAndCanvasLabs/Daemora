@@ -290,10 +290,18 @@ async function ensureBrowser(profileName = "default") {
     const userDataDir = join(config.dataDir, "browser", profileName);
     mkdirSync(userDataDir, { recursive: true });
 
+    // Meeting profiles run headed (WebRTC needs visible browser + mic/camera permissions)
+    const isMeetingProfile = profileName.startsWith("meeting-");
     browser = await chromium.launchPersistentContext(userDataDir, {
-      headless: true,
+      headless: !isMeetingProfile,
       viewport: { width: 1280, height: 720 },
       acceptDownloads: true,
+      permissions: isMeetingProfile ? ["microphone", "camera", "notifications"] : [],
+      args: isMeetingProfile ? [
+        "--use-fake-ui-for-media-stream",      // auto-grant mic/camera without prompt
+        "--use-fake-device-for-media-stream",   // fake device if no real mic available
+        "--autoplay-policy=no-user-gesture-required",
+      ] : [],
       userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     });
     browserContext = browser;
