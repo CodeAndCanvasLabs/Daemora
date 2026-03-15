@@ -290,19 +290,29 @@ async function ensureBrowser(profileName = "default") {
     const userDataDir = join(config.dataDir, "browser", profileName);
     mkdirSync(userDataDir, { recursive: true });
 
-    // Meeting profiles run headed (WebRTC needs visible browser + mic/camera permissions)
+    // Meeting profiles run headed with full WebRTC support (Vexa-matching config)
     const isMeetingProfile = profileName.startsWith("meeting-");
+    const meetingArgs = [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-features=IsolateOrigins,site-per-process",
+      "--disable-infobars",
+      "--use-fake-ui-for-media-stream",
+      "--use-file-for-fake-video-capture=/dev/null",
+      "--allow-running-insecure-content",
+      "--disable-web-security",
+      "--disable-site-isolation-trials",
+      "--autoplay-policy=no-user-gesture-required",
+      "--ignore-certificate-errors",
+    ];
     browser = await chromium.launchPersistentContext(userDataDir, {
       headless: !isMeetingProfile,
       viewport: { width: 1280, height: 720 },
       acceptDownloads: true,
+      bypassCSP: isMeetingProfile,
       permissions: isMeetingProfile ? ["microphone", "camera", "notifications"] : [],
-      args: isMeetingProfile ? [
-        "--use-fake-ui-for-media-stream",      // auto-grant mic/camera without prompt
-        "--use-fake-device-for-media-stream",   // fake device if no real mic available
-        "--autoplay-policy=no-user-gesture-required",
-      ] : [],
-      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      args: isMeetingProfile ? meetingArgs : [],
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
     });
     browserContext = browser;
     browserConnected = true;

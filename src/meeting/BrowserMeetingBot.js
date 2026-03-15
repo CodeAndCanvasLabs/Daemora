@@ -186,86 +186,161 @@ const platforms = {
     const { meetingUrl, displayName, profileName } = session;
     await browserAction({ action: "newSession", param1: profileName });
 
-    // Strip authuser param — causes redirect to sign-in if no Google session
+    // Strip authuser param — forces Google to check for specific account
     const cleanUrl = meetingUrl.replace(/[?&]authuser=\d+/, "").replace(/\?$/, "");
-    await browserAction({ action: "navigate", param1: cleanUrl });
-    await _wait(5000);
+    await browserAction({ action: "newSession", param1: profileName });
 
     const page = getActivePage();
     if (!page) throw new Error("No browser page available");
 
-    // Take screenshot to debug join state
-    const currentUrl = page.url();
-    console.log(`[Meeting:Meet] Page URL after navigate: ${currentUrl}`);
+    // Navigate with networkidle (Vexa pattern — wait for full page load)
+    await page.goto(cleanUrl, { waitUntil: "networkidle", timeout: 60000 });
+    await page.bringToFront();
 
-    // Check if redirected to sign-in
-    if (currentUrl.includes("accounts.google.com")) {
-      console.log("[Meeting:Meet] Redirected to Google sign-in — meeting requires authentication");
-      // Take screenshot for debugging
-      await page.screenshot({ path: join(config.dataDir, "meetings", `debug-signin-${Date.now()}.png`) }).catch(() => {});
-      return "meet-auth-required: Google sign-in page detected. Use a browser profile with a logged-in Google account.";
-    }
+    const debugDir = join(config.dataDir, "meetings");
+    mkdirSync(debugDir, { recursive: true });
 
-    // Fill display name (may not appear if Google account is logged in)
-    try {
-      const nameInput = await page.waitForSelector(
-        'input[aria-label*="name" i], input[placeholder*="name" i], input[data-is-required="true"]',
-        { timeout: 10000 }
-      ).catch(() => null);
-      if (nameInput) {
-        await nameInput.fill(displayName);
-        console.log(`[Meeting:Meet] Filled display name: ${displayName}`);
-        await _wait(500);
-      }
-    } catch {}
+    // Screenshot after navigation
+    await page.screenshot({ path: join(debugDir, `debug-0-navigate-${Date.now()}.png`) }).catch(() => {});
+    console.log(`[Meeting:Meet] Page URL: ${page.url()}`);
 
-    // Turn off camera
-    try {
-      const camBtn = await page.$('[data-is-muted="false"][aria-label*="camera" i], [aria-label*="Turn off camera" i]');
-      if (camBtn) {
-        await camBtn.click();
-        console.log("[Meeting:Meet] Camera turned off");
-      }
-      await _wait(500);
-    } catch {}
-
-    // Click "Join now" or "Ask to join"
-    let joined = false;
-    try {
-      const joinBtn = await page.waitForSelector(
-        'button:has-text("Join now"), button:has-text("Ask to join"), button:has-text("Join")',
-        { timeout: 15000 }
-      );
-      if (joinBtn) {
-        const btnText = await joinBtn.textContent();
-        await joinBtn.click();
-        console.log(`[Meeting:Meet] Clicked: "${btnText.trim()}"`);
-        joined = true;
-      }
-    } catch {
-      console.log("[Meeting:Meet] No join button found — taking screenshot");
-      await page.screenshot({ path: join(config.dataDir, "meetings", `debug-nojoin-${Date.now()}.png`) }).catch(() => {});
-    }
-
+    // 5-second settle time (Vexa pattern)
     await _wait(5000);
 
-    // Verify we actually entered the meeting (check for leave button or meeting controls)
-    try {
-      const inMeeting = await page.$('[aria-label*="Leave" i], [aria-label*="End" i], [data-tooltip*="Leave" i]');
-      if (inMeeting) {
-        console.log("[Meeting:Meet] Successfully in meeting (leave button detected)");
-        return "meet-joined";
-      }
+    // Check if redirected to sign-in
+    const currentUrl = page.url();
+    if (currentUrl.includes("accounts.google.com")) {
+      console.log("[Meeting:Meet] Redirected to Google sign-in — meeting requires authentication");
+      return "meet-auth-required: Google sign-in page detected. Log into Google in the meeting-meet browser profile first.";
+    }
 
-      // Check for "Waiting for approval" state
-      const waitingText = await page.textContent("body");
-      if (waitingText.includes("waiting") || waitingText.includes("ask the host")) {
-        console.log("[Meeting:Meet] Waiting for host to admit");
-        return "meet-waiting-for-admission";
-      }
-    } catch {}
+    // Check for rejection FIRST (Vexa pattern)
+    const bodyText = await page.textContent("body").catch(() => "");
+    const rejectionPatterns = [
+      "can't join", "cannot join", "meeting not found", "unable to join",
+      "access denied", "meeting has ended", "invalid meeting", "link expired",
+    ];
+    const isRejected = rejectionPatterns.some(p => bodyText.toLowerCase().includes(p));
+    if (isRejected) {
+      console.log("[Meeting:Meet] REJECTED — meeting requires invitation or org membership");
+      await page.screenshot({ path: join(debugDir, `debug-rejected-${Date.now()}.png`) }).catch(() => {});
+      return "meet-rejected: Meeting requires invitation or org membership. Either use a personal meeting link, or log into a Google account in the meeting-meet browser profile.";
+    }
 
-    return joined ? "meet-join-attempted" : "meet-join-failed: no join button found";
+    // Wait for name field (120-second timeout — Vexa uses 120s)
+    let nameFieldFound = false;
+    const nameSelectors = [
+      'input[type="text"][aria-label="Your name"]',
+      'input[placeholder*="name" i]',
+      'input[aria-label*="name" i]',
+    ];
+    for (const sel of nameSelectors) {
+      try {
+        const nameInput = await page.waitForSelector(sel, { timeout: 15000 });
+        if (nameInput) {
+          await nameInput.fill(displayName);
+          console.log(`[Meeting:Meet] Filled display name: ${displayName}`);
+          nameFieldFound = true;
+          break;
+        }
+      } catch {}
+    }
+    if (!nameFieldFound) {
+      console.log("[Meeting:Meet] No name field found — may already be authenticated");
+    }
+    await _wait(1000);
+
+    // Turn off camera
+    const cameraSelectors = [
+      '[aria-label*="Turn off camera" i]',
+      'button[aria-label*="Turn off camera" i]',
+      'button[aria-label*="camera" i][data-is-muted="false"]',
+    ];
+    for (const sel of cameraSelectors) {
+      try {
+        const camBtn = await page.$(sel);
+        if (camBtn) { await camBtn.click(); console.log("[Meeting:Meet] Camera off"); break; }
+      } catch {}
+    }
+    await _wait(500);
+
+    // Turn off microphone
+    const micSelectors = [
+      '[aria-label*="Turn off microphone" i]',
+      'button[aria-label*="Turn off microphone" i]',
+    ];
+    for (const sel of micSelectors) {
+      try {
+        const micBtn = await page.$(sel);
+        if (micBtn) { await micBtn.click(); console.log("[Meeting:Meet] Mic off"); break; }
+      } catch {}
+    }
+    await _wait(500);
+
+    // Click join button (try multiple selectors — Vexa pattern)
+    let joined = false;
+    const joinSelectors = [
+      '//button[.//span[text()="Ask to join"]]',
+      'button:has-text("Ask to join")',
+      'button:has-text("Join now")',
+      'button:has-text("Join")',
+    ];
+    for (const sel of joinSelectors) {
+      try {
+        const joinBtn = await page.waitForSelector(sel, { timeout: 5000 });
+        if (joinBtn) {
+          const btnText = await joinBtn.textContent().catch(() => "join");
+          await joinBtn.click();
+          console.log(`[Meeting:Meet] Clicked: "${btnText.trim()}"`);
+          joined = true;
+          break;
+        }
+      } catch {}
+    }
+
+    if (!joined) {
+      console.log("[Meeting:Meet] No join button found");
+      await page.screenshot({ path: join(debugDir, `debug-nojoin-${Date.now()}.png`) }).catch(() => {});
+      return "meet-join-failed: no join button found. Check debug screenshot in data/meetings/";
+    }
+
+    // Wait for meeting to load
+    await _wait(8000);
+
+    // Check if waiting for admission
+    const postJoinText = await page.textContent("body").catch(() => "");
+    if (postJoinText.toLowerCase().includes("waiting") || postJoinText.toLowerCase().includes("let you in")) {
+      console.log("[Meeting:Meet] Waiting for host to admit bot");
+
+      // Poll for admission (up to 2 minutes)
+      for (let i = 0; i < 60; i++) {
+        await _wait(2000);
+        const leaveBtn = await page.$('[aria-label*="Leave" i], [data-tooltip*="Leave" i]');
+        const bodyNow = await page.textContent("body").catch(() => "");
+
+        // Check rejection
+        if (rejectionPatterns.some(p => bodyNow.toLowerCase().includes(p))) {
+          console.log("[Meeting:Meet] Bot was rejected by host");
+          return "meet-rejected: Host denied admission.";
+        }
+
+        // Check admitted
+        if (leaveBtn && !bodyNow.toLowerCase().includes("waiting")) {
+          console.log("[Meeting:Meet] Admitted! In meeting now");
+          return "meet-joined";
+        }
+      }
+      return "meet-admission-timeout: Host did not admit bot within 2 minutes.";
+    }
+
+    // Verify in meeting
+    const leaveBtn = await page.$('[aria-label*="Leave" i], [aria-label*="End" i]');
+    if (leaveBtn) {
+      console.log("[Meeting:Meet] Successfully in meeting");
+      return "meet-joined";
+    }
+
+    return "meet-join-attempted";
   },
 
   async teams(session) {
