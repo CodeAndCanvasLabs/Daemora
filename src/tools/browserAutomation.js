@@ -286,11 +286,10 @@ async function ensureBrowser(profileName = "default") {
   }
 
   try {
-    const { chromium } = await import("playwright");
     const userDataDir = join(config.dataDir, "browser", profileName);
     mkdirSync(userDataDir, { recursive: true });
 
-    // Meeting profiles run headed with full WebRTC support (Vexa-matching config)
+    // Meeting profiles: use playwright-extra + stealth plugin to evade bot detection
     const isMeetingProfile = profileName.startsWith("meeting-");
     const meetingArgs = [
       "--no-sandbox",
@@ -305,7 +304,24 @@ async function ensureBrowser(profileName = "default") {
       "--autoplay-policy=no-user-gesture-required",
       "--ignore-certificate-errors",
     ];
-    browser = await chromium.launchPersistentContext(userDataDir, {
+
+    let chromiumLauncher;
+    if (isMeetingProfile) {
+      // Stealth mode — evades Google Meet bot detection
+      const { chromium: stealthChromium } = await import("playwright-extra");
+      const StealthPlugin = (await import("puppeteer-extra-plugin-stealth")).default;
+      const stealth = StealthPlugin();
+      stealth.enabledEvasions.delete("iframe.contentWindow");
+      stealth.enabledEvasions.delete("media.codecs");
+      stealthChromium.use(stealth);
+      chromiumLauncher = stealthChromium;
+      console.log("[browser] Stealth plugin enabled for meeting profile");
+    } else {
+      const { chromium } = await import("playwright");
+      chromiumLauncher = chromium;
+    }
+
+    browser = await chromiumLauncher.launchPersistentContext(userDataDir, {
       headless: !isMeetingProfile,
       viewport: { width: 1280, height: 720 },
       acceptDownloads: true,

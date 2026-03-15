@@ -89,6 +89,8 @@
     "ollama-ai-provider": "^1.2.0",
     "openai": "^6.25.0",
     "playwright": "^1.58.2",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "twilio": "^5.12.2",
     "uuid": "^13.0.0",
     "zod": "^3.25.76"
