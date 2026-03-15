@@ -123,7 +123,7 @@ const toolSchemas = {
   },
   browserAction: {
     schema: z.object({
-      action: str("navigate|snapshot|click|fill|type|hover|selectOption|pressKey|scroll|drag|getText|getContent|screenshot|pdf|evaluate|getLinks|console|waitFor|waitForNavigation|reload|goBack|goForward|newTab|switchTab|listTabs|closeTab|getCookies|setCookie|clearCookies|getStorage|setStorage|clearStorage|upload|download|resize|highlight|handleDialog|newSession|status|close"),
+      action: str("navigate|snapshot|snapshotFrame|listFrames|click|fill|type|hover|selectOption|pressKey|scroll|drag|getText|getContent|screenshot|pdf|evaluate|getLinks|console|pageErrors|networkRequests|captureResponses|getCapturedResponses|waitFor|waitForNavigation|reload|goBack|goForward|newTab|switchTab|listTabs|closeTab|getCookies|setCookie|clearCookies|getStorage|setStorage|clearStorage|upload|download|resize|highlight|configureDialog|handleDialog|getLastDialog|batch|listDownloads|saveDownload|interceptNetwork|clearInterceptions|listProfiles|recoverStuck|forceDisconnect|traceStart|traceStop|newSession|status|close"),
       param1: optStr("Primary param (url, ref, selector, path, key, direction, condition, json, WxH, profile)"),
       param2: optStr("Secondary param (value, amount, timeout, text, target, full, filter, limit, targetId, local|session)"),
     }),

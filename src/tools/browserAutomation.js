@@ -5,16 +5,24 @@
  * - Accessibility snapshots (ARIA tree with numeric refs for agent navigation)
  * - Multi-tab with targetId tracking
  * - Session persistence (cookies, localStorage, sessionStorage)
- * - Console/error capture
+ * - Console/error/network request capture (circular buffers)
  * - File upload/download handling
  * - Drag & drop, viewport resize
  * - Advanced waits (selector, text, URL, JS predicate, load state)
  * - PDF generation, element highlight
  * - Localhost allowed, private ranges blocked
+ * - Frame-scoped snapshots (iframe interaction)
+ * - Network request tracking + response body capture
+ * - Cross-request ref stability (per-target caching)
+ * - Screenshot normalization (auto-resize/quality)
+ * - Force disconnect recovery (CDP Runtime.terminateExecution)
+ * - Trace recording (Playwright trace)
+ * - Nested batch actions with depth limits
+ * - AI-friendly error messages
  */
 
 import { join, basename } from "path";
-import { mkdirSync, existsSync, readdirSync } from "fs";
+import { mkdirSync, existsSync, readdirSync, writeFileSync, renameSync } from "fs";
 import { config } from "../config/default.js";
 import filesystemGuard from "../safety/FilesystemGuard.js";
 import { getTenantTmpDir } from "./_paths.js";
@@ -28,13 +36,43 @@ let targetCounter = 0;
 let inactivityTimer = null;
 const INACTIVITY_TIMEOUT = 5 * 60 * 1000;
 
-// Console log buffer — per page, max 100 entries
-const consoleLogs = new Map();  // targetId → [{type, text, timestamp}]
-const MAX_CONSOLE_LOGS = 100;
+// ── Circular buffer limits ──────────────────────────────────────────────────
+const MAX_CONSOLE_LOGS = 500;
+const MAX_PAGE_ERRORS = 200;
+const MAX_NETWORK_REQUESTS = 500;
 
-// Snapshot ref cache — maps ref numbers to element handles
-let snapshotRefs = new Map();   // "e1" → { selector, role, name }
-let snapshotCounter = 0;
+// ── Per-page state (circular buffers) ───────────────────────────────────────
+const pageStates = new Map(); // targetId → { consoleLogs, pageErrors, networkRequests, nextRequestId }
+
+function ensurePageState(targetId) {
+  if (!pageStates.has(targetId)) {
+    pageStates.set(targetId, {
+      consoleLogs: [],
+      pageErrors: [],
+      networkRequests: [],
+      nextRequestId: 0,
+      requestMap: new WeakMap(), // Request → id
+    });
+  }
+  return pageStates.get(targetId);
+}
+
+// ── Cross-request ref stability (per-target cache) ─────────────────────────
+const MAX_REF_CACHE = 50;
+const refCacheByTarget = new Map(); // targetId → { refs: Map, counter, frameSelector }
+let activeRefTarget = null;         // which targetId the current refs belong to
+
+function getOrCreateRefCache(targetId) {
+  if (!refCacheByTarget.has(targetId)) {
+    // LRU eviction
+    if (refCacheByTarget.size >= MAX_REF_CACHE) {
+      const oldest = refCacheByTarget.keys().next().value;
+      refCacheByTarget.delete(oldest);
+    }
+    refCacheByTarget.set(targetId, { refs: new Map(), counter: 0, frameSelector: null });
+  }
+  return refCacheByTarget.get(targetId);
+}
 
 // Download tracking — persistent across actions
 const downloads = new Map();    // downloadId → { id, filename, url, path, status, timestamp }
@@ -48,8 +86,15 @@ const pendingDialogs = [];      // queue for manual mode
 // Network interception routes
 const activeRoutes = new Map(); // pattern → "block" | "modify"
 
+// Response body capture listeners
+const responseCaptureListeners = new Map(); // id → { pattern, resolve, reject, timer, results }
+let captureCounter = 0;
+
 // Current profile name (for status reporting)
 let currentProfileName = "default";
+
+// Trace state
+let traceActive = false;
 
 // ── Navigation guard ─────────────────────────────────────────────────────────
 const NAV_BLOCKLIST = [
@@ -62,6 +107,55 @@ const NAV_BLOCKLIST = [
 
 function isBlockedUrl(url) {
   return NAV_BLOCKLIST.some((p) => p.test(url));
+}
+
+// ── AI-friendly error messages ───────────────────────────────────────────────
+function toAIFriendlyError(error) {
+  const msg = error.message || String(error);
+
+  if (msg.includes("strict mode violation") || msg.includes("resolved to")) {
+    const match = msg.match(/resolved to (\d+) elements/);
+    const n = match ? match[1] : "multiple";
+    return `Matched ${n} elements — run snapshot to get updated refs and use a more specific one.`;
+  }
+  if (msg.includes("Timeout") && (msg.includes("waiting for selector") || msg.includes("waiting for locator"))) {
+    return `Element not found or not visible within timeout. Run snapshot to see current page state.`;
+  }
+  if ((msg.includes("not visible") || msg.includes("element is not visible")) && !msg.includes("Timeout")) {
+    return `Element exists but is not visible. Try: scroll to it, close overlays, or wait for animation.`;
+  }
+  if (msg.includes("element is outside of the viewport")) {
+    return `Element is off-screen. Use scroll(selector) to bring it into view first.`;
+  }
+  if (msg.includes("intercepts pointer events") || msg.includes("receives pointer events")) {
+    return `Another element is covering this one (overlay, modal, tooltip). Close it or click the covering element first.`;
+  }
+  if (msg.includes("Element is not an <input>") || msg.includes("Element is not a <select>")) {
+    return `Wrong element type for this action. Check the element's role in the snapshot.`;
+  }
+  if (msg.includes("Target closed") || msg.includes("has been closed")) {
+    return `Browser/page was closed. Use navigate to open a new page.`;
+  }
+  if (msg.includes("net::ERR_CONNECTION_REFUSED")) {
+    return `Connection refused — server may not be running at this URL.`;
+  }
+  if (msg.includes("net::ERR_NAME_NOT_RESOLVED")) {
+    return `DNS lookup failed — check the URL spelling.`;
+  }
+  if (msg.includes("net::ERR_CERT")) {
+    return `SSL certificate error. The site may have an invalid or expired certificate.`;
+  }
+  if (msg.includes("net::ERR_TOO_MANY_REDIRECTS")) {
+    return `Too many redirects — the site is in a redirect loop. Check cookies/auth state.`;
+  }
+  if (msg.includes("Evaluate timed out") || msg.includes("terminateExecution")) {
+    return `JavaScript execution timed out — the page script is stuck. Use forceDisconnect to recover.`;
+  }
+  if (msg.includes("Unknown ref")) return msg;
+  if (msg.includes("frame was detached")) {
+    return `The iframe was removed from the page. Take a fresh snapshot.`;
+  }
+  return `Browser error: ${msg}`;
 }
 
 // ── Inactivity timer ─────────────────────────────────────────────────────────
@@ -81,15 +175,18 @@ function cleanup() {
   browserContext = null;
   browserConnected = false;
   pages.clear();
-  consoleLogs.clear();
-  snapshotRefs.clear();
+  pageStates.clear();
+  refCacheByTarget.clear();
   downloads.clear();
   activeRoutes.clear();
+  responseCaptureListeners.clear();
   activeTargetId = null;
+  activeRefTarget = null;
   lastDialog = null;
   dialogMode = "auto";
   pendingDialogs.length = 0;
   currentProfileName = "default";
+  traceActive = false;
 }
 
 // ── Browser lifecycle ────────────────────────────────────────────────────────
@@ -97,17 +194,58 @@ function genTargetId() {
   return `t${++targetCounter}`;
 }
 
-function attachConsoleLogs(targetId, page) {
-  const logs = [];
-  consoleLogs.set(targetId, logs);
+function attachPageListeners(targetId, page) {
+  const state = ensurePageState(targetId);
+
+  // Console messages (circular buffer, max 500)
   page.on("console", (msg) => {
-    logs.push({ type: msg.type(), text: msg.text(), ts: Date.now() });
-    if (logs.length > MAX_CONSOLE_LOGS) logs.shift();
+    state.consoleLogs.push({ type: msg.type(), text: msg.text(), ts: Date.now() });
+    if (state.consoleLogs.length > MAX_CONSOLE_LOGS) state.consoleLogs.shift();
   });
+
+  // Page errors (circular buffer, max 200)
   page.on("pageerror", (err) => {
-    logs.push({ type: "error", text: err.message, ts: Date.now() });
-    if (logs.length > MAX_CONSOLE_LOGS) logs.shift();
+    state.pageErrors.push({ message: err.message, name: err.name, stack: err.stack, ts: Date.now() });
+    if (state.pageErrors.length > MAX_PAGE_ERRORS) state.pageErrors.shift();
   });
+
+  // Network request tracking (circular buffer, max 500)
+  page.on("request", (request) => {
+    const id = `r${++state.nextRequestId}`;
+    state.requestMap.set(request, id);
+    state.networkRequests.push({
+      id, method: request.method(), url: request.url(),
+      resourceType: request.resourceType(), status: null, ok: null, failureText: null, ts: Date.now(),
+    });
+    if (state.networkRequests.length > MAX_NETWORK_REQUESTS) state.networkRequests.shift();
+  });
+
+  page.on("response", (response) => {
+    const id = state.requestMap.get(response.request());
+    if (!id) return;
+    const entry = state.networkRequests.find(r => r.id === id);
+    if (entry) { entry.status = response.status(); entry.ok = response.ok(); }
+
+    // Notify response capture listeners
+    for (const [, listener] of responseCaptureListeners) {
+      if (matchUrlPattern(listener.pattern, response.url())) {
+        response.body().then(buf => {
+          listener.results.push({
+            url: response.url(), status: response.status(),
+            headers: response.headers(), body: buf.toString("utf-8").slice(0, 200_000),
+          });
+        }).catch(() => {});
+      }
+    }
+  });
+
+  page.on("requestfailed", (request) => {
+    const id = state.requestMap.get(request);
+    if (!id) return;
+    const entry = state.networkRequests.find(r => r.id === id);
+    if (entry) { entry.ok = false; entry.failureText = request.failure()?.errorText || "unknown"; }
+  });
+
   // Track downloads automatically
   page.on("download", (download) => {
     const id = `dl-${++downloadCounter}`;
@@ -116,6 +254,7 @@ function attachConsoleLogs(targetId, page) {
       id, filename: safeName, url: download.url(), path: null,
       status: "pending", timestamp: Date.now(), _download: download,
     });
+    // Atomic save — temp path then rename
     download.path().then(p => {
       const dl = downloads.get(id);
       if (dl) { dl.path = p; dl.status = "completed"; }
@@ -123,7 +262,6 @@ function attachConsoleLogs(targetId, page) {
       const dl = downloads.get(id);
       if (dl && dl.status === "pending") dl.status = "needs-save";
     });
-    // Cap at 50 tracked downloads
     if (downloads.size > 50) {
       const oldest = downloads.keys().next().value;
       downloads.delete(oldest);
@@ -141,7 +279,7 @@ async function ensureBrowser(profileName = "default") {
       page.setDefaultTimeout(15000);
       const tid = genTargetId();
       pages.set(tid, page);
-      attachConsoleLogs(tid, page);
+      attachPageListeners(tid, page);
       activeTargetId = tid;
     }
     return pages.get(activeTargetId);
@@ -173,7 +311,6 @@ async function ensureBrowser(profileName = "default") {
       } else if (dialogMode === "manual") {
         pendingDialogs.push(dialog);
       } else {
-        // auto: dismiss by default
         await dialog.dismiss();
       }
     });
@@ -185,7 +322,7 @@ async function ensureBrowser(profileName = "default") {
     page.setDefaultTimeout(15000);
     const tid = genTargetId();
     pages.set(tid, page);
-    attachConsoleLogs(tid, page);
+    attachPageListeners(tid, page);
     activeTargetId = tid;
     return page;
   } catch (error) {
@@ -206,28 +343,74 @@ function currentPage() {
   return p;
 }
 
+// ── URL pattern matching (for response capture) ─────────────────────────────
+function matchUrlPattern(pattern, url) {
+  if (!pattern || !url) return false;
+  if (pattern === "*") return true;
+  // Convert glob pattern to regex
+  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*\*/g, "§§").replace(/\*/g, "[^/]*").replace(/§§/g, ".*");
+  return new RegExp(escaped, "i").test(url);
+}
+
 // ── Accessibility snapshot ───────────────────────────────────────────────────
 // Builds an ARIA tree with numeric refs (e1, e2, ...) for agent navigation.
-// Agent can then use click("e5") instead of CSS selectors.
+// Supports frame-scoped snapshots for iframe interaction.
 
 async function buildAccessibilitySnapshot(page, opts = {}) {
-  const { selector, interactive, compact, maxChars = 50000 } = opts;
+  const { selector, interactive, compact, maxChars = 50000, frameSelector } = opts;
 
-  snapshotRefs.clear();
-  snapshotCounter = 0;
+  // Use per-target ref cache for cross-request stability
+  const cache = getOrCreateRefCache(activeTargetId);
+  cache.refs.clear();
+  cache.counter = 0;
+  cache.frameSelector = frameSelector || null;
+  activeRefTarget = activeTargetId;
+
+  // Determine the scope — main page or a frame
+  let scope = page;
+  if (frameSelector) {
+    scope = page.frameLocator(frameSelector);
+    // For accessibility, we need the frame's page — use frame()
+    const frames = page.frames();
+    const matchedFrame = frames.find(f => {
+      try { return f.url() && f !== page.mainFrame(); } catch { return false; }
+    });
+    if (matchedFrame) {
+      const tree = await matchedFrame.accessibility?.snapshot({ interestingOnly: interactive !== false });
+      if (!tree) return { text: `(empty frame — no accessible content in "${frameSelector}")`, refs: {}, count: 0 };
+      return buildTreeFromNode(tree, cache, { interactive, compact, maxChars });
+    }
+  }
 
   const tree = await page.accessibility.snapshot({ interestingOnly: interactive !== false });
-  if (!tree) return { text: "(empty page — no accessible content)", refs: {} };
+  if (!tree) return { text: "(empty page — no accessible content)", refs: {}, count: 0 };
 
+  return buildTreeFromNode(tree, cache, { interactive, compact, maxChars });
+}
+
+function buildTreeFromNode(tree, cache, opts = {}) {
+  const { interactive, compact, maxChars = 50000 } = opts;
   const lines = [];
   const refs = {};
+  const roleCounts = new Map(); // "role::name" → count (for nth disambiguation)
+
+  // First pass: count duplicates
+  function countDuplicates(node) {
+    if (!node) return;
+    const key = `${node.role}::${node.name || ""}`;
+    roleCounts.set(key, (roleCounts.get(key) || 0) + 1);
+    if (node.children) for (const child of node.children) countDuplicates(child);
+  }
+  countDuplicates(tree);
+
+  // Track seen counts for nth assignment
+  const seenCounts = new Map();
 
   function walk(node, depth = 0) {
     if (!node) return;
     const indent = "  ".repeat(depth);
-    const ref = `e${++snapshotCounter}`;
+    const ref = `e${++cache.counter}`;
 
-    // Skip non-interactive in interactive-only mode
     const isInteractive = ["button", "link", "textbox", "checkbox", "radio", "combobox",
       "menuitem", "tab", "switch", "slider", "spinbutton", "searchbox", "option"].includes(node.role);
 
@@ -242,9 +425,17 @@ async function buildAccessibilitySnapshot(page, opts = {}) {
     if (node.expanded !== undefined) parts.push(node.expanded ? "expanded" : "collapsed");
     if (node.level) parts.push(`level=${node.level}`);
 
-    // Store ref mapping
-    refs[ref] = { role: node.role, name: node.name || "", selector: null };
-    snapshotRefs.set(ref, { role: node.role, name: node.name || "" });
+    // nth disambiguation for duplicate role+name
+    const key = `${node.role}::${node.name || ""}`;
+    const totalCount = roleCounts.get(key) || 0;
+    const seen = (seenCounts.get(key) || 0);
+    seenCounts.set(key, seen + 1);
+    const nth = totalCount > 1 ? seen : 0;
+
+    // Store ref with nth for stable resolution
+    const refInfo = { role: node.role, name: node.name || "", nth };
+    refs[ref] = refInfo;
+    cache.refs.set(ref, refInfo);
 
     if (!compact || isInteractive || depth <= 1) {
       lines.push(parts.join(" "));
@@ -261,74 +452,113 @@ async function buildAccessibilitySnapshot(page, opts = {}) {
     text = text.slice(0, maxChars) + `\n... (truncated at ${maxChars} chars)`;
   }
 
-  return { text, refs, count: snapshotCounter };
+  return { text, refs, count: cache.counter };
 }
 
-// Resolve ref (e5) to a Playwright locator
+// Resolve ref (e5) to a Playwright locator — uses per-target cache
 async function resolveRef(page, ref) {
-  const info = snapshotRefs.get(ref);
-  if (!info) throw new Error(`Unknown ref "${ref}". Take a fresh snapshot first.`);
-
-  // Try role + name first (most reliable)
-  const { role, name } = info;
-  if (name) {
-    const locator = page.getByRole(role, { name, exact: false });
-    const count = await locator.count();
-    if (count === 1) return locator;
-    if (count > 1) return locator.first();
+  // Try current target cache first, then active ref target
+  let cache = refCacheByTarget.get(activeTargetId);
+  if (!cache?.refs.has(ref) && activeRefTarget && activeRefTarget !== activeTargetId) {
+    cache = refCacheByTarget.get(activeRefTarget);
+  }
+  if (!cache || !cache.refs.has(ref)) {
+    throw new Error(`Unknown ref "${ref}". Take a fresh snapshot first.`);
   }
 
-  // Fallback to role only
-  const locator = page.getByRole(role);
+  const info = cache.refs.get(ref);
+  const { role, name, nth } = info;
+
+  // Determine scope — use frame if snapshot was frame-scoped
+  let scope = page;
+  if (cache.frameSelector) {
+    scope = page.frameLocator(cache.frameSelector);
+  }
+
+  if (name) {
+    const locator = scope.getByRole(role, { name, exact: false });
+    const count = await locator.count();
+    if (count === 1) return locator;
+    if (count > 1) {
+      // Use nth for disambiguation
+      if (nth > 0 && nth < count) return locator.nth(nth);
+      return locator.first();
+    }
+  }
+
+  const locator = scope.getByRole(role);
   const count = await locator.count();
   if (count === 1) return locator;
-  if (count > 0) return locator.first();
+  if (count > 0) {
+    if (nth > 0 && nth < count) return locator.nth(nth);
+    return locator.first();
+  }
 
   throw new Error(`Could not locate element for ref "${ref}" (role=${role}, name="${name}"). Page may have changed — take a fresh snapshot.`);
 }
 
-// Check if param is a ref (e.g., "e5") or a CSS selector
 function isRef(param) {
   return /^e\d+$/.test(param);
 }
 
-// Get a locator from either ref or CSS selector
 async function getLocator(page, selectorOrRef) {
   if (isRef(selectorOrRef)) return resolveRef(page, selectorOrRef);
   return page.locator(selectorOrRef);
 }
 
-// ── Error wrapping ───────────────────────────────────────────────────────────
-function wrapError(error) {
-  const msg = error.message;
-  if (msg.includes("Timeout") && msg.includes("waiting for selector")) {
-    return `Element not found within timeout. Check the selector or take a fresh snapshot. Error: ${msg}`;
-  }
-  if (msg.includes("Target closed") || msg.includes("has been closed")) {
-    return `Browser/page was closed. Use navigate to open a new page. Error: ${msg}`;
-  }
-  if (msg.includes("net::ERR_CONNECTION_REFUSED")) {
-    return `Connection refused. Is the server running? Error: ${msg}`;
-  }
-  if (msg.includes("net::ERR_NAME_NOT_RESOLVED")) {
-    return `DNS resolution failed. Check the URL. Error: ${msg}`;
-  }
-  if (msg.includes("strict mode violation")) {
-    return `Multiple elements match. Use a more specific selector or take a snapshot and use refs. Error: ${msg}`;
-  }
-  if (msg.includes("not visible")) {
-    return `Element not visible. Try scrolling to it first: scroll("selector") or scroll("down"). Error: ${msg}`;
-  }
-  if (msg.includes("Unknown ref")) return msg;
-  return `Browser error: ${msg}`;
-}
-
-// ── Safe evaluate with timeout ────────────────────────────────────────────
+// ── Safe evaluate with timeout clamping ─────────────────────────────────────
+// Clamps timeout both at connection level AND injects a browser-side race
 async function safeEvaluate(page, fn, arg, timeout = 10000) {
+  const clampedTimeout = Math.max(500, Math.min(120_000, timeout));
   return Promise.race([
     typeof fn === "string" ? page.evaluate(fn) : page.evaluate(fn, arg),
-    new Promise((_, rej) => setTimeout(() => rej(new Error("Evaluate timed out after " + timeout + "ms")), timeout)),
+    new Promise((_, rej) => setTimeout(() => rej(new Error(`Evaluate timed out after ${clampedTimeout}ms`)), clampedTimeout)),
   ]);
+}
+
+// ── Screenshot normalization ────────────────────────────────────────────────
+// Auto-resize and reduce quality to fit within size limits
+const MAX_SCREENSHOT_BYTES = 2 * 1024 * 1024; // 2MB
+const MAX_SCREENSHOT_SIDE = 2000;
+
+async function normalizedScreenshot(page, opts = {}) {
+  const { path: savePath, fullPage = false, selector } = opts;
+
+  // First attempt — PNG
+  let buffer;
+  if (selector) {
+    const locator = await getLocator(page, selector);
+    buffer = await locator.screenshot({ type: "png" });
+  } else {
+    buffer = await page.screenshot({ type: "png", fullPage });
+  }
+
+  // If within limits, save as PNG
+  if (buffer.length <= MAX_SCREENSHOT_BYTES) {
+    writeFileSync(savePath, buffer);
+    return { path: savePath, size: buffer.length, format: "png" };
+  }
+
+  // Too large — try JPEG with reducing quality
+  const qualities = [85, 75, 65, 50, 35];
+  for (const quality of qualities) {
+    if (selector) {
+      const locator = await getLocator(page, selector);
+      buffer = await locator.screenshot({ type: "jpeg", quality });
+    } else {
+      buffer = await page.screenshot({ type: "jpeg", fullPage, quality });
+    }
+    if (buffer.length <= MAX_SCREENSHOT_BYTES) {
+      const jpegPath = savePath.replace(/\.png$/, ".jpg");
+      writeFileSync(jpegPath, buffer);
+      return { path: jpegPath, size: buffer.length, format: "jpeg", quality };
+    }
+  }
+
+  // Last resort — save whatever we got
+  const jpegPath = savePath.replace(/\.png$/, ".jpg");
+  writeFileSync(jpegPath, buffer);
+  return { path: jpegPath, size: buffer.length, format: "jpeg", quality: 35, warning: "Image exceeds 2MB limit" };
 }
 
 // ── Main action handler ──────────────────────────────────────────────────────
@@ -379,7 +609,34 @@ export async function browserAction(params) {
           }
         }
         const { text, refs, count } = await buildAccessibilitySnapshot(p, opts);
-        return `Accessibility snapshot (${count} elements):\n\n${text}\n\nUse refs like "e1", "e5" in click/fill/type actions instead of CSS selectors.`;
+        const frameNote = opts.frameSelector ? ` (frame: ${opts.frameSelector})` : "";
+        return `Accessibility snapshot (${count} elements)${frameNote}:\n\n${text}\n\nUse refs like "e1", "e5" in click/fill/type actions instead of CSS selectors.`;
+      }
+
+      // ── Frame-scoped snapshot ─────────────────────────────────────────
+      case "snapshotFrame": {
+        if (!param1) return 'Error: frame selector required. e.g., "iframe[name=checkout]" or "iframe:nth-child(2)"';
+        const p = await ensureBrowser();
+        const opts = { frameSelector: param1 };
+        if (param2) {
+          try { Object.assign(opts, JSON.parse(param2)); } catch {}
+        }
+        const { text, count } = await buildAccessibilitySnapshot(p, opts);
+        return `Frame snapshot (${count} elements, frame: ${param1}):\n\n${text}\n\nRefs are scoped to this frame — click/fill will target elements inside it.`;
+      }
+
+      // ── List frames ──────────────────────────────────────────────────────
+      case "listFrames": {
+        const page = currentPage();
+        const frames = page.frames();
+        if (frames.length <= 1) return "No iframes found on this page.";
+        const entries = frames.map((f, i) => {
+          const name = f.name() || "(unnamed)";
+          const url = f.url() || "about:blank";
+          const isMain = f === page.mainFrame() ? " (main)" : "";
+          return `  ${i}: ${name}${isMain} — ${url}`;
+        });
+        return `Frames (${frames.length}):\n${entries.join("\n")}\n\nUse snapshotFrame("iframe[name=...]") to interact with a specific frame.`;
       }
 
       // ── Interaction ─────────────────────────────────────────────────────
@@ -447,7 +704,6 @@ export async function browserAction(params) {
         } else if (direction === "right") {
           await page.evaluate((px) => window.scrollBy(px, 0), amount);
         } else {
-          // Scroll to element (selector or ref)
           if (isRef(direction)) {
             const loc = await resolveRef(page, direction);
             await loc.scrollIntoViewIfNeeded();
@@ -491,30 +747,32 @@ export async function browserAction(params) {
       // ── Screenshots & PDF ──────────────────────────────────────────────
       case "screenshot": {
         const p = await ensureBrowser();
-        const opts = { fullPage: false };
         let path = join(getTenantTmpDir("daemora-browser"), `screenshot-${Date.now()}.png`);
+        let isElement = false;
+        let elementSelector = null;
 
         if (param1 && param1.startsWith("/")) {
           path = param1;
-        } else if (param1) {
-          // param1 might be a selector/ref for element screenshot
+        } else if (param1 && (isRef(param1) || !param1.includes("/"))) {
+          // Could be a selector/ref for element screenshot
           try {
-            const locator = await getLocator(p, param1);
+            await getLocator(p, param1); // verify it exists
+            elementSelector = param1;
+            isElement = true;
             path = param2 || path;
-            const sc = filesystemGuard.checkWrite(path);
-            if (!sc.allowed) return `Error: ${sc.reason}`;
-            await locator.screenshot({ path });
-            return `Element screenshot saved: ${path}`;
           } catch {
-            // Not a valid selector, treat as path
             path = param1;
           }
         }
-        const sc2 = filesystemGuard.checkWrite(path);
-        if (!sc2.allowed) return `Error: ${sc2.reason}`;
-        if (param2 === "full") opts.fullPage = true;
-        await p.screenshot({ path, ...opts });
-        return `Screenshot saved: ${path}`;
+
+        const sc = filesystemGuard.checkWrite(path);
+        if (!sc.allowed) return `Error: ${sc.reason}`;
+
+        const fullPage = param2 === "full";
+        const result = await normalizedScreenshot(p, { path, fullPage, selector: isElement ? elementSelector : null });
+        const sizeKB = Math.round(result.size / 1024);
+        const note = result.warning ? ` (warning: ${result.warning})` : "";
+        return `Screenshot saved: ${result.path} (${result.format}, ${sizeKB}KB)${note}`;
       }
 
       case "pdf": {
@@ -528,7 +786,8 @@ export async function browserAction(params) {
       // ── JavaScript evaluation ───────────────────────────────────────────
       case "evaluate": {
         if (!param1) return "Error: JavaScript expression required.";
-        const result = await currentPage().evaluate(param1);
+        const timeout = param2 ? parseInt(param2) : 10000;
+        const result = await safeEvaluate(currentPage(), param1, null, timeout);
         return JSON.stringify(result, null, 2);
       }
 
@@ -541,10 +800,11 @@ export async function browserAction(params) {
         return links.map((l) => `${l.text} → ${l.href}`).join("\n") || "(no links)";
       }
 
-      // ── Console & errors ────────────────────────────────────────────────
+      // ── Console, errors & network ──────────────────────────────────────
       case "console": {
-        const logs = consoleLogs.get(activeTargetId) || [];
-        const filter = param1 || "all"; // "all", "error", "warn", "log", "info"
+        const state = pageStates.get(activeTargetId);
+        const logs = state?.consoleLogs || [];
+        const filter = param1 || "all";
         const limit = parseInt(param2 || "30");
         const filtered = filter === "all" ? logs : logs.filter(l => l.type === filter);
         if (filtered.length === 0) return `No${filter !== "all" ? ` ${filter}` : ""} console messages.`;
@@ -554,27 +814,95 @@ export async function browserAction(params) {
         }).join("\n");
       }
 
+      case "pageErrors": {
+        const state = pageStates.get(activeTargetId);
+        const errors = state?.pageErrors || [];
+        const limit = parseInt(param1 || "20");
+        const clear = param2 === "clear";
+        if (errors.length === 0) return "No page errors.";
+        const result = errors.slice(-limit).map(e => {
+          const time = new Date(e.ts).toISOString().slice(11, 19);
+          return `[${time}] ${e.name}: ${e.message}`;
+        }).join("\n");
+        if (clear) errors.length = 0;
+        return result;
+      }
+
+      case "networkRequests": {
+        const state = pageStates.get(activeTargetId);
+        const requests = state?.networkRequests || [];
+        const filter = param1 || null; // URL substring filter
+        const limit = parseInt(param2 || "30");
+        let filtered = filter ? requests.filter(r => r.url.includes(filter)) : requests;
+        if (filtered.length === 0) return `No${filter ? ` matching "${filter}"` : ""} network requests.`;
+        return filtered.slice(-limit).map(r => {
+          const time = new Date(r.ts).toISOString().slice(11, 19);
+          const status = r.status !== null ? ` → ${r.status}` : r.failureText ? ` FAILED: ${r.failureText}` : " (pending)";
+          return `[${time}] ${r.id} ${r.method} ${r.url.slice(0, 120)}${status}`;
+        }).join("\n");
+      }
+
+      // ── Response body capture ──────────────────────────────────────────
+      case "captureResponses": {
+        if (!param1) return 'Error: URL pattern required. e.g., "**/api/**" or "*.json"';
+        const timeout = parseInt(param2 || "30000");
+        const id = `cap-${++captureCounter}`;
+        const listener = {
+          pattern: param1, results: [],
+          resolve: null, reject: null, timer: null,
+        };
+        responseCaptureListeners.set(id, listener);
+
+        return new Promise((resolve) => {
+          listener.timer = setTimeout(() => {
+            responseCaptureListeners.delete(id);
+            if (listener.results.length === 0) {
+              resolve(`No responses matched "${param1}" within ${timeout / 1000}s.`);
+            } else {
+              resolve(`Captured ${listener.results.length} response(s) matching "${param1}":\n${JSON.stringify(listener.results, null, 2)}`);
+            }
+          }, timeout);
+
+          listener.resolve = resolve;
+        });
+      }
+
+      case "getCapturedResponses": {
+        if (!param1) {
+          // Return all active/completed captures
+          const all = [];
+          for (const [id, listener] of responseCaptureListeners) {
+            all.push({ id, pattern: listener.pattern, captured: listener.results.length });
+          }
+          if (all.length === 0) return "No active response captures. Use captureResponses(pattern) first.";
+          return JSON.stringify(all, null, 2);
+        }
+        const listener = responseCaptureListeners.get(param1);
+        if (!listener) return `No capture with id "${param1}".`;
+        // Stop capture and return results
+        if (listener.timer) clearTimeout(listener.timer);
+        responseCaptureListeners.delete(param1);
+        if (listener.results.length === 0) return `No responses captured for "${listener.pattern}" yet.`;
+        return JSON.stringify(listener.results, null, 2);
+      }
+
       // ── Waiting ─────────────────────────────────────────────────────────
       case "waitFor": {
         if (!param1) return "Error: condition required.";
         const page = currentPage();
         const timeout = parseInt(param2 || "10000");
 
-        // Detect wait type
         if (param1.startsWith("url:")) {
-          // Wait for URL to contain/match
           const urlPattern = param1.slice(4);
           await page.waitForURL(`**${urlPattern}**`, { timeout });
           return `URL matched: ${page.url()}`;
         }
         if (param1.startsWith("text:")) {
-          // Wait for text to appear on page
           const text = param1.slice(5);
           await page.waitForFunction((t) => document.body.innerText.includes(t), text, { timeout });
           return `Text "${text}" found on page.`;
         }
         if (param1.startsWith("js:")) {
-          // Wait for JS predicate
           const predicate = param1.slice(3);
           await page.waitForFunction(predicate, null, { timeout });
           return `JS predicate satisfied.`;
@@ -583,7 +911,6 @@ export async function browserAction(params) {
           await page.waitForLoadState(param1 === "load" ? "load" : "networkidle", { timeout });
           return `Page reached ${param1} state.`;
         }
-        // Default: CSS selector
         await page.waitForSelector(param1, { timeout });
         return `Element "${param1}" found.`;
       }
@@ -602,7 +929,7 @@ export async function browserAction(params) {
         page.setDefaultTimeout(15000);
         const tid = genTargetId();
         pages.set(tid, page);
-        attachConsoleLogs(tid, page);
+        attachPageListeners(tid, page);
         activeTargetId = tid;
         if (param1) {
           await page.goto(param1, { waitUntil: "domcontentloaded" });
@@ -637,7 +964,8 @@ export async function browserAction(params) {
         if (!pages.has(tid)) return `Error: Tab "${tid}" not found.`;
         await pages.get(tid).close();
         pages.delete(tid);
-        consoleLogs.delete(tid);
+        pageStates.delete(tid);
+        refCacheByTarget.delete(tid);
         if (activeTargetId === tid) {
           activeTargetId = pages.size > 0 ? pages.keys().next().value : null;
         }
@@ -668,7 +996,6 @@ export async function browserAction(params) {
 
       // ── Local/Session Storage ───────────────────────────────────────────
       case "getStorage": {
-        // param1: "local" or "session", param2: key (optional)
         const kind = param1 || "local";
         const key = param2;
         const storageObj = kind === "session" ? "sessionStorage" : "localStorage";
@@ -683,7 +1010,6 @@ export async function browserAction(params) {
       }
 
       case "setStorage": {
-        // param1: JSON {"kind":"local","key":"x","value":"y"}
         if (!param1) return 'Error: JSON required {"kind":"local|session","key":"...","value":"..."}';
         const { kind = "local", key, value } = JSON.parse(param1);
         const storageObj = kind === "session" ? "sessionStorage" : "localStorage";
@@ -708,7 +1034,6 @@ export async function browserAction(params) {
 
       // ── Download ────────────────────────────────────────────────────────
       case "download": {
-        // Click something that triggers download, wait for it
         if (!param1) return "Error: selector/ref to click for download required.";
         const page = currentPage();
         const downloadDir = join(config.dataDir, "browser", "downloads");
@@ -717,12 +1042,14 @@ export async function browserAction(params) {
           page.waitForEvent("download", { timeout: 30000 }),
           (await getLocator(page, param1)).click(),
         ]);
-        // Sanitize filename — strip path traversal, use only basename
         const safeName = basename(download.suggestedFilename()).replace(/[^a-zA-Z0-9._-]/g, "_") || "download";
         const dlPath = join(downloadDir, safeName);
         const dc = filesystemGuard.checkWrite(dlPath);
         if (!dc.allowed) return `Error: ${dc.reason}`;
-        await download.saveAs(dlPath);
+        // Atomic write — save to temp, then rename
+        const tmpPath = dlPath + `.tmp-${Date.now()}`;
+        await download.saveAs(tmpPath);
+        try { renameSync(tmpPath, dlPath); } catch { /* rename failed, tmp file remains */ }
         return `Downloaded: ${dlPath} (${safeName})`;
       }
 
@@ -765,7 +1092,7 @@ export async function browserAction(params) {
         return `Highlighted "${param1}" for 3 seconds.`;
       }
 
-      // ── Dialog handling (overhauled) ──────────────────────────────────────
+      // ── Dialog handling ──────────────────────────────────────────────────
       case "configureDialog": {
         const mode = param1 || "auto";
         if (!["auto", "accept", "dismiss", "manual"].includes(mode)) {
@@ -785,7 +1112,6 @@ export async function browserAction(params) {
           else await dialog.dismiss();
           return `Dialog ${dialogAction}ed${text ? ` with: "${text}"` : ""}. ${pendingDialogs.length} pending.`;
         }
-        // Legacy one-shot mode
         const dialogAction = param1 || "accept";
         const text = param2 || "";
         currentPage().once("dialog", async (dialog) => {
@@ -811,7 +1137,7 @@ export async function browserAction(params) {
         return `New session started (profile: ${profile}). Auth/cookies from this profile are preserved.`;
       }
 
-      // ── Batch actions ─────────────────────────────────────────────────────
+      // ── Batch actions (nested, depth-limited) ───────────────────────────
       case "batch": {
         if (!param1) return "Error: JSON array of [action, param1?, param2?] required.";
         let actions;
@@ -819,16 +1145,31 @@ export async function browserAction(params) {
         if (!Array.isArray(actions)) return "Error: param1 must be a JSON array.";
         if (actions.length > 100) return "Error: max 100 actions per batch.";
         if (actions.length === 0) return "Error: batch cannot be empty.";
+
+        // Depth tracking via internal param
+        const depth = params?._batchDepth || 0;
+        if (depth >= 5) return "Error: max batch nesting depth (5) exceeded.";
+
         const results = [];
         for (const entry of actions) {
           const [act, p1, p2] = Array.isArray(entry) ? entry : [entry.action, entry.param1, entry.param2];
-          if (act === "batch") { results.push({ action: act, ok: false, error: "Nested batches not allowed" }); break; }
+          if (act === "batch") {
+            // Allow nested batches up to depth limit
+            try {
+              const r = await browserAction({ action: "batch", param1: p1, param2: p2, _batchDepth: depth + 1 });
+              results.push({ action: act, ok: true, result: r });
+            } catch (e) {
+              results.push({ action: act, ok: false, error: e.message });
+              break;
+            }
+            continue;
+          }
           try {
             const r = await browserAction({ action: act, param1: p1, param2: p2 });
             results.push({ action: act, ok: true, result: r });
           } catch (e) {
             results.push({ action: act, ok: false, error: e.message });
-            break; // stop on error
+            break;
           }
         }
         return JSON.stringify({ total: actions.length, executed: results.length, results }, null, 2);
@@ -868,7 +1209,10 @@ export async function browserAction(params) {
         const sc = filesystemGuard.checkWrite(savePath);
         if (!sc.allowed) return `Error: ${sc.reason}`;
         mkdirSync(join(savePath, ".."), { recursive: true });
-        await dl._download.saveAs(savePath);
+        // Atomic write
+        const tmpPath = savePath + `.tmp-${Date.now()}`;
+        await dl._download.saveAs(tmpPath);
+        try { renameSync(tmpPath, savePath); } catch { /* keep tmp */ }
         dl.path = savePath;
         dl.status = "saved";
         return `Download saved: ${savePath}`;
@@ -925,7 +1269,7 @@ export async function browserAction(params) {
         return `Browser profiles: ${dirs.join(", ")}${currentProfileName ? ` (active: ${currentProfileName})` : ""}`;
       }
 
-      // ── Error recovery ────────────────────────────────────────────────
+      // ── Force disconnect recovery ──────────────────────────────────────
       case "recoverStuck": {
         const page = currentPage();
         try {
@@ -938,17 +1282,85 @@ export async function browserAction(params) {
         }
       }
 
+      case "forceDisconnect": {
+        // Nuclear option — kill the CDP connection and reconnect fresh
+        const page = currentPage();
+        try {
+          // Try to terminate stuck JS first
+          const client = await page.context().newCDPSession(page);
+          await Promise.race([
+            client.send("Runtime.terminateExecution"),
+            new Promise((_, rej) => setTimeout(() => rej(new Error("CDP command timed out")), 3000)),
+          ]);
+          await client.detach().catch(() => {});
+        } catch {
+          // CDP itself is stuck — close and reconnect
+        }
+        // Close current page and open fresh one
+        const url = page.url();
+        try { await page.close({ runBeforeUnload: false }); } catch { /* may hang */ }
+        pages.delete(activeTargetId);
+        pageStates.delete(activeTargetId);
+        refCacheByTarget.delete(activeTargetId);
+        // Open fresh page
+        const fresh = await browserContext.newPage();
+        fresh.setDefaultTimeout(15000);
+        const tid = genTargetId();
+        pages.set(tid, fresh);
+        attachPageListeners(tid, fresh);
+        activeTargetId = tid;
+        // Try to navigate back
+        if (url && url !== "about:blank") {
+          try { await fresh.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 }); } catch { /* best effort */ }
+        }
+        return `Force disconnected and reconnected. New tab: ${tid}. Page reloaded at: ${url}`;
+      }
+
+      // ── Trace recording ────────────────────────────────────────────────
+      case "traceStart": {
+        if (!browserContext) return "No browser open. Navigate first.";
+        if (traceActive) return "Trace already running. Stop it first with traceStop.";
+        const opts = { screenshots: true, snapshots: true, sources: false };
+        if (param1) {
+          try { Object.assign(opts, JSON.parse(param1)); } catch {}
+        }
+        await browserContext.tracing.start(opts);
+        traceActive = true;
+        return `Trace started (screenshots: ${opts.screenshots}, snapshots: ${opts.snapshots}). Use traceStop(path) to save.`;
+      }
+
+      case "traceStop": {
+        if (!browserContext || !traceActive) return "No trace is running.";
+        const path = param1 || join(getTenantTmpDir("daemora-browser"), `trace-${Date.now()}.zip`);
+        const sc = filesystemGuard.checkWrite(path);
+        if (!sc.allowed) return `Error: ${sc.reason}`;
+        // Atomic write
+        const tmpPath = path + `.tmp-${Date.now()}`;
+        await browserContext.tracing.stop({ path: tmpPath });
+        try { renameSync(tmpPath, path); } catch { /* keep tmp */ }
+        traceActive = false;
+        return `Trace saved: ${path}\nOpen with: npx playwright show-trace ${path}`;
+      }
+
       case "status": {
         const connected = browser && browserConnected;
         const tabCount = pages.size;
         if (!connected) return "Browser: not running";
         const routeCount = activeRoutes.size > 0 ? ` | Routes: ${activeRoutes.size}` : "";
         const dlCount = downloads.size > 0 ? ` | Downloads: ${downloads.size}` : "";
-        return `Browser: running | Profile: ${currentProfileName} | Tabs: ${tabCount} | Active: ${activeTargetId} | URL: ${currentPage().url()}${routeCount}${dlCount}`;
+        const traceNote = traceActive ? " | Trace: recording" : "";
+        const state = pageStates.get(activeTargetId);
+        const netCount = state ? ` | Requests: ${state.networkRequests.length}` : "";
+        const errCount = state?.pageErrors.length > 0 ? ` | Errors: ${state.pageErrors.length}` : "";
+        return `Browser: running | Profile: ${currentProfileName} | Tabs: ${tabCount} | Active: ${activeTargetId} | URL: ${currentPage().url()}${netCount}${errCount}${routeCount}${dlCount}${traceNote}`;
       }
 
       case "close": {
         if (inactivityTimer) clearTimeout(inactivityTimer);
+        if (traceActive && browserContext) {
+          await browserContext.tracing.stop({ path: join(getTenantTmpDir("daemora-browser"), `trace-final-${Date.now()}.zip`) }).catch(() => {});
+          traceActive = false;
+        }
         if (browser) {
           await browser.close();
           cleanup();
@@ -957,22 +1369,26 @@ export async function browserAction(params) {
       }
 
       default:
-        return `Unknown action: "${action}". Available: navigate, snapshot, ariaSnapshot, click, fill, type, hover, selectOption, pressKey, scroll, drag, getText, getContent, screenshot, pdf, evaluate, getLinks, console, waitFor, waitForNavigation, reload, goBack, goForward, newTab, switchTab, listTabs, closeTab, getCookies, setCookie, clearCookies, getStorage, setStorage, clearStorage, upload, download, resize, highlight, configureDialog, handleDialog, getLastDialog, batch, listDownloads, saveDownload, interceptNetwork, clearInterceptions, listProfiles, recoverStuck, newSession, status, close`;
+        return `Unknown action: "${action}". Available: navigate, snapshot, snapshotFrame, listFrames, ariaSnapshot, click, fill, type, hover, selectOption, pressKey, scroll, drag, getText, getContent, screenshot, pdf, evaluate, getLinks, console, pageErrors, networkRequests, captureResponses, getCapturedResponses, waitFor, waitForNavigation, reload, goBack, goForward, newTab, switchTab, listTabs, closeTab, getCookies, setCookie, clearCookies, getStorage, setStorage, clearStorage, upload, download, resize, highlight, configureDialog, handleDialog, getLastDialog, batch, listDownloads, saveDownload, interceptNetwork, clearInterceptions, listProfiles, recoverStuck, forceDisconnect, traceStart, traceStop, newSession, status, close`;
     }
   } catch (error) {
     console.log(`      [browser] Error: ${error.message}`);
-    return wrapError(error);
+    return toAIFriendlyError(error);
   }
 }
 
 export const browserActionDescription =
   'browserAction(action, param1?, param2?) - Heavy Playwright browser automation. ' +
-  'Actions: navigate(url), snapshot(opts?), ariaSnapshot(selector?), click(selector|ref,opts?), fill(selector|ref,value), type(selector|ref,text), hover(selector|ref), selectOption(selector|ref,value), pressKey(key), scroll(direction|selector|ref,amount?), drag(source,target), getText(selector|ref?), getContent(selector?), screenshot(path|selector?,full?), pdf(path?), evaluate(js), getLinks, console(filter?,limit?), waitFor(condition,timeout?), waitForNavigation(timeout?), reload, goBack, goForward, ' +
+  'Actions: navigate(url), snapshot(opts?), snapshotFrame(frameSelector,opts?) — snapshot an iframe, listFrames — list all iframes, ariaSnapshot(selector?), click(selector|ref,opts?), fill(selector|ref,value), type(selector|ref,text), hover(selector|ref), selectOption(selector|ref,value), pressKey(key), scroll(direction|selector|ref,amount?), drag(source,target), getText(selector|ref?), getContent(selector?), screenshot(path|selector?,full?) — auto-normalized to fit 2MB, pdf(path?), evaluate(js,timeout?), getLinks, ' +
+  'console(filter?,limit?) — 500-entry buffer, pageErrors(limit?,clear?) — page JS errors, networkRequests(urlFilter?,limit?) — per-request tracking with status codes, captureResponses(urlPattern,timeout?) — capture response bodies matching pattern, getCapturedResponses(captureId?), ' +
+  'waitFor(condition,timeout?), waitForNavigation(timeout?), reload, goBack, goForward, ' +
   'newTab(url?), switchTab(targetId), listTabs, closeTab(targetId?), getCookies(domain?), setCookie(json), clearCookies, getStorage(local|session,key?), setStorage(json), clearStorage(local|session), upload(selector|ref,filePath), download(selector|ref), resize(WxH), highlight(selector|ref), ' +
-  'batch(actionsJson) — execute up to 100 actions sequentially in one call. param1: JSON array of [action,param1?,param2?]. Massive token saver. ' +
+  'batch(actionsJson) — execute up to 100 actions sequentially, supports nested batches (max depth 5). ' +
   'configureDialog(auto|accept|dismiss|manual), handleDialog(accept|dismiss,text?), getLastDialog, ' +
   'listDownloads, saveDownload(downloadId,savePath?), ' +
-  'interceptNetwork(configJson) — block/modify network requests. e.g. {"block":["*.ads.*"],"modify":[{"match":"*api*","headers":{"x-test":"1"}}]}, clearInterceptions, ' +
-  'listProfiles, recoverStuck — kill stuck JS execution via CDP, ' +
+  'interceptNetwork(configJson) — block/modify network requests, clearInterceptions, ' +
+  'listProfiles, recoverStuck — kill stuck JS via CDP, forceDisconnect — nuclear recovery: kill CDP + reconnect fresh page, ' +
+  'traceStart(opts?) — start Playwright trace recording, traceStop(path?) — stop and save trace zip, ' +
   'newSession(profile?), status, close. ' +
-  'Supports ref-based interaction: take snapshot first, then use refs (e1, e5) instead of CSS selectors.';
+  'Supports ref-based interaction: take snapshot first, then use refs (e1, e5) instead of CSS selectors. Refs are stable across actions (per-target cached). ' +
+  'Frame support: use snapshotFrame to interact with iframes — refs will target elements inside the frame.';
