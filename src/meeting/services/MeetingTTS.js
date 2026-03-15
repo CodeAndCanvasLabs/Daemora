@@ -23,20 +23,111 @@ let pulseAudioAvailable = null; // null = untested
 let pulseAudioSetup = false;
 
 /**
- * Check if PulseAudio is installed and running.
+ * Auto-install and start PulseAudio if not present.
+ * Works on macOS (Homebrew), Linux (apt/dnf/pacman), Docker.
+ * Called automatically on first meeting join — user doesn't need to do anything.
+ */
+function autoInstallPulseAudio() {
+  const platform = process.platform;
+
+  try {
+    // Check if already installed
+    execSync("paplay --version", { stdio: "ignore", timeout: 3000 });
+    return true;
+  } catch {}
+
+  console.log("[MeetingTTS] PulseAudio not found — auto-installing...");
+
+  try {
+    if (platform === "darwin") {
+      // macOS — Homebrew
+      execSync("which brew", { stdio: "ignore", timeout: 3000 });
+      execSync("brew install pulseaudio 2>/dev/null || true", { stdio: "inherit", timeout: 120000 });
+    } else if (platform === "linux") {
+      // Linux — try package managers in order
+      try {
+        execSync("apt-get install -y pulseaudio pulseaudio-utils 2>/dev/null", { stdio: "ignore", timeout: 120000 });
+      } catch {
+        try {
+          execSync("dnf install -y pulseaudio pulseaudio-utils 2>/dev/null", { stdio: "ignore", timeout: 120000 });
+        } catch {
+          try {
+            execSync("pacman -S --noconfirm pulseaudio 2>/dev/null", { stdio: "ignore", timeout: 120000 });
+          } catch {
+            console.log("[MeetingTTS] Could not auto-install PulseAudio on this Linux distro");
+            return false;
+          }
+        }
+      }
+    } else {
+      console.log(`[MeetingTTS] Auto-install not supported on ${platform}`);
+      return false;
+    }
+
+    // Verify install succeeded
+    execSync("paplay --version", { stdio: "ignore", timeout: 3000 });
+    console.log("[MeetingTTS] PulseAudio installed successfully");
+    return true;
+  } catch (e) {
+    console.log(`[MeetingTTS] Auto-install failed: ${e.message}`);
+    return false;
+  }
+}
+
+/**
+ * Ensure PulseAudio daemon is running.
+ */
+function ensurePulseAudioRunning() {
+  try {
+    // Check if already running
+    execSync("pactl info", { stdio: "ignore", timeout: 3000 });
+    return true;
+  } catch {}
+
+  // Start PulseAudio daemon
+  try {
+    execSync("pulseaudio --start --exit-idle-time=-1 2>/dev/null || pulseaudio -D 2>/dev/null || true", {
+      stdio: "ignore", timeout: 10000,
+    });
+    // Wait for it to be ready
+    for (let i = 0; i < 10; i++) {
+      try {
+        execSync("pactl info", { stdio: "ignore", timeout: 2000 });
+        console.log("[MeetingTTS] PulseAudio daemon started");
+        return true;
+      } catch {}
+      execSync("sleep 0.5", { stdio: "ignore" });
+    }
+  } catch {}
+
+  console.log("[MeetingTTS] Could not start PulseAudio daemon");
+  return false;
+}
+
+/**
+ * Check if PulseAudio is available — auto-install + auto-start if needed.
  */
 function checkPulseAudio() {
   if (pulseAudioAvailable !== null) return pulseAudioAvailable;
-  try {
-    execSync("paplay --version", { stdio: "ignore", timeout: 3000 });
-    pulseAudioAvailable = true;
-    console.log("[MeetingTTS] PulseAudio detected — participants WILL hear the bot");
-  } catch {
+
+  // Try auto-install if not present
+  const installed = autoInstallPulseAudio();
+  if (!installed) {
     pulseAudioAvailable = false;
-    console.log("[MeetingTTS] PulseAudio not found — falling back to Web Audio injection (participants may not hear)");
-    console.log("[MeetingTTS] To enable speaking: brew install pulseaudio (macOS) or apt install pulseaudio (Linux)");
+    console.log("[MeetingTTS] No PulseAudio — Web Audio fallback (participants may not hear bot)");
+    return false;
   }
-  return pulseAudioAvailable;
+
+  // Ensure daemon is running
+  const running = ensurePulseAudioRunning();
+  if (!running) {
+    pulseAudioAvailable = false;
+    return false;
+  }
+
+  pulseAudioAvailable = true;
+  console.log("[MeetingTTS] PulseAudio ready — participants WILL hear the bot speak");
+  return true;
 }
 
 /**
