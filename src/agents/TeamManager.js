@@ -116,12 +116,15 @@ export function createTeam(name, leadTaskId = null) {
     leadTaskId,
     mailbox: new Mailbox(),
     taskList: new TeamTaskList(),
+    workspace: new Map(),     // shared key-value workspace for cross-agent context
+    eventLog: [],             // [{ts, event, agentId, taskId, data}]
     teammates: new Map(),     // Map<teammateId, {id, profile, instructions, status, steerQueue, promise}>
     createdAt: Date.now(),
     disbanded: false,
     disbandedAt: null,
   };
   teams.set(teamId, team);
+  _logEvent(team, "team:created", null, null, { name });
   eventBus.emitEvent("team:created", { teamId, name, tenantId: team.tenantId });
   console.log(`[TeamManager] Created team "${name}" (${teamId})`);
   return { teamId, name };
@@ -159,6 +162,7 @@ export function addTeammate(teamId, { id, profile, instructions } = {}) {
     lastRestartAt: null,
   };
   team.teammates.set(teammateId, teammate);
+  _logEvent(team, "agent:added", teammateId, null, { profile: profile || "default" });
   eventBus.emitEvent("team:teammate_added", { teamId, teammateId, profile });
   console.log(`[TeamManager] Added teammate "${teammateId}" [${profile || "general"}] to team "${team.name}"`);
   return { teammateId, teamId };
@@ -180,6 +184,7 @@ export function spawnTeammate(teamId, teammateId, { context } = {}) {
 
   teammate.status = "running";
   teammate.spawnedAt = Date.now();
+  _logEvent(team, "agent:spawned", teammateId, null, { profile: teammate.profile || "default" });
   console.log(`[Team:${team.name}] Spawning teammate "${teammateId}" (profile: ${teammate.profile || "default"})`);
 
   const prompt = _buildTeammatePrompt(team, teammate);
@@ -198,11 +203,13 @@ export function spawnTeammate(teamId, teammateId, { context } = {}) {
   ).then((result) => {
     teammate.status = "finished";
     teammate.result = typeof result === "string" ? result : result?.text || "";
+    _logEvent(team, "agent:finished", teammateId, null, { preview: teammate.result.slice(0, 200) });
     console.log(`[TeamManager] Teammate "${teammateId}" finished in team "${team.name}"`);
     eventBus.emitEvent("team:teammate_finished", { teamId, teammateId, resultPreview: teammate.result.slice(0, 200) });
   }).catch((err) => {
     teammate.status = "error";
     teammate.error = err.message;
+    _logEvent(team, "agent:error", teammateId, null, { error: err.message });
     console.log(`[TeamManager] Teammate "${teammateId}" errored in team "${team.name}": ${err.message}`);
     eventBus.emitEvent("team:teammate_error", { teamId, teammateId, error: err.message });
   });
@@ -368,6 +375,99 @@ export function disbandTeam(teamId) {
   eventBus.emitEvent("team:disbanded", { teamId, name: team.name });
   console.log(`[TeamManager] Disbanded team "${team.name}" (${teamId})`);
   return { disbanded: true, teamId, name: team.name };
+}
+
+// ── Team Workspace (shared context for cross-agent collaboration) ────────────
+
+/**
+ * Store a value in the team's shared workspace.
+ * @param {string} teamId
+ * @param {string} key
+ * @param {string} value
+ * @param {string} [author="lead"]
+ */
+export function storeContext(teamId, key, value, author = "lead") {
+  const team = _getTeam(teamId);
+  team.workspace.set(key, { value, author, timestamp: Date.now() });
+  _logEvent(team, "context:stored", null, null, { key, author, preview: value.slice(0, 100) });
+  return { stored: true, key, author };
+}
+
+/**
+ * Read from the team's shared workspace.
+ * @param {string} teamId
+ * @param {string} [key] - Specific key, or null for all entries
+ */
+export function readContext(teamId, key = null) {
+  const team = _getTeam(teamId);
+  if (key) {
+    const entry = team.workspace.get(key);
+    return entry || null;
+  }
+  // Return all entries
+  const entries = {};
+  for (const [k, v] of team.workspace) {
+    entries[k] = v;
+  }
+  return entries;
+}
+
+/**
+ * Search workspace entries by keyword.
+ * @param {string} teamId
+ * @param {string} query
+ */
+export function searchContext(teamId, query) {
+  const team = _getTeam(teamId);
+  const q = query.toLowerCase();
+  const results = [];
+  for (const [key, entry] of team.workspace) {
+    if (key.toLowerCase().includes(q) || entry.value.toLowerCase().includes(q)) {
+      results.push({ key, ...entry });
+    }
+  }
+  return results;
+}
+
+/**
+ * Get workspace summary (keys + authors, no full values).
+ */
+export function workspaceSummary(teamId) {
+  const team = _getTeam(teamId);
+  const entries = [];
+  for (const [key, entry] of team.workspace) {
+    entries.push({ key, author: entry.author, timestamp: entry.timestamp, size: entry.value.length });
+  }
+  return entries;
+}
+
+// ── Event Logging ────────────────────────────────────────────────────────────
+
+function _logEvent(team, event, agentId = null, taskId = null, data = {}) {
+  team.eventLog.push({ ts: Date.now(), event, agentId, taskId, data });
+  // Cap at 500 events
+  if (team.eventLog.length > 500) team.eventLog.shift();
+}
+
+/**
+ * Get event log for a team, with optional filters.
+ * @param {string} teamId
+ * @param {object} [filters]
+ * @param {string} [filters.event] - Filter by event type
+ * @param {string} [filters.agentId] - Filter by agent ID
+ * @param {string} [filters.taskId] - Filter by task ID
+ * @param {number} [filters.limit=50]
+ */
+export function getEventLog(teamId, { event, agentId, taskId, limit = 50 } = {}) {
+  const team = _getTeam(teamId);
+  let log = team.eventLog;
+  if (event) log = log.filter(e => e.event === event);
+  if (agentId) log = log.filter(e => e.agentId === agentId);
+  if (taskId) log = log.filter(e => e.taskId === taskId);
+  return log.slice(-limit).map(e => ({
+    ...e,
+    time: new Date(e.ts).toISOString().slice(11, 19),
+  }));
 }
 
 // ── Direct access to team internals (used by teamTool) ─────────────────────

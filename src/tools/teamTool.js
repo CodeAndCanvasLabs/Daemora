@@ -18,6 +18,11 @@ import {
   disbandTeam,
   getMailbox,
   getTaskList,
+  storeContext,
+  readContext,
+  searchContext,
+  workspaceSummary,
+  getEventLog,
 } from "../agents/TeamManager.js";
 
 export function teamTask(toolParams) {
@@ -65,10 +70,10 @@ export function teamTask(toolParams) {
       // ── Shared task list ────────────────────────────────────────────────────
 
       case "addTask": {
-        const { teamId, title, description, blockedBy } = params;
+        const { teamId, title, description, blockedBy, priority } = params;
         if (!teamId || !title) return "Error: teamId and title are required";
         const taskList = getTaskList(teamId);
-        return JSON.stringify(taskList.add({ title, description, blockedBy }));
+        return JSON.stringify(taskList.add({ title, description, blockedBy, priority }));
       }
 
       case "claim": {
@@ -112,7 +117,15 @@ export function teamTask(toolParams) {
         const taskList = getTaskList(teamId);
         const tasks = taskList.claimable();
         if (tasks.length === 0) return "No claimable tasks (all claimed, blocked, or completed).";
-        return tasks.map(t => `[pending] ${t.id} "${t.title}"`).join("\n");
+        return tasks.map(t => `[${t.priority}] ${t.id} "${t.title}"`).join("\n");
+      }
+
+      case "executionOrder": {
+        const { teamId } = params;
+        if (!teamId) return "Error: teamId is required";
+        const taskList = getTaskList(teamId);
+        const order = taskList.resolveExecutionOrder();
+        return order.map((t, i) => `${i + 1}. [${t.priority}] ${t.id} "${t.title}" ${t.blockedBy?.length > 0 ? `(after: ${t.blockedBy.join(",")})` : ""}`).join("\n");
       }
 
       // ── Messaging ─────────────────────────────────────────────────────────
@@ -167,8 +180,50 @@ export function teamTask(toolParams) {
         return JSON.stringify(disbandTeam(teamId));
       }
 
+      // ── Shared Workspace (cross-agent context) ─────────────────────────────
+
+      case "storeContext": {
+        const { teamId, key, value, author } = params;
+        if (!teamId || !key || !value) return "Error: teamId, key, and value are required";
+        return JSON.stringify(storeContext(teamId, key, value, author));
+      }
+
+      case "readContext": {
+        const { teamId, key } = params;
+        if (!teamId) return "Error: teamId is required";
+        const result = readContext(teamId, key);
+        if (!result) return key ? `No context found for key "${key}".` : "Workspace is empty.";
+        return JSON.stringify(result, null, 2);
+      }
+
+      case "searchContext": {
+        const { teamId, query } = params;
+        if (!teamId || !query) return "Error: teamId and query are required";
+        const results = searchContext(teamId, query);
+        if (results.length === 0) return `No workspace entries matching "${query}".`;
+        return results.map(r => `[${r.author}] ${r.key}: ${r.value.slice(0, 200)}`).join("\n\n");
+      }
+
+      case "workspace": {
+        const { teamId } = params;
+        if (!teamId) return "Error: teamId is required";
+        const summary = workspaceSummary(teamId);
+        if (summary.length === 0) return "Workspace is empty.";
+        return summary.map(e => `${e.key} (by ${e.author}, ${e.size} chars)`).join("\n");
+      }
+
+      // ── Event Log ──────────────────────────────────────────────────────────
+
+      case "eventLog": {
+        const { teamId, event, agentId, taskId, limit } = params;
+        if (!teamId) return "Error: teamId is required";
+        const log = getEventLog(teamId, { event, agentId, taskId, limit: limit ? parseInt(limit) : 50 });
+        if (log.length === 0) return "No events logged.";
+        return log.map(e => `[${e.time}] ${e.event}${e.agentId ? ` (${e.agentId})` : ""}${e.taskId ? ` task:${e.taskId}` : ""} ${JSON.stringify(e.data)}`).join("\n");
+      }
+
       default:
-        return `Unknown action: "${action}". Valid: createTeam, addTeammate, spawnTeammate, spawnAll, restart, addTask, claim, complete, failTask, listTasks, claimable, sendMessage, broadcast, readMail, mailHistory, status, disband`;
+        return `Unknown action: "${action}". Valid: createTeam, addTeammate, spawnTeammate, spawnAll, restart, addTask, claim, complete, failTask, listTasks, claimable, executionOrder, sendMessage, broadcast, readMail, mailHistory, storeContext, readContext, searchContext, workspace, eventLog, status, disband`;
     }
   } catch (err) {
     return `Error: ${err.message}`;
@@ -176,23 +231,30 @@ export function teamTask(toolParams) {
 }
 
 export const teamTaskDescription =
-  `teamTask(action: string, paramsJson?: string) - Manage agent teams with shared tasks and messaging.
+  `teamTask(action: string, paramsJson?: string) - Manage agent teams with shared tasks, messaging, and workspace.
   Actions:
-    createTeam     - {"name":"..."} → create team, returns teamId
-    addTeammate    - {"teamId":"...","profile":"coder|researcher|writer|analyst","instructions":"...","id":"..."} → register teammate
-    spawnTeammate  - {"teamId":"...","teammateId":"...","context":"..."} → start one teammate
-    spawnAll       - {"teamId":"...","context":"..."} → start all idle teammates
-    restart        - {"teamId":"...","teammateId":"...","context":"..."} → restart finished/failed teammate (max 3 restarts, auto-unclaims tasks)
-    addTask        - {"teamId":"...","title":"...","description":"...","blockedBy":["taskId"]} → add to shared task list
-    claim          - {"teamId":"...","taskId":"...","teammateId":"..."} → lock task for self
-    complete       - {"teamId":"...","taskId":"...","teammateId":"...","result":"..."} → mark done
-    failTask       - {"teamId":"...","taskId":"...","teammateId":"...","reason":"..."} → release back to pool
-    listTasks      - {"teamId":"...","status":"...","assignee":"..."} → query tasks
-    claimable      - {"teamId":"..."} → tasks with deps met and unclaimed
-    sendMessage    - {"teamId":"...","to":"teammateId","message":"..."} → direct message
-    broadcast      - {"teamId":"...","message":"..."} → message all teammates
-    readMail       - {"teamId":"...","recipientId":"..."} → read unread messages
-    mailHistory    - {"teamId":"...","limit":50} → full message log
-    status         - {"teamId":"..."} → full team status (teammates, tasks, messages)
-    disband        - {"teamId":"..."} → stop all teammates, cleanup
-  Workflow: createTeam → addTeammate(s) → addTask(s) with blockedBy deps → spawnAll → monitor via status/readMail → restart if needed → disband`;
+    createTeam      - {"name":"..."} → create team, returns teamId
+    addTeammate     - {"teamId":"...","profile":"coder|researcher|writer|analyst|...","instructions":"...","id":"..."} → register teammate (21 profiles available)
+    spawnTeammate   - {"teamId":"...","teammateId":"...","context":"..."} → start one teammate
+    spawnAll        - {"teamId":"...","context":"..."} → start all idle teammates
+    restart         - {"teamId":"...","teammateId":"...","context":"..."} → restart finished/failed teammate (max 3x, auto-unclaims tasks)
+    addTask         - {"teamId":"...","title":"...","description":"...","blockedBy":["taskId"],"priority":"critical|high|medium|low"} → add to shared task list
+    claim           - {"teamId":"...","taskId":"...","teammateId":"..."} → lock task for self
+    complete        - {"teamId":"...","taskId":"...","teammateId":"...","result":"..."} → mark done
+    failTask        - {"teamId":"...","taskId":"...","teammateId":"...","reason":"..."} → release back to pool
+    listTasks       - {"teamId":"...","status":"...","assignee":"..."} → query tasks
+    claimable       - {"teamId":"..."} → tasks with deps met, sorted by priority
+    executionOrder  - {"teamId":"..."} → topological sort of all tasks (dependency + priority order)
+    storeContext    - {"teamId":"...","key":"...","value":"...","author":"..."} → store finding/decision in shared workspace
+    readContext     - {"teamId":"...","key":"..."} → read from shared workspace (key or all)
+    searchContext   - {"teamId":"...","query":"..."} → search workspace by keyword
+    workspace       - {"teamId":"..."} → list workspace keys + authors
+    sendMessage     - {"teamId":"...","to":"teammateId","message":"..."} → direct message
+    broadcast       - {"teamId":"...","message":"..."} → message all teammates
+    readMail        - {"teamId":"...","recipientId":"..."} → read unread messages
+    mailHistory     - {"teamId":"...","limit":50} → full message log
+    eventLog        - {"teamId":"...","event":"...","agentId":"...","limit":50} → team event history
+    status          - {"teamId":"..."} → full team status
+    disband         - {"teamId":"..."} → stop all, cleanup
+  Workflow: createTeam → addTeammate(s) → addTask(s) with deps + priority → spawnAll → agents storeContext findings → monitor via status → disband
+  Workspace: agents share findings via storeContext/readContext. Researcher stores findings → coder reads and implements → tester reads and validates.`;
