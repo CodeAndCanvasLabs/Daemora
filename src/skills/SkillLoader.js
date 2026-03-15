@@ -341,8 +341,7 @@ class SkillLoader {
           console.log(`[SkillLoader] Matched ${top.length}/${this.skills.size} skills above threshold${skillScope ? ` (scoped: ${skillScope.include?.join(",") || "all"})` : ""}`);
           return top.map((s) => toSummary(s.skill));
         }
-        console.log(`[SkillLoader] No skills above similarity threshold (${SKILL_MATCH_THRESHOLD})`);
-        return [];
+        console.log(`[SkillLoader] No skills above embedding threshold (${SKILL_MATCH_THRESHOLD}), falling through to keyword match`);
       }
     }
 
