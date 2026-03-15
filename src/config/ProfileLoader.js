@@ -38,7 +38,7 @@ function parseYaml(text) {
         multiLineValue.push("");
         continue;
       }
-      if (indent > multiLineIndent) {
+      if (indent >= multiLineIndent) {
         multiLineValue.push(line.slice(multiLineIndent));
         continue;
       }
