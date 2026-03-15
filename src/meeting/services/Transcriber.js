@@ -9,8 +9,6 @@
  * Transcript entries persisted to JSONL file on disk.
  */
 
-import { appendFileSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
 import { config } from "../../config/default.js";
 
 const SAMPLE_RATE = 16000;
@@ -29,11 +27,6 @@ export default class Transcriber {
     this.audioBuffer = [];
     this.timer = null;
     this.running = false;
-
-    // Transcript file on disk (JSONL — one JSON per line, survives restarts)
-    const dir = join(config.dataDir, "meetings");
-    mkdirSync(dir, { recursive: true });
-    this.transcriptPath = join(dir, `transcript-${sessionId}.jsonl`);
   }
 
   /** Start the flush timer */
@@ -84,10 +77,7 @@ export default class Transcriber {
       if (text && text.trim() && text.trim().length > 1) {
         const entry = { speaker: "participant", text: text.trim(), timestamp: Date.now() };
 
-        // Persist to disk
-        try { appendFileSync(this.transcriptPath, JSON.stringify(entry) + "\n"); } catch {}
-
-        // Notify callback
+        // Notify callback — MeetingSessionManager handles persistence to JSONL
         this.onTranscript(entry);
 
         console.log(`[Transcriber] ${this.sessionId}: "${text.trim().slice(0, 80)}"`);
