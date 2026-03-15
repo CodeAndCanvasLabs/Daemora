@@ -41,9 +41,11 @@ export async function meetingAction(toolParams) {
       // ── Meeting lifecycle ──────────────────────────────────────────────────
 
       case "join": {
-        const { url, displayName, profile, voiceId, sttProvider, ttsProvider } = params;
+        const { url, displayName, voiceId, sttProvider, ttsProvider } = params;
         if (!url) return "Error: url is required";
-        const session = createSession(url, { displayName, profileName: profile, voiceId, sttProvider, ttsProvider });
+        // Browser profile auto-set to meeting-{platform} (enables stealth + headed mode)
+        // Agent profile (meeting-attendant) is separate from browser profile
+        const session = createSession(url, { displayName, voiceId, sttProvider, ttsProvider });
         const result = await joinMeeting(session.id);
         return `${result}\nSession ID: ${session.id} | Platform: ${session.platform}`;
       }
@@ -196,7 +198,7 @@ export async function meetingAction(toolParams) {
 export const meetingActionDescription =
   `meetingAction(action: string, paramsJson?: string) - Join video meetings (Zoom/Meet/Teams) and manage voice cloning.
   Meeting Actions:
-    join           - {"url":"meeting-url","displayName":"Bot","profile":"meeting-zoom","voiceId":"...","sttProvider":"whisper","ttsProvider":"elevenlabs"} → join meeting via browser
+    join           - {"url":"meeting-url","displayName":"Daemora","voiceId":"...","sttProvider":"whisper","ttsProvider":"elevenlabs"} → join meeting via browser (auto-detects platform)
     leave          - {"sessionId":"..."} → leave meeting
     speak          - {"sessionId":"...","text":"..."} → TTS → inject audio into meeting
     listen         - {"sessionId":"...","last":20} → recent transcript entries
