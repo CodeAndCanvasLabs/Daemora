@@ -294,7 +294,7 @@ const toolSchemas = {
   spawnAgent: {
     schema: z.object({
       taskDescription: str("Complete task brief — include what, constraints, files/APIs, expected output. Agent has zero other context."),
-      profile: optStr("Agent profile — Dev: coder|architect|reviewer|tester|devops|security|database|frontend|api. Research: researcher|analyst|investigator. Content: writer|editor|translator. Business: planner|strategist|assistant. Ops: sysadmin|designer|coordinator"),
+      profile: str("Agent profile (REQUIRED) — Dev: coder|architect|reviewer|tester|devops|security|database|frontend|api. Research: researcher|analyst|investigator. Content: writer|editor|translator. Business: planner|strategist|assistant. Ops: sysadmin|designer|coordinator"),
       parentContext: optStr("Extra context from parent task"),
       extraTools: z.array(z.string()).optional().describe("Additional tool names to enable"),
       skills: z.array(z.string()).optional().describe("Skill names to load"),
@@ -305,7 +305,7 @@ const toolSchemas = {
     schema: z.object({
       tasks: z.array(z.object({
         description: str("Task description — full brief, agent has zero context"),
-        profile: optStr("Agent profile — Dev: coder|architect|reviewer|tester|devops|security|database|frontend|api. Research: researcher|analyst|investigator. Content: writer|editor|translator. Business: planner|strategist|assistant. Ops: sysadmin|designer|coordinator"),
+        profile: str("Agent profile (REQUIRED) — Dev: coder|architect|reviewer|tester|devops|security|database|frontend|api. Research: researcher|analyst|investigator. Content: writer|editor|translator. Business: planner|strategist|assistant. Ops: sysadmin|designer|coordinator"),
       })).describe("Array of tasks to run simultaneously"),
       sharedContext: optStr("Context shared across all agents"),
     }),
