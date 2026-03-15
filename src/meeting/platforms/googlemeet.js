@@ -89,24 +89,31 @@ export const SPEAKER_DETECTION_SCRIPT = `
   let lastSpeaker = null;
 
   function findSpeakerName(element) {
-    // Walk up from the element with the speaking class to find the participant container
     let container = element;
     for (let i = 0; i < 10; i++) {
       if (!container.parentElement) break;
       container = container.parentElement;
 
-      // Check for name within this container
+      // data-self-name is the cleanest source (no duplicates)
+      const selfName = container.querySelector('[data-self-name]');
+      if (selfName) {
+        const name = selfName.getAttribute('data-self-name');
+        if (name && name.length > 0 && name.length < 80) return name;
+      }
+
+      // Fallback: find first name element, use only direct text (not nested)
       for (const sel of NAME_SELECTORS) {
         const nameEl = container.querySelector(sel);
         if (nameEl) {
-          const name = nameEl.getAttribute('data-self-name') || nameEl.textContent?.trim();
-          if (name && name.length > 0 && name.length < 80) return name;
+          // Use first child text node only (avoids concatenation of nested elements)
+          let name = '';
+          for (const node of nameEl.childNodes) {
+            if (node.nodeType === 3) { name = node.textContent.trim(); break; }
+          }
+          if (!name) name = nameEl.innerText?.split('\\n')[0]?.trim() || '';
+          if (name && name.length > 1 && name.length < 80) return name;
         }
       }
-
-      // Check aria-label on the container itself
-      const ariaLabel = container.getAttribute('aria-label');
-      if (ariaLabel && ariaLabel.length > 0 && ariaLabel.length < 80) return ariaLabel;
     }
     return null;
   }
