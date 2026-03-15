@@ -103,6 +103,28 @@ export async function joinGoogleMeet(page, session) {
     return "auth-required";
   }
 
+  // Dismiss popups/overlays ("Got it", "Sign in with Google", cookie consent, etc.)
+  const dismissSelectors = [
+    'button:has-text("Got it")',
+    'button:has-text("Dismiss")',
+    'button:has-text("OK")',
+    'button:has-text("Accept all")',
+    'button:has-text("I agree")',
+    '[aria-label="Close"]',
+    '[aria-label="Dismiss"]',
+  ];
+  for (const sel of dismissSelectors) {
+    try {
+      const btn = await page.$(sel);
+      if (btn) {
+        await btn.click();
+        console.log(`[Meet:Join] Dismissed popup: ${sel}`);
+        await _wait(500);
+      }
+    } catch {}
+  }
+  await _wait(1000);
+
   // Check rejection FIRST (Vexa pattern — check before anything else)
   const bodyText = await page.textContent("body").catch(() => "");
   const isRejected = SELECTORS.rejectionPatterns.some(p => bodyText.toLowerCase().includes(p));
