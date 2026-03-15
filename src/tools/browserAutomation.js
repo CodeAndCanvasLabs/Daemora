@@ -1377,6 +1377,25 @@ export async function browserAction(params) {
   }
 }
 
+/**
+ * Get the raw Playwright page object for the active tab.
+ * Internal use only — for meeting bot audio capture, page.exposeFunction, etc.
+ * Returns null if no browser/page is active.
+ */
+export function getActivePage() {
+  if (!browserConnected || !activeTargetId || !pages.has(activeTargetId)) return null;
+  const p = pages.get(activeTargetId);
+  return p.isClosed() ? null : p;
+}
+
+/**
+ * Get the raw Playwright browser context.
+ * Internal use only — for meeting bot CDP sessions.
+ */
+export function getBrowserContext() {
+  return browserConnected ? browserContext : null;
+}
+
 export const browserActionDescription =
   'browserAction(action, param1?, param2?) - Heavy Playwright browser automation. ' +
   'Actions: navigate(url), snapshot(opts?), snapshotFrame(frameSelector,opts?) — snapshot an iframe, listFrames — list all iframes, ariaSnapshot(selector?), click(selector|ref,opts?), fill(selector|ref,value), type(selector|ref,text), hover(selector|ref), selectOption(selector|ref,value), pressKey(key), scroll(direction|selector|ref,amount?), drag(source,target), getText(selector|ref?), getContent(selector?), screenshot(path|selector?,full?) — auto-normalized to fit 2MB, pdf(path?), evaluate(js,timeout?), getLinks, ' +

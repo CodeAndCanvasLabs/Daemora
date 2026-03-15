@@ -19,6 +19,7 @@ import {
   getTranscript,
   getParticipants,
   toggleMute,
+  getRecording,
 } from "../meeting/BrowserMeetingBot.js";
 import {
   createClone,
@@ -71,6 +72,12 @@ export async function meetingAction(toolParams) {
         const { sessionId, last } = params;
         if (!sessionId) return "Error: sessionId is required";
         return getTranscript(sessionId, parseInt(last || "50"));
+      }
+
+      case "getRecording": {
+        const { sessionId } = params;
+        if (!sessionId) return "Error: sessionId is required";
+        return getRecording(sessionId);
       }
 
       // ── Meeting state ──────────────────────────────────────────────────────
