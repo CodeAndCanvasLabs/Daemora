@@ -235,49 +235,26 @@ export async function spawnSubAgent(taskDescription, options = {}) {
   }
 
   // ── Skill injection ─────────────────────────────────────────────────────
-  // Priority: 1) Explicit skills passed by parent  2) Semantic embedding search
-  // Both produce full skill content so the sub-agent doesn't waste a readFile turn.
+  // Explicit skills only (parent passed skill paths/names directly).
+  // Scoped skill summaries are handled by systemPrompt.js → renderSkills() with profile tags.
+  // No duplicate semantic search here — system prompt already does it with proper scoping.
   let skillContext = "";
   try {
-    const injectedSkills = [];
-
-    // 1. Explicit skills — parent agent passed skill paths/names directly
     if (skills && skills.length > 0) {
+      const injectedSkills = [];
       for (const ref of skills) {
         const skill = skillLoader.getSkill(ref);
-        if (skill) {
-          injectedSkills.push(skill);
-        } else {
-          console.log(`[SubAgent:${agentId}] Skill not found: "${ref}"`);
-        }
+        if (skill) injectedSkills.push(skill);
+        else console.log(`[SubAgent:${agentId}] Skill not found: "${ref}"`);
       }
-    }
-
-    // 2. Semantic embedding search — find relevant skills the parent didn't explicitly pass
-    // Exclude orchestration — sub-agents must not spin up teams/sub-agents themselves
-    const SUBAGENT_SKILL_EXCLUDE = ["orchestration"];
-    if (injectedSkills.length === 0 && taskDescription) {
-      const semanticResult = await skillLoader.getSkillPromptsAsync(taskDescription, { exclude: SUBAGENT_SKILL_EXCLUDE });
-      if (semanticResult) {
-        // getSkillPromptsAsync returns formatted string with --- Skill: name --- blocks
-        skillContext = semanticResult;
+      if (injectedSkills.length > 0) {
+        skillContext = injectedSkills.map(s =>
+          `\n--- Skill: ${s.name} ---\n${s.content}\n--- End Skill ---`
+        ).join("\n");
+        console.log(`[SubAgent:${agentId}] Injected ${injectedSkills.length} skill(s) (explicit): ${injectedSkills.map(s => s.name).join(", ")}`);
       }
-    }
-
-    // Format explicitly-passed skills
-    if (injectedSkills.length > 0) {
-      skillContext = injectedSkills.map(s =>
-        `\n--- Skill: ${s.name} ---\n${s.content}\n--- End Skill ---`
-      ).join("\n");
-    }
-
-    if (injectedSkills.length > 0) {
-      console.log(`[SubAgent:${agentId}] Injected ${injectedSkills.length} skill(s) (explicit): ${injectedSkills.map(s => s.name).join(", ")}`);
-    } else if (skillContext) {
-      console.log(`[SubAgent:${agentId}] Injected skills (semantic embedding match)`);
     }
   } catch (e) {
-    // Non-blocking — skills are optional
     console.log(`[SubAgent:${agentId}] Skill injection failed (non-blocking): ${e.message}`);
   }
 
