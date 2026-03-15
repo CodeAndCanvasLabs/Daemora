@@ -321,16 +321,31 @@ async function ensureBrowser(profileName = "default") {
       chromiumLauncher = chromium;
     }
 
-    browser = await chromiumLauncher.launchPersistentContext(userDataDir, {
-      headless: !isMeetingProfile,
-      viewport: { width: 1280, height: 720 },
-      acceptDownloads: true,
-      bypassCSP: isMeetingProfile,
-      permissions: isMeetingProfile ? ["microphone", "camera", "notifications"] : [],
-      args: isMeetingProfile ? meetingArgs : [],
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
-    });
-    browserContext = browser;
+    if (isMeetingProfile) {
+      // Vexa pattern: launch() + newContext() — separate browser and context
+      // launchPersistentContext doesn't work well with stealth plugin for meetings
+      const rawBrowser = await chromiumLauncher.launch({
+        headless: false,
+        args: meetingArgs,
+      });
+      browserContext = await rawBrowser.newContext({
+        permissions: ["microphone", "camera"],
+        userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+        viewport: { width: 1280, height: 720 },
+        bypassCSP: true,
+        ignoreHTTPSErrors: true,
+        acceptDownloads: true,
+      });
+      browser = rawBrowser;
+    } else {
+      browser = await chromiumLauncher.launchPersistentContext(userDataDir, {
+        headless: true,
+        viewport: { width: 1280, height: 720 },
+        acceptDownloads: true,
+        userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+      });
+      browserContext = browser;
+    }
     browserConnected = true;
 
     browserContext.on("close", () => cleanup());
