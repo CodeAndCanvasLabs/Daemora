@@ -185,13 +185,28 @@ const platforms = {
   async meet(session) {
     const { meetingUrl, displayName, profileName } = session;
     await browserAction({ action: "newSession", param1: profileName });
-    await browserAction({ action: "navigate", param1: meetingUrl });
+
+    // Strip authuser param — causes redirect to sign-in if no Google session
+    const cleanUrl = meetingUrl.replace(/[?&]authuser=\d+/, "").replace(/\?$/, "");
+    await browserAction({ action: "navigate", param1: cleanUrl });
     await _wait(5000);
 
     const page = getActivePage();
     if (!page) throw new Error("No browser page available");
 
-    // Fill display name
+    // Take screenshot to debug join state
+    const currentUrl = page.url();
+    console.log(`[Meeting:Meet] Page URL after navigate: ${currentUrl}`);
+
+    // Check if redirected to sign-in
+    if (currentUrl.includes("accounts.google.com")) {
+      console.log("[Meeting:Meet] Redirected to Google sign-in — meeting requires authentication");
+      // Take screenshot for debugging
+      await page.screenshot({ path: join(config.dataDir, "meetings", `debug-signin-${Date.now()}.png`) }).catch(() => {});
+      return "meet-auth-required: Google sign-in page detected. Use a browser profile with a logged-in Google account.";
+    }
+
+    // Fill display name (may not appear if Google account is logged in)
     try {
       const nameInput = await page.waitForSelector(
         'input[aria-label*="name" i], input[placeholder*="name" i], input[data-is-required="true"]',
@@ -199,6 +214,7 @@ const platforms = {
       ).catch(() => null);
       if (nameInput) {
         await nameInput.fill(displayName);
+        console.log(`[Meeting:Meet] Filled display name: ${displayName}`);
         await _wait(500);
       }
     } catch {}
@@ -206,21 +222,50 @@ const platforms = {
     // Turn off camera
     try {
       const camBtn = await page.$('[data-is-muted="false"][aria-label*="camera" i], [aria-label*="Turn off camera" i]');
-      if (camBtn) await camBtn.click();
+      if (camBtn) {
+        await camBtn.click();
+        console.log("[Meeting:Meet] Camera turned off");
+      }
       await _wait(500);
     } catch {}
 
     // Click "Join now" or "Ask to join"
+    let joined = false;
     try {
       const joinBtn = await page.waitForSelector(
         'button:has-text("Join now"), button:has-text("Ask to join"), button:has-text("Join")',
         { timeout: 15000 }
       );
-      if (joinBtn) await joinBtn.click();
-    } catch {}
+      if (joinBtn) {
+        const btnText = await joinBtn.textContent();
+        await joinBtn.click();
+        console.log(`[Meeting:Meet] Clicked: "${btnText.trim()}"`);
+        joined = true;
+      }
+    } catch {
+      console.log("[Meeting:Meet] No join button found — taking screenshot");
+      await page.screenshot({ path: join(config.dataDir, "meetings", `debug-nojoin-${Date.now()}.png`) }).catch(() => {});
+    }
 
     await _wait(5000);
-    return "meet-joined";
+
+    // Verify we actually entered the meeting (check for leave button or meeting controls)
+    try {
+      const inMeeting = await page.$('[aria-label*="Leave" i], [aria-label*="End" i], [data-tooltip*="Leave" i]');
+      if (inMeeting) {
+        console.log("[Meeting:Meet] Successfully in meeting (leave button detected)");
+        return "meet-joined";
+      }
+
+      // Check for "Waiting for approval" state
+      const waitingText = await page.textContent("body");
+      if (waitingText.includes("waiting") || waitingText.includes("ask the host")) {
+        console.log("[Meeting:Meet] Waiting for host to admit");
+        return "meet-waiting-for-admission";
+      }
+    } catch {}
+
+    return joined ? "meet-join-attempted" : "meet-join-failed: no join button found";
   },
 
   async teams(session) {
