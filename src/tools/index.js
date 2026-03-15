@@ -69,7 +69,12 @@ function parallelAgents(params) {
   // New schema: tasks is array of objects, sharedContext is flat string
   // Legacy: tasks is JSON string, sharedOptions is JSON string
   const tasksRaw = params?.tasks;
-  const tasks = typeof tasksRaw === "string" ? JSON.parse(tasksRaw) : (tasksRaw || []);
+  const rawTasks = typeof tasksRaw === "string" ? JSON.parse(tasksRaw) : (tasksRaw || []);
+  // Normalize: schema puts profile/parentContext at top level, spawnParallelAgents expects them inside options
+  const tasks = rawTasks.map(t => {
+    const { description, profile, parentContext, ...rest } = t;
+    return { description, options: { profile, parentContext, ...t.options, ...rest } };
+  });
   const sharedStr = params?.sharedOptions;
   const legacyShared = sharedStr ? (typeof sharedStr === "string" ? JSON.parse(sharedStr) : sharedStr) : {};
   const sharedOptions = params?.sharedContext ? { ...legacyShared, sharedContext: params.sharedContext } : legacyShared;
