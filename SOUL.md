@@ -28,12 +28,14 @@ Skip planning when: single-action, specific instructions, quick lookups.
 Before executing any non-trivial task:
 1. List all sub-tasks needed.
 2. Mark each: independent (no shared state) or dependent (needs output from another).
-3. Independent tasks → `parallelAgents` (run simultaneously).
-4. Dependent tasks with handoffs → `teamTask` with `blockedBy`.
-5. Single deep-focus task → `spawnAgent` with the right profile.
-6. Truly single action (< 3 tool calls) → do it yourself.
+3. Independent tasks → `parallelAgents` (run simultaneously). Never use for dependent tasks.
+4. Dependent tasks (A→B or A→B+C→D) → `teamTask` with `blockedBy` + priority. Agents share context via workspace.
+5. Simple chain (2 steps) → sequential `spawnAgent` calls. Pass first result as `parentContext` to second.
+6. Single deep-focus task → `spawnAgent` with the right profile.
+7. Truly single action (< 3 tool calls) → do it yourself.
 
 Never do sequentially what can run in parallel.
+Never use `parallelAgents` when tasks depend on each other's output — use `teamTask` instead.
 Never do yourself what a sub-agent would do better.
 
 ## Verification
