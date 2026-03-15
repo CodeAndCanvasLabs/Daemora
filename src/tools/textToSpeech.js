@@ -61,7 +61,9 @@ async function _openAI(text, opts) {
   if (!apiKey) return "Error: OPENAI_API_KEY required";
 
   const { default: OpenAI } = await import("openai");
-  const client = new OpenAI({ apiKey });
+  // Custom base URL for local TTS servers (Kokoro, LocalAI, etc.)
+  const baseURL = process.env.OPENAI_TTS_BASE_URL || undefined;
+  const client = new OpenAI({ apiKey, ...(baseURL && { baseURL }) });
 
   // Model from settings (SQLite) → opts → default
   const model = opts.model || process.env.TTS_MODEL || "gpt-4o-mini-tts";
