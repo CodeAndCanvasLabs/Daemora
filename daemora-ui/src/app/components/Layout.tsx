@@ -3,7 +3,7 @@ import { StarField } from "./StarField";
 import { Logo } from "./ui/Logo";
 import {
   Terminal,
-  Skull,
+  ScrollText,
   SlidersHorizontal,
   Network,
   Flame,
@@ -19,7 +19,7 @@ import {
 const navItems = [
   { path: "/", label: "Dashboard", icon: CircuitBoard },
   { path: "/chat", label: "Chat", icon: Terminal },
-  { path: "/tasks", label: "Tasks", icon: Skull },
+  { path: "/logs", label: "Logs", icon: ScrollText },
   { path: "/channels", label: "Channels", icon: Radio },
   { path: "/mcp", label: "MCP", icon: Network },
   { path: "/skills", label: "Skills", icon: Flame },
