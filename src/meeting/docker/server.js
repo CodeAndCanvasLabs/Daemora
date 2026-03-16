@@ -344,8 +344,7 @@ async function startAudioCapture() {
     }
   }, STT_FLUSH_MS);
 
-  const sttProvider = (process.env.STT_MODEL || "").includes("gpt-4o") ? "OpenAI" : "Groq";
-  console.log(`[MeetingBot:Docker] STT active (${sttProvider}, model: ${process.env.STT_MODEL || "whisper-large-v3-turbo"}, ${STT_FLUSH_MS/1000}s flush)`);
+  console.log(`[MeetingBot:Docker] STT active (model: ${process.env.STT_MODEL || "whisper-large-v3-turbo"}, ${STT_FLUSH_MS/1000}s flush)`);
 }
 
 function float32ToWav(f32) {
