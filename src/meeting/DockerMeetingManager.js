@@ -70,7 +70,7 @@ export function ensureImage() {
     const projectRoot = join(import.meta.dirname, "../..");
     execSync(`docker build -t ${IMAGE_NAME} -f ${join(dockerDir, "Dockerfile")} ${projectRoot}`, {
       stdio: "inherit",
-      timeout: 300000, // 5 min
+      timeout: 600000, // 10 min (first build downloads ~800MB of Playwright deps)
     });
     console.log(`[DockerMeeting] Image ${IMAGE_NAME} built successfully`);
     return true;
