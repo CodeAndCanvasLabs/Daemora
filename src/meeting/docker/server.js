@@ -335,7 +335,29 @@ async function startAudioCapture() {
         // Dedup
         const last = transcript[transcript.length - 1];
         if (!last || last.text !== text.trim()) {
-          transcript.push({ speaker: "participant", text: text.trim(), timestamp: Date.now() });
+          // Try to get active speaker name from Google Meet DOM
+          let speaker = "participant";
+          try {
+            speaker = await page.evaluate(() => {
+              // Google Meet: active speaker has a blue border or speaking indicator
+              const nameEl = document.querySelector('[data-self-name]');
+              // Look for participant tiles with speaking indicator
+              const tiles = document.querySelectorAll('[data-participant-id]');
+              for (const tile of tiles) {
+                const isSpeaking = tile.querySelector('[data-is-speaking="true"]') ||
+                  tile.classList.contains('speaking') ||
+                  tile.querySelector('.VfPpkd-Bz112c-J1Ukfc'); // speaking animation
+                if (isSpeaking) {
+                  const name = tile.querySelector('[data-self-name]')?.getAttribute('data-self-name') ||
+                    tile.querySelector('.ZjFb7c')?.textContent?.trim() ||
+                    tile.querySelector('.cS7aqe')?.textContent?.trim();
+                  if (name) return name;
+                }
+              }
+              return "participant";
+            }) || "participant";
+          } catch {}
+          transcript.push({ speaker, text: text.trim(), timestamp: Date.now() });
           console.log(`[STT] "${text.trim().slice(0, 80)}"`);
         }
       }

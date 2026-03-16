@@ -46,7 +46,7 @@ export async function meetingAction(toolParams) {
         // TTS/STT always use server-configured models — agent doesn't choose providers
         const session = createSession(url, { displayName, voiceId });
         const result = await joinMeeting(session.id);
-        return `${result}\nSession ID: ${session.id} | Platform: ${session.platform}`;
+        return result;
       }
 
       case "leave": {
