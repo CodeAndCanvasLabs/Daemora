@@ -431,9 +431,11 @@ async function startDeepgramSTT() {
         if (data.type !== "Results" || !data.is_final) return;
         const text = data.channel?.alternatives?.[0]?.transcript?.trim();
         if (!text || text.length < 2) return;
+        const speaker = currentSpeakerName || "participant";
+        // Skip bot's own speech picked up by STT loopback
+        if (speaker.toLowerCase().includes(BOT_NAME.toLowerCase())) return;
         const last = transcript[transcript.length - 1];
         if (!last || last.text !== text) {
-          const speaker = currentSpeakerName || "participant";
           transcript.push({ speaker, text, timestamp: Date.now() });
           lastSpeechTime = Date.now();
           console.log(`[STT:Deepgram] [${speaker}] "${text.slice(0, 80)}"`);
@@ -471,9 +473,11 @@ async function flushBatchSTT() {
   try {
     const text = await batchTranscribe(float32ToWav(merged));
     if (text?.trim()?.length > 1) {
+      const speaker = currentSpeakerName || "participant";
+      // Skip bot's own speech picked up by STT loopback
+      if (speaker.toLowerCase().includes(BOT_NAME.toLowerCase())) return;
       const last = transcript[transcript.length - 1];
       if (!last || last.text !== text.trim()) {
-        const speaker = currentSpeakerName || "participant";
         transcript.push({ speaker, text: text.trim(), timestamp: Date.now() });
         lastSpeechTime = Date.now();
         console.log(`[STT:Batch] [${speaker}] "${text.trim().slice(0, 80)}"`);
@@ -647,7 +651,7 @@ async function streamingRespond(context) {
 async function speakSentence(text) {
   const ttsModel = process.env.TTS_MODEL || "tts-1";
   const ttsVoice = process.env.TTS_VOICE || "";  // user-configured via SQLite settings
-  const groqModel = process.env.TTS_GROQ_MODEL || "canopylabs/orpheus-v1-english";
+  const groqModel = process.env.TTS_GROQ_MODEL || "playai-tts-arabic";
   const isGroq = ttsModel === "groq" || ttsModel.includes("orpheus");
 
   // Provider default voices (only used when TTS_VOICE is not set)

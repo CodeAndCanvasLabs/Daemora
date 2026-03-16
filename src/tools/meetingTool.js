@@ -31,6 +31,9 @@ import {
   updateVoiceSettings,
 } from "../voice/VoiceCloneManager.js";
 
+// Per-session poll index — advances automatically so agent never needs to track since
+const _pollIndex = new Map();
+
 export async function meetingAction(toolParams) {
   const action = toolParams?.action;
   const params = _mergeLegacy(toolParams);
@@ -81,35 +84,36 @@ export async function meetingAction(toolParams) {
         return "Listening... no new speech in the last 10 seconds. Call listen again.";
       }
 
-      // Index-based polling — efficient for long meetings.
-      // Returns only NEW entries since the last poll. Agent tracks nextSince.
+      // Index-based polling — auto-advances index internally, agent just calls poll repeatedly
       case "poll": {
-        const { sessionId, since } = params;
+        const { sessionId } = params;
         if (!sessionId) return "Error: sessionId is required";
-        const sinceIdx = parseInt(since || "0");
 
-        // Wait 2s — faster loop for responsive conversations
+        const sinceIdx = _pollIndex.get(sessionId) || 0;
+
         await new Promise(r => setTimeout(r, 2000));
 
         const data = await getTranscript(sessionId, 20, sinceIdx);
-        if (typeof data === "string") return data; // error
+        if (typeof data === "string") return data;
 
         const { entries, total, nextSince, ended } = data;
 
-        // Meeting ended — auto-kill container, signal agent to exit loop
+        if (nextSince > sinceIdx) _pollIndex.set(sessionId, nextSince);
+
         if (ended) {
+          _pollIndex.delete(sessionId);
           try { await leaveMeeting(sessionId); } catch {}
-          return JSON.stringify({ entries: [], total, nextSince, status: "meeting_ended" });
+          return JSON.stringify({ entries: [], total, status: "meeting_ended" });
         }
 
         if (entries.length === 0) {
-          return JSON.stringify({ entries: [], total, nextSince, status: "no_new_speech" });
+          return JSON.stringify({ entries: [], total, status: "no_new_speech" });
         }
         const formatted = entries.map(e => {
           const time = new Date(e.timestamp).toISOString().slice(11, 19);
           return `[${time}] ${e.speaker}: ${e.text}`;
         }).join("\n");
-        return JSON.stringify({ entries: formatted, total, nextSince, status: "new_speech" });
+        return JSON.stringify({ entries: formatted, total, status: "new_speech" });
       }
 
       case "transcript": {

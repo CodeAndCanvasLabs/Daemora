@@ -74,7 +74,7 @@ function resolveMeetingConfig() {
     llmModel,
     ttsModel,
     ttsVoice,
-    ttsGroqModel: conf("TTS_GROQ_MODEL") || "canopylabs/orpheus-v1-english",
+    ttsGroqModel: conf("TTS_GROQ_MODEL") || "playai-tts-arabic",
     sttModel,
     meetingMode: conf("MEETING_MODE", "auto"),
     llmBaseUrl:  conf("OPENAI_BASE_URL"),
