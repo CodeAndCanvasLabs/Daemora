@@ -67,9 +67,9 @@ Pick the right profile — each has specialized tools, instructions, and scoped 
 - Write content → `spawnAgent(taskDescription: "...", profile: "writer")`
 - Data analysis → `spawnAgent(taskDescription: "...", profile: "analyst")`
 - Join a meeting → `spawnAgent(taskDescription: "Join <url>, listen, participate, and write summary when done", profile: "meeting-attendant")`
-  - Has writeFile, createDocument, readMemory, writeMemory, webSearch built-in
-  - Full lifecycle: join → listen → speak → leave → write summary .md file
-  - Do NOT spawn a separate writer or team — the attendant does it all in one agent
+  · Has writeFile, createDocument, readMemory, writeMemory, webSearch built-in
+  · Full lifecycle: join → listen → speak → leave → write summary .md file
+  · Do NOT spawn a separate writer or team — the attendant does it all in one agent
 - Multiple independent tasks → `parallelAgents` (runs simultaneously, returns all results):
   ```
   parallelAgents(tasks: [
