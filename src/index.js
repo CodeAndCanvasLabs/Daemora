@@ -382,6 +382,8 @@ app.delete("/api/sessions/:id", (req, res) => {
 
 // --- Config endpoint ---
 app.get("/api/config", (req, res) => {
+  // Read from configStore directly — process.env may lag before reloadFromDb
+  const cs = (key) => process.env[key] || configStore.get(key) || "";
   res.json({
     defaultModel: config.defaultModel,
     permissionTier: config.permissionTier,
@@ -392,6 +394,14 @@ app.get("/api/config", (req, res) => {
     channels: Object.fromEntries(
       Object.entries(config.channels).map(([k, v]) => [k, { enabled: v.enabled }])
     ),
+    // Voice / meeting config — stored in config_entries via /api/settings
+    sttModel:      cs("STT_MODEL"),
+    ttsModel:      cs("TTS_MODEL"),
+    ttsVoice:      cs("TTS_VOICE"),
+    ttsGroqModel:  cs("TTS_GROQ_MODEL"),
+    meetingLlm:    cs("MEETING_LLM"),
+    meetingMode:   cs("MEETING_MODE"),
+    ollamaBaseUrl: cs("OLLAMA_BASE_URL"),
   });
 });
 

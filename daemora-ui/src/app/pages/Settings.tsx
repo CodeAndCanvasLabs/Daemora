@@ -373,12 +373,17 @@ export function Settings() {
     setConfigSaving(true);
     try {
       const envMap: Record<string, string> = {
-        defaultModel: "DEFAULT_MODEL",
+        defaultModel:   "DEFAULT_MODEL",
         permissionTier: "PERMISSION_TIER",
         maxCostPerTask: "MAX_COST_PER_TASK",
-        maxDailyCost: "MAX_DAILY_COST",
-        sttModel: "STT_MODEL",
-        ttsModel: "TTS_MODEL",
+        maxDailyCost:   "MAX_DAILY_COST",
+        sttModel:       "STT_MODEL",
+        ttsModel:       "TTS_MODEL",
+        ttsVoice:       "TTS_VOICE",
+        ttsGroqModel:   "TTS_GROQ_MODEL",
+        meetingLlm:     "MEETING_LLM",
+        meetingMode:    "MEETING_MODE",
+        ollamaBaseUrl:  "OLLAMA_BASE_URL",
       };
       const updates: Record<string, string> = {};
       for (const [configKey, envKey] of Object.entries(envMap)) {
@@ -628,6 +633,77 @@ export function Settings() {
                   <option value="tts-1-hd">high quality</option>
                 </datalist>
               </div>
+            </div>
+          </div>
+
+          {/* ── Meeting Bot ─────────────────────────────────────────── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">TTS Voice</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  list="tts-voices"
+                  className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-gray-600 focus:border-[#00d9ff]/50 focus:outline-none"
+                  placeholder="auto (based on model)"
+                  value={globalConfig.ttsVoice || ""}
+                  onChange={(e) => handleConfigChange("ttsVoice", e.target.value)}
+                />
+                <datalist id="tts-voices">
+                  <option value="nova">nova — OpenAI female</option>
+                  <option value="alloy">alloy — OpenAI neutral</option>
+                  <option value="echo">echo — OpenAI male</option>
+                  <option value="fable">fable — OpenAI UK</option>
+                  <option value="onyx">onyx — OpenAI deep</option>
+                  <option value="shimmer">shimmer — OpenAI soft</option>
+                  <option value="hannah">hannah — Groq orpheus</option>
+                  <option value="fritz">fritz — Groq orpheus</option>
+                </datalist>
+              </div>
+            </div>
+            <div>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Meeting LLM</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  list="meeting-llm-models"
+                  className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-gray-600 focus:border-[#00d9ff]/50 focus:outline-none"
+                  placeholder="auto (best available)"
+                  value={globalConfig.meetingLlm || ""}
+                  onChange={(e) => handleConfigChange("meetingLlm", e.target.value)}
+                />
+                <datalist id="meeting-llm-models">
+                  <option value="openai:gpt-4o-mini">gpt-4o-mini — fast, cheap</option>
+                  <option value="groq:llama-3.3-70b-versatile">groq llama-3.3-70b — fast free</option>
+                  <option value="anthropic:claude-haiku-4-5-20251001">claude haiku — fast</option>
+                  <option value="ollama:llama3.2">ollama llama3.2 — local</option>
+                </datalist>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Meeting Mode</label>
+              <select
+                className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white focus:border-[#00d9ff]/50 focus:outline-none"
+                value={globalConfig.meetingMode || "auto"}
+                onChange={(e) => handleConfigChange("meetingMode", e.target.value)}
+              >
+                <option value="auto">auto — realtime if OpenAI key, else pipeline</option>
+                <option value="pipeline">pipeline — Deepgram STT → LLM stream → sentence TTS</option>
+                <option value="realtime">realtime — OpenAI Realtime API (&lt;1s)</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Ollama Base URL</label>
+              <input
+                type="text"
+                className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-gray-600 focus:border-[#00d9ff]/50 focus:outline-none"
+                placeholder="http://localhost:11434/v1"
+                value={globalConfig.ollamaBaseUrl || ""}
+                onChange={(e) => handleConfigChange("ollamaBaseUrl", e.target.value)}
+              />
             </div>
           </div>
 
