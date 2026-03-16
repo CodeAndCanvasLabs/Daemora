@@ -184,10 +184,8 @@ async function joinMeeting(opts) {
     try { const btn = await page.$(sel); if (btn) { await btn.click(); break; } } catch {}
   }
 
-  // Mic off
-  for (const sel of ['[aria-label*="Turn off microphone" i]']) {
-    try { const btn = await page.$(sel); if (btn) { await btn.click(); break; } } catch {}
-  }
+  // Keep mic ON — PulseAudio virtual_mic needs it for TTS to reach meeting
+  // Vexa also keeps mic on when voiceAgentEnabled=true
   await page.waitForTimeout(500);
 
   // Join
@@ -375,10 +373,40 @@ async function speak(text, opts = {}) {
     return "TTS error: no API key (set OPENAI_API_KEY or GROQ_API_KEY)";
   }
 
+  // Unmute mic before speaking (was muted during join)
+  try {
+    await page.evaluate(() => {
+      const btns = document.querySelectorAll("button");
+      for (const btn of btns) {
+        const label = (btn.getAttribute("aria-label") || "").toLowerCase();
+        if (label.includes("turn on microphone") || label.includes("unmute")) {
+          btn.click(); return true;
+        }
+      }
+      return false;
+    });
+    await page.waitForTimeout(500);
+  } catch {}
+
   // Play through PulseAudio virtual mic → meeting participants hear it
   try {
     await playViaPulseAudio(audioPath);
     transcript.push({ speaker: session.displayName || "Daemora", text, timestamp: Date.now() });
+
+    // Re-mute after speaking
+    await page.waitForTimeout(500);
+    try {
+      await page.evaluate(() => {
+        const btns = document.querySelectorAll("button");
+        for (const btn of btns) {
+          const label = (btn.getAttribute("aria-label") || "").toLowerCase();
+          if (label.includes("turn off microphone") || label.includes("mute")) {
+            btn.click(); return;
+          }
+        }
+      });
+    } catch {}
+
     return `Spoke: "${text.slice(0, 80)}"`;
   } catch (e) {
     return `PulseAudio playback error: ${e.message}`;
