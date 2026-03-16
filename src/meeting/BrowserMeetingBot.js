@@ -21,6 +21,13 @@ import {
 } from "./MeetingSessionManager.js";
 import { meetingSpeak } from "./services/MeetingTTS.js";
 import { AUDIO_CAPTURE_SCRIPT, AUDIO_STOP_SCRIPT, RTC_HOOK_SCRIPT } from "./services/AudioCapture.js";
+import {
+  isDockerAvailable,
+  dockerJoinMeeting,
+  dockerSpeak,
+  dockerListen,
+  dockerLeave,
+} from "./DockerMeetingManager.js";
 import WavRecorder from "./services/WavRecorder.js";
 import Transcriber from "./services/Transcriber.js";
 import { joinGoogleMeet, leaveGoogleMeet, startRemovalMonitor as meetRemovalMonitor, SPEAKER_DETECTION_SCRIPT, SPEAKER_DETECTION_STOP_SCRIPT } from "./platforms/googlemeet.js";
@@ -32,7 +39,10 @@ function _wait(ms) { return new Promise(r => setTimeout(r, ms)); }
 // ── Public API ────────────────────────────────────────────────────────────
 
 /**
- * Join a meeting via browser.
+ * Join a meeting — auto-selects best mode:
+ * 1. Docker (PulseAudio, full speaking) — if Docker available
+ * 2. Native + PulseAudio (macOS/Linux with PulseAudio installed)
+ * 3. Native (listening only, speaking may not work)
  */
 export async function joinMeeting(sessionId) {
   const session = _getRawSession(sessionId);
@@ -40,6 +50,25 @@ export async function joinMeeting(sessionId) {
 
   updateState(sessionId, "joining");
 
+  // Try Docker mode first — full PulseAudio support, participants hear the bot
+  if (isDockerAvailable()) {
+    try {
+      console.log("[Meeting] Using Docker mode — full speaking support");
+      const result = await dockerJoinMeeting(sessionId, session);
+      if (result) {
+        session._dockerPort = result.port;
+        session._dockerContainer = result.containerName;
+        session._dockerMode = true;
+        updateState(sessionId, "connected");
+        updateState(sessionId, "active");
+        return `Joined ${session.platform} meeting via Docker (full speaking support).\nSession ID: ${sessionId} | Platform: ${session.platform}`;
+      }
+    } catch (e) {
+      console.log(`[Meeting] Docker mode failed: ${e.message} — falling back to native`);
+    }
+  }
+
+  // Native mode
   try {
     // Start browser with meeting profile
     await browserAction({ action: "newSession", param1: session.profileName });
@@ -99,13 +128,22 @@ export async function joinMeeting(sessionId) {
 }
 
 /**
- * Leave a meeting.
+ * Leave a meeting — Docker or native.
  */
 export async function leaveMeeting(sessionId) {
   const session = _getRawSession(sessionId);
   if (!session) throw new Error(`Session "${sessionId}" not found`);
 
   updateState(sessionId, "leaving");
+
+  // Docker mode — stop container
+  if (session._dockerMode && session._dockerContainer) {
+    try {
+      await dockerLeave(session._dockerPort, session._dockerContainer);
+    } catch {}
+    updateState(sessionId, "left");
+    return `Left meeting ${sessionId} (Docker container stopped). ${session.transcript.length} transcript entries.`;
+  }
 
   try {
     // Stop services
@@ -147,21 +185,56 @@ export async function leaveMeeting(sessionId) {
 }
 
 /**
- * Speak text in meeting — PulseAudio (real mic) → Web Audio fallback.
+ * Speak text in meeting — Docker (PulseAudio) → native PulseAudio → Web Audio fallback.
  */
 export async function speakInMeeting(sessionId, text) {
   const session = _getRawSession(sessionId);
   if (!session) throw new Error(`Session "${sessionId}" not found`);
   if (session.muted) return "Cannot speak — microphone is muted.";
+
+  // Docker mode — speak through container's PulseAudio
+  if (session._dockerMode && session._dockerPort) {
+    try {
+      const result = await dockerSpeak(session._dockerPort, text);
+      addTranscript(sessionId, { speaker: session.displayName, text });
+      return result.result || `Spoke: "${text.slice(0, 80)}"`;
+    } catch (e) {
+      return `Docker speak failed: ${e.message}`;
+    }
+  }
+
+  // Native mode
   return meetingSpeak(sessionId, text, session, getActivePage);
 }
 
 /**
- * Get recent transcript.
+ * Get recent transcript — Docker or native.
  */
-export function getTranscript(sessionId, last = 20) {
+export async function getTranscript(sessionId, last = 20) {
   const session = _getRawSession(sessionId);
   if (!session) throw new Error(`Session "${sessionId}" not found`);
+
+  // Docker mode — get transcript from container
+  if (session._dockerMode && session._dockerPort) {
+    try {
+      const data = await dockerListen(session._dockerPort, last);
+      if (data.transcript && data.transcript.length > 0) {
+        // Sync container transcripts to session
+        for (const entry of data.transcript) {
+          const exists = session.transcript.some(e => e.timestamp === entry.timestamp && e.text === entry.text);
+          if (!exists) {
+            addTranscript(sessionId, entry);
+          }
+        }
+        return data.transcript.map(e => {
+          const time = new Date(e.timestamp).toISOString().slice(11, 19);
+          return `[${time}] ${e.speaker}: ${e.text}`;
+        }).join("\n");
+      }
+    } catch {}
+  }
+
+  // Native mode
   const entries = session.transcript.slice(-last);
   if (entries.length === 0) return "No transcript entries yet.";
   return entries.map(e => {
