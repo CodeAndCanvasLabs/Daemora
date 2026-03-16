@@ -52,6 +52,8 @@ const BROWSER_ARGS = [
   "--disable-site-isolation-trials",
   "--autoplay-policy=no-user-gesture-required",
   "--ignore-certificate-errors",
+  "--ignore-certificate-errors-spki-list",
+  "--disable-features=IsolateOrigins,site-per-process,CertificateTransparencyComponentUpdater",
 ];
 
 // ── Audio capture script ────────────────────────────────────────────────
@@ -344,25 +346,33 @@ async function speak(text, opts = {}) {
     // OpenAI TTS
     const model = opts.model || process.env.TTS_MODEL || "gpt-4o-mini-tts";
     const voice = opts.voice || "nova";
-
     const res = await fetch("https://api.openai.com/v1/audio/speech", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model, voice, input: text, response_format: "mp3" }),
     });
-
-    if (!res.ok) return `TTS error: ${res.status}`;
+    if (!res.ok) return `TTS error: OpenAI ${res.status}`;
     writeFileSync(audioPath, Buffer.from(await res.arrayBuffer()));
-  } else {
-    // Edge TTS fallback (free)
+  } else if (process.env.GROQ_API_KEY) {
+    // Groq TTS
+    const res = await fetch("https://api.groq.com/openai/v1/audio/speech", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "canopylabs/orpheus-v1-english", input: text, voice: opts.voice || "hannah", response_format: "wav" }),
+    });
+    if (!res.ok) return `TTS error: Groq ${res.status}`;
+    const wavPath = audioPath.replace(".mp3", ".wav");
+    writeFileSync(wavPath, Buffer.from(await res.arrayBuffer()));
+    // Play WAV directly
     try {
-      const { EdgeTTS } = await import("edge-tts-universal");
-      const tts = new EdgeTTS();
-      await tts.synthesize(text.slice(0, 5000), opts.voice || "en-US-JennyNeural", {});
-      writeFileSync(audioPath, await tts.toBuffer());
+      await playViaPulseAudio(wavPath);
+      transcript.push({ speaker: session.displayName || "Daemora", text, timestamp: Date.now() });
+      return `Spoke: "${text.slice(0, 80)}"`;
     } catch (e) {
-      return `TTS error: ${e.message}`;
+      return `PulseAudio playback error: ${e.message}`;
     }
+  } else {
+    return "TTS error: no API key (set OPENAI_API_KEY or GROQ_API_KEY)";
   }
 
   // Play through PulseAudio virtual mic → meeting participants hear it
