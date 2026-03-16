@@ -15,6 +15,13 @@
 import { execSync, execFileSync, spawn } from "node:child_process";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
+import { configStore } from "../config/ConfigStore.js";
+
+// Read from process.env first (vault-injected + reloadFromDb), then directly from SQLite.
+// process.env is the source of truth at runtime; configStore is the fallback for early calls.
+function conf(key, fallback = "") {
+  return process.env[key] || configStore.get(key) || fallback;
+}
 
 const IMAGE_NAME = "daemora-meeting-bot";
 const CONTAINER_PREFIX = "daemora-meeting-";
@@ -184,26 +191,30 @@ export async function containerAPI(port, method, path, body = null) {
  * Join meeting via Docker container.
  */
 export async function dockerJoinMeeting(sessionId, opts) {
-  // Pass all provider keys + config to container — bot is autonomous inside
+  // All config read from SQLite (via process.env populated by reloadFromDb + vault.unlock).
+  // Agent never passes keys or models — infra layer reads them from the database.
   const envVars = {
-    // Provider API keys
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
-    GROQ_API_KEY: process.env.GROQ_API_KEY || "",
-    DEEPGRAM_API_KEY: process.env.DEEPGRAM_API_KEY || "",
-    ELEVENLABS_API_KEY: process.env.ELEVENLABS_API_KEY || "",
-    XAI_API_KEY: process.env.XAI_API_KEY || "",
-    DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY || "",
-    MISTRAL_API_KEY: process.env.MISTRAL_API_KEY || "",
-    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || "",
-    // Model config — read from SQLite-backed process.env (set via /api/settings)
-    TTS_MODEL: process.env.TTS_MODEL || "tts-1",
-    TTS_VOICE: process.env.TTS_VOICE || "",              // e.g. "nova", "alloy", "fritz" — empty = provider default
-    TTS_GROQ_MODEL: process.env.TTS_GROQ_MODEL || "",    // Groq TTS model override
-    STT_MODEL: process.env.STT_MODEL || "nova-3",        // Deepgram model or Whisper model
-    LLM_MODEL: process.env.MEETING_LLM || process.env.SUB_AGENT_MODEL || process.env.DEFAULT_MODEL || "openai:o4-mini",
-    LLM_BASE_URL: process.env.OPENAI_BASE_URL || "",
-    // Meeting mode: realtime | pipeline | auto
-    MEETING_MODE: process.env.MEETING_MODE || "auto",
+    // API keys — from vault (injected into process.env on unlock) or config_entries
+    OPENAI_API_KEY:    conf("OPENAI_API_KEY"),
+    GROQ_API_KEY:      conf("GROQ_API_KEY"),
+    DEEPGRAM_API_KEY:  conf("DEEPGRAM_API_KEY"),
+    ELEVENLABS_API_KEY:conf("ELEVENLABS_API_KEY"),
+    ANTHROPIC_API_KEY: conf("ANTHROPIC_API_KEY"),
+    XAI_API_KEY:       conf("XAI_API_KEY"),
+    DEEPSEEK_API_KEY:  conf("DEEPSEEK_API_KEY"),
+    MISTRAL_API_KEY:   conf("MISTRAL_API_KEY"),
+    OPENROUTER_API_KEY:conf("OPENROUTER_API_KEY"),
+    // TTS — from SQLite config_entries (set via /api/settings)
+    TTS_MODEL:      conf("TTS_MODEL", "tts-1"),
+    TTS_VOICE:      conf("TTS_VOICE"),          // e.g. "nova", "alloy", "fritz"
+    TTS_GROQ_MODEL: conf("TTS_GROQ_MODEL"),     // Groq-specific TTS model
+    // STT — from SQLite config_entries
+    STT_MODEL: conf("STT_MODEL", "nova-3"),     // Deepgram model or Whisper model
+    // LLM — MEETING_LLM > SUB_AGENT_MODEL > DEFAULT_MODEL (all from SQLite)
+    LLM_MODEL:    conf("MEETING_LLM") || conf("SUB_AGENT_MODEL") || conf("DEFAULT_MODEL", "openai:gpt-4o-mini"),
+    LLM_BASE_URL: conf("OPENAI_BASE_URL"),
+    // Meeting mode — from SQLite config_entries
+    MEETING_MODE: conf("MEETING_MODE", "auto"),
     BOT_NAME: opts.displayName || "Daemora",
   };
 
