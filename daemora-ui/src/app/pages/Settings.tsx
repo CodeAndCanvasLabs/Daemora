@@ -103,7 +103,7 @@ function Section({
   }, [open]);
 
   return (
-    <div className="bg-slate-900/50 border border-slate-800 rounded-2xl backdrop-blur-sm shadow-xl overflow-hidden transition-all duration-300 hover:border-slate-700/80">
+    <div className="bg-slate-900/50 border border-slate-800 rounded-2xl backdrop-blur-sm shadow-xl transition-all duration-300 hover:border-slate-700/80">
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between px-6 py-5 group cursor-pointer"
