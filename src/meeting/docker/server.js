@@ -282,7 +282,7 @@ async function startAudioCapture() {
           try {
             console.log("[STT] Loading local Whisper model (~75MB)...");
             const { pipeline } = await import("@huggingface/transformers");
-            localPipeline = await pipeline("automatic-speech-recognition", "onnx-community/whisper-tiny", { dtype: "q8", device: "cpu" });
+            localPipeline = await pipeline("automatic-speech-recognition", "onnx-community/whisper-tiny.en", { device: "cpu" });
             console.log("[STT] Local Whisper loaded");
           } catch (e) {
             console.log(`[STT] Local Whisper failed: ${e.message}`);
