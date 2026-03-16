@@ -283,7 +283,7 @@ async function flushSTT() {
     if (text?.trim()?.length > 1) {
       const last = transcript[transcript.length - 1];
       if (!last || last.text !== text.trim()) {
-        const speaker = currentSpeaker || "participant";
+        const speaker = (currentSpeaker || "participant").replace(/[\n\r]+/g, " ").trim();
         transcript.push({ speaker, text: text.trim(), timestamp: Date.now() });
         lastSpeechTime = Date.now();
         pendingResponse = true;
@@ -391,7 +391,7 @@ async function callLLM(recentTranscript) {
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: `Recent meeting transcript:\n${recentTranscript}\n\nRespond naturally if someone needs your input, or respond with empty string "" if you should stay silent.` },
       ],
-      max_tokens: 150,
+      max_completion_tokens: 150,
       temperature: 0.7,
     }),
     signal: AbortSignal.timeout(10000),
