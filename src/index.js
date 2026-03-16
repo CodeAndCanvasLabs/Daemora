@@ -1500,6 +1500,7 @@ app.post("/api/tasks", readinessGate);
 // --- Twilio meeting webhooks (TwiML + media stream control) ---
 import { attachStream as attachMeetingStream } from "./meeting/PhoneMeetingBot.js";
 import { attachMediaStreamServer, getStream } from "./voice/MediaStreamHandler.js";
+import { ensurePublicUrl, closeTunnel } from "./utils/TunnelManager.js";
 
 // When Twilio connects the outbound call, return TwiML to:
 //   1. Dial the meeting PIN via DTMF
@@ -1538,6 +1539,10 @@ app.post("/voice/meeting/status/:sessionId", express.urlencoded({ extended: fals
 const httpServer = app.listen(config.port, async () => {
   // Attach WebSocket handler for Twilio media streams (/voice/stream)
   attachMediaStreamServer(httpServer);
+
+  // Auto-expose public URL for Twilio webhooks (localtunnel / ngrok / manual)
+  ensurePublicUrl(config.port).catch(() => {});
+
   console.log("\n--- Daemora Server ---");
   console.log(`Running on http://localhost:${config.port}`);
   console.log(`Model: ${config.defaultModel}`);
@@ -1615,8 +1620,10 @@ process.on("SIGTERM", () => {
   heartbeat.stop();
   taskRunner.stop();
   supervisor.stop();
-  mcpManager.shutdown().then(() =>
-    channelRegistry.stopAll().then(() => process.exit(0))
+  closeTunnel().then(() =>
+    mcpManager.shutdown().then(() =>
+      channelRegistry.stopAll().then(() => process.exit(0))
+    )
   );
 });
 
