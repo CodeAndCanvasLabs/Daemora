@@ -1,30 +1,26 @@
 /**
  * Meeting Bot Docker Server — autonomous AI meeting participant.
  *
- * Runs INSIDE Docker container. Fully self-contained:
- * - Joins meeting via Playwright + stealth
- * - Captures audio → STT (Groq/OpenAI/local)
- * - VAD detects when user stops talking
- * - Auto-calls LLM for response → TTS → PulseAudio → participants hear
- * - No external agent needed for conversation — bot is autonomous
+ * Two modes:
+ * 1. REALTIME (OpenAI Realtime API) — single WebSocket, audio in/out, <1s latency
+ * 2. STREAMING PIPELINE — Deepgram STT (WebSocket) → LLM (SSE) → TTS → PulseAudio
+ *    Each step streams, no batching. ~2s latency.
+ *
+ * Mode selection: MEETING_MODE env (realtime|pipeline|auto)
+ * - auto: realtime if OPENAI_API_KEY set, else pipeline
  *
  * HTTP API for host Daemora:
- *   POST /join    — join meeting
- *   POST /speak   — manual speak override
- *   POST /leave   — leave meeting
- *   GET  /listen  — get transcript
- *   GET  /status  — session state
- *   GET  /health  — container health
+ *   POST /join, POST /speak, POST /leave, GET /listen, GET /status, GET /health
  */
 
 import http from "node:http";
 import { chromium } from "playwright-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
-import { execSync, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-// ── Stealth plugin ──────────────────────────────────────────────────────
+// ── Stealth ─────────────────────────────────────────────────────────────
 const stealth = StealthPlugin();
 stealth.enabledEvasions.delete("iframe.contentWindow");
 stealth.enabledEvasions.delete("media.codecs");
@@ -35,69 +31,23 @@ let browser = null, context = null, page = null;
 let session = null;
 let transcript = [];
 let captureActive = false;
-let isSpeaking = false; // prevents auto-respond while bot is talking
+let isSpeaking = false;
+let activeMode = null; // "realtime" | "pipeline"
 
 const STORAGE = "/app/storage";
 mkdirSync(join(STORAGE, "recordings"), { recursive: true });
 
-// ── VAD state ───────────────────────────────────────────────────────────
-let lastSpeechTime = 0;          // timestamp of last detected speech
-let pendingResponse = false;     // waiting for silence to respond
-const SILENCE_THRESHOLD_MS = 2000; // 2s silence = user stopped talking
-const MIN_NEW_WORDS = 3;         // need at least 3 new words to trigger response
-let lastRespondedIndex = 0;      // transcript index we last responded to
-
-// ── Config from env ─────────────────────────────────────────────────────
-const LLM_MODEL = process.env.LLM_MODEL || "openai:o4-mini";
+// ── Config ──────────────────────────────────────────────────────────────
 const BOT_NAME = process.env.BOT_NAME || "Daemora";
+const MEETING_MODE = process.env.MEETING_MODE || "auto";
+const LLM_MODEL = process.env.LLM_MODEL || "openai:o4-mini";
 
-// Parse LLM provider from model string (e.g. "openai:o4-mini" → openai)
-function getLLMConfig() {
-  const [provider, model] = LLM_MODEL.includes(":") ? LLM_MODEL.split(":", 2) : ["openai", LLM_MODEL];
-  let baseURL, apiKey;
-
-  if (provider === "groq") {
-    baseURL = "https://api.groq.com/openai/v1";
-    apiKey = process.env.GROQ_API_KEY;
-  } else if (provider === "openai") {
-    baseURL = process.env.LLM_BASE_URL || "https://api.openai.com/v1";
-    apiKey = process.env.OPENAI_API_KEY;
-  } else if (provider === "deepseek") {
-    baseURL = "https://api.deepseek.com/v1";
-    apiKey = process.env.DEEPSEEK_API_KEY || process.env.LLM_API_KEY;
-  } else if (provider === "xai") {
-    baseURL = "https://api.x.ai/v1";
-    apiKey = process.env.XAI_API_KEY || process.env.LLM_API_KEY;
-  } else if (provider === "openrouter") {
-    baseURL = "https://openrouter.ai/api/v1";
-    apiKey = process.env.OPENROUTER_API_KEY || process.env.LLM_API_KEY;
-  } else {
-    baseURL = process.env.LLM_BASE_URL || "https://api.openai.com/v1";
-    apiKey = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY;
-  }
-
-  return { provider, model, baseURL, apiKey };
-}
-
-// ── System prompt for autonomous meeting bot ────────────────────────────
-const SYSTEM_PROMPT = `You are ${BOT_NAME} — an AI meeting participant. You are in a live meeting.
-
-Rules:
-- Respond in 1-2 sentences MAX. Talk like a real person in a meeting.
-- If someone asks you a question → answer directly.
-- If someone says your name → respond.
-- If it's small talk or greetings → respond naturally ("Hey!", "Sounds good", "Got it").
-- If nobody addressed you → respond with "" (empty string, stay silent).
-- If the conversation doesn't need your input → respond with "".
-- NEVER give long explanations. NEVER lecture. Keep it conversational.
-- You can hear everything. You are a participant, not a recorder.
-
-Examples:
-- "Can you hear me?" → "Yeah, I can hear you clearly."
-- "What do you think about the timeline?" → "I think two weeks is tight but doable."
-- "Let's move on to the next topic" → ""
-- "Daemora, take note of this" → "Got it, noted."
-- Random chatter not directed at you → ""`;
+// ── Audio scripts (from native services) ────────────────────────────────
+const captureFile = readFileSync(join(import.meta.dirname, "../services/AudioCapture.js"), "utf-8");
+const AUDIO_CAPTURE_SCRIPT = captureFile.match(/export const AUDIO_CAPTURE_SCRIPT = `([\s\S]*?)`;/)?.[1] || "";
+const RTC_HOOK_SCRIPT = captureFile.match(/export const RTC_HOOK_SCRIPT = `([\s\S]*?)`;/)?.[1] || "";
+const meetFile = readFileSync(join(import.meta.dirname, "../platforms/googlemeet.js"), "utf-8");
+const SPEAKER_DETECTION_SCRIPT = meetFile.match(/export const SPEAKER_DETECTION_SCRIPT = `([\s\S]*?)`;/)?.[1] || "";
 
 // ── Browser args ────────────────────────────────────────────────────────
 const BROWSER_ARGS = [
@@ -111,52 +61,25 @@ const BROWSER_ARGS = [
   "--ignore-certificate-errors",
 ];
 
-// ── Audio capture script (from native services) ────────────────────────
-const captureFile = readFileSync(join(import.meta.dirname, "../services/AudioCapture.js"), "utf-8");
-const AUDIO_CAPTURE_SCRIPT = captureFile.match(/export const AUDIO_CAPTURE_SCRIPT = `([\s\S]*?)`;/)?.[1] || "";
-const RTC_HOOK_SCRIPT = captureFile.match(/export const RTC_HOOK_SCRIPT = `([\s\S]*?)`;/)?.[1] || "";
-
-// Speaker detection from googlemeet.js
-const meetFile = readFileSync(join(import.meta.dirname, "../platforms/googlemeet.js"), "utf-8");
-const SPEAKER_DETECTION_SCRIPT = meetFile.match(/export const SPEAKER_DETECTION_SCRIPT = `([\s\S]*?)`;/)?.[1] || "";
-
 // ── HTTP Server ─────────────────────────────────────────────────────────
 const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, `http://localhost`);
+  const url = new URL(req.url, "http://localhost");
   const path = url.pathname;
-
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
 
   try {
-    if (path === "/health") {
-      json(res, { status: "ok", session: session?.state || "idle", transcriptCount: transcript.length });
-      return;
-    }
-    if (path === "/join" && req.method === "POST") {
-      json(res, await joinMeeting(await readBody(req)));
-      return;
-    }
-    if (path === "/speak" && req.method === "POST") {
-      const body = await readBody(req);
-      json(res, { result: await speak(body.text) });
-      return;
-    }
-    if (path === "/leave" && req.method === "POST") {
-      json(res, { result: await leaveMeeting() });
-      return;
-    }
+    if (path === "/health") return json(res, { status: "ok", mode: activeMode, session: session?.state || "idle", transcriptCount: transcript.length });
+    if (path === "/join" && req.method === "POST") return json(res, await joinMeeting(await readBody(req)));
+    if (path === "/speak" && req.method === "POST") { const b = await readBody(req); return json(res, { result: await speak(b.text) }); }
+    if (path === "/leave" && req.method === "POST") return json(res, { result: await leaveMeeting() });
     if (path === "/listen" || path === "/transcript") {
       const last = parseInt(url.searchParams.get("last") || "30");
-      json(res, { transcript: transcript.slice(-last), count: transcript.length });
-      return;
+      return json(res, { transcript: transcript.slice(-last), count: transcript.length });
     }
-    if (path === "/status") {
-      json(res, { state: session?.state || "idle", transcriptCount: transcript.length, captureActive, isSpeaking });
-      return;
-    }
+    if (path === "/status") return json(res, { state: session?.state || "idle", mode: activeMode, transcriptCount: transcript.length, captureActive, isSpeaking });
     res.writeHead(404); res.end('{"error":"not found"}');
   } catch (e) {
     console.error(`[Server] ${e.message}`);
@@ -164,17 +87,18 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-const PORT = parseInt(process.env.PORT || "3456");
-server.listen(PORT, "0.0.0.0", () => console.log(`[MeetingBot] Ready on :${PORT}`));
+server.listen(parseInt(process.env.PORT || "3456"), "0.0.0.0", () => console.log(`[MeetingBot] Ready on :${process.env.PORT || 3456}`));
 
-// ── Join Meeting ────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+// JOIN MEETING
+// ══════════════════════════════════════════════════════════════════════════
+
 async function joinMeeting(opts) {
   const { url, displayName = BOT_NAME, platform = "meet" } = opts;
   if (!url) throw new Error("url required");
 
   session = { state: "joining", platform, url, displayName };
   transcript = [];
-  lastRespondedIndex = 0;
 
   browser = await chromium.launch({ headless: false, args: BROWSER_ARGS });
   context = await browser.newContext({
@@ -216,103 +140,322 @@ async function joinMeeting(opts) {
   await page.waitForTimeout(8000);
   session.state = "active";
 
-  // Start services
-  await startAudioCapture();
-  startAutoRespond();
+  // Decide mode
+  const useRealtime = MEETING_MODE === "realtime" ||
+    (MEETING_MODE === "auto" && process.env.OPENAI_API_KEY);
 
-  console.log(`[MeetingBot] Joined ${platform}: ${url}`);
-  return { status: "joined", platform, sessionId: "docker" };
+  if (useRealtime && process.env.OPENAI_API_KEY) {
+    activeMode = "realtime";
+    await startRealtimeMode();
+  } else {
+    activeMode = "pipeline";
+    await startPipelineMode();
+  }
+
+  console.log(`[MeetingBot] Joined ${platform} (${activeMode}): ${url}`);
+  return { status: "joined", platform, mode: activeMode, sessionId: "docker" };
 }
 
-// ── Audio Capture + STT ─────────────────────────────────────────────────
-let audioBuffer = [];
-let sttTimer = null;
-const STT_FLUSH_MS = 1500; // 1.5s batches for faster response
-const STT_SAMPLE_RATE = 16000;
-let currentSpeaker = "participant";
+// ══════════════════════════════════════════════════════════════════════════
+// MODE 1: OPENAI REALTIME API
+// ══════════════════════════════════════════════════════════════════════════
 
-async function startAudioCapture() {
-  if (!page) return;
+let realtimeWs = null;
 
+async function startRealtimeMode() {
+  // Expose audio callback — receives Float32 from browser, converts to PCM16 base64
   try {
     await page.exposeFunction("__daemoraSendAudio", (jsonChunk) => {
+      if (!realtimeWs || realtimeWs.readyState !== WebSocket.OPEN) return;
       try {
-        const arr = JSON.parse(jsonChunk);
-        audioBuffer.push(new Float32Array(arr));
+        const f32 = new Float32Array(JSON.parse(jsonChunk));
+        // Resample 16kHz → 24kHz (OpenAI Realtime expects 24kHz PCM16)
+        const ratio = 24000 / 16000;
+        const outLen = Math.round(f32.length * ratio);
+        const resampled = new Float32Array(outLen);
+        for (let i = 0; i < outLen; i++) {
+          const srcIdx = i / ratio;
+          const left = Math.floor(srcIdx);
+          const right = Math.min(left + 1, f32.length - 1);
+          const frac = srcIdx - left;
+          resampled[i] = f32[left] + (f32[right] - f32[left]) * frac;
+        }
+        // Float32 → Int16
+        const pcm16 = new Int16Array(resampled.length);
+        for (let i = 0; i < resampled.length; i++) {
+          const s = Math.max(-1, Math.min(1, resampled[i]));
+          pcm16[i] = Math.round(s < 0 ? s * 0x8000 : s * 0x7FFF);
+        }
+        const b64 = Buffer.from(pcm16.buffer).toString("base64");
+        realtimeWs.send(JSON.stringify({ type: "input_audio_buffer.append", audio: b64 }));
       } catch {}
     });
   } catch {}
 
-  // Speaker detection callback
+  // Speaker detection
   try {
     await page.exposeFunction("__daemoraSpeakerChanged", (name) => {
-      if (name && name !== currentSpeaker) {
-        currentSpeaker = name;
-      }
+      if (name) currentSpeakerName = name.replace(/[\n\r]+/g, " ").trim();
     });
   } catch {}
 
   await page.evaluate(AUDIO_CAPTURE_SCRIPT);
   captureActive = true;
+  if (SPEAKER_DETECTION_SCRIPT) await page.evaluate(SPEAKER_DETECTION_SCRIPT).catch(() => {});
 
-  // Inject speaker detection
-  if (SPEAKER_DETECTION_SCRIPT) {
-    await page.evaluate(SPEAKER_DETECTION_SCRIPT).catch(() => {});
-  }
+  // Connect to OpenAI Realtime API
+  const wsUrl = `wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview`;
+  console.log(`[Realtime] Connecting to ${wsUrl}`);
 
-  // STT flush loop
-  sttTimer = setInterval(() => flushSTT(), STT_FLUSH_MS);
-  console.log(`[MeetingBot] STT active (model: ${process.env.STT_MODEL || "whisper-large-v3-turbo"}, ${STT_FLUSH_MS}ms)`);
+  realtimeWs = new WebSocket(wsUrl, {
+    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "OpenAI-Beta": "realtime=v1" },
+  });
+
+  realtimeWs.addEventListener("open", () => {
+    console.log("[Realtime] Connected");
+    // Configure session
+    realtimeWs.send(JSON.stringify({
+      type: "session.update",
+      session: {
+        modalities: ["text", "audio"],
+        instructions: `You are ${BOT_NAME}, an AI meeting participant. Respond in 1-2 sentences. Talk naturally like a person in a meeting. If nobody addressed you, stay silent. Never give long explanations.`,
+        voice: "coral",
+        input_audio_format: { type: "pcm16", sample_rate: 24000 },
+        output_audio_format: { type: "pcm16", sample_rate: 24000 },
+        input_audio_transcription: { model: "gpt-4o-mini-transcribe" },
+        turn_detection: { type: "semantic_vad", eagerness: "medium", create_response: true, interrupt_response: true },
+      },
+    }));
+  });
+
+  let audioChunks = [];
+
+  realtimeWs.addEventListener("message", (event) => {
+    try {
+      const msg = JSON.parse(typeof event.data === "string" ? event.data : event.data.toString());
+
+      switch (msg.type) {
+        case "input_audio_buffer.speech_started":
+          isSpeaking = false; // user started talking, stop playing
+          audioChunks = [];
+          break;
+
+        case "input_audio_buffer.speech_stopped":
+          break;
+
+        case "conversation.item.input_audio_transcription.completed":
+          if (msg.transcript?.trim()) {
+            const speaker = currentSpeakerName || "participant";
+            transcript.push({ speaker, text: msg.transcript.trim(), timestamp: Date.now() });
+            console.log(`[Realtime:STT] [${speaker}] "${msg.transcript.trim().slice(0, 80)}"`);
+          }
+          break;
+
+        case "response.audio.delta":
+        case "response.output_audio.delta":
+          if (msg.delta) audioChunks.push(Buffer.from(msg.delta, "base64"));
+          break;
+
+        case "response.audio.done":
+        case "response.output_audio.done":
+          if (audioChunks.length > 0) {
+            const fullAudio = Buffer.concat(audioChunks);
+            audioChunks = [];
+            playPCM24kViaPulseAudio(fullAudio).catch(e => console.log(`[Realtime:Play] ${e.message}`));
+          }
+          break;
+
+        case "response.audio_transcript.done":
+        case "response.output_audio_transcript.done":
+          if (msg.transcript?.trim()) {
+            transcript.push({ speaker: BOT_NAME, text: msg.transcript.trim(), timestamp: Date.now() });
+            console.log(`[Realtime:Spoke] "${msg.transcript.trim().slice(0, 80)}"`);
+          }
+          break;
+
+        case "error":
+          console.log(`[Realtime:Error] ${JSON.stringify(msg.error)}`);
+          break;
+      }
+    } catch {}
+  });
+
+  realtimeWs.addEventListener("close", () => {
+    console.log("[Realtime] Disconnected");
+    realtimeWs = null;
+  });
+
+  realtimeWs.addEventListener("error", (e) => {
+    console.log(`[Realtime] Error: ${e.message || "connection error"}`);
+  });
+
+  console.log("[Realtime] Mode active — audio streams through OpenAI Realtime API");
 }
 
-async function flushSTT() {
+function playPCM24kViaPulseAudio(pcm16Buffer) {
+  // Write PCM16 24kHz mono as WAV, play through PulseAudio
+  const wavPath = join(STORAGE, "recordings", `rt-${Date.now()}.wav`);
+  const header = Buffer.alloc(44);
+  const dataSize = pcm16Buffer.length;
+  header.write("RIFF", 0); header.writeUInt32LE(36 + dataSize, 4); header.write("WAVE", 8);
+  header.write("fmt ", 12); header.writeUInt32LE(16, 16); header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22); header.writeUInt32LE(24000, 24);
+  header.writeUInt32LE(24000 * 2, 28); header.writeUInt16LE(2, 32);
+  header.writeUInt16LE(16, 34); header.write("data", 36); header.writeUInt32LE(dataSize, 40);
+  writeFileSync(wavPath, Buffer.concat([header, pcm16Buffer]));
+  return playViaPulseAudio(wavPath);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// MODE 2: STREAMING PIPELINE (STT → LLM → TTS)
+// ══════════════════════════════════════════════════════════════════════════
+
+let currentSpeakerName = "participant";
+let sttWs = null;
+let sttTimer = null;
+let audioBuffer = [];
+let lastSpeechTime = 0;
+let pendingResponse = false;
+let lastRespondedIndex = 0;
+let autoRespondTimer = null;
+const SILENCE_THRESHOLD_MS = 2000;
+const MIN_NEW_WORDS = 3;
+const STT_SAMPLE_RATE = 16000;
+
+async function startPipelineMode() {
+  // Audio callback
+  try {
+    await page.exposeFunction("__daemoraSendAudio", (jsonChunk) => {
+      try {
+        const f32 = new Float32Array(JSON.parse(jsonChunk));
+        if (sttWs && sttWs.readyState === WebSocket.OPEN) {
+          // Stream directly to Deepgram WebSocket — no batching
+          const pcm16 = float32ToPCM16(f32);
+          sttWs.send(pcm16);
+        } else {
+          audioBuffer.push(f32);
+        }
+      } catch {}
+    });
+  } catch {}
+
+  // Speaker detection
+  try {
+    await page.exposeFunction("__daemoraSpeakerChanged", (name) => {
+      if (name) currentSpeakerName = name.replace(/[\n\r]+/g, " ").trim();
+    });
+  } catch {}
+
+  await page.evaluate(AUDIO_CAPTURE_SCRIPT);
+  captureActive = true;
+  if (SPEAKER_DETECTION_SCRIPT) await page.evaluate(SPEAKER_DETECTION_SCRIPT).catch(() => {});
+
+  // Try Deepgram streaming STT first
+  if (process.env.DEEPGRAM_API_KEY) {
+    await startDeepgramSTT();
+  } else {
+    // Batch fallback
+    sttTimer = setInterval(() => flushBatchSTT(), 1500);
+    const provider = process.env.GROQ_API_KEY ? "Groq" : process.env.OPENAI_API_KEY ? "OpenAI" : "local";
+    console.log(`[Pipeline] STT: batch (${provider}, 1.5s)`);
+  }
+
+  // Start auto-respond
+  startAutoRespond();
+}
+
+// ── Deepgram Streaming STT ──────────────────────────────────────────────
+
+async function startDeepgramSTT() {
+  const params = new URLSearchParams({
+    model: "nova-3", smart_format: "true", punctuate: "true",
+    diarize: "false", interim_results: "true", endpointing: "300",
+    sample_rate: "16000", channels: "1", encoding: "linear16",
+  });
+
+  const url = `wss://api.deepgram.com/v1/listen?${params}`;
+
+  try {
+    sttWs = new WebSocket(url, { headers: { Authorization: `Token ${process.env.DEEPGRAM_API_KEY}` } });
+
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error("timeout")), 10000);
+      sttWs.addEventListener("open", () => { clearTimeout(timeout); resolve(); });
+      sttWs.addEventListener("error", (e) => { clearTimeout(timeout); reject(e); });
+    });
+
+    sttWs.addEventListener("message", (event) => {
+      try {
+        const data = JSON.parse(typeof event.data === "string" ? event.data : event.data.toString());
+        if (data.type !== "Results" || !data.is_final) return;
+        const text = data.channel?.alternatives?.[0]?.transcript?.trim();
+        if (!text || text.length < 2) return;
+
+        const speaker = currentSpeakerName || "participant";
+        const last = transcript[transcript.length - 1];
+        if (!last || last.text !== text) {
+          transcript.push({ speaker, text, timestamp: Date.now() });
+          lastSpeechTime = Date.now();
+          pendingResponse = true;
+          console.log(`[STT:Deepgram] [${speaker}] "${text.slice(0, 80)}"`);
+        }
+      } catch {}
+    });
+
+    sttWs.addEventListener("close", () => {
+      console.log("[STT:Deepgram] Disconnected");
+      sttWs = null;
+      // Fallback to batch
+      if (session?.state === "active" && !sttTimer) {
+        sttTimer = setInterval(() => flushBatchSTT(), 1500);
+        console.log("[STT] Fell back to batch mode");
+      }
+    });
+
+    console.log("[Pipeline] STT: Deepgram streaming (nova-3, ~200ms)");
+  } catch (e) {
+    console.log(`[STT:Deepgram] Failed: ${e.message}, using batch fallback`);
+    sttWs = null;
+    sttTimer = setInterval(() => flushBatchSTT(), 1500);
+  }
+}
+
+// ── Batch STT (fallback) ────────────────────────────────────────────────
+
+async function flushBatchSTT() {
   if (audioBuffer.length === 0) return;
   const chunks = audioBuffer.splice(0);
-
   const totalLen = chunks.reduce((s, c) => s + c.length, 0);
   const merged = new Float32Array(totalLen);
   let off = 0;
   for (const c of chunks) { merged.set(c, off); off += c.length; }
-
-  if (merged.length < STT_SAMPLE_RATE * 0.3) return; // skip < 0.3s
+  if (merged.length < STT_SAMPLE_RATE * 0.3) return;
 
   const wavBuf = float32ToWav(merged);
 
   try {
-    const text = await transcribeAudio(wavBuf);
+    const text = await batchTranscribe(wavBuf);
     if (text?.trim()?.length > 1) {
       const last = transcript[transcript.length - 1];
       if (!last || last.text !== text.trim()) {
-        const speaker = (currentSpeaker || "participant").replace(/[\n\r]+/g, " ").trim();
+        const speaker = currentSpeakerName || "participant";
         transcript.push({ speaker, text: text.trim(), timestamp: Date.now() });
         lastSpeechTime = Date.now();
         pendingResponse = true;
-        console.log(`[STT] [${speaker}] "${text.trim().slice(0, 80)}"`);
+        console.log(`[STT:Batch] [${speaker}] "${text.trim().slice(0, 80)}"`);
       }
     }
-  } catch (e) {
-    console.log(`[STT] Error: ${e.message}`);
-  }
+  } catch (e) { console.log(`[STT] ${e.message}`); }
 }
 
-async function transcribeAudio(wavBuf) {
+async function batchTranscribe(wavBuf) {
   const sttModel = process.env.STT_MODEL || "whisper-large-v3-turbo";
-  const isOpenaiStt = sttModel.includes("gpt-4o") || sttModel === "whisper-1";
+  const isOpenai = sttModel.includes("gpt-4o") || sttModel === "whisper-1";
 
-  // Primary provider based on model
-  if (isOpenaiStt && process.env.OPENAI_API_KEY) {
-    return sttAPI("https://api.openai.com/v1/audio/transcriptions", process.env.OPENAI_API_KEY, sttModel, wavBuf);
-  }
-  if (!isOpenaiStt && process.env.GROQ_API_KEY) {
-    return sttAPI("https://api.groq.com/openai/v1/audio/transcriptions", process.env.GROQ_API_KEY, sttModel, wavBuf);
-  }
-  // Fallbacks
-  if (process.env.GROQ_API_KEY) {
-    return sttAPI("https://api.groq.com/openai/v1/audio/transcriptions", process.env.GROQ_API_KEY, "whisper-large-v3-turbo", wavBuf);
-  }
-  if (process.env.OPENAI_API_KEY) {
-    return sttAPI("https://api.openai.com/v1/audio/transcriptions", process.env.OPENAI_API_KEY, "whisper-1", wavBuf);
-  }
+  if (isOpenai && process.env.OPENAI_API_KEY) return sttAPI("https://api.openai.com/v1/audio/transcriptions", process.env.OPENAI_API_KEY, sttModel, wavBuf);
+  if (!isOpenai && process.env.GROQ_API_KEY) return sttAPI("https://api.groq.com/openai/v1/audio/transcriptions", process.env.GROQ_API_KEY, sttModel, wavBuf);
+  if (process.env.GROQ_API_KEY) return sttAPI("https://api.groq.com/openai/v1/audio/transcriptions", process.env.GROQ_API_KEY, "whisper-large-v3-turbo", wavBuf);
+  if (process.env.OPENAI_API_KEY) return sttAPI("https://api.openai.com/v1/audio/transcriptions", process.env.OPENAI_API_KEY, "whisper-1", wavBuf);
   return null;
 }
 
@@ -321,147 +464,156 @@ async function sttAPI(url, apiKey, model, wavBuf) {
   fd.append("file", new Blob([wavBuf], { type: "audio/wav" }), "a.wav");
   fd.append("model", model);
   const r = await fetch(url, { method: "POST", headers: { Authorization: `Bearer ${apiKey}` }, body: fd });
-  if (!r.ok) { console.log(`[STT] ${r.status}: ${await r.text().catch(() => "")}`); return null; }
+  if (!r.ok) { console.log(`[STT] ${r.status}`); return null; }
   return (await r.json()).text;
 }
 
-// ── Auto-Respond Loop ───────────────────────────────────────────────────
-let autoRespondTimer = null;
+// ── Auto-Respond (Pipeline mode) ────────────────────────────────────────
+
+const SYSTEM_PROMPT = `You are ${BOT_NAME} — an AI meeting participant. You are in a live meeting.
+Rules:
+- Respond in 1-2 sentences MAX. Talk like a real person.
+- If someone asks you a question → answer directly.
+- If someone says your name → respond.
+- If nobody addressed you → respond with "" (empty).
+- NEVER give long explanations. Keep it conversational.`;
 
 function startAutoRespond() {
   const llm = getLLMConfig();
-  if (!llm.apiKey) {
-    console.log("[MeetingBot] No LLM API key — auto-respond disabled");
-    return;
-  }
-  console.log(`[MeetingBot] Auto-respond active (${llm.provider}:${llm.model})`);
+  if (!llm.apiKey) { console.log("[Pipeline] No LLM key — auto-respond disabled"); return; }
+  console.log(`[Pipeline] Auto-respond: ${llm.provider}:${llm.model}`);
 
   autoRespondTimer = setInterval(async () => {
-    if (!session || session.state !== "active") return;
-    if (isSpeaking) return;
-    if (!pendingResponse) return;
+    if (!session || session.state !== "active" || isSpeaking || !pendingResponse) return;
+    if (Date.now() - lastSpeechTime < SILENCE_THRESHOLD_MS) return;
 
-    // Wait for silence (user stopped talking)
-    const silenceMs = Date.now() - lastSpeechTime;
-    if (silenceMs < SILENCE_THRESHOLD_MS) return;
-
-    // Check if there's enough new content to respond to
     const newEntries = transcript.slice(lastRespondedIndex).filter(e => e.speaker !== BOT_NAME);
     if (newEntries.length === 0) { pendingResponse = false; return; }
-
     const newWords = newEntries.reduce((sum, e) => sum + e.text.split(/\s+/).length, 0);
     if (newWords < MIN_NEW_WORDS) { pendingResponse = false; return; }
 
     pendingResponse = false;
     lastRespondedIndex = transcript.length;
 
-    // Build context — last 20 transcript entries
-    const recentTranscript = transcript.slice(-20).map(e =>
-      `[${e.speaker}]: ${e.text}`
-    ).join("\n");
+    const recentTranscript = transcript.slice(-20).map(e => `[${e.speaker}]: ${e.text}`).join("\n");
 
     try {
-      const response = await callLLM(recentTranscript);
-      if (response && response.trim() && response.trim() !== '""' && response.trim() !== "''") {
+      // Streaming LLM → collect first sentence → TTS immediately
+      const response = await streamingLLMCall(recentTranscript);
+      if (response && response.trim() && response.trim() !== '""') {
         const clean = response.replace(/^["']|["']$/g, "").trim();
-        if (clean.length > 0 && clean.length < 200) {
+        if (clean.length > 0 && clean.length < 300) {
           console.log(`[AutoRespond] "${clean}"`);
           await speak(clean);
         }
       }
-    } catch (e) {
-      console.log(`[AutoRespond] Error: ${e.message}`);
-    }
-  }, 500); // check every 500ms
+    } catch (e) { console.log(`[AutoRespond] ${e.message}`); }
+  }, 500);
 }
 
-async function callLLM(recentTranscript) {
+async function streamingLLMCall(recentTranscript) {
   const llm = getLLMConfig();
   if (!llm.apiKey) return null;
 
-  console.log(`[LLM] Calling ${llm.provider}:${llm.model} (${llm.baseURL})`);
+  console.log(`[LLM] ${llm.provider}:${llm.model}`);
   const r = await fetch(`${llm.baseURL}/chat/completions`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${llm.apiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${llm.apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: llm.model,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: `Recent meeting transcript:\n${recentTranscript}\n\nRespond naturally if someone needs your input, or respond with empty string "" if you should stay silent.` },
+        { role: "user", content: `Meeting transcript:\n${recentTranscript}\n\nRespond if someone needs your input, or "" to stay silent.` },
       ],
       max_completion_tokens: 150,
       temperature: 0.7,
+      stream: true,
     }),
     signal: AbortSignal.timeout(10000),
   });
 
-  if (!r.ok) {
-    console.log(`[LLM] ${r.status}: ${await r.text().catch(() => "")}`);
-    return null;
+  if (!r.ok) { console.log(`[LLM] ${r.status}: ${await r.text().catch(() => "")}`); return null; }
+
+  // Read SSE stream — collect full response (first sentence could go to TTS early in future)
+  let fullText = "";
+  const reader = r.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const data = line.slice(6).trim();
+      if (data === "[DONE]") break;
+      try {
+        const parsed = JSON.parse(data);
+        const delta = parsed.choices?.[0]?.delta?.content;
+        if (delta) fullText += delta;
+      } catch {}
+    }
   }
 
-  const data = await r.json();
-  return data.choices?.[0]?.message?.content || null;
+  return fullText;
 }
 
-// ── TTS / Speak ─────────────────────────────────────────────────────────
-async function speak(text) {
-  if (!text) return "Error: text required";
-  if (!session || session.state !== "active") return "Error: not in meeting";
-  if (isSpeaking) return "Already speaking";
+function getLLMConfig() {
+  const [provider, model] = LLM_MODEL.includes(":") ? LLM_MODEL.split(":", 2) : ["openai", LLM_MODEL];
+  const configs = {
+    groq: { baseURL: "https://api.groq.com/openai/v1", apiKey: process.env.GROQ_API_KEY },
+    openai: { baseURL: process.env.LLM_BASE_URL || "https://api.openai.com/v1", apiKey: process.env.OPENAI_API_KEY },
+    deepseek: { baseURL: "https://api.deepseek.com/v1", apiKey: process.env.DEEPSEEK_API_KEY || process.env.LLM_API_KEY },
+    xai: { baseURL: "https://api.x.ai/v1", apiKey: process.env.XAI_API_KEY || process.env.LLM_API_KEY },
+    openrouter: { baseURL: "https://openrouter.ai/api/v1", apiKey: process.env.OPENROUTER_API_KEY || process.env.LLM_API_KEY },
+    mistral: { baseURL: "https://api.mistral.ai/v1", apiKey: process.env.MISTRAL_API_KEY || process.env.LLM_API_KEY },
+  };
+  const c = configs[provider] || configs.openai;
+  return { provider, model, baseURL: c.baseURL, apiKey: c.apiKey || process.env.LLM_API_KEY || process.env.OPENAI_API_KEY };
+}
 
+// ══════════════════════════════════════════════════════════════════════════
+// TTS / SPEAK
+// ══════════════════════════════════════════════════════════════════════════
+
+async function speak(text) {
+  if (!text || !session || session.state !== "active" || isSpeaking) return "Busy or not in meeting";
   isSpeaking = true;
 
   try {
     const ttsModel = process.env.TTS_MODEL || "tts-1";
     const audioPath = join(STORAGE, "recordings", `tts-${Date.now()}.mp3`);
-
     const isGroq = ttsModel === "groq" || ttsModel.includes("orpheus");
     let playPath = audioPath;
-    let ttsOk = false;
+    let ok = false;
 
-    // Try configured provider first
+    // Try configured provider
     if (isGroq && process.env.GROQ_API_KEY) {
-      ttsOk = await ttsAPI(
-        "https://api.groq.com/openai/v1/audio/speech", process.env.GROQ_API_KEY,
-        "canopylabs/orpheus-v1-english", text, "hannah", "wav",
-        audioPath.replace(".mp3", ".wav")
-      );
-      if (ttsOk) playPath = audioPath.replace(".mp3", ".wav");
-    }
-
-    if (!ttsOk && !isGroq && process.env.OPENAI_API_KEY) {
-      ttsOk = await ttsAPI(
-        "https://api.openai.com/v1/audio/speech", process.env.OPENAI_API_KEY,
-        ttsModel, text, "nova", "mp3", audioPath
-      );
-    }
-
-    // Fallbacks
-    if (!ttsOk && process.env.GROQ_API_KEY) {
       playPath = audioPath.replace(".mp3", ".wav");
-      ttsOk = await ttsAPI(
-        "https://api.groq.com/openai/v1/audio/speech", process.env.GROQ_API_KEY,
-        "canopylabs/orpheus-v1-english", text, "hannah", "wav", playPath
-      );
+      ok = await ttsAPI("https://api.groq.com/openai/v1/audio/speech", process.env.GROQ_API_KEY, "canopylabs/orpheus-v1-english", text, "hannah", "wav", playPath);
     }
-    if (!ttsOk && process.env.OPENAI_API_KEY) {
+    if (!ok && !isGroq && process.env.OPENAI_API_KEY) {
+      ok = await ttsAPI("https://api.openai.com/v1/audio/speech", process.env.OPENAI_API_KEY, ttsModel, text, "nova", "mp3", audioPath);
       playPath = audioPath;
-      ttsOk = await ttsAPI(
-        "https://api.openai.com/v1/audio/speech", process.env.OPENAI_API_KEY,
-        "tts-1", text, "nova", "mp3", playPath
-      );
+    }
+    // Fallbacks
+    if (!ok && process.env.GROQ_API_KEY) {
+      playPath = audioPath.replace(".mp3", ".wav");
+      ok = await ttsAPI("https://api.groq.com/openai/v1/audio/speech", process.env.GROQ_API_KEY, "canopylabs/orpheus-v1-english", text, "hannah", "wav", playPath);
+    }
+    if (!ok && process.env.OPENAI_API_KEY) {
+      playPath = audioPath;
+      ok = await ttsAPI("https://api.openai.com/v1/audio/speech", process.env.OPENAI_API_KEY, "tts-1", text, "nova", "mp3", playPath);
     }
 
-    if (!ttsOk) {
-      isSpeaking = false;
-      return "TTS error: no working provider";
-    }
+    if (!ok) return "TTS error: no working provider";
 
-    // Unmute mic if needed
+    // Unmute if needed
     try {
       await page.evaluate(() => {
         for (const btn of document.querySelectorAll("button")) {
@@ -472,11 +624,9 @@ async function speak(text) {
       await page.waitForTimeout(300);
     } catch {}
 
-    // Play through PulseAudio
     await playViaPulseAudio(playPath);
     transcript.push({ speaker: BOT_NAME, text, timestamp: Date.now() });
     lastRespondedIndex = transcript.length;
-
     return `Spoke: "${text.slice(0, 80)}"`;
   } catch (e) {
     return `Speak error: ${e.message}`;
@@ -493,11 +643,15 @@ async function ttsAPI(url, apiKey, model, text, voice, format, outPath) {
       body: JSON.stringify({ model, input: text, voice, response_format: format }),
       signal: AbortSignal.timeout(15000),
     });
-    if (!r.ok) { console.log(`[TTS] ${r.status}`); return false; }
+    if (!r.ok) { console.log(`[TTS] ${model}: ${r.status}`); return false; }
     writeFileSync(outPath, Buffer.from(await r.arrayBuffer()));
     return true;
   } catch (e) { console.log(`[TTS] ${e.message}`); return false; }
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// AUDIO UTILITIES
+// ══════════════════════════════════════════════════════════════════════════
 
 function playViaPulseAudio(audioPath) {
   return new Promise((resolve, reject) => {
@@ -514,7 +668,15 @@ function playViaPulseAudio(audioPath) {
   });
 }
 
-// ── WAV encoder ─────────────────────────────────────────────────────────
+function float32ToPCM16(f32) {
+  const buf = Buffer.alloc(f32.length * 2);
+  for (let i = 0; i < f32.length; i++) {
+    const s = Math.max(-1, Math.min(1, f32[i]));
+    buf.writeInt16LE(Math.round(s < 0 ? s * 0x8000 : s * 0x7FFF), i * 2);
+  }
+  return buf;
+}
+
 function float32ToWav(f32) {
   const ds = f32.length * 2;
   const buf = Buffer.alloc(44 + ds);
@@ -530,10 +692,16 @@ function float32ToWav(f32) {
   return buf;
 }
 
-// ── Leave Meeting ───────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+// LEAVE / CLEANUP
+// ══════════════════════════════════════════════════════════════════════════
+
 async function leaveMeeting() {
+  // Stop all timers/connections
   if (autoRespondTimer) { clearInterval(autoRespondTimer); autoRespondTimer = null; }
   if (sttTimer) { clearInterval(sttTimer); sttTimer = null; }
+  if (sttWs) { try { sttWs.send(JSON.stringify({ type: "CloseStream" })); sttWs.close(); } catch {} sttWs = null; }
+  if (realtimeWs) { try { realtimeWs.close(); } catch {} realtimeWs = null; }
 
   if (page) {
     for (const sel of ['[aria-label*="Leave" i]', 'button:has-text("Leave")']) {
@@ -562,7 +730,6 @@ function readBody(req) {
   });
 }
 
-// ── Graceful shutdown ───────────────────────────────────────────────────
 for (const sig of ["SIGTERM", "SIGINT"]) {
   process.on(sig, async () => { await leaveMeeting(); process.exit(0); });
 }

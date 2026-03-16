@@ -183,18 +183,24 @@ export async function containerAPI(port, method, path, body = null) {
  * Join meeting via Docker container.
  */
 export async function dockerJoinMeeting(sessionId, opts) {
-  // Pass all relevant config to container — bot is autonomous inside
+  // Pass all provider keys + config to container — bot is autonomous inside
   const envVars = {
+    // Provider API keys
     OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
     GROQ_API_KEY: process.env.GROQ_API_KEY || "",
-    ELEVENLABS_API_KEY: process.env.ELEVENLABS_API_KEY || "",
     DEEPGRAM_API_KEY: process.env.DEEPGRAM_API_KEY || "",
+    ELEVENLABS_API_KEY: process.env.ELEVENLABS_API_KEY || "",
+    XAI_API_KEY: process.env.XAI_API_KEY || "",
+    DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY || "",
+    MISTRAL_API_KEY: process.env.MISTRAL_API_KEY || "",
+    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || "",
+    // Model config
     TTS_MODEL: process.env.TTS_MODEL || "tts-1",
     STT_MODEL: process.env.STT_MODEL || "whisper-large-v3-turbo",
-    // LLM for autonomous responses — bot thinks inside container
-    LLM_API_KEY: process.env.OPENAI_API_KEY || process.env.GROQ_API_KEY || "",
     LLM_MODEL: process.env.SUB_AGENT_MODEL || process.env.DEFAULT_MODEL || "openai:o4-mini",
     LLM_BASE_URL: process.env.OPENAI_BASE_URL || "",
+    // Meeting mode: realtime | pipeline | auto
+    MEETING_MODE: process.env.MEETING_MODE || "auto",
     BOT_NAME: opts.displayName || "Daemora",
   };
 
