@@ -230,7 +230,9 @@ export async function getTranscript(sessionId, last = 20, since = undefined) {
           const exists = session.transcript.some(e => e.timestamp === entry.timestamp && e.text === entry.text);
           if (!exists) addTranscript(sessionId, entry);
         }
-        return data; // { entries, total, nextSince }
+        // Propagate ended flag so agent can detect meeting end
+        if (data.ended) updateState(sessionId, "left");
+        return data; // { entries, total, nextSince, ended }
       } else {
         const data = await dockerListen(session._dockerPort, last);
         if (data.transcript && data.transcript.length > 0) {

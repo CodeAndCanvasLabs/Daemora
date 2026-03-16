@@ -94,7 +94,14 @@ export async function meetingAction(toolParams) {
         const data = await getTranscript(sessionId, 20, sinceIdx);
         if (typeof data === "string") return data; // error
 
-        const { entries, total, nextSince } = data;
+        const { entries, total, nextSince, ended } = data;
+
+        // Meeting ended — auto-kill container, signal agent to exit loop
+        if (ended) {
+          try { await leaveMeeting(sessionId); } catch {}
+          return JSON.stringify({ entries: [], total, nextSince, status: "meeting_ended" });
+        }
+
         if (entries.length === 0) {
           return JSON.stringify({ entries: [], total, nextSince, status: "no_new_speech" });
         }

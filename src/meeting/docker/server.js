@@ -87,7 +87,8 @@ const server = http.createServer(async (req, res) => {
     if (path === "/leave" && req.method === "POST") return json(res, { result: await leaveMeeting() });
     if (path === "/transcript/new") {
       const since = Math.max(0, parseInt(url.searchParams.get("since") || "0"));
-      return json(res, { entries: transcript.slice(since), total: transcript.length, nextSince: transcript.length });
+      const ended = session?.state === "ended" || session?.state === "left";
+      return json(res, { entries: transcript.slice(since), total: transcript.length, nextSince: transcript.length, ended });
     }
     if (path === "/listen" || path === "/transcript") {
       const last = parseInt(url.searchParams.get("last") || "30");
@@ -150,6 +151,9 @@ async function joinMeeting(opts) {
   await page.waitForTimeout(8000);
   session.state = "active";
 
+  // Watch for meeting end (removed, ended, navigated away)
+  monitorMeetingEnd();
+
   // Select mode
   const hasOpenAI = !!process.env.OPENAI_API_KEY;
   const hasDeepgram = !!process.env.DEEPGRAM_API_KEY;
@@ -166,6 +170,47 @@ async function joinMeeting(opts) {
 
   console.log(`[MeetingBot] Joined ${platform} (mode: ${activeMode}): ${url}`);
   return { status: "joined", platform, mode: activeMode, sessionId: "docker" };
+}
+
+// ── Meeting end detection ─────────────────────────────────────────────────
+
+let meetingEndMonitor = null;
+
+function monitorMeetingEnd() {
+  if (meetingEndMonitor) return;
+  meetingEndMonitor = setInterval(async () => {
+    if (!page || !session || session.state === "left" || session.state === "ended") {
+      clearInterval(meetingEndMonitor); meetingEndMonitor = null; return;
+    }
+    try {
+      const ended = await page.evaluate(() => {
+        const body = (document.body?.innerText || "").toLowerCase();
+        const title = (document.title || "").toLowerCase();
+        return body.includes("you've been removed") ||
+               body.includes("you have been removed") ||
+               body.includes("meeting has ended") ||
+               body.includes("meeting ended") ||
+               body.includes("left the meeting") ||
+               title.includes("meeting ended") ||
+               // Zoom: kicked
+               body.includes("this meeting has been ended by the host") ||
+               // Generic: redirected away from meeting page
+               document.querySelectorAll('[data-call-ended]').length > 0;
+      });
+      if (ended) {
+        console.log("[MeetingBot] Meeting end detected — marking ended");
+        session.state = "ended";
+        clearInterval(meetingEndMonitor); meetingEndMonitor = null;
+        // Stop all audio pipelines
+        if (respondTimer) { clearInterval(respondTimer); respondTimer = null; }
+        if (sttTimer) { clearInterval(sttTimer); sttTimer = null; }
+        if (sttWs) { try { sttWs.close(); } catch {} sttWs = null; }
+        if (realtimeWs) { try { realtimeWs.close(); } catch {} realtimeWs = null; }
+        // Auto-exit after 60s (gives agent time to get transcript)
+        setTimeout(() => process.exit(0), 60000);
+      }
+    } catch {}
+  }, 4000);
 }
 
 // ══════════════════════════════════════════════════════════════════════════
