@@ -211,8 +211,6 @@ export async function dockerSpeak(port, text, opts = {}) {
   return containerAPI(port, "POST", "/speak", {
     text,
     voice: opts.voice,
-    model: opts.model,
-    openaiKey: process.env.OPENAI_API_KEY,
   });
 }
 

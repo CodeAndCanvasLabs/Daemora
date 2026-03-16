@@ -256,21 +256,12 @@ async function startAudioCapture() {
       let text = null;
       const sttModel = process.env.STT_MODEL || "whisper-large-v3-turbo";
 
-      // Use configured STT model — detect provider from model name
-      const useGroq = sttModel.includes("whisper") || !process.env.OPENAI_API_KEY;
+      // Determine STT provider from model name
+      // Groq models: whisper-large-v3, whisper-large-v3-turbo, distil-whisper-large-v3-en
+      // OpenAI models: gpt-4o-mini-transcribe, gpt-4o-transcribe, whisper-1
+      const isOpenaiStt = sttModel.includes("gpt-4o") || sttModel === "whisper-1";
 
-      if (useGroq && process.env.GROQ_API_KEY) {
-        const fd = new FormData();
-        fd.append("file", new Blob([wavBuf], { type: "audio/wav" }), "a.wav");
-        fd.append("model", sttModel.includes("gpt-4o") ? "whisper-large-v3-turbo" : sttModel);
-        const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
-          body: fd,
-        });
-        if (r.ok) text = (await r.json()).text;
-        else console.log(`[STT] Groq error: ${r.status} ${await r.text().catch(() => "")}`);
-      } else if (process.env.OPENAI_API_KEY) {
+      if (isOpenaiStt && process.env.OPENAI_API_KEY) {
         const fd = new FormData();
         fd.append("file", new Blob([wavBuf], { type: "audio/wav" }), "a.wav");
         fd.append("model", sttModel);
@@ -281,6 +272,41 @@ async function startAudioCapture() {
         });
         if (r.ok) text = (await r.json()).text;
         else console.log(`[STT] OpenAI error: ${r.status} ${await r.text().catch(() => "")}`);
+      } else if (!isOpenaiStt && process.env.GROQ_API_KEY) {
+        const fd = new FormData();
+        fd.append("file", new Blob([wavBuf], { type: "audio/wav" }), "a.wav");
+        fd.append("model", sttModel);
+        const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+          body: fd,
+        });
+        if (r.ok) text = (await r.json()).text;
+        else console.log(`[STT] Groq error: ${r.status} ${await r.text().catch(() => "")}`);
+      } else if (process.env.GROQ_API_KEY) {
+        // Fallback: configured OpenAI model but no OpenAI key — try Groq
+        const fd = new FormData();
+        fd.append("file", new Blob([wavBuf], { type: "audio/wav" }), "a.wav");
+        fd.append("model", "whisper-large-v3-turbo");
+        const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+          body: fd,
+        });
+        if (r.ok) text = (await r.json()).text;
+        else console.log(`[STT] Groq fallback error: ${r.status}`);
+      } else if (process.env.OPENAI_API_KEY) {
+        // Fallback: configured Groq model but no Groq key — try OpenAI
+        const fd = new FormData();
+        fd.append("file", new Blob([wavBuf], { type: "audio/wav" }), "a.wav");
+        fd.append("model", "whisper-1");
+        const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+          body: fd,
+        });
+        if (r.ok) text = (await r.json()).text;
+        else console.log(`[STT] OpenAI fallback error: ${r.status}`);
       } else {
         // Local Whisper fallback (free, no API key)
         if (!localPipeline) {
@@ -318,7 +344,8 @@ async function startAudioCapture() {
     }
   }, STT_FLUSH_MS);
 
-  console.log(`[MeetingBot:Docker] STT active (${process.env.OPENAI_API_KEY ? "OpenAI" : "Groq"}, ${STT_FLUSH_MS/1000}s flush)`);
+  const sttProvider = (process.env.STT_MODEL || "").includes("gpt-4o") ? "OpenAI" : "Groq";
+  console.log(`[MeetingBot:Docker] STT active (${sttProvider}, model: ${process.env.STT_MODEL || "whisper-large-v3-turbo"}, ${STT_FLUSH_MS/1000}s flush)`);
 }
 
 function float32ToWav(f32) {
@@ -341,51 +368,76 @@ async function speak(text, opts = {}) {
   if (!text) return "Error: text required";
   if (!session || session.state !== "active") return "Error: not in meeting";
 
-  // Generate TTS audio file
+  const ttsModel = process.env.TTS_MODEL || "tts-1";
+  const voice = opts.voice || "nova";
   const audioPath = join(STORAGE, "recordings", `tts-${Date.now()}.mp3`);
-  const apiKey = opts.openaiKey || process.env.OPENAI_API_KEY;
+
+  // Determine provider from TTS_MODEL config
+  const isGroq = ttsModel === "groq" || ttsModel.includes("orpheus");
+  const isEdge = ttsModel === "edge";
 
   let ttsOk = false;
+  let playPath = audioPath;
 
-  if (apiKey) {
-    // OpenAI TTS
-    const model = opts.model || process.env.TTS_MODEL || "gpt-4o-mini-tts";
-    const voice = opts.voice || "nova";
+  // Provider 1: Groq Orpheus (if configured or TTS_MODEL=groq)
+  if (isGroq && process.env.GROQ_API_KEY) {
+    const res = await fetch("https://api.groq.com/openai/v1/audio/speech", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "canopylabs/orpheus-v1-english", input: text, voice: voice === "nova" ? "hannah" : voice, response_format: "wav" }),
+    });
+    if (res.ok) {
+      playPath = audioPath.replace(".mp3", ".wav");
+      writeFileSync(playPath, Buffer.from(await res.arrayBuffer()));
+      ttsOk = true;
+    } else {
+      console.log(`[TTS] Groq failed (${res.status})`);
+    }
+  }
+
+  // Provider 2: OpenAI TTS (if configured or TTS_MODEL is an OpenAI model)
+  if (!ttsOk && !isGroq && !isEdge && process.env.OPENAI_API_KEY) {
     const res = await fetch("https://api.openai.com/v1/audio/speech", {
       method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, voice, input: text, response_format: "mp3" }),
+      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: ttsModel, voice, input: text, response_format: "mp3" }),
     });
     if (res.ok) {
       writeFileSync(audioPath, Buffer.from(await res.arrayBuffer()));
       ttsOk = true;
     } else {
-      console.log(`[TTS] OpenAI failed (${res.status}), trying fallback...`);
+      console.log(`[TTS] OpenAI failed (${res.status})`);
     }
   }
 
-  if (!ttsOk && process.env.GROQ_API_KEY) {
-    // Groq TTS
+  // Fallback: try whichever provider wasn't tried first
+  if (!ttsOk && !isGroq && process.env.GROQ_API_KEY) {
     const res = await fetch("https://api.groq.com/openai/v1/audio/speech", {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "canopylabs/orpheus-v1-english", input: text, voice: opts.voice || "hannah", response_format: "wav" }),
+      body: JSON.stringify({ model: "canopylabs/orpheus-v1-english", input: text, voice: "hannah", response_format: "wav" }),
     });
-    if (!res.ok) return `TTS error: Groq ${res.status}`;
-    const wavPath = audioPath.replace(".mp3", ".wav");
-    writeFileSync(wavPath, Buffer.from(await res.arrayBuffer()));
-    // Play WAV directly
-    try {
-      await playViaPulseAudio(wavPath);
-      transcript.push({ speaker: session.displayName || "Daemora", text, timestamp: Date.now() });
-      return `Spoke: "${text.slice(0, 80)}"`;
-    } catch (e) {
-      return `PulseAudio playback error: ${e.message}`;
+    if (res.ok) {
+      playPath = audioPath.replace(".mp3", ".wav");
+      writeFileSync(playPath, Buffer.from(await res.arrayBuffer()));
+      ttsOk = true;
+    }
+  }
+  if (!ttsOk && isGroq && process.env.OPENAI_API_KEY) {
+    const res = await fetch("https://api.openai.com/v1/audio/speech", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "tts-1", voice, input: text, response_format: "mp3" }),
+    });
+    if (res.ok) {
+      writeFileSync(audioPath, Buffer.from(await res.arrayBuffer()));
+      playPath = audioPath;
+      ttsOk = true;
     }
   }
 
   if (!ttsOk) {
-    return "TTS error: no working provider (tried OpenAI + Groq)";
+    return "TTS error: no working provider. Check TTS_MODEL + API keys.";
   }
 
   // Unmute mic before speaking (was muted during join)
@@ -405,7 +457,7 @@ async function speak(text, opts = {}) {
 
   // Play through PulseAudio virtual mic → meeting participants hear it
   try {
-    await playViaPulseAudio(audioPath);
+    await playViaPulseAudio(playPath);
     transcript.push({ speaker: session.displayName || "Daemora", text, timestamp: Date.now() });
 
     // Do NOT re-mute — mic must stay ON for PulseAudio virtual mic to work
