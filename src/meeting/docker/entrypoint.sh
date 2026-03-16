@@ -1,32 +1,51 @@
 #!/bin/bash
 # Daemora Meeting Bot — Docker Entrypoint
-# Starts Xvfb (virtual display) + PulseAudio (virtual audio) + Meeting Bot Server
+# Matches Vexa's production entrypoint: Xvfb + PulseAudio + ALSA routing
 
-set -e
-
-echo "[Daemora:Docker] Starting virtual display (Xvfb)..."
-Xvfb :99 -screen 0 1920x1080x24 -ac -nolisten tcp &
-XVFB_PID=$!
+# Start virtual framebuffer
+echo "[Daemora] Starting Xvfb..."
+Xvfb :99 -screen 0 1920x1080x24 &
 sleep 1
 
-# Start window manager (needed for some Chromium features)
+# Start window manager (some Chromium features need it)
 fluxbox -display :99 &>/dev/null &
-sleep 0.5
 
-echo "[Daemora:Docker] Starting PulseAudio with virtual devices..."
-mkdir -p /tmp/pulse
-pulseaudio --start --exit-idle-time=-1 --disallow-exit --log-level=error \
-  --load="module-native-protocol-unix auth-anonymous=1 socket=/tmp/pulse/native" \
-  || true
+# Start PulseAudio daemon
+echo "[Daemora] Starting PulseAudio daemon..."
+pulseaudio --start --log-target=syslog 2>/dev/null || true
 sleep 1
 
-# Verify PulseAudio is running
+# Create TTS sink — audio played here goes to tts_sink.monitor
+echo "[Daemora] Creating TTS audio sink..."
+pactl load-module module-null-sink sink_name=tts_sink sink_properties=device.description="DaemoraTTSSink" 2>/dev/null || true
+
+# Create virtual microphone from TTS sink monitor
+# This creates a proper capture device that Chromium discovers as mic input for WebRTC/getUserMedia
+# Without this, Chromium only sees monitor sources (which it ignores for mic input)
+echo "[Daemora] Creating virtual microphone from TTS sink monitor..."
+pactl load-module module-remap-source master=tts_sink.monitor source_name=virtual_mic source_properties=device.description="DaemoraVirtualMic" 2>/dev/null || true
+pactl set-default-source virtual_mic 2>/dev/null || true
+
+# Configure ALSA to route through PulseAudio (Vexa pattern)
+echo "[Daemora] Configuring ALSA → PulseAudio routing..."
+mkdir -p /root
+cat > /root/.asoundrc <<'ALSA_EOF'
+pcm.!default {
+    type pulse
+}
+ctl.!default {
+    type pulse
+}
+ALSA_EOF
+
+# Verify PulseAudio setup
 if pactl info &>/dev/null; then
-  echo "[Daemora:Docker] PulseAudio ready — virtual mic active"
-  pactl list short sources | grep virtual_mic && echo "[Daemora:Docker] Virtual mic confirmed"
+  echo "[Daemora] PulseAudio ready"
+  pactl list short sinks 2>/dev/null | grep tts_sink && echo "[Daemora] TTS sink: OK"
+  pactl list short sources 2>/dev/null | grep virtual_mic && echo "[Daemora] Virtual mic: OK"
 else
-  echo "[Daemora:Docker] WARNING: PulseAudio failed to start"
+  echo "[Daemora] WARNING: PulseAudio not running"
 fi
 
-echo "[Daemora:Docker] Starting meeting bot server on port 3456..."
+echo "[Daemora] Starting meeting bot server on port ${PORT:-3456}..."
 exec node /app/src/meeting/docker/server.js "$@"

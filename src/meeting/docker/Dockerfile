@@ -19,10 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# ── PulseAudio configuration ─────────────────────────────────────────────
-# Virtual sink (tts_sink) → monitor → virtual mic → Chromium picks up as mic input
-RUN mkdir -p /root/.config/pulse
-COPY src/meeting/docker/pulse-default.pa /root/.config/pulse/default.pa
+# PulseAudio virtual devices created at runtime in entrypoint.sh (Vexa pattern)
 
 # ── Working directory ─────────────────────────────────────────────────────
 WORKDIR /app
