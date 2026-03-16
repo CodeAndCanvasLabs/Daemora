@@ -469,7 +469,7 @@ const toolSchemas = {
   // ── Meetings + Voice Cloning ─────────────────────────────────────────────
   meetingAction: {
     schema: z.object({
-      action: str("join|leave|speak|listen|transcript|status|participants|mute|unmute|cloneVoice|listVoices|deleteVoice|voiceInfo|voiceSettings|setVoice"),
+      action: str("join|leave|speak|listen|wait|poll|transcript|status|participants|mute|unmute|cloneVoice|listVoices|deleteVoice|voiceInfo|voiceSettings|setVoice"),
       url: optStr("Meeting URL (required for join)"),
       sessionId: optStr("Session ID (required for most actions)"),
       displayName: optStr("Bot display name in meeting (for join)"),
@@ -485,7 +485,7 @@ const toolSchemas = {
       style: optNum("Voice style 0-1 (for voiceSettings)"),
       useSpeakerBoost: optBool("Use speaker boost (for voiceSettings)"),
     }),
-    description: "Join video meetings (Zoom/Meet/Teams), speak/listen with voice cloning (ElevenLabs). Manage meeting sessions and cloned voices.",
+    description: "Join video meetings (Zoom/Meet/Teams). wait=blocks until meeting ends then returns full transcript (use this — Docker handles voice autonomously). speak/listen/poll for manual control. Voice cloning via ElevenLabs.",
   },
 
   // ── Git ──────────────────────────────────────────────────────────────────

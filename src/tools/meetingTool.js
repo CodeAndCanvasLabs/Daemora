@@ -116,6 +116,39 @@ export async function meetingAction(toolParams) {
         return JSON.stringify({ entries: formatted, total, status: "new_speech" });
       }
 
+      // Blocks until the meeting ends — no polling loop needed in the agent.
+      // Docker handles voice conversation autonomously (STT→LLM→TTS).
+      // Agent is paused here while the meeting runs, then gets the full transcript.
+      case "wait": {
+        const { sessionId } = params;
+        if (!sessionId) return "Error: sessionId is required";
+
+        console.log(`[Meeting] wait: blocking on session ${sessionId} until meeting ends`);
+
+        while (true) {
+          await new Promise(r => setTimeout(r, 5000));
+
+          const since = _pollIndex.get(sessionId) || 0;
+          const data = await getTranscript(sessionId, 0, since);
+
+          // Session gone or error — treat as ended
+          if (typeof data === "string") break;
+
+          const { nextSince, ended } = data;
+          if (nextSince > since) _pollIndex.set(sessionId, nextSince);
+
+          if (ended) {
+            _pollIndex.delete(sessionId);
+            try { await leaveMeeting(sessionId); } catch {}
+            break;
+          }
+        }
+
+        // Return full transcript for summarization
+        const transcript = await getTranscript(sessionId, 10000);
+        return JSON.stringify({ status: "meeting_ended", transcript });
+      }
+
       case "transcript": {
         const { sessionId, last } = params;
         if (!sessionId) return "Error: sessionId is required";
