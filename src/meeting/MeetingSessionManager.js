@@ -83,8 +83,6 @@ function _countActiveSessions() {
  * @param {string} [opts.displayName] - Bot display name in meeting
  * @param {string} [opts.profileName] - Browser profile for persistent auth
  * @param {string} [opts.voiceId] - ElevenLabs voice ID for TTS
- * @param {string} [opts.sttProvider] - STT provider (deepgram|whisper|groq)
- * @param {string} [opts.ttsProvider] - TTS provider (elevenlabs|openai)
  * @returns {MeetingSession}
  */
 export function createSession(url, opts = {}) {
@@ -109,8 +107,6 @@ export function createSession(url, opts = {}) {
     participants: new Map(),
     transcript: [],
     audioConfig: {
-      sttProvider: opts.sttProvider || "whisper",
-      ttsProvider: opts.ttsProvider || "auto",
       voiceId: opts.voiceId || null,
     },
     startedAt: Date.now(),
