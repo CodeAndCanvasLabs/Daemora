@@ -214,11 +214,14 @@ async function startAudioCapture() {
   if (!page) return;
 
   // Expose callback — receives Float32 audio chunks from browser
+  let chunkCount = 0;
   try {
     await page.exposeFunction("__daemoraSendAudio", (jsonChunk) => {
       try {
         const arr = JSON.parse(jsonChunk);
         audioBuffer.push(new Float32Array(arr));
+        chunkCount++;
+        if (chunkCount % 50 === 1) console.log(`[Audio] Chunk #${chunkCount} received (${arr.length} samples, buffer: ${audioBuffer.length})`);
       } catch {}
     });
   } catch {}
@@ -230,12 +233,9 @@ async function startAudioCapture() {
   captureActive = true;
   console.log("[MeetingBot:Docker] Audio capture started");
 
-  // Start STT flush loop
+  // Start STT flush loop — API keys or local Whisper
   const apiKey = process.env.OPENAI_API_KEY || process.env.GROQ_API_KEY;
-  if (!apiKey) {
-    console.log("[MeetingBot:Docker] No STT API key — transcription disabled");
-    return;
-  }
+  let localPipeline = null;
 
   sttTimer = setInterval(async () => {
     if (audioBuffer.length === 0) return;
@@ -276,6 +276,28 @@ async function startAudioCapture() {
           body: fd,
         });
         if (r.ok) text = (await r.json()).text;
+      } else {
+        // Local Whisper fallback (free, no API key)
+        if (!localPipeline) {
+          try {
+            console.log("[STT] Loading local Whisper model (~75MB)...");
+            const { pipeline } = await import("@huggingface/transformers");
+            localPipeline = await pipeline("automatic-speech-recognition", "onnx-community/whisper-tiny", { dtype: "q8", device: "cpu" });
+            console.log("[STT] Local Whisper loaded");
+          } catch (e) {
+            console.log(`[STT] Local Whisper failed: ${e.message}`);
+            return;
+          }
+        }
+        try {
+          const pcm = new Int16Array(wavBuf.buffer, wavBuf.byteOffset + 44, (wavBuf.length - 44) / 2);
+          const f32 = new Float32Array(pcm.length);
+          for (let i = 0; i < pcm.length; i++) f32[i] = pcm[i] / 32768.0;
+          const result = await localPipeline(f32, { sampling_rate: STT_SAMPLE_RATE, language: "en", task: "transcribe" });
+          text = result?.text || null;
+        } catch (e) {
+          console.log(`[STT] Local error: ${e.message}`);
+        }
       }
 
       if (text?.trim()?.length > 1) {
