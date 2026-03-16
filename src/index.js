@@ -1324,7 +1324,7 @@ app.delete("/api/skills/custom/:name", (req, res) => {
 import { listProfiles as listYamlProfiles, getProfile as getYamlProfile } from "./config/ProfileLoader.js";
 import { defaultSubAgentTools } from "./config/agentProfiles.js";
 import { createSession as createMeetingSession, getSession as getMeetingSession, listSessions as listMeetingSessions } from "./meeting/MeetingSessionManager.js";
-import { joinMeeting, leaveMeeting, getTranscript, getParticipants } from "./meeting/BrowserMeetingBot.js";
+import { joinMeeting, leaveMeeting } from "./meeting/PhoneMeetingBot.js";
 import { createClone, listVoices, deleteVoice, listTenantVoices } from "./voice/VoiceCloneManager.js";
 
 app.get("/api/agent-profiles", (req, res) => {
@@ -1356,10 +1356,10 @@ app.get("/api/meetings/:id", (req, res) => {
 
 app.post("/api/meetings/join", async (req, res) => {
   try {
-    const { url, displayName, profile, voiceId, sttProvider, ttsProvider } = req.body;
-    if (!url) return res.status(400).json({ error: "url is required" });
-    const session = createMeetingSession(url, { displayName, profileName: profile, voiceId, sttProvider, ttsProvider });
-    const result = await joinMeeting(session.id);
+    const { dialIn, pin, displayName, voiceId, meetingUrl } = req.body;
+    if (!dialIn) return res.status(400).json({ error: "dialIn (meeting phone number) is required" });
+    const session = createMeetingSession(dialIn, { displayName, voiceId, pin, meetingUrl });
+    const result = await joinMeeting(session.id, { dialIn, pin, displayName });
     res.json({ ...session, joinResult: result });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -1376,22 +1376,9 @@ app.post("/api/meetings/:id/leave", async (req, res) => {
 });
 
 app.get("/api/meetings/:id/transcript", (req, res) => {
-  try {
-    const last = parseInt(req.query.last || "50");
-    const transcript = getTranscript(req.params.id, last);
-    res.json({ transcript });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-app.get("/api/meetings/:id/participants", async (req, res) => {
-  try {
-    const participants = await getParticipants(req.params.id);
-    res.json({ participants });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  const session = getMeetingSession(req.params.id);
+  if (!session) return res.status(404).json({ error: "Session not found" });
+  res.json({ transcript: session.transcript });
 });
 
 // --- Voice clone endpoints ---
@@ -1510,8 +1497,47 @@ const readinessGate = (req, res, next) => {
 app.use("/api/chat", readinessGate);
 app.post("/api/tasks", readinessGate);
 
+// --- Twilio meeting webhooks (TwiML + media stream control) ---
+import { attachStream as attachMeetingStream } from "./meeting/PhoneMeetingBot.js";
+import { attachMediaStreamServer, getStream } from "./voice/MediaStreamHandler.js";
+
+// When Twilio connects the outbound call, return TwiML to:
+//   1. Dial the meeting PIN via DTMF
+//   2. Open a bidirectional WebSocket media stream
+app.post("/voice/meeting/answer/:sessionId", express.urlencoded({ extended: false }), (req, res) => {
+  const { sessionId } = req.params;
+  const session = getMeetingSession(sessionId);
+  const publicUrl = process.env.DAEMORA_PUBLIC_URL || process.env.SERVER_URL || `http://localhost:${config.port}`;
+  const streamUrl = `${publicUrl.replace(/^http/, "ws")}/voice/stream?token=${sessionId}`;
+  const dtmf = session?.pin ? `<Play digits="ww${session.pin}#"/>` : "";
+  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  ${dtmf}
+  <Connect>
+    <Stream url="${streamUrl}">
+      <Parameter name="sessionId" value="${sessionId}"/>
+    </Stream>
+  </Connect>
+</Response>`;
+  res.type("text/xml").send(twiml);
+});
+
+// Twilio status callback — clean up when call ends
+app.post("/voice/meeting/status/:sessionId", express.urlencoded({ extended: false }), (req, res) => {
+  const { CallStatus } = req.body || {};
+  const { sessionId } = req.params;
+  console.log(`[Meeting] Twilio status: ${sessionId} → ${CallStatus}`);
+  if (["completed", "failed", "busy", "no-answer"].includes(CallStatus)) {
+    const stream = getStream(sessionId);
+    if (stream) stream.close();
+  }
+  res.status(204).end();
+});
+
 // --- Start server ---
-app.listen(config.port, async () => {
+const httpServer = app.listen(config.port, async () => {
+  // Attach WebSocket handler for Twilio media streams (/voice/stream)
+  attachMediaStreamServer(httpServer);
   console.log("\n--- Daemora Server ---");
   console.log(`Running on http://localhost:${config.port}`);
   console.log(`Model: ${config.defaultModel}`);

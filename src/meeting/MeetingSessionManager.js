@@ -1,8 +1,8 @@
 /**
  * MeetingSessionManager — state machine for meeting sessions.
  *
- * Each session tracks: state, platform, participants, transcript, audio config.
- * States: idle → joining → connected → active → leaving → left → error
+ * Each session tracks: state, dialIn, participants, transcript.
+ * States: idle → joining → active → leaving → left → error
  *
  * Per-tenant isolation via TenantContext.
  */
@@ -21,12 +21,11 @@ const SESSION_TIMEOUT = 4 * 60 * 60 * 1000; // 4 hours max
 // Valid state transitions
 const TRANSITIONS = {
   idle:       ["joining"],
-  joining:    ["connected", "error", "left"],
-  connected:  ["active", "leaving", "error", "left"],
+  joining:    ["active", "error", "left"],
   active:     ["leaving", "error", "left"],
   leaving:    ["left", "error"],
   left:       [],
-  error:      ["joining", "left"], // can retry from error
+  error:      ["joining", "left"],
 };
 
 /** @type {Map<string, MeetingSession>} */
@@ -78,49 +77,46 @@ function _countActiveSessions() {
 
 /**
  * Create a new meeting session.
- * @param {string} url - Meeting URL
+ * @param {string} dialIn - Meeting dial-in phone number (or meeting URL for display)
  * @param {object} opts
- * @param {string} [opts.displayName] - Bot display name in meeting
- * @param {string} [opts.profileName] - Browser profile for persistent auth
- * @param {string} [opts.voiceId] - ElevenLabs voice ID for TTS
+ * @param {string} [opts.displayName] - Bot display name
+ * @param {string} [opts.pin] - Meeting PIN
+ * @param {string} [opts.meetingUrl] - Original meeting URL (for reference)
+ * @param {string} [opts.voiceId] - TTS voice ID
  * @returns {MeetingSession}
  */
-export function createSession(url, opts = {}) {
-  if (!url) throw new Error("Meeting URL is required");
+export function createSession(dialIn, opts = {}) {
+  if (!dialIn) throw new Error("Meeting dial-in number is required");
 
   if (_countActiveSessions() >= MAX_SESSIONS) {
     throw new Error(`Maximum ${MAX_SESSIONS} active meeting sessions. Leave one first.`);
   }
 
   const id = uuidv4().slice(0, 8);
-  const platform = detectPlatform(url);
   const tenantId = _getTenantId();
+  const platform = detectPlatform(opts.meetingUrl || dialIn);
 
   const session = {
     id,
-    meetingUrl: url,
+    dialIn,
+    meetingUrl: opts.meetingUrl || dialIn,
     platform,
     state: "idle",
     tenantId,
     displayName: opts.displayName || "Daemora",
-    profileName: opts.profileName || `meeting-${platform}`,
+    pin: opts.pin || "",
     participants: new Map(),
     transcript: [],
-    audioConfig: {
-      voiceId: opts.voiceId || null,
-    },
+    voiceId: opts.voiceId || null,
     startedAt: Date.now(),
     endedAt: null,
-    targetId: null,     // browser tab targetId
     error: null,
     muted: false,
-    _audioCapture: null, // internal: audio capture state
-    _cdpSession: null,   // internal: CDP session for audio
   };
 
   sessions.set(id, session);
-  eventBus.emitEvent("meeting:created", { sessionId: id, platform, url });
-  console.log(`[Meeting] Created session ${id} (${platform}) for ${url}`);
+  eventBus.emitEvent("meeting:created", { sessionId: id, platform, dialIn });
+  console.log(`[Meeting] Created session ${id} (${platform}) → ${dialIn}`);
   return _serialize(session);
 }
 
@@ -230,7 +226,7 @@ export function setMuted(id, muted) {
 }
 
 /**
- * Cleanup a session — release resources.
+ * Cleanup a session.
  */
 export function cleanup(id) {
   const session = sessions.get(id);
@@ -241,13 +237,6 @@ export function cleanup(id) {
     session.endedAt = Date.now();
   }
 
-  // Clear internal refs
-  session._audioCapture = null;
-  if (session._cdpSession) {
-    session._cdpSession.detach().catch(() => {});
-    session._cdpSession = null;
-  }
-
   console.log(`[Meeting] Cleaned up session ${id}`);
 }
 
@@ -256,21 +245,18 @@ export function cleanup(id) {
 function _serialize(session) {
   return {
     id: session.id,
+    dialIn: session.dialIn,
     meetingUrl: session.meetingUrl,
     platform: session.platform,
     state: session.state,
     displayName: session.displayName,
-    profileName: session.profileName,
     participantCount: session.participants.size,
     participants: [...session.participants.values()],
     transcriptCount: session.transcript.length,
-    audioConfig: { ...session.audioConfig },
+    transcript: session.transcript,
     startedAt: new Date(session.startedAt).toISOString(),
     endedAt: session.endedAt ? new Date(session.endedAt).toISOString() : null,
     error: session.error,
     muted: session.muted,
-    targetId: session.targetId,
-    transcriptPath: session._transcriptPath || null,
-    recordingPath: session._wavRecorder?.path || null,
   };
 }

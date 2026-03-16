@@ -1,9 +1,9 @@
 /**
  * meetingTool — Agent-facing tool for meeting management and voice cloning.
  *
- * Action-based dispatch (same pattern as teamTool.js).
- * Covers: join/leave meetings, speak/listen, transcripts, participants,
- * voice cloning (ElevenLabs), voice management.
+ * Meeting bot dials into any meeting's phone number via Twilio.
+ * OpenAI Realtime STT (native mu-law, server-side VAD) + ElevenLabs/OpenAI TTS.
+ * No Docker, no browser — pure phone audio pipeline (same as OpenClaw).
  */
 
 import { mergeLegacyParams as _mergeLegacy } from "../utils/mergeToolParams.js";
@@ -11,16 +11,15 @@ import {
   createSession,
   getSession,
   listSessions,
+  addTranscript,
+  updateState,
 } from "../meeting/MeetingSessionManager.js";
 import {
   joinMeeting,
   leaveMeeting,
   speakInMeeting,
-  getTranscript,
-  getParticipants,
-  toggleMute,
-  getRecording,
-} from "../meeting/BrowserMeetingBot.js";
+  waitForMeetingEnd,
+} from "../meeting/PhoneMeetingBot.js";
 import {
   createClone,
   listVoices,
@@ -30,9 +29,6 @@ import {
   getVoiceSettings,
   updateVoiceSettings,
 } from "../voice/VoiceCloneManager.js";
-
-// Per-session poll index — advances automatically so agent never needs to track since
-const _pollIndex = new Map();
 
 export async function meetingAction(toolParams) {
   const action = toolParams?.action;
@@ -44,12 +40,17 @@ export async function meetingAction(toolParams) {
       // ── Meeting lifecycle ──────────────────────────────────────────────────
 
       case "join": {
-        const { url, displayName, voiceId } = params;
-        if (!url) return "Error: url is required";
-        // TTS/STT always use server-configured models — agent doesn't choose providers
-        const session = createSession(url, { displayName, voiceId });
-        const result = await joinMeeting(session.id);
-        return result;
+        const { dialIn, pin, displayName, voiceId, meetingUrl } = params;
+        if (!dialIn) return "Error: dialIn (meeting phone number) is required. Every Google Meet/Zoom/Teams invite has a 'Join by phone' number.";
+
+        const session = createSession(dialIn, { displayName, voiceId, pin, meetingUrl });
+        updateState(session.id, "joining");
+        const result = await joinMeeting(session.id, {
+          dialIn,
+          pin: pin || "",
+          displayName: displayName || "Daemora",
+        });
+        return JSON.stringify(result);
       }
 
       case "leave": {
@@ -66,99 +67,28 @@ export async function meetingAction(toolParams) {
         return await speakInMeeting(sessionId, text);
       }
 
-      case "listen": {
-        const { sessionId, last } = params;
-        if (!sessionId) return "Error: sessionId is required";
-
-        // Wait 5s before returning — natural conversation pace, avoids burning agent steps.
-        await new Promise(r => setTimeout(r, 5000));
-
-        const result = await getTranscript(sessionId, parseInt(last || "20"));
-        if (result !== "No transcript entries yet.") return result;
-
-        // Still empty — wait 5 more seconds
-        await new Promise(r => setTimeout(r, 5000));
-        const retry = await getTranscript(sessionId, parseInt(last || "20"));
-        if (retry !== "No transcript entries yet.") return retry;
-
-        return "Listening... no new speech in the last 10 seconds. Call listen again.";
-      }
-
-      // Index-based polling — auto-advances index internally, agent just calls poll repeatedly
-      case "poll": {
-        const { sessionId } = params;
-        if (!sessionId) return "Error: sessionId is required";
-
-        const sinceIdx = _pollIndex.get(sessionId) || 0;
-
-        await new Promise(r => setTimeout(r, 2000));
-
-        const data = await getTranscript(sessionId, 20, sinceIdx);
-        if (typeof data === "string") return data;
-
-        const { entries, total, nextSince, ended } = data;
-
-        if (nextSince > sinceIdx) _pollIndex.set(sessionId, nextSince);
-
-        if (ended) {
-          _pollIndex.delete(sessionId);
-          try { await leaveMeeting(sessionId); } catch {}
-          return JSON.stringify({ entries: [], total, status: "meeting_ended" });
-        }
-
-        if (entries.length === 0) {
-          return JSON.stringify({ entries: [], total, status: "no_new_speech" });
-        }
-        const formatted = entries.map(e => {
-          const time = new Date(e.timestamp).toISOString().slice(11, 19);
-          return `[${time}] ${e.speaker}: ${e.text}`;
-        }).join("\n");
-        return JSON.stringify({ entries: formatted, total, status: "new_speech" });
-      }
-
-      // Blocks until the meeting ends — no polling loop needed in the agent.
-      // Docker handles voice conversation autonomously (STT→LLM→TTS).
-      // Agent is paused here while the meeting runs, then gets the full transcript.
+      // Blocks until the meeting ends — no polling needed.
+      // Twilio media stream + OpenAI Realtime handles voice conversation autonomously.
+      // Returns when call ends: {status: "meeting_ended", transcript: "..."}
       case "wait": {
         const { sessionId } = params;
         if (!sessionId) return "Error: sessionId is required";
-
-        console.log(`[Meeting] wait: blocking on session ${sessionId} until meeting ends`);
-
-        while (true) {
-          await new Promise(r => setTimeout(r, 5000));
-
-          const since = _pollIndex.get(sessionId) || 0;
-          const data = await getTranscript(sessionId, 0, since);
-
-          // Session gone or error — treat as ended
-          if (typeof data === "string") break;
-
-          const { nextSince, ended } = data;
-          if (nextSince > since) _pollIndex.set(sessionId, nextSince);
-
-          if (ended) {
-            _pollIndex.delete(sessionId);
-            try { await leaveMeeting(sessionId); } catch {}
-            break;
-          }
-        }
-
-        // Return full transcript for summarization
-        const transcript = await getTranscript(sessionId, 10000);
-        return JSON.stringify({ status: "meeting_ended", transcript });
+        console.log(`[Meeting] wait: blocking on session ${sessionId} until call ends`);
+        const result = await waitForMeetingEnd(sessionId);
+        return JSON.stringify(result);
       }
 
       case "transcript": {
         const { sessionId, last } = params;
         if (!sessionId) return "Error: sessionId is required";
-        return getTranscript(sessionId, parseInt(last || "50"));
-      }
-
-      case "getRecording": {
-        const { sessionId } = params;
-        if (!sessionId) return "Error: sessionId is required";
-        return getRecording(sessionId);
+        const session = getSession(sessionId);
+        if (!session) return `Error: session "${sessionId}" not found`;
+        const entries = session.transcript.slice(-(parseInt(last || "50")));
+        if (entries.length === 0) return "No transcript entries yet.";
+        return entries.map(e => {
+          const time = new Date(e.timestamp).toISOString().slice(11, 19);
+          return `[${time}] ${e.speaker}: ${e.text}`;
+        }).join("\n");
       }
 
       // ── Meeting state ──────────────────────────────────────────────────────
@@ -168,32 +98,19 @@ export async function meetingAction(toolParams) {
         if (sessionId) {
           const session = getSession(sessionId);
           if (!session) return `Error: session "${sessionId}" not found`;
-          return JSON.stringify(session, null, 2);
+          return JSON.stringify({
+            id: session.id,
+            dialIn: session.dialIn,
+            state: session.state,
+            transcriptCount: session.transcriptCount,
+            startedAt: session.startedAt,
+          });
         }
-        // List all sessions
         const sessions = listSessions();
         if (sessions.length === 0) return "No active meeting sessions.";
         return sessions.map(s =>
-          `  ${s.id}: ${s.platform} (${s.state}) — ${s.meetingUrl.slice(0, 60)}`
+          `  ${s.id}: ${s.platform} (${s.state}) → ${s.dialIn}`
         ).join("\n");
-      }
-
-      case "participants": {
-        const { sessionId } = params;
-        if (!sessionId) return "Error: sessionId is required";
-        return await getParticipants(sessionId);
-      }
-
-      case "mute": {
-        const { sessionId } = params;
-        if (!sessionId) return "Error: sessionId is required";
-        return await toggleMute(sessionId, true);
-      }
-
-      case "unmute": {
-        const { sessionId } = params;
-        if (!sessionId) return "Error: sessionId is required";
-        return await toggleMute(sessionId, false);
       }
 
       // ── Voice cloning (ElevenLabs) ─────────────────────────────────────────
@@ -230,15 +147,12 @@ export async function meetingAction(toolParams) {
       case "voiceInfo": {
         const { voiceId } = params;
         if (!voiceId) return "Error: voiceId is required";
-        const info = await getVoice(voiceId);
-        return JSON.stringify(info, null, 2);
+        return JSON.stringify(await getVoice(voiceId), null, 2);
       }
 
       case "voiceSettings": {
         const { voiceId, stability, similarityBoost, style, useSpeakerBoost } = params;
         if (!voiceId) return "Error: voiceId is required";
-
-        // If settings provided, update
         if (stability !== undefined || similarityBoost !== undefined || style !== undefined || useSpeakerBoost !== undefined) {
           const settings = {};
           if (stability !== undefined) settings.stability = parseFloat(stability);
@@ -248,26 +162,11 @@ export async function meetingAction(toolParams) {
           await updateVoiceSettings(voiceId, settings);
           return `Voice settings updated for ${voiceId}`;
         }
-
-        // Otherwise, get settings
-        const settings = await getVoiceSettings(voiceId);
-        return JSON.stringify(settings, null, 2);
-      }
-
-      case "setVoice": {
-        const { sessionId, voiceId } = params;
-        if (!sessionId || !voiceId) return "Error: sessionId and voiceId are required";
-        const session = getSession(sessionId);
-        if (!session) return `Error: session "${sessionId}" not found`;
-        // Update voice on raw session
-        const { _getRawSession } = await import("../meeting/MeetingSessionManager.js");
-        const raw = _getRawSession(sessionId);
-        if (raw) raw.audioConfig.voiceId = voiceId;
-        return `Voice set to ${voiceId} for session ${sessionId}`;
+        return JSON.stringify(await getVoiceSettings(voiceId), null, 2);
       }
 
       default:
-        return `Unknown action: "${action}". Valid: join, leave, speak, listen, poll, transcript, status, participants, mute, unmute, cloneVoice, listVoices, deleteVoice, voiceInfo, voiceSettings, setVoice`;
+        return `Unknown action: "${action}". Valid: join, leave, speak, wait, transcript, status, cloneVoice, listVoices, deleteVoice, voiceInfo, voiceSettings`;
     }
   } catch (err) {
     return `Error: ${err.message}`;
@@ -275,23 +174,18 @@ export async function meetingAction(toolParams) {
 }
 
 export const meetingActionDescription =
-  `meetingAction(action: string, paramsJson?: string) - Join video meetings (Zoom/Meet/Teams) and manage voice cloning.
+  `meetingAction(action: string, ...) - Join meetings via phone dial-in (Twilio) + OpenAI Realtime STT + ElevenLabs TTS.
   Meeting Actions:
-    join           - {"url":"meeting-url","displayName":"Daemora"} → join meeting via browser (auto-detects platform). TTS/STT use server-configured models.
-    leave          - {"sessionId":"..."} → leave meeting
-    speak          - {"sessionId":"...","text":"..."} → TTS → inject audio into meeting
-    listen         - {"sessionId":"...","last":20} → last N transcript entries (waits 5s)
-    poll           - {"sessionId":"...","since":0} → NEW entries since index (waits 2s). Returns {entries,total,nextSince,status}. Use for meeting loops: poll → decide → speak → poll(nextSince) → ...
-    transcript     - {"sessionId":"...","last":50} → full transcript
-    status         - {"sessionId":"..."} → session status, or list all sessions if no sessionId
-    participants   - {"sessionId":"..."} → list meeting participants
-    mute           - {"sessionId":"..."} → mute microphone
-    unmute         - {"sessionId":"..."} → unmute microphone
+    join       - {dialIn: "+14155550100", pin: "123456789", displayName: "Daemora", meetingUrl?: "..."} → dial into meeting via Twilio. Every Google Meet/Zoom/Teams invite has a phone number.
+    leave      - {sessionId: "..."} → hang up
+    speak      - {sessionId: "...", text: "..."} → TTS → inject audio into call
+    wait       - {sessionId: "..."} → BLOCKS until call ends, returns full transcript. Bot converses autonomously via OpenAI Realtime STT + TTS.
+    transcript - {sessionId: "...", last: 50} → get transcript entries
+    status     - {sessionId?: "..."} → session status or list all
   Voice Cloning (ElevenLabs):
-    cloneVoice     - {"name":"My Voice","samplePaths":["/path/to/sample.mp3"]} → create instant voice clone
-    listVoices     - {"source":"tenant|all"} → list available voices
-    deleteVoice    - {"voiceId":"..."} → delete cloned voice
-    voiceInfo      - {"voiceId":"..."} → detailed voice info
-    voiceSettings  - {"voiceId":"...","stability":0.5,"similarityBoost":0.75} → get/update voice settings
-    setVoice       - {"sessionId":"...","voiceId":"..."} → change active voice for meeting session
-  TTS/STT use server-configured models automatically. Voice cloning requires ELEVENLABS_API_KEY.`;
+    cloneVoice    - {name: "My Voice", samplePaths: ["/path/audio.mp3"]} → create voice clone
+    listVoices    - {source?: "tenant|all"} → list voices
+    deleteVoice   - {voiceId: "..."} → delete voice
+    voiceInfo     - {voiceId: "..."} → voice details
+    voiceSettings - {voiceId: "...", stability?: 0.5, similarityBoost?: 0.75} → get/set voice settings
+  Requires: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, DAEMORA_PUBLIC_URL in settings.`;

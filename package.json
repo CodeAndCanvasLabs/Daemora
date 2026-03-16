@@ -94,6 +94,7 @@
     "puppeteer-extra-plugin-stealth": "^2.11.2",
     "twilio": "^5.12.2",
     "uuid": "^13.0.0",
+    "ws": "^8.19.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
