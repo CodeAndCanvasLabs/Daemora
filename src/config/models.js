@@ -333,40 +333,93 @@ export const models = {
     tier: "cheap",
   },
 
-  // ─── xAI ───────────────────────────────────────────────────────────────────
+  // ─── xAI (Grok) ────────────────────────────────────────────────────────────
 
-  "xai:grok-4": {
-    provider: "xai", model: "grok-4",
+  // Grok 4.20 series (2M context)
+  "xai:grok-4.20-multi-agent-beta-0309": {
+    provider: "xai", model: "grok-4.20-multi-agent-beta-0309",
     contextWindow: 2_000_000, compactAt: 1_400_000,
-    costPer1kInput: 0.003, costPer1kOutput: 0.015,
+    costPer1kInput: 0.002, costPer1kOutput: 0.006,
+    capabilities: ["text", "tools", "structured-output", "vision", "reasoning", "multi-agent"],
+    tier: "standard",
+  },
+  "xai:grok-4.20-beta-0309-reasoning": {
+    provider: "xai", model: "grok-4.20-beta-0309-reasoning",
+    contextWindow: 2_000_000, compactAt: 1_400_000,
+    costPer1kInput: 0.002, costPer1kOutput: 0.006,
     capabilities: ["text", "tools", "structured-output", "vision", "reasoning"],
     tier: "standard",
   },
-  "xai:grok-4.1-fast": {
-    provider: "xai", model: "grok-4.1-fast",
+  "xai:grok-4.20-beta-0309-non-reasoning": {
+    provider: "xai", model: "grok-4.20-beta-0309-non-reasoning",
     contextWindow: 2_000_000, compactAt: 1_400_000,
-    costPer1kInput: 0.0002, costPer1kOutput: 0.0005,
+    costPer1kInput: 0.002, costPer1kOutput: 0.006,
     capabilities: ["text", "tools", "structured-output", "vision"],
-    tier: "cheap",
-  },
-  "xai:grok-4-fast": {
-    provider: "xai", model: "grok-4-fast",
-    contextWindow: 2_000_000, compactAt: 1_400_000,
-    costPer1kInput: 0.0002, costPer1kOutput: 0.0005,
-    capabilities: ["text", "tools", "structured-output", "vision"],
-    tier: "cheap",
-  },
-  "xai:grok-3-beta": {
-    provider: "xai", model: "grok-3-beta",
-    contextWindow: 131_072, compactAt: 90_000,
-    costPer1kInput: 0.003, costPer1kOutput: 0.015,
-    capabilities: ["text", "tools"],
     tier: "standard",
   },
-  "xai:grok-3-mini-beta": {
-    provider: "xai", model: "grok-3-mini-beta",
+
+  // Grok Code (256K context, cheapest)
+  "xai:grok-code-fast-1": {
+    provider: "xai", model: "grok-code-fast-1",
+    contextWindow: 256_000, compactAt: 180_000,
+    costPer1kInput: 0.0002, costPer1kOutput: 0.0015,
+    capabilities: ["text", "tools", "structured-output"],
+    tier: "cheap",
+  },
+
+  // Grok 4 Fast series (2M context, cheapest fast)
+  "xai:grok-4-fast-reasoning": {
+    provider: "xai", model: "grok-4-fast-reasoning",
+    contextWindow: 2_000_000, compactAt: 1_400_000,
+    costPer1kInput: 0.0002, costPer1kOutput: 0.0005,
+    capabilities: ["text", "tools", "structured-output", "vision", "reasoning"],
+    tier: "cheap",
+  },
+  "xai:grok-4-fast-non-reasoning": {
+    provider: "xai", model: "grok-4-fast-non-reasoning",
+    contextWindow: 2_000_000, compactAt: 1_400_000,
+    costPer1kInput: 0.0002, costPer1kOutput: 0.0005,
+    capabilities: ["text", "tools", "structured-output", "vision"],
+    tier: "cheap",
+  },
+
+  // Grok 4.1 Fast (2M context)
+  "xai:grok-4-1-fast-reasoning": {
+    provider: "xai", model: "grok-4-1-fast-reasoning",
+    contextWindow: 2_000_000, compactAt: 1_400_000,
+    costPer1kInput: 0.0002, costPer1kOutput: 0.0005,
+    capabilities: ["text", "tools", "structured-output", "vision", "reasoning"],
+    tier: "cheap",
+  },
+  "xai:grok-4-1-fast-non-reasoning": {
+    provider: "xai", model: "grok-4-1-fast-non-reasoning",
+    contextWindow: 2_000_000, compactAt: 1_400_000,
+    costPer1kInput: 0.0002, costPer1kOutput: 0.0005,
+    capabilities: ["text", "tools", "structured-output", "vision"],
+    tier: "cheap",
+  },
+
+  // Grok 4 (256K, premium)
+  "xai:grok-4-0709": {
+    provider: "xai", model: "grok-4-0709",
+    contextWindow: 256_000, compactAt: 180_000,
+    costPer1kInput: 0.003, costPer1kOutput: 0.015,
+    capabilities: ["text", "tools", "structured-output", "vision", "reasoning"],
+    tier: "expensive",
+  },
+
+  // Grok 3 (131K context)
+  "xai:grok-3": {
+    provider: "xai", model: "grok-3",
     contextWindow: 131_072, compactAt: 90_000,
-    costPer1kInput: 0.0005, costPer1kOutput: 0.005,
+    costPer1kInput: 0.003, costPer1kOutput: 0.015,
+    capabilities: ["text", "tools", "structured-output"],
+    tier: "standard",
+  },
+  "xai:grok-3-mini": {
+    provider: "xai", model: "grok-3-mini",
+    contextWindow: 131_072, compactAt: 90_000,
+    costPer1kInput: 0.0003, costPer1kOutput: 0.0005,
     capabilities: ["text", "tools", "reasoning"],
     tier: "cheap",
   },
@@ -586,16 +639,16 @@ export const fallbackChains = {
   cheap: [
     "openai:gpt-5-mini", "openai:gpt-4.1-mini", "anthropic:claude-haiku-4-5",
     "google:gemini-2.5-flash", "google:gemini-2.0-flash", "deepseek:deepseek-chat",
-    "mistral:mistral-small-latest", "xai:grok-4.1-fast", "xai:grok-4-fast", "ollama:llama3.1",
+    "mistral:mistral-small-latest", "xai:grok-4-1-fast-non-reasoning", "xai:grok-4-fast-non-reasoning", "ollama:llama3.1",
   ],
   standard: [
     "openai:gpt-5.2", "openai:gpt-4.1", "anthropic:claude-sonnet-4-6",
-    "google:gemini-2.5-pro", "xai:grok-4", "mistral:mistral-large-latest",
+    "google:gemini-2.5-pro", "xai:grok-4-0709", "mistral:mistral-large-latest",
     "deepseek:deepseek-chat", "ollama:llama3.1",
   ],
   expensive: [
     "anthropic:claude-opus-4-6", "openai:gpt-5.4", "anthropic:claude-sonnet-4-6",
-    "openai:o3-pro", "google:gemini-3.1-pro-preview", "xai:grok-4",
+    "openai:o3-pro", "google:gemini-3.1-pro-preview", "xai:grok-4-0709",
   ],
   local: ["ollama:llama4:scout", "ollama:llama4:maverick", "ollama:llama3.1", "ollama:qwen2.5-coder", "ollama:llama3"],
 };
