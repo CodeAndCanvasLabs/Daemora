@@ -63,7 +63,44 @@ export const AUDIO_CAPTURE_SCRIPT = `
   const RETRY_INTERVAL_MS = 2000;
 
   function attemptCapture() {
-    const elements = findMediaElements();
+    // Try DOM elements first, then RTC-injected elements
+    let elements = findMediaElements();
+
+    // Also check RTC-injected audio elements (created by RTCPeerConnection hook)
+    if (elements.length === 0 && window.__daemoraInjectedAudioElements) {
+      elements = window.__daemoraInjectedAudioElements.filter(el => {
+        return el && el.srcObject && el.srcObject.getAudioTracks().length > 0;
+      });
+      if (elements.length > 0) {
+        console.log("[Daemora:Audio] Found " + elements.length + " RTC-injected audio element(s)");
+      }
+    }
+
+    // Also try to capture directly from RTCPeerConnection receivers
+    if (elements.length === 0 && window.__daemoraPeerConnections) {
+      for (const pc of window.__daemoraPeerConnections) {
+        try {
+          const receivers = pc.getReceivers ? pc.getReceivers() : [];
+          for (const receiver of receivers) {
+            if (receiver.track && receiver.track.kind === 'audio' && receiver.track.readyState === 'live') {
+              // Create audio element from this track
+              const stream = new MediaStream([receiver.track]);
+              const audioEl = document.createElement('audio');
+              audioEl.srcObject = stream;
+              audioEl.autoplay = true;
+              audioEl.muted = false;
+              audioEl.volume = 1.0;
+              audioEl.style.cssText = 'position:absolute;left:-9999px;width:1px;height:1px;';
+              document.body.appendChild(audioEl);
+              audioEl.play().catch(() => {});
+              elements.push(audioEl);
+              console.log("[Daemora:Audio] Created audio element from RTCPeerConnection receiver");
+            }
+          }
+        } catch(e) {}
+      }
+    }
+
     if (elements.length === 0) {
       retryCount++;
       if (retryCount < MAX_RETRIES) {
