@@ -381,9 +381,10 @@ export function Settings() {
         ttsModel:       "TTS_MODEL",
         ttsVoice:       "TTS_VOICE",
         ttsGroqModel:   "TTS_GROQ_MODEL",
-        meetingLlm:     "MEETING_LLM",
-        meetingMode:    "MEETING_MODE",
-        ollamaBaseUrl:  "OLLAMA_BASE_URL",
+        meetingLlm:       "MEETING_LLM",
+        twilioPhoneNumber:"TWILIO_PHONE_NUMBER",
+        daemoraPublicUrl: "DAEMORA_PUBLIC_URL",
+        ollamaBaseUrl:    "OLLAMA_BASE_URL",
       };
       const updates: Record<string, string> = {};
       for (const [configKey, envKey] of Object.entries(envMap)) {
@@ -684,17 +685,28 @@ export function Settings() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Meeting Mode</label>
-              <select
-                className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white focus:border-[#00d9ff]/50 focus:outline-none"
-                value={globalConfig.meetingMode || "auto"}
-                onChange={(e) => handleConfigChange("meetingMode", e.target.value)}
-              >
-                <option value="auto">auto — realtime if OpenAI key, else pipeline</option>
-                <option value="pipeline">pipeline — Deepgram STT → LLM stream → sentence TTS</option>
-                <option value="realtime">realtime — OpenAI Realtime API (&lt;1s)</option>
-              </select>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Twilio Phone Number</label>
+              <input
+                type="text"
+                className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-gray-600 focus:border-[#00d9ff]/50 focus:outline-none"
+                placeholder="+14155550100 (E.164 format)"
+                value={globalConfig.twilioPhoneNumber || ""}
+                onChange={(e) => handleConfigChange("twilioPhoneNumber", e.target.value)}
+              />
             </div>
+            <div>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Public URL</label>
+              <input
+                type="text"
+                className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-gray-600 focus:border-[#00d9ff]/50 focus:outline-none"
+                placeholder="https://your-server.com (for Twilio webhooks)"
+                value={globalConfig.daemoraPublicUrl || ""}
+                onChange={(e) => handleConfigChange("daemoraPublicUrl", e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Ollama Base URL</label>
               <input
