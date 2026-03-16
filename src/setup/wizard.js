@@ -84,6 +84,7 @@ export async function runSetupWizard() {
       { value: "xai",       label: "xAI",        hint: "Grok 4 \u2014 conversational & capable" },
       { value: "deepseek",  label: "DeepSeek",   hint: "DeepSeek V3 / R1 \u2014 excellent coder, cheap" },
       { value: "mistral",   label: "Mistral",    hint: "Mistral Large \u2014 European AI, GDPR-friendly" },
+      { value: "groq",      label: "Groq",       hint: "Llama, Qwen, GPT-OSS \u2014 fastest inference, free tier" },
       { value: "openrouter", label: "OpenRouter", hint: "Any model via openrouter.ai \u2014 one key, all providers" },
       { value: "ollama",    label: "Ollama",     hint: "Local models \u2014 free, private, offline" },
     ],
