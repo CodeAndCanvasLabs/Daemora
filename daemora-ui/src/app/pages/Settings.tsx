@@ -128,7 +128,7 @@ function Section({
       <div
         ref={contentRef}
         style={{ height: height !== undefined ? `${height}px` : "auto" }}
-        className="transition-[height] duration-350 ease-in-out overflow-hidden"
+        className={`transition-[height] duration-350 ease-in-out ${height !== undefined ? "overflow-hidden" : "overflow-visible"}`}
       >
         <div className="px-6 pb-6 pt-1">{children}</div>
       </div>
