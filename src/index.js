@@ -1238,11 +1238,13 @@ app.put("/api/profile", (req, res) => {
   const profile = { name: name || "", personality: personality || "", tone: tone || "", instructions: instructions || "", subAgentModel: subAgentModel || "" };
   mkdirSync(dirname(profilePath), { recursive: true });
   writeFileSync(profilePath, JSON.stringify(profile, null, 2), "utf-8");
-  // Apply sub-agent model to runtime so it takes effect immediately
+  // Apply sub-agent model to runtime + persist to DB so it survives restarts
   if (subAgentModel) {
     process.env.SUB_AGENT_MODEL = subAgentModel;
+    try { configStore.set("SUB_AGENT_MODEL", subAgentModel); } catch {}
   } else {
     delete process.env.SUB_AGENT_MODEL;
+    try { configStore.set("SUB_AGENT_MODEL", ""); } catch {}
   }
   res.json({ message: "Profile saved", profile });
 });

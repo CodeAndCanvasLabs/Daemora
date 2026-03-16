@@ -41,11 +41,10 @@ export async function meetingAction(toolParams) {
       // ── Meeting lifecycle ──────────────────────────────────────────────────
 
       case "join": {
-        const { url, displayName, voiceId, sttProvider, ttsProvider } = params;
+        const { url, displayName, voiceId } = params;
         if (!url) return "Error: url is required";
-        // Browser profile auto-set to meeting-{platform} (enables stealth + headed mode)
-        // Agent profile (meeting-attendant) is separate from browser profile
-        const session = createSession(url, { displayName, voiceId, sttProvider, ttsProvider });
+        // TTS/STT always use server-configured models — agent doesn't choose providers
+        const session = createSession(url, { displayName, voiceId });
         const result = await joinMeeting(session.id);
         return `${result}\nSession ID: ${session.id} | Platform: ${session.platform}`;
       }
@@ -212,7 +211,7 @@ export async function meetingAction(toolParams) {
 export const meetingActionDescription =
   `meetingAction(action: string, paramsJson?: string) - Join video meetings (Zoom/Meet/Teams) and manage voice cloning.
   Meeting Actions:
-    join           - {"url":"meeting-url","displayName":"Daemora","voiceId":"...","sttProvider":"whisper","ttsProvider":"elevenlabs"} → join meeting via browser (auto-detects platform)
+    join           - {"url":"meeting-url","displayName":"Daemora"} → join meeting via browser (auto-detects platform). TTS/STT use server-configured models.
     leave          - {"sessionId":"..."} → leave meeting
     speak          - {"sessionId":"...","text":"..."} → TTS → inject audio into meeting
     listen         - {"sessionId":"...","last":20} → recent transcript entries
