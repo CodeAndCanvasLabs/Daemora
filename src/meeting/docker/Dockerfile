@@ -2,7 +2,7 @@
 # Matches Vexa's setup: multi-stage, Playwright + PulseAudio + Xvfb + ffmpeg + MS Edge
 
 # --- Build Stage ---
-FROM mcr.microsoft.com/playwright:v1.56.0-jammy AS base
+FROM mcr.microsoft.com/playwright:v1.58.2-jammy AS base
 
 RUN apt-get update && apt-get install -y \
     xvfb \
@@ -31,7 +31,7 @@ RUN arch=$(uname -m) && if [ "$arch" = "x86_64" ] || [ "$arch" = "amd64" ]; then
     else echo "Skipping msedge on $arch"; fi
 
 # --- Runtime Stage ---
-FROM mcr.microsoft.com/playwright:v1.56.0-jammy AS runtime
+FROM mcr.microsoft.com/playwright:v1.58.2-jammy AS runtime
 
 WORKDIR /app
 
