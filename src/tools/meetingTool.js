@@ -227,4 +227,4 @@ export const meetingActionDescription =
     voiceInfo      - {"voiceId":"..."} → detailed voice info
     voiceSettings  - {"voiceId":"...","stability":0.5,"similarityBoost":0.75} → get/update voice settings
     setVoice       - {"sessionId":"...","voiceId":"..."} → change active voice for meeting session
-  Requires: Playwright for meetings, ELEVENLABS_API_KEY for voice cloning, OPENAI_API_KEY for TTS/STT.`;
+  TTS/STT use server-configured models automatically. Voice cloning requires ELEVENLABS_API_KEY.`;
