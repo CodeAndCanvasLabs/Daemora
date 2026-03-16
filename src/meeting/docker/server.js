@@ -254,28 +254,33 @@ async function startAudioCapture() {
 
     try {
       let text = null;
-      const model = process.env.STT_MODEL || "gpt-4o-mini-transcribe";
+      const sttModel = process.env.STT_MODEL || "whisper-large-v3-turbo";
 
-      if (process.env.OPENAI_API_KEY) {
+      // Use configured STT model — detect provider from model name
+      const useGroq = sttModel.includes("whisper") || !process.env.OPENAI_API_KEY;
+
+      if (useGroq && process.env.GROQ_API_KEY) {
         const fd = new FormData();
         fd.append("file", new Blob([wavBuf], { type: "audio/wav" }), "a.wav");
-        fd.append("model", model);
-        const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-          body: fd,
-        });
-        if (r.ok) text = (await r.json()).text;
-      } else if (process.env.GROQ_API_KEY) {
-        const fd = new FormData();
-        fd.append("file", new Blob([wavBuf], { type: "audio/wav" }), "a.wav");
-        fd.append("model", "whisper-large-v3-turbo");
+        fd.append("model", sttModel.includes("gpt-4o") ? "whisper-large-v3-turbo" : sttModel);
         const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
           method: "POST",
           headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
           body: fd,
         });
         if (r.ok) text = (await r.json()).text;
+        else console.log(`[STT] Groq error: ${r.status} ${await r.text().catch(() => "")}`);
+      } else if (process.env.OPENAI_API_KEY) {
+        const fd = new FormData();
+        fd.append("file", new Blob([wavBuf], { type: "audio/wav" }), "a.wav");
+        fd.append("model", sttModel);
+        const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+          body: fd,
+        });
+        if (r.ok) text = (await r.json()).text;
+        else console.log(`[STT] OpenAI error: ${r.status} ${await r.text().catch(() => "")}`);
       } else {
         // Local Whisper fallback (free, no API key)
         if (!localPipeline) {
@@ -393,19 +398,7 @@ async function speak(text, opts = {}) {
     await playViaPulseAudio(audioPath);
     transcript.push({ speaker: session.displayName || "Daemora", text, timestamp: Date.now() });
 
-    // Re-mute after speaking
-    await page.waitForTimeout(500);
-    try {
-      await page.evaluate(() => {
-        const btns = document.querySelectorAll("button");
-        for (const btn of btns) {
-          const label = (btn.getAttribute("aria-label") || "").toLowerCase();
-          if (label.includes("turn off microphone") || label.includes("mute")) {
-            btn.click(); return;
-          }
-        }
-      });
-    } catch {}
+    // Do NOT re-mute — mic must stay ON for PulseAudio virtual mic to work
 
     return `Spoke: "${text.slice(0, 80)}"`;
   } catch (e) {
