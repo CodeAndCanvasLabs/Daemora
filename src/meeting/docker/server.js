@@ -345,6 +345,8 @@ async function speak(text, opts = {}) {
   const audioPath = join(STORAGE, "recordings", `tts-${Date.now()}.mp3`);
   const apiKey = opts.openaiKey || process.env.OPENAI_API_KEY;
 
+  let ttsOk = false;
+
   if (apiKey) {
     // OpenAI TTS
     const model = opts.model || process.env.TTS_MODEL || "gpt-4o-mini-tts";
@@ -354,9 +356,15 @@ async function speak(text, opts = {}) {
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model, voice, input: text, response_format: "mp3" }),
     });
-    if (!res.ok) return `TTS error: OpenAI ${res.status}`;
-    writeFileSync(audioPath, Buffer.from(await res.arrayBuffer()));
-  } else if (process.env.GROQ_API_KEY) {
+    if (res.ok) {
+      writeFileSync(audioPath, Buffer.from(await res.arrayBuffer()));
+      ttsOk = true;
+    } else {
+      console.log(`[TTS] OpenAI failed (${res.status}), trying fallback...`);
+    }
+  }
+
+  if (!ttsOk && process.env.GROQ_API_KEY) {
     // Groq TTS
     const res = await fetch("https://api.groq.com/openai/v1/audio/speech", {
       method: "POST",
@@ -374,8 +382,10 @@ async function speak(text, opts = {}) {
     } catch (e) {
       return `PulseAudio playback error: ${e.message}`;
     }
-  } else {
-    return "TTS error: no API key (set OPENAI_API_KEY or GROQ_API_KEY)";
+  }
+
+  if (!ttsOk) {
+    return "TTS error: no working provider (tried OpenAI + Groq)";
   }
 
   // Unmute mic before speaking (was muted during join)
