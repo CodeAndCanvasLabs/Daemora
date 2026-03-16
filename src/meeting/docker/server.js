@@ -1,23 +1,27 @@
 /**
- * Meeting Bot Docker Server — runs INSIDE the Docker container.
+ * Meeting Bot Docker Server — autonomous AI meeting participant.
  *
- * Exposes HTTP API for host Daemora to control:
- *   POST /join    — join a meeting
- *   POST /speak   — TTS → PulseAudio → participants hear
+ * Runs INSIDE Docker container. Fully self-contained:
+ * - Joins meeting via Playwright + stealth
+ * - Captures audio → STT (Groq/OpenAI/local)
+ * - VAD detects when user stops talking
+ * - Auto-calls LLM for response → TTS → PulseAudio → participants hear
+ * - No external agent needed for conversation — bot is autonomous
+ *
+ * HTTP API for host Daemora:
+ *   POST /join    — join meeting
+ *   POST /speak   — manual speak override
  *   POST /leave   — leave meeting
- *   GET  /listen  — get latest transcript
+ *   GET  /listen  — get transcript
  *   GET  /status  — session state
- *   GET  /health  — container health check
- *
- * All Playwright + PulseAudio operations happen inside this container.
- * Transcripts flow back to host Daemora via this API.
+ *   GET  /health  — container health
  */
 
 import http from "node:http";
 import { chromium } from "playwright-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { execSync, spawn } from "node:child_process";
-import { writeFileSync, readFileSync, mkdirSync, appendFileSync } from "node:fs";
+import { writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 // ── Stealth plugin ──────────────────────────────────────────────────────
@@ -27,50 +31,100 @@ stealth.enabledEvasions.delete("media.codecs");
 chromium.use(stealth);
 
 // ── State ───────────────────────────────────────────────────────────────
-let browser = null;
-let context = null;
-let page = null;
+let browser = null, context = null, page = null;
 let session = null;
 let transcript = [];
-let recording = { path: null, stream: null, samples: 0 };
 let captureActive = false;
+let isSpeaking = false; // prevents auto-respond while bot is talking
 
 const STORAGE = "/app/storage";
-const SAMPLE_RATE = 16000;
+mkdirSync(join(STORAGE, "recordings"), { recursive: true });
 
-// ── Browser args (Vexa-matching) ────────────────────────────────────────
+// ── VAD state ───────────────────────────────────────────────────────────
+let lastSpeechTime = 0;          // timestamp of last detected speech
+let pendingResponse = false;     // waiting for silence to respond
+const SILENCE_THRESHOLD_MS = 2000; // 2s silence = user stopped talking
+const MIN_NEW_WORDS = 3;         // need at least 3 new words to trigger response
+let lastRespondedIndex = 0;      // transcript index we last responded to
+
+// ── Config from env ─────────────────────────────────────────────────────
+const LLM_MODEL = process.env.LLM_MODEL || "openai:o4-mini";
+const BOT_NAME = process.env.BOT_NAME || "Daemora";
+
+// Parse LLM provider from model string (e.g. "openai:o4-mini" → openai)
+function getLLMConfig() {
+  const [provider, model] = LLM_MODEL.includes(":") ? LLM_MODEL.split(":", 2) : ["openai", LLM_MODEL];
+  let baseURL, apiKey;
+
+  if (provider === "groq") {
+    baseURL = "https://api.groq.com/openai/v1";
+    apiKey = process.env.GROQ_API_KEY;
+  } else if (provider === "openai") {
+    baseURL = process.env.LLM_BASE_URL || "https://api.openai.com/v1";
+    apiKey = process.env.OPENAI_API_KEY;
+  } else if (provider === "deepseek") {
+    baseURL = "https://api.deepseek.com/v1";
+    apiKey = process.env.DEEPSEEK_API_KEY || process.env.LLM_API_KEY;
+  } else if (provider === "xai") {
+    baseURL = "https://api.x.ai/v1";
+    apiKey = process.env.XAI_API_KEY || process.env.LLM_API_KEY;
+  } else if (provider === "openrouter") {
+    baseURL = "https://openrouter.ai/api/v1";
+    apiKey = process.env.OPENROUTER_API_KEY || process.env.LLM_API_KEY;
+  } else {
+    baseURL = process.env.LLM_BASE_URL || "https://api.openai.com/v1";
+    apiKey = process.env.LLM_API_KEY || process.env.OPENAI_API_KEY;
+  }
+
+  return { provider, model, baseURL, apiKey };
+}
+
+// ── System prompt for autonomous meeting bot ────────────────────────────
+const SYSTEM_PROMPT = `You are ${BOT_NAME} — an AI meeting participant. You are in a live meeting.
+
+Rules:
+- Respond in 1-2 sentences MAX. Talk like a real person in a meeting.
+- If someone asks you a question → answer directly.
+- If someone says your name → respond.
+- If it's small talk or greetings → respond naturally ("Hey!", "Sounds good", "Got it").
+- If nobody addressed you → respond with "" (empty string, stay silent).
+- If the conversation doesn't need your input → respond with "".
+- NEVER give long explanations. NEVER lecture. Keep it conversational.
+- You can hear everything. You are a participant, not a recorder.
+
+Examples:
+- "Can you hear me?" → "Yeah, I can hear you clearly."
+- "What do you think about the timeline?" → "I think two weeks is tight but doable."
+- "Let's move on to the next topic" → ""
+- "Daemora, take note of this" → "Got it, noted."
+- Random chatter not directed at you → ""`;
+
+// ── Browser args ────────────────────────────────────────────────────────
 const BROWSER_ARGS = [
-  "--no-sandbox",
-  "--disable-setuid-sandbox",
+  "--no-sandbox", "--disable-setuid-sandbox",
   "--disable-features=IsolateOrigins,site-per-process",
-  "--disable-infobars",
-  "--disable-gpu",
+  "--disable-infobars", "--disable-gpu",
   "--use-fake-ui-for-media-stream",
   "--use-file-for-fake-video-capture=/dev/null",
-  "--allow-running-insecure-content",
-  "--disable-web-security",
-  "--disable-site-isolation-trials",
+  "--allow-running-insecure-content", "--disable-web-security",
   "--autoplay-policy=no-user-gesture-required",
   "--ignore-certificate-errors",
-  "--ignore-certificate-errors-spki-list",
-  "--disable-features=IsolateOrigins,site-per-process,CertificateTransparencyComponentUpdater",
 ];
 
-// ── Audio capture script ────────────────────────────────────────────────
-const AUDIO_CAPTURE_SCRIPT = readFileSync(
-  join(import.meta.dirname, "../services/AudioCapture.js"), "utf-8"
-).match(/export const AUDIO_CAPTURE_SCRIPT = `([\s\S]*?)`;/)?.[1] || "";
+// ── Audio capture script (from native services) ────────────────────────
+const captureFile = readFileSync(join(import.meta.dirname, "../services/AudioCapture.js"), "utf-8");
+const AUDIO_CAPTURE_SCRIPT = captureFile.match(/export const AUDIO_CAPTURE_SCRIPT = `([\s\S]*?)`;/)?.[1] || "";
+const RTC_HOOK_SCRIPT = captureFile.match(/export const RTC_HOOK_SCRIPT = `([\s\S]*?)`;/)?.[1] || "";
 
-const RTC_HOOK_SCRIPT = readFileSync(
-  join(import.meta.dirname, "../services/AudioCapture.js"), "utf-8"
-).match(/export const RTC_HOOK_SCRIPT = `([\s\S]*?)`;/)?.[1] || "";
+// Speaker detection from googlemeet.js
+const meetFile = readFileSync(join(import.meta.dirname, "../platforms/googlemeet.js"), "utf-8");
+const SPEAKER_DETECTION_SCRIPT = meetFile.match(/export const SPEAKER_DETECTION_SCRIPT = `([\s\S]*?)`;/)?.[1] || "";
 
 // ── HTTP Server ─────────────────────────────────────────────────────────
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost`);
   const path = url.pathname;
 
-  // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -81,96 +135,65 @@ const server = http.createServer(async (req, res) => {
       json(res, { status: "ok", session: session?.state || "idle", transcriptCount: transcript.length });
       return;
     }
-
     if (path === "/join" && req.method === "POST") {
-      const body = await readBody(req);
-      const result = await joinMeeting(body);
-      json(res, result);
+      json(res, await joinMeeting(await readBody(req)));
       return;
     }
-
     if (path === "/speak" && req.method === "POST") {
       const body = await readBody(req);
-      const result = await speak(body.text, body);
-      json(res, { result });
+      json(res, { result: await speak(body.text) });
       return;
     }
-
     if (path === "/leave" && req.method === "POST") {
-      const result = await leaveMeeting();
-      json(res, { result });
+      json(res, { result: await leaveMeeting() });
       return;
     }
-
-    if (path === "/listen") {
+    if (path === "/listen" || path === "/transcript") {
       const last = parseInt(url.searchParams.get("last") || "30");
-      const entries = transcript.slice(-last);
-      json(res, { transcript: entries, count: transcript.length });
+      json(res, { transcript: transcript.slice(-last), count: transcript.length });
       return;
     }
-
     if (path === "/status") {
-      json(res, {
-        state: session?.state || "idle",
-        platform: session?.platform || null,
-        transcriptCount: transcript.length,
-        captureActive,
-        recording: recording.path,
-      });
+      json(res, { state: session?.state || "idle", transcriptCount: transcript.length, captureActive, isSpeaking });
       return;
     }
-
-    if (path === "/transcript") {
-      const last = parseInt(url.searchParams.get("last") || "1000");
-      json(res, { transcript: transcript.slice(-last) });
-      return;
-    }
-
-    res.writeHead(404);
-    res.end(JSON.stringify({ error: "not found" }));
+    res.writeHead(404); res.end('{"error":"not found"}');
   } catch (e) {
-    console.error(`[Server] Error: ${e.message}`);
-    res.writeHead(500);
-    res.end(JSON.stringify({ error: e.message }));
+    console.error(`[Server] ${e.message}`);
+    res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
   }
 });
 
 const PORT = parseInt(process.env.PORT || "3456");
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`[MeetingBot:Docker] Server ready on port ${PORT}`);
-});
+server.listen(PORT, "0.0.0.0", () => console.log(`[MeetingBot] Ready on :${PORT}`));
 
 // ── Join Meeting ────────────────────────────────────────────────────────
 async function joinMeeting(opts) {
-  const { url, displayName = "Daemora", platform = "meet" } = opts;
+  const { url, displayName = BOT_NAME, platform = "meet" } = opts;
   if (!url) throw new Error("url required");
 
   session = { state: "joining", platform, url, displayName };
   transcript = [];
+  lastRespondedIndex = 0;
 
-  // Launch browser
   browser = await chromium.launch({ headless: false, args: BROWSER_ARGS });
   context = await browser.newContext({
     permissions: ["microphone", "camera"],
     userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
     viewport: { width: 1280, height: 720 },
-    bypassCSP: true,
-    ignoreHTTPSErrors: true,
+    bypassCSP: true, ignoreHTTPSErrors: true,
   });
 
   page = await context.newPage();
-
-  // RTC hook before navigation
   await page.addInitScript(RTC_HOOK_SCRIPT);
 
-  // Navigate
   const cleanUrl = url.replace(/[?&]authuser=\d+/, "").replace(/\?$/, "");
   await page.goto(cleanUrl, { waitUntil: "networkidle", timeout: 60000 });
   await page.waitForTimeout(5000);
 
   // Dismiss popups
-  for (const sel of ['button:has-text("Got it")', 'button:has-text("OK")', 'button:has-text("Dismiss")']) {
-    try { const btn = await page.$(sel); if (btn) await btn.click(); await page.waitForTimeout(300); } catch {}
+  for (const sel of ['button:has-text("Got it")', 'button:has-text("OK")', 'button:has-text("Dismiss")', 'button:has-text("Accept all")']) {
+    try { const btn = await page.$(sel); if (btn) { await btn.click(); await page.waitForTimeout(300); } } catch {}
   }
 
   // Fill name
@@ -180,195 +203,317 @@ async function joinMeeting(opts) {
   await page.waitForTimeout(500);
 
   // Camera off
-  for (const sel of ['[aria-label*="Turn off camera" i]', 'button[aria-label*="camera" i]']) {
+  for (const sel of ['[aria-label*="Turn off camera" i]']) {
     try { const btn = await page.$(sel); if (btn) { await btn.click(); break; } } catch {}
   }
-
-  // Keep mic ON — PulseAudio virtual_mic needs it for TTS to reach meeting
-  // Vexa also keeps mic on when voiceAgentEnabled=true
   await page.waitForTimeout(500);
 
   // Join
-  let joined = false;
   for (const sel of ['button:has-text("Ask to join")', 'button:has-text("Join now")', 'button:has-text("Join")']) {
-    try { const btn = await page.waitForSelector(sel, { timeout: 5000 }); if (btn) { await btn.click(); joined = true; break; } } catch {}
+    try { const btn = await page.waitForSelector(sel, { timeout: 5000 }); if (btn) { await btn.click(); break; } } catch {}
   }
 
   await page.waitForTimeout(8000);
   session.state = "active";
 
-  // Start audio capture
+  // Start services
   await startAudioCapture();
+  startAutoRespond();
 
-  console.log(`[MeetingBot:Docker] Joined ${platform} meeting: ${url}`);
+  console.log(`[MeetingBot] Joined ${platform}: ${url}`);
   return { status: "joined", platform, sessionId: "docker" };
 }
 
-// ── Audio Capture + Transcription ────────────────────────────────────────
+// ── Audio Capture + STT ─────────────────────────────────────────────────
 let audioBuffer = [];
 let sttTimer = null;
-const STT_FLUSH_MS = 3000;
+const STT_FLUSH_MS = 1500; // 1.5s batches for faster response
 const STT_SAMPLE_RATE = 16000;
+let currentSpeaker = "participant";
 
 async function startAudioCapture() {
   if (!page) return;
 
-  // Expose callback — receives Float32 audio chunks from browser
-  let chunkCount = 0;
   try {
     await page.exposeFunction("__daemoraSendAudio", (jsonChunk) => {
       try {
         const arr = JSON.parse(jsonChunk);
         audioBuffer.push(new Float32Array(arr));
-        chunkCount++;
-        if (chunkCount % 50 === 1) console.log(`[Audio] Chunk #${chunkCount} received (${arr.length} samples, buffer: ${audioBuffer.length})`);
       } catch {}
     });
   } catch {}
 
-  // AUDIO_CAPTURE_SCRIPT is already a self-contained IIFE — inject it directly
-  // Do NOT wrap in another IIFE that sets __daemoraCaptureActive (kills the script)
+  // Speaker detection callback
+  try {
+    await page.exposeFunction("__daemoraSpeakerChanged", (name) => {
+      if (name && name !== currentSpeaker) {
+        currentSpeaker = name;
+      }
+    });
+  } catch {}
+
   await page.evaluate(AUDIO_CAPTURE_SCRIPT);
-
   captureActive = true;
-  console.log("[MeetingBot:Docker] Audio capture started");
 
-  // Start STT flush loop — API keys or local Whisper
-  const apiKey = process.env.OPENAI_API_KEY || process.env.GROQ_API_KEY;
-  let localPipeline = null;
+  // Inject speaker detection
+  if (SPEAKER_DETECTION_SCRIPT) {
+    await page.evaluate(SPEAKER_DETECTION_SCRIPT).catch(() => {});
+  }
 
-  sttTimer = setInterval(async () => {
-    if (audioBuffer.length === 0) return;
-    const chunks = audioBuffer.splice(0);
+  // STT flush loop
+  sttTimer = setInterval(() => flushSTT(), STT_FLUSH_MS);
+  console.log(`[MeetingBot] STT active (model: ${process.env.STT_MODEL || "whisper-large-v3-turbo"}, ${STT_FLUSH_MS}ms)`);
+}
 
-    // Merge chunks
-    const totalLen = chunks.reduce((s, c) => s + c.length, 0);
-    const merged = new Float32Array(totalLen);
-    let off = 0;
-    for (const c of chunks) { merged.set(c, off); off += c.length; }
+async function flushSTT() {
+  if (audioBuffer.length === 0) return;
+  const chunks = audioBuffer.splice(0);
 
-    if (merged.length < STT_SAMPLE_RATE * 0.5) return; // skip < 0.5s
+  const totalLen = chunks.reduce((s, c) => s + c.length, 0);
+  const merged = new Float32Array(totalLen);
+  let off = 0;
+  for (const c of chunks) { merged.set(c, off); off += c.length; }
 
-    // Convert to WAV
-    const wavBuf = float32ToWav(merged);
+  if (merged.length < STT_SAMPLE_RATE * 0.3) return; // skip < 0.3s
+
+  const wavBuf = float32ToWav(merged);
+
+  try {
+    const text = await transcribeAudio(wavBuf);
+    if (text?.trim()?.length > 1) {
+      const last = transcript[transcript.length - 1];
+      if (!last || last.text !== text.trim()) {
+        const speaker = currentSpeaker || "participant";
+        transcript.push({ speaker, text: text.trim(), timestamp: Date.now() });
+        lastSpeechTime = Date.now();
+        pendingResponse = true;
+        console.log(`[STT] [${speaker}] "${text.trim().slice(0, 80)}"`);
+      }
+    }
+  } catch (e) {
+    console.log(`[STT] Error: ${e.message}`);
+  }
+}
+
+async function transcribeAudio(wavBuf) {
+  const sttModel = process.env.STT_MODEL || "whisper-large-v3-turbo";
+  const isOpenaiStt = sttModel.includes("gpt-4o") || sttModel === "whisper-1";
+
+  // Primary provider based on model
+  if (isOpenaiStt && process.env.OPENAI_API_KEY) {
+    return sttAPI("https://api.openai.com/v1/audio/transcriptions", process.env.OPENAI_API_KEY, sttModel, wavBuf);
+  }
+  if (!isOpenaiStt && process.env.GROQ_API_KEY) {
+    return sttAPI("https://api.groq.com/openai/v1/audio/transcriptions", process.env.GROQ_API_KEY, sttModel, wavBuf);
+  }
+  // Fallbacks
+  if (process.env.GROQ_API_KEY) {
+    return sttAPI("https://api.groq.com/openai/v1/audio/transcriptions", process.env.GROQ_API_KEY, "whisper-large-v3-turbo", wavBuf);
+  }
+  if (process.env.OPENAI_API_KEY) {
+    return sttAPI("https://api.openai.com/v1/audio/transcriptions", process.env.OPENAI_API_KEY, "whisper-1", wavBuf);
+  }
+  return null;
+}
+
+async function sttAPI(url, apiKey, model, wavBuf) {
+  const fd = new FormData();
+  fd.append("file", new Blob([wavBuf], { type: "audio/wav" }), "a.wav");
+  fd.append("model", model);
+  const r = await fetch(url, { method: "POST", headers: { Authorization: `Bearer ${apiKey}` }, body: fd });
+  if (!r.ok) { console.log(`[STT] ${r.status}: ${await r.text().catch(() => "")}`); return null; }
+  return (await r.json()).text;
+}
+
+// ── Auto-Respond Loop ───────────────────────────────────────────────────
+let autoRespondTimer = null;
+
+function startAutoRespond() {
+  const llm = getLLMConfig();
+  if (!llm.apiKey) {
+    console.log("[MeetingBot] No LLM API key — auto-respond disabled");
+    return;
+  }
+  console.log(`[MeetingBot] Auto-respond active (${llm.provider}:${llm.model})`);
+
+  autoRespondTimer = setInterval(async () => {
+    if (!session || session.state !== "active") return;
+    if (isSpeaking) return;
+    if (!pendingResponse) return;
+
+    // Wait for silence (user stopped talking)
+    const silenceMs = Date.now() - lastSpeechTime;
+    if (silenceMs < SILENCE_THRESHOLD_MS) return;
+
+    // Check if there's enough new content to respond to
+    const newEntries = transcript.slice(lastRespondedIndex).filter(e => e.speaker !== BOT_NAME);
+    if (newEntries.length === 0) { pendingResponse = false; return; }
+
+    const newWords = newEntries.reduce((sum, e) => sum + e.text.split(/\s+/).length, 0);
+    if (newWords < MIN_NEW_WORDS) { pendingResponse = false; return; }
+
+    pendingResponse = false;
+    lastRespondedIndex = transcript.length;
+
+    // Build context — last 20 transcript entries
+    const recentTranscript = transcript.slice(-20).map(e =>
+      `[${e.speaker}]: ${e.text}`
+    ).join("\n");
 
     try {
-      let text = null;
-      const sttModel = process.env.STT_MODEL || "whisper-large-v3-turbo";
-
-      // Determine STT provider from model name
-      // Groq models: whisper-large-v3, whisper-large-v3-turbo, distil-whisper-large-v3-en
-      // OpenAI models: gpt-4o-mini-transcribe, gpt-4o-transcribe, whisper-1
-      const isOpenaiStt = sttModel.includes("gpt-4o") || sttModel === "whisper-1";
-
-      if (isOpenaiStt && process.env.OPENAI_API_KEY) {
-        const fd = new FormData();
-        fd.append("file", new Blob([wavBuf], { type: "audio/wav" }), "a.wav");
-        fd.append("model", sttModel);
-        const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-          body: fd,
-        });
-        if (r.ok) text = (await r.json()).text;
-        else console.log(`[STT] OpenAI error: ${r.status} ${await r.text().catch(() => "")}`);
-      } else if (!isOpenaiStt && process.env.GROQ_API_KEY) {
-        const fd = new FormData();
-        fd.append("file", new Blob([wavBuf], { type: "audio/wav" }), "a.wav");
-        fd.append("model", sttModel);
-        const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
-          body: fd,
-        });
-        if (r.ok) text = (await r.json()).text;
-        else console.log(`[STT] Groq error: ${r.status} ${await r.text().catch(() => "")}`);
-      } else if (process.env.GROQ_API_KEY) {
-        // Fallback: configured OpenAI model but no OpenAI key — try Groq
-        const fd = new FormData();
-        fd.append("file", new Blob([wavBuf], { type: "audio/wav" }), "a.wav");
-        fd.append("model", "whisper-large-v3-turbo");
-        const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
-          body: fd,
-        });
-        if (r.ok) text = (await r.json()).text;
-        else console.log(`[STT] Groq fallback error: ${r.status}`);
-      } else if (process.env.OPENAI_API_KEY) {
-        // Fallback: configured Groq model but no Groq key — try OpenAI
-        const fd = new FormData();
-        fd.append("file", new Blob([wavBuf], { type: "audio/wav" }), "a.wav");
-        fd.append("model", "whisper-1");
-        const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-          body: fd,
-        });
-        if (r.ok) text = (await r.json()).text;
-        else console.log(`[STT] OpenAI fallback error: ${r.status}`);
-      } else {
-        // Local Whisper fallback (free, no API key)
-        if (!localPipeline) {
-          try {
-            console.log("[STT] Loading local Whisper model (~75MB)...");
-            const { pipeline } = await import("@huggingface/transformers");
-            localPipeline = await pipeline("automatic-speech-recognition", "onnx-community/whisper-tiny.en", { device: "cpu" });
-            console.log("[STT] Local Whisper loaded");
-          } catch (e) {
-            console.log(`[STT] Local Whisper failed: ${e.message}`);
-            return;
-          }
-        }
-        try {
-          const pcm = new Int16Array(wavBuf.buffer, wavBuf.byteOffset + 44, (wavBuf.length - 44) / 2);
-          const f32 = new Float32Array(pcm.length);
-          for (let i = 0; i < pcm.length; i++) f32[i] = pcm[i] / 32768.0;
-          const result = await localPipeline(f32, { sampling_rate: STT_SAMPLE_RATE, language: "en", task: "transcribe" });
-          text = result?.text || null;
-        } catch (e) {
-          console.log(`[STT] Local error: ${e.message}`);
-        }
-      }
-
-      if (text?.trim()?.length > 1) {
-        // Dedup
-        const last = transcript[transcript.length - 1];
-        if (!last || last.text !== text.trim()) {
-          // Try to get active speaker name from Google Meet DOM
-          let speaker = "participant";
-          try {
-            speaker = await page.evaluate(() => {
-              // Google Meet: active speaker has a blue border or speaking indicator
-              const nameEl = document.querySelector('[data-self-name]');
-              // Look for participant tiles with speaking indicator
-              const tiles = document.querySelectorAll('[data-participant-id]');
-              for (const tile of tiles) {
-                const isSpeaking = tile.querySelector('[data-is-speaking="true"]') ||
-                  tile.classList.contains('speaking') ||
-                  tile.querySelector('.VfPpkd-Bz112c-J1Ukfc'); // speaking animation
-                if (isSpeaking) {
-                  const name = tile.querySelector('[data-self-name]')?.getAttribute('data-self-name') ||
-                    tile.querySelector('.ZjFb7c')?.textContent?.trim() ||
-                    tile.querySelector('.cS7aqe')?.textContent?.trim();
-                  if (name) return name;
-                }
-              }
-              return "participant";
-            }) || "participant";
-          } catch {}
-          transcript.push({ speaker, text: text.trim(), timestamp: Date.now() });
-          console.log(`[STT] "${text.trim().slice(0, 80)}"`);
+      const response = await callLLM(recentTranscript);
+      if (response && response.trim() && response.trim() !== '""' && response.trim() !== "''") {
+        const clean = response.replace(/^["']|["']$/g, "").trim();
+        if (clean.length > 0 && clean.length < 200) {
+          console.log(`[AutoRespond] "${clean}"`);
+          await speak(clean);
         }
       }
     } catch (e) {
-      console.log(`[STT] Error: ${e.message}`);
+      console.log(`[AutoRespond] Error: ${e.message}`);
     }
-  }, STT_FLUSH_MS);
-
-  console.log(`[MeetingBot:Docker] STT active (model: ${process.env.STT_MODEL || "whisper-large-v3-turbo"}, ${STT_FLUSH_MS/1000}s flush)`);
+  }, 500); // check every 500ms
 }
 
+async function callLLM(recentTranscript) {
+  const llm = getLLMConfig();
+  if (!llm.apiKey) return null;
+
+  const r = await fetch(`${llm.baseURL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${llm.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: llm.model,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: `Recent meeting transcript:\n${recentTranscript}\n\nRespond naturally if someone needs your input, or respond with empty string "" if you should stay silent.` },
+      ],
+      max_tokens: 150,
+      temperature: 0.7,
+    }),
+    signal: AbortSignal.timeout(10000),
+  });
+
+  if (!r.ok) {
+    console.log(`[LLM] ${r.status}: ${await r.text().catch(() => "")}`);
+    return null;
+  }
+
+  const data = await r.json();
+  return data.choices?.[0]?.message?.content || null;
+}
+
+// ── TTS / Speak ─────────────────────────────────────────────────────────
+async function speak(text) {
+  if (!text) return "Error: text required";
+  if (!session || session.state !== "active") return "Error: not in meeting";
+  if (isSpeaking) return "Already speaking";
+
+  isSpeaking = true;
+
+  try {
+    const ttsModel = process.env.TTS_MODEL || "tts-1";
+    const audioPath = join(STORAGE, "recordings", `tts-${Date.now()}.mp3`);
+
+    const isGroq = ttsModel === "groq" || ttsModel.includes("orpheus");
+    let playPath = audioPath;
+    let ttsOk = false;
+
+    // Try configured provider first
+    if (isGroq && process.env.GROQ_API_KEY) {
+      ttsOk = await ttsAPI(
+        "https://api.groq.com/openai/v1/audio/speech", process.env.GROQ_API_KEY,
+        "canopylabs/orpheus-v1-english", text, "hannah", "wav",
+        audioPath.replace(".mp3", ".wav")
+      );
+      if (ttsOk) playPath = audioPath.replace(".mp3", ".wav");
+    }
+
+    if (!ttsOk && !isGroq && process.env.OPENAI_API_KEY) {
+      ttsOk = await ttsAPI(
+        "https://api.openai.com/v1/audio/speech", process.env.OPENAI_API_KEY,
+        ttsModel, text, "nova", "mp3", audioPath
+      );
+    }
+
+    // Fallbacks
+    if (!ttsOk && process.env.GROQ_API_KEY) {
+      playPath = audioPath.replace(".mp3", ".wav");
+      ttsOk = await ttsAPI(
+        "https://api.groq.com/openai/v1/audio/speech", process.env.GROQ_API_KEY,
+        "canopylabs/orpheus-v1-english", text, "hannah", "wav", playPath
+      );
+    }
+    if (!ttsOk && process.env.OPENAI_API_KEY) {
+      playPath = audioPath;
+      ttsOk = await ttsAPI(
+        "https://api.openai.com/v1/audio/speech", process.env.OPENAI_API_KEY,
+        "tts-1", text, "nova", "mp3", playPath
+      );
+    }
+
+    if (!ttsOk) {
+      isSpeaking = false;
+      return "TTS error: no working provider";
+    }
+
+    // Unmute mic if needed
+    try {
+      await page.evaluate(() => {
+        for (const btn of document.querySelectorAll("button")) {
+          const l = (btn.getAttribute("aria-label") || "").toLowerCase();
+          if (l.includes("turn on microphone") || l.includes("unmute")) { btn.click(); return; }
+        }
+      });
+      await page.waitForTimeout(300);
+    } catch {}
+
+    // Play through PulseAudio
+    await playViaPulseAudio(playPath);
+    transcript.push({ speaker: BOT_NAME, text, timestamp: Date.now() });
+    lastRespondedIndex = transcript.length;
+
+    return `Spoke: "${text.slice(0, 80)}"`;
+  } catch (e) {
+    return `Speak error: ${e.message}`;
+  } finally {
+    isSpeaking = false;
+  }
+}
+
+async function ttsAPI(url, apiKey, model, text, voice, format, outPath) {
+  try {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model, input: text, voice, response_format: format }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!r.ok) { console.log(`[TTS] ${r.status}`); return false; }
+    writeFileSync(outPath, Buffer.from(await r.arrayBuffer()));
+    return true;
+  } catch (e) { console.log(`[TTS] ${e.message}`); return false; }
+}
+
+function playViaPulseAudio(audioPath) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn("ffplay", ["-nodisp", "-autoexit", "-af", "aresample=24000", audioPath], {
+      stdio: "ignore", env: { ...process.env, PULSE_SINK: "tts_sink" },
+    });
+    proc.on("close", (code) => code === 0 ? resolve() : reject(new Error(`ffplay exit ${code}`)));
+    proc.on("error", () => {
+      const pa = spawn("paplay", ["--device=tts_sink", audioPath], { stdio: "ignore" });
+      pa.on("close", (c) => c === 0 ? resolve() : reject(new Error(`paplay exit ${c}`)));
+      pa.on("error", reject);
+    });
+    setTimeout(() => { proc.kill(); reject(new Error("playback timeout")); }, 30000);
+  });
+}
+
+// ── WAV encoder ─────────────────────────────────────────────────────────
 function float32ToWav(f32) {
   const ds = f32.length * 2;
   const buf = Buffer.alloc(44 + ds);
@@ -384,179 +529,39 @@ function float32ToWav(f32) {
   return buf;
 }
 
-// ── TTS / Speak ─────────────────────────────────────────────────────────
-async function speak(text, opts = {}) {
-  if (!text) return "Error: text required";
-  if (!session || session.state !== "active") return "Error: not in meeting";
-
-  const ttsModel = process.env.TTS_MODEL || "tts-1";
-  const voice = opts.voice || "nova";
-  const audioPath = join(STORAGE, "recordings", `tts-${Date.now()}.mp3`);
-
-  // Determine provider from TTS_MODEL config
-  const isGroq = ttsModel === "groq" || ttsModel.includes("orpheus");
-  const isEdge = ttsModel === "edge";
-
-  let ttsOk = false;
-  let playPath = audioPath;
-
-  // Provider 1: Groq Orpheus (if configured or TTS_MODEL=groq)
-  if (isGroq && process.env.GROQ_API_KEY) {
-    const res = await fetch("https://api.groq.com/openai/v1/audio/speech", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "canopylabs/orpheus-v1-english", input: text, voice: voice === "nova" ? "hannah" : voice, response_format: "wav" }),
-    });
-    if (res.ok) {
-      playPath = audioPath.replace(".mp3", ".wav");
-      writeFileSync(playPath, Buffer.from(await res.arrayBuffer()));
-      ttsOk = true;
-    } else {
-      console.log(`[TTS] Groq failed (${res.status})`);
-    }
-  }
-
-  // Provider 2: OpenAI TTS (if configured or TTS_MODEL is an OpenAI model)
-  if (!ttsOk && !isGroq && !isEdge && process.env.OPENAI_API_KEY) {
-    const res = await fetch("https://api.openai.com/v1/audio/speech", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: ttsModel, voice, input: text, response_format: "mp3" }),
-    });
-    if (res.ok) {
-      writeFileSync(audioPath, Buffer.from(await res.arrayBuffer()));
-      ttsOk = true;
-    } else {
-      console.log(`[TTS] OpenAI failed (${res.status})`);
-    }
-  }
-
-  // Fallback: try whichever provider wasn't tried first
-  if (!ttsOk && !isGroq && process.env.GROQ_API_KEY) {
-    const res = await fetch("https://api.groq.com/openai/v1/audio/speech", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "canopylabs/orpheus-v1-english", input: text, voice: "hannah", response_format: "wav" }),
-    });
-    if (res.ok) {
-      playPath = audioPath.replace(".mp3", ".wav");
-      writeFileSync(playPath, Buffer.from(await res.arrayBuffer()));
-      ttsOk = true;
-    }
-  }
-  if (!ttsOk && isGroq && process.env.OPENAI_API_KEY) {
-    const res = await fetch("https://api.openai.com/v1/audio/speech", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "tts-1", voice, input: text, response_format: "mp3" }),
-    });
-    if (res.ok) {
-      writeFileSync(audioPath, Buffer.from(await res.arrayBuffer()));
-      playPath = audioPath;
-      ttsOk = true;
-    }
-  }
-
-  if (!ttsOk) {
-    return "TTS error: no working provider. Check TTS_MODEL + API keys.";
-  }
-
-  // Unmute mic before speaking (was muted during join)
-  try {
-    await page.evaluate(() => {
-      const btns = document.querySelectorAll("button");
-      for (const btn of btns) {
-        const label = (btn.getAttribute("aria-label") || "").toLowerCase();
-        if (label.includes("turn on microphone") || label.includes("unmute")) {
-          btn.click(); return true;
-        }
-      }
-      return false;
-    });
-    await page.waitForTimeout(500);
-  } catch {}
-
-  // Play through PulseAudio virtual mic → meeting participants hear it
-  try {
-    await playViaPulseAudio(playPath);
-    transcript.push({ speaker: session.displayName || "Daemora", text, timestamp: Date.now() });
-
-    // Do NOT re-mute — mic must stay ON for PulseAudio virtual mic to work
-
-    return `Spoke: "${text.slice(0, 80)}"`;
-  } catch (e) {
-    return `PulseAudio playback error: ${e.message}`;
-  }
-}
-
-function playViaPulseAudio(audioPath) {
-  return new Promise((resolve, reject) => {
-    // ffplay outputs to PulseAudio tts_sink → virtual_mic → Chromium → WebRTC
-    const proc = spawn("ffplay", [
-      "-nodisp", "-autoexit", "-af", "aresample=24000",
-      audioPath,
-    ], {
-      stdio: "ignore",
-      env: { ...process.env, PULSE_SINK: "tts_sink" },
-    });
-
-    proc.on("close", (code) => code === 0 ? resolve() : reject(new Error(`ffplay exit ${code}`)));
-    proc.on("error", () => {
-      // Fallback: paplay
-      const pa = spawn("paplay", ["--device=tts_sink", audioPath], { stdio: "ignore" });
-      pa.on("close", (c) => c === 0 ? resolve() : reject(new Error(`paplay exit ${c}`)));
-      pa.on("error", reject);
-    });
-
-    setTimeout(() => { proc.kill(); reject(new Error("playback timeout")); }, 30000);
-  });
-}
-
 // ── Leave Meeting ───────────────────────────────────────────────────────
 async function leaveMeeting() {
-  if (!page) return "Not in meeting";
+  if (autoRespondTimer) { clearInterval(autoRespondTimer); autoRespondTimer = null; }
+  if (sttTimer) { clearInterval(sttTimer); sttTimer = null; }
 
-  // Click leave button
-  for (const sel of ['[aria-label*="Leave" i]', 'button:has-text("Leave")', '[data-tooltip*="Leave" i]']) {
-    try { const btn = await page.$(sel); if (btn) { await btn.click(); break; } } catch {}
+  if (page) {
+    for (const sel of ['[aria-label*="Leave" i]', 'button:has-text("Leave")']) {
+      try { const btn = await page.$(sel); if (btn) { await btn.click(); break; } } catch {}
+    }
+    await page.waitForTimeout(2000);
   }
 
-  await page.waitForTimeout(2000);
-
-  // Close browser
-  try { await browser.close(); } catch {}
+  try { await browser?.close(); } catch {}
   browser = null; context = null; page = null;
   session = { ...session, state: "left" };
   captureActive = false;
 
-  console.log(`[MeetingBot:Docker] Left meeting. ${transcript.length} transcript entries.`);
-  return `Left meeting. ${transcript.length} entries captured.`;
+  console.log(`[MeetingBot] Left. ${transcript.length} transcript entries.`);
+  return `Left meeting. ${transcript.length} entries.`;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
-function json(res, data) {
-  res.writeHead(200, { "Content-Type": "application/json" });
-  res.end(JSON.stringify(data));
-}
-
+function json(res, data) { res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify(data)); }
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let body = "";
-    req.on("data", (chunk) => body += chunk);
+    req.on("data", c => body += c);
     req.on("end", () => { try { resolve(JSON.parse(body)); } catch { resolve({}); } });
     req.on("error", reject);
   });
 }
 
 // ── Graceful shutdown ───────────────────────────────────────────────────
-process.on("SIGTERM", async () => {
-  console.log("[MeetingBot:Docker] SIGTERM — leaving meeting...");
-  await leaveMeeting();
-  process.exit(0);
-});
-
-process.on("SIGINT", async () => {
-  console.log("[MeetingBot:Docker] SIGINT — leaving meeting...");
-  await leaveMeeting();
-  process.exit(0);
-});
+for (const sig of ["SIGTERM", "SIGINT"]) {
+  process.on(sig, async () => { await leaveMeeting(); process.exit(0); });
+}
