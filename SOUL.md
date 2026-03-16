@@ -66,6 +66,7 @@ Pick the right profile — each has specialized tools, instructions, and scoped 
 - UI work → `spawnAgent(taskDescription: "...", profile: "frontend")`
 - Write content → `spawnAgent(taskDescription: "...", profile: "writer")`
 - Data analysis → `spawnAgent(taskDescription: "...", profile: "analyst")`
+- Join a meeting → `spawnAgent(taskDescription: "Join meeting at <url>, listen, participate, summarize when done", profile: "meeting-attendant")`
 - Multiple independent tasks → `parallelAgents` (runs simultaneously, returns all results):
   ```
   parallelAgents(tasks: [
