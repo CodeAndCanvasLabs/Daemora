@@ -7,6 +7,7 @@ import { toolFunctions } from "./tools/index.js";
 import { getSession, listSessions, createSession, clearSession } from "./services/sessions.js";
 import { config, reloadFromDb } from "./config/default.js";
 import { listAvailableModels, resolveDefaultModel } from "./models/ModelRouter.js";
+import { models as modelRegistry } from "./config/models.js";
 import taskQueue from "./core/TaskQueue.js";
 import taskRunner from "./core/TaskRunner.js";
 import { loadTask, listTasks, listChildTasks, deleteTask } from "./storage/TaskStore.js";
@@ -407,6 +408,20 @@ app.get("/api/models", (req, res) => {
       } : { input: "$0", output: "$0" },
     })),
   });
+});
+
+// --- All models (registry) endpoint ---
+app.get("/api/models/all", (req, res) => {
+  const available = new Set(listAvailableModels().map(m => m.id));
+  const all = Object.entries(modelRegistry).map(([id, m]) => ({
+    id,
+    provider: m.provider,
+    model: m.model,
+    tier: m.tier,
+    contextWindow: m.contextWindow,
+    available: available.has(id),
+  }));
+  res.json({ models: all });
 });
 
 // --- Model switch endpoint ---

@@ -145,7 +145,7 @@ function ModelSelect({
 }: {
   value: string;
   onChange: (v: string) => void;
-  modelsByProvider: Record<string, ModelOption[]>;
+  modelsByProvider: Record<string, (ModelOption & { available?: boolean })[]>;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -228,14 +228,16 @@ function ModelSelect({
                   {models.map((m) => {
                     const isSelected = m.id === value;
                     const modelName = m.id.split(":")[1] || m.id;
+                    const isAvailable = m.available !== false;
                     return (
                       <button
                         key={m.id}
                         onClick={() => { onChange(m.id); setOpen(false); setSearch(""); }}
-                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-mono text-left hover:bg-slate-800/50 transition-colors ${isSelected ? "text-[#00d9ff] bg-[#00d9ff]/5" : "text-gray-300"}`}
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-mono text-left hover:bg-slate-800/50 transition-colors ${isSelected ? "text-[#00d9ff] bg-[#00d9ff]/5" : isAvailable ? "text-gray-300" : "text-gray-600"}`}
                       >
                         {isSelected ? <Check className="w-4 h-4 text-[#00d9ff] shrink-0" /> : <div className="w-4" />}
                         <span className="flex-1 truncate">{modelName}</span>
+                        {!isAvailable && <span className="text-[8px] uppercase tracking-wider text-gray-600 border border-slate-800 px-1.5 py-0.5 rounded">no key</span>}
                         {m.tier && <span className={`text-[9px] uppercase tracking-wider ${tierColor(m.tier)}`}>{m.tier}</span>}
                       </button>
                     );
@@ -298,6 +300,7 @@ export function Settings() {
   const [memorySaved, setMemorySaved] = useState(false);
 
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
+  const [allModels, setAllModels] = useState<(ModelOption & { available?: boolean })[]>([]);
 
   const [globalConfig, setGlobalConfig] = useState<Record<string, any>>({});
   const [configDirty, setConfigDirty] = useState(false);
@@ -318,8 +321,9 @@ export function Settings() {
       apiFetch("/api/models").then((r) => r.json()),
       apiFetch("/api/vault/status").then((r) => r.json()),
       apiFetch("/api/config").then((r) => r.json()),
+      apiFetch("/api/models/all").then((r) => r.json()).catch(() => ({ models: [] })),
     ])
-      .then(([settingsData, profileData, skillsData, memoryData, modelsData, vaultData, configData]) => {
+      .then(([settingsData, profileData, skillsData, memoryData, modelsData, vaultData, configData, allModelsData]) => {
         setData(settingsData);
         setGlobalConfig(configData || {});
         setProfile({
@@ -328,6 +332,7 @@ export function Settings() {
         setCustomSkills(skillsData.skills || []);
         setMemory(memoryData.content || "");
         setAvailableModels(modelsData.available || []);
+        setAllModels(allModelsData.models || []);
         setVault(vaultData);
         setIsLoading(false);
       })
@@ -506,9 +511,10 @@ export function Settings() {
     );
   }
 
-  // Group models by provider for the dropdown
-  const modelsByProvider: Record<string, ModelOption[]> = {};
-  for (const m of availableModels) {
+  // Group ALL models by provider for the dropdown (show available status)
+  const modelsByProvider: Record<string, (ModelOption & { available?: boolean })[]> = {};
+  const modelsSource = allModels.length > 0 ? allModels : availableModels.map(m => ({ ...m, available: true }));
+  for (const m of modelsSource) {
     const p = m.provider || "other";
     if (!modelsByProvider[p]) modelsByProvider[p] = [];
     modelsByProvider[p].push(m);
@@ -846,7 +852,7 @@ export function Settings() {
         title="AI Provider Keys"
         subtitle="API keys for LLM providers — encrypted in vault"
         badge={(() => {
-          const providerKeys = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "OPENROUTER_API_KEY"];
+          const providerKeys = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "OPENROUTER_API_KEY", "XAI_API_KEY", "DEEPSEEK_API_KEY", "MISTRAL_API_KEY", "GROQ_API_KEY"];
           const set = providerKeys.filter(k => data.vars[k]);
           return set.length > 0 ? (
             <span className="text-[9px] font-mono text-[#00ff88] bg-[#00ff88]/10 px-2 py-0.5 rounded-md border border-[#00ff88]/20">
@@ -861,6 +867,10 @@ export function Settings() {
             { name: "OpenAI", key: "OPENAI_API_KEY", color: "#00d9ff", icon: <SiOpenai className="w-3.5 h-3.5" /> },
             { name: "Anthropic", key: "ANTHROPIC_API_KEY", color: "#d4a574", icon: <SiAnthropic className="w-3.5 h-3.5" /> },
             { name: "Google AI", key: "GOOGLE_AI_API_KEY", color: "#4285f4", icon: <SiGooglegemini className="w-3.5 h-3.5" /> },
+            { name: "xAI (Grok)", key: "XAI_API_KEY", color: "#1DA1F2", icon: <Cpu className="w-3.5 h-3.5" /> },
+            { name: "DeepSeek", key: "DEEPSEEK_API_KEY", color: "#4f6ef7", icon: <Cpu className="w-3.5 h-3.5" /> },
+            { name: "Mistral", key: "MISTRAL_API_KEY", color: "#ff7000", icon: <Cpu className="w-3.5 h-3.5" /> },
+            { name: "Groq", key: "GROQ_API_KEY", color: "#f55036", icon: <Zap className="w-3.5 h-3.5" /> },
             { name: "OpenRouter", key: "OPENROUTER_API_KEY", color: "#6366f1", icon: <OpenRouterIcon className="w-3.5 h-3.5" /> },
           ].map(({ name, key, color, icon }) => {
             const isSet = !!data.vars[key];
