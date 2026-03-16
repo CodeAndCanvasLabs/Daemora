@@ -12,7 +12,7 @@
  * User never touches Docker. It's invisible infrastructure.
  */
 
-import { execSync, spawn } from "node:child_process";
+import { execSync, execFileSync, spawn } from "node:child_process";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 
@@ -101,14 +101,15 @@ export function startContainer(sessionId, envVars = {}) {
   }
 
   try {
-    const containerId = execSync([
-      "docker", "run", "-d",
+    // Use execFileSync (array args) to handle values with spaces (e.g. BOT_NAME="Daemora Bot")
+    const containerId = execFileSync("docker", [
+      "run", "-d",
       "--name", containerName,
       "-p", `${hostPort}:${CONTAINER_PORT}`,
       "--shm-size=2g", // needed for Chromium
       ...envArgs,
       IMAGE_NAME,
-    ].join(" "), { encoding: "utf-8", timeout: 30000 }).trim();
+    ], { encoding: "utf-8", timeout: 30000 }).trim();
 
     console.log(`[DockerMeeting] Container ${containerName} started (port ${hostPort})`);
 
@@ -232,6 +233,15 @@ export async function dockerSpeak(port, text, opts = {}) {
  */
 export async function dockerListen(port, last = 30) {
   return containerAPI(port, "GET", `/listen?last=${last}`);
+}
+
+/**
+ * Poll new transcript entries since index N.
+ * Returns { entries: [...], total: N, nextSince: N }
+ * Agent tracks nextSince to get only new entries on each poll.
+ */
+export async function dockerPollTranscript(port, since = 0) {
+  return containerAPI(port, "GET", `/transcript/new?since=${since}`);
 }
 
 /**

@@ -67,20 +67,42 @@ export async function meetingAction(toolParams) {
         const { sessionId, last } = params;
         if (!sessionId) return "Error: sessionId is required";
 
-        // ALWAYS wait 5 seconds before returning — prevents agent from burning step budget.
-        // Each listen = one "turn" of the meeting loop. ~5s gap = natural conversation pace.
-        // With maxLoops=100, this gives ~8 minutes of meeting time.
+        // Wait 5s before returning — natural conversation pace, avoids burning agent steps.
         await new Promise(r => setTimeout(r, 5000));
 
-        const result = getTranscript(sessionId, parseInt(last || "20"));
+        const result = await getTranscript(sessionId, parseInt(last || "20"));
         if (result !== "No transcript entries yet.") return result;
 
-        // If still empty, wait 5 more seconds
+        // Still empty — wait 5 more seconds
         await new Promise(r => setTimeout(r, 5000));
-        const retry = getTranscript(sessionId, parseInt(last || "20"));
+        const retry = await getTranscript(sessionId, parseInt(last || "20"));
         if (retry !== "No transcript entries yet.") return retry;
 
         return "Listening... no new speech in the last 10 seconds. Call listen again.";
+      }
+
+      // Index-based polling — efficient for long meetings.
+      // Returns only NEW entries since the last poll. Agent tracks nextSince.
+      case "poll": {
+        const { sessionId, since } = params;
+        if (!sessionId) return "Error: sessionId is required";
+        const sinceIdx = parseInt(since || "0");
+
+        // Wait 2s — faster loop for responsive conversations
+        await new Promise(r => setTimeout(r, 2000));
+
+        const data = await getTranscript(sessionId, 20, sinceIdx);
+        if (typeof data === "string") return data; // error
+
+        const { entries, total, nextSince } = data;
+        if (entries.length === 0) {
+          return JSON.stringify({ entries: [], total, nextSince, status: "no_new_speech" });
+        }
+        const formatted = entries.map(e => {
+          const time = new Date(e.timestamp).toISOString().slice(11, 19);
+          return `[${time}] ${e.speaker}: ${e.text}`;
+        }).join("\n");
+        return JSON.stringify({ entries: formatted, total, nextSince, status: "new_speech" });
       }
 
       case "transcript": {
@@ -201,7 +223,7 @@ export async function meetingAction(toolParams) {
       }
 
       default:
-        return `Unknown action: "${action}". Valid: join, leave, speak, listen, transcript, status, participants, mute, unmute, cloneVoice, listVoices, deleteVoice, voiceInfo, voiceSettings, setVoice`;
+        return `Unknown action: "${action}". Valid: join, leave, speak, listen, poll, transcript, status, participants, mute, unmute, cloneVoice, listVoices, deleteVoice, voiceInfo, voiceSettings, setVoice`;
     }
   } catch (err) {
     return `Error: ${err.message}`;
@@ -214,7 +236,8 @@ export const meetingActionDescription =
     join           - {"url":"meeting-url","displayName":"Daemora"} → join meeting via browser (auto-detects platform). TTS/STT use server-configured models.
     leave          - {"sessionId":"..."} → leave meeting
     speak          - {"sessionId":"...","text":"..."} → TTS → inject audio into meeting
-    listen         - {"sessionId":"...","last":20} → recent transcript entries
+    listen         - {"sessionId":"...","last":20} → last N transcript entries (waits 5s)
+    poll           - {"sessionId":"...","since":0} → NEW entries since index (waits 2s). Returns {entries,total,nextSince,status}. Use for meeting loops: poll → decide → speak → poll(nextSince) → ...
     transcript     - {"sessionId":"...","last":50} → full transcript
     status         - {"sessionId":"..."} → session status, or list all sessions if no sessionId
     participants   - {"sessionId":"..."} → list meeting participants

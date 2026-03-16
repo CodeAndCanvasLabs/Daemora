@@ -26,6 +26,7 @@ import {
   dockerJoinMeeting,
   dockerSpeak,
   dockerListen,
+  dockerPollTranscript,
   dockerLeave,
 } from "./DockerMeetingManager.js";
 import WavRecorder from "./services/WavRecorder.js";
@@ -209,32 +210,48 @@ export async function speakInMeeting(sessionId, text) {
 
 /**
  * Get recent transcript — Docker or native.
+ * @param {string} sessionId
+ * @param {number} last — last N entries (legacy)
+ * @param {number|undefined} since — index-based: return entries from this index onward
+ * @returns {string|{entries,total,nextSince}} string for legacy, object when since is set
  */
-export async function getTranscript(sessionId, last = 20) {
+export async function getTranscript(sessionId, last = 20, since = undefined) {
   const session = _getRawSession(sessionId);
   if (!session) throw new Error(`Session "${sessionId}" not found`);
 
-  // Docker mode — get transcript from container
+  const indexed = since !== undefined;
+
+  // Docker mode
   if (session._dockerMode && session._dockerPort) {
     try {
-      const data = await dockerListen(session._dockerPort, last);
-      if (data.transcript && data.transcript.length > 0) {
-        // Sync container transcripts to session
-        for (const entry of data.transcript) {
+      if (indexed) {
+        const data = await dockerPollTranscript(session._dockerPort, since);
+        for (const entry of (data.entries || [])) {
           const exists = session.transcript.some(e => e.timestamp === entry.timestamp && e.text === entry.text);
-          if (!exists) {
-            addTranscript(sessionId, entry);
-          }
+          if (!exists) addTranscript(sessionId, entry);
         }
-        return data.transcript.map(e => {
-          const time = new Date(e.timestamp).toISOString().slice(11, 19);
-          return `[${time}] ${e.speaker}: ${e.text}`;
-        }).join("\n");
+        return data; // { entries, total, nextSince }
+      } else {
+        const data = await dockerListen(session._dockerPort, last);
+        if (data.transcript && data.transcript.length > 0) {
+          for (const entry of data.transcript) {
+            const exists = session.transcript.some(e => e.timestamp === entry.timestamp && e.text === entry.text);
+            if (!exists) addTranscript(sessionId, entry);
+          }
+          return data.transcript.map(e => {
+            const time = new Date(e.timestamp).toISOString().slice(11, 19);
+            return `[${time}] ${e.speaker}: ${e.text}`;
+          }).join("\n");
+        }
       }
     } catch {}
   }
 
   // Native mode
+  if (indexed) {
+    const entries = session.transcript.slice(since);
+    return { entries, total: session.transcript.length, nextSince: session.transcript.length };
+  }
   const entries = session.transcript.slice(-last);
   if (entries.length === 0) return "No transcript entries yet.";
   return entries.map(e => {
