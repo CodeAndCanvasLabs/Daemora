@@ -149,6 +149,7 @@ function ModelSelect({
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<"all" | "configured">("configured");
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -162,11 +163,18 @@ function ModelSelect({
   }, []);
 
   const q = search.toLowerCase();
-  const filtered: Record<string, ModelOption[]> = {};
+  const filtered: Record<string, (ModelOption & { available?: boolean })[]> = {};
   for (const [provider, models] of Object.entries(modelsByProvider)) {
-    const matches = models.filter((m) => m.id.toLowerCase().includes(q) || provider.toLowerCase().includes(q));
+    const matches = models.filter((m) => {
+      const matchesSearch = m.id.toLowerCase().includes(q) || provider.toLowerCase().includes(q);
+      const matchesFilter = filter === "all" || m.available !== false;
+      return matchesSearch && matchesFilter;
+    });
     if (matches.length > 0) filtered[provider] = matches;
   }
+
+  const configuredCount = Object.values(modelsByProvider).flat().filter(m => m.available !== false).length;
+  const totalCount = Object.values(modelsByProvider).flat().length;
 
   const selectedLabel = value ? (value.split(":")[1] || value) : "Same as main agent (default)";
   const tierColor = (tier?: string) => {
@@ -204,6 +212,22 @@ function ModelSelect({
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
+          </div>
+
+          {/* Filter tabs */}
+          <div className="flex gap-1 px-3 py-2 border-b border-slate-800/60">
+            <button
+              onClick={() => setFilter("configured")}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-mono uppercase tracking-wider transition-colors ${filter === "configured" ? "bg-[#00ff88]/10 text-[#00ff88] border border-[#00ff88]/20" : "text-gray-500 hover:text-gray-300"}`}
+            >
+              Configured ({configuredCount})
+            </button>
+            <button
+              onClick={() => setFilter("all")}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-mono uppercase tracking-wider transition-colors ${filter === "all" ? "bg-[#00d9ff]/10 text-[#00d9ff] border border-[#00d9ff]/20" : "text-gray-500 hover:text-gray-300"}`}
+            >
+              All ({totalCount})
+            </button>
           </div>
 
           {/* Options */}
