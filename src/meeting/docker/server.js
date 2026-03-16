@@ -204,15 +204,22 @@ async function joinMeeting(opts) {
   return { status: "joined", platform, sessionId: "docker" };
 }
 
-// ── Audio Capture ───────────────────────────────────────────────────────
+// ── Audio Capture + Transcription ────────────────────────────────────────
+let audioBuffer = [];
+let sttTimer = null;
+const STT_FLUSH_MS = 3000;
+const STT_SAMPLE_RATE = 16000;
+
 async function startAudioCapture() {
   if (!page) return;
 
-  // Expose callback for receiving audio chunks
+  // Expose callback — receives Float32 audio chunks from browser
   try {
     await page.exposeFunction("__daemoraSendAudio", (jsonChunk) => {
-      // Audio chunks arrive — could send to STT here
-      // For now, the host Daemora handles STT via /listen polling
+      try {
+        const arr = JSON.parse(jsonChunk);
+        audioBuffer.push(new Float32Array(arr));
+      } catch {}
     });
   } catch {}
 
@@ -225,27 +232,85 @@ async function startAudioCapture() {
   `);
 
   captureActive = true;
+  console.log("[MeetingBot:Docker] Audio capture started");
 
-  // Start transcription polling (uses host's STT config via API callback)
-  startTranscriptionLoop();
-}
-
-// ── Transcription ───────────────────────────────────────────────────────
-let sttTimer = null;
-const STT_INTERVAL = 3000;
-let audioChunks = [];
-
-function startTranscriptionLoop() {
-  // The host Daemora will poll /listen for transcripts
-  // Internal transcription runs if OPENAI_API_KEY or GROQ_API_KEY is set
+  // Start STT flush loop
   const apiKey = process.env.OPENAI_API_KEY || process.env.GROQ_API_KEY;
   if (!apiKey) {
-    console.log("[MeetingBot:Docker] No STT API key — host must provide transcription");
+    console.log("[MeetingBot:Docker] No STT API key — transcription disabled");
     return;
   }
 
-  // TODO: implement internal STT loop here for standalone mode
-  console.log("[MeetingBot:Docker] STT available — transcription active");
+  sttTimer = setInterval(async () => {
+    if (audioBuffer.length === 0) return;
+    const chunks = audioBuffer.splice(0);
+
+    // Merge chunks
+    const totalLen = chunks.reduce((s, c) => s + c.length, 0);
+    const merged = new Float32Array(totalLen);
+    let off = 0;
+    for (const c of chunks) { merged.set(c, off); off += c.length; }
+
+    if (merged.length < STT_SAMPLE_RATE * 0.5) return; // skip < 0.5s
+
+    // Convert to WAV
+    const wavBuf = float32ToWav(merged);
+
+    try {
+      let text = null;
+      const model = process.env.STT_MODEL || "gpt-4o-mini-transcribe";
+
+      if (process.env.OPENAI_API_KEY) {
+        const fd = new FormData();
+        fd.append("file", new Blob([wavBuf], { type: "audio/wav" }), "a.wav");
+        fd.append("model", model);
+        const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+          body: fd,
+        });
+        if (r.ok) text = (await r.json()).text;
+      } else if (process.env.GROQ_API_KEY) {
+        const fd = new FormData();
+        fd.append("file", new Blob([wavBuf], { type: "audio/wav" }), "a.wav");
+        fd.append("model", "whisper-large-v3-turbo");
+        const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+          body: fd,
+        });
+        if (r.ok) text = (await r.json()).text;
+      }
+
+      if (text?.trim()?.length > 1) {
+        // Dedup
+        const last = transcript[transcript.length - 1];
+        if (!last || last.text !== text.trim()) {
+          transcript.push({ speaker: "participant", text: text.trim(), timestamp: Date.now() });
+          console.log(`[STT] "${text.trim().slice(0, 80)}"`);
+        }
+      }
+    } catch (e) {
+      console.log(`[STT] Error: ${e.message}`);
+    }
+  }, STT_FLUSH_MS);
+
+  console.log(`[MeetingBot:Docker] STT active (${process.env.OPENAI_API_KEY ? "OpenAI" : "Groq"}, ${STT_FLUSH_MS/1000}s flush)`);
+}
+
+function float32ToWav(f32) {
+  const ds = f32.length * 2;
+  const buf = Buffer.alloc(44 + ds);
+  buf.write("RIFF", 0); buf.writeUInt32LE(36 + ds, 4); buf.write("WAVE", 8);
+  buf.write("fmt ", 12); buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20);
+  buf.writeUInt16LE(1, 22); buf.writeUInt32LE(STT_SAMPLE_RATE, 24);
+  buf.writeUInt32LE(STT_SAMPLE_RATE * 2, 28); buf.writeUInt16LE(2, 32);
+  buf.writeUInt16LE(16, 34); buf.write("data", 36); buf.writeUInt32LE(ds, 40);
+  for (let i = 0; i < f32.length; i++) {
+    const s = Math.max(-1, Math.min(1, f32[i]));
+    buf.writeInt16LE(Math.round(s < 0 ? s * 0x8000 : s * 0x7FFF), 44 + i * 2);
+  }
+  return buf;
 }
 
 // ── TTS / Speak ─────────────────────────────────────────────────────────
