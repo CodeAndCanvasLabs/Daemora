@@ -45,6 +45,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     x11-xserver-utils \
     xserver-xephyr \
     curl \
+    espeak-ng \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy built app from build stage

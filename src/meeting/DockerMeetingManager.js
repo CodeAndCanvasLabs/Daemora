@@ -18,9 +18,68 @@ import { existsSync } from "node:fs";
 import { configStore } from "../config/ConfigStore.js";
 
 // Read from process.env first (vault-injected + reloadFromDb), then directly from SQLite.
-// process.env is the source of truth at runtime; configStore is the fallback for early calls.
 function conf(key, fallback = "") {
   return process.env[key] || configStore.get(key) || fallback;
+}
+
+/**
+ * Resolve meeting bot config from what the user has actually saved.
+ * Priority: explicit user setting > auto-detect from available API keys > local fallback.
+ * Never hardcodes a provider if that provider's key isn't available.
+ */
+function resolveMeetingConfig() {
+  const hasOpenAI     = !!conf("OPENAI_API_KEY");
+  const hasAnthropic  = !!conf("ANTHROPIC_API_KEY");
+  const hasGroq       = !!conf("GROQ_API_KEY");
+  const hasDeepgram   = !!conf("DEEPGRAM_API_KEY");
+  const hasXAI        = !!conf("XAI_API_KEY");
+  const hasDeepseek   = !!conf("DEEPSEEK_API_KEY");
+  const hasOpenRouter = !!conf("OPENROUTER_API_KEY");
+  const hasMistral    = !!conf("MISTRAL_API_KEY");
+
+  // LLM: explicit config > auto-detect from available keys > local Ollama
+  const llmModel = conf("MEETING_LLM") || conf("SUB_AGENT_MODEL") || conf("DEFAULT_MODEL") || (() => {
+    if (hasOpenAI)     return "openai:gpt-4o-mini";
+    if (hasAnthropic)  return "anthropic:claude-haiku-4-5-20251001";
+    if (hasGroq)       return "groq:llama-3.3-70b-versatile";
+    if (hasXAI)        return "xai:grok-3-mini";
+    if (hasDeepseek)   return "deepseek:deepseek-chat";
+    if (hasOpenRouter) return "openrouter:meta-llama/llama-3.1-8b-instruct:free";
+    if (hasMistral)    return "mistral:mistral-small-latest";
+    return "ollama:llama3.2"; // local — requires Ollama running on host
+  })();
+
+  // TTS: explicit config > auto-detect from available keys > espeak (local, no key needed)
+  const ttsModel = conf("TTS_MODEL") || (() => {
+    if (hasOpenAI) return "tts-1";
+    if (hasGroq)   return "groq-tts";
+    return "espeak"; // local TTS — installed in Docker image
+  })();
+
+  const ttsVoice = conf("TTS_VOICE") || (() => {
+    if (ttsModel.includes("tts-1") || ttsModel.includes("gpt")) return "nova";
+    if (ttsModel.includes("groq") || ttsModel.includes("orpheus")) return "hannah";
+    return ""; // provider default or espeak default
+  })();
+
+  // STT: explicit config > auto-detect from available keys > empty (listen-only)
+  const sttModel = conf("STT_MODEL") || (() => {
+    if (hasDeepgram) return "nova-3";             // streaming, ~200ms
+    if (hasGroq)     return "whisper-large-v3-turbo"; // batch, ~500ms
+    if (hasOpenAI)   return "whisper-1";          // batch, ~1s
+    return ""; // no key — bot listens but cannot transcribe
+  })();
+
+  return {
+    llmModel,
+    ttsModel,
+    ttsVoice,
+    ttsGroqModel: conf("TTS_GROQ_MODEL") || "canopylabs/orpheus-v1-english",
+    sttModel,
+    meetingMode: conf("MEETING_MODE", "auto"),
+    llmBaseUrl:  conf("OPENAI_BASE_URL"),
+    ollamaUrl:   conf("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1"),
+  };
 }
 
 const IMAGE_NAME = "daemora-meeting-bot";
@@ -114,6 +173,7 @@ export function startContainer(sessionId, envVars = {}) {
       "--name", containerName,
       "-p", `${hostPort}:${CONTAINER_PORT}`,
       "--shm-size=2g", // needed for Chromium
+      "--add-host=host.docker.internal:host-gateway", // Linux: expose host for Ollama
       ...envArgs,
       IMAGE_NAME,
     ], { encoding: "utf-8", timeout: 30000 }).trim();
@@ -191,10 +251,10 @@ export async function containerAPI(port, method, path, body = null) {
  * Join meeting via Docker container.
  */
 export async function dockerJoinMeeting(sessionId, opts) {
-  // All config read from SQLite (via process.env populated by reloadFromDb + vault.unlock).
-  // Agent never passes keys or models — infra layer reads them from the database.
+  // All config auto-resolved from SQLite/vault — agent never passes keys or models.
+  const mc = resolveMeetingConfig();
   const envVars = {
-    // API keys — from vault (injected into process.env on unlock) or config_entries
+    // API keys — from vault (injected into process.env on unlock)
     OPENAI_API_KEY:    conf("OPENAI_API_KEY"),
     GROQ_API_KEY:      conf("GROQ_API_KEY"),
     DEEPGRAM_API_KEY:  conf("DEEPGRAM_API_KEY"),
@@ -204,17 +264,15 @@ export async function dockerJoinMeeting(sessionId, opts) {
     DEEPSEEK_API_KEY:  conf("DEEPSEEK_API_KEY"),
     MISTRAL_API_KEY:   conf("MISTRAL_API_KEY"),
     OPENROUTER_API_KEY:conf("OPENROUTER_API_KEY"),
-    // TTS — from SQLite config_entries (set via /api/settings)
-    TTS_MODEL:      conf("TTS_MODEL", "tts-1"),
-    TTS_VOICE:      conf("TTS_VOICE"),          // e.g. "nova", "alloy", "fritz"
-    TTS_GROQ_MODEL: conf("TTS_GROQ_MODEL"),     // Groq-specific TTS model
-    // STT — from SQLite config_entries
-    STT_MODEL: conf("STT_MODEL", "nova-3"),     // Deepgram model or Whisper model
-    // LLM — MEETING_LLM > SUB_AGENT_MODEL > DEFAULT_MODEL (all from SQLite)
-    LLM_MODEL:    conf("MEETING_LLM") || conf("SUB_AGENT_MODEL") || conf("DEFAULT_MODEL", "openai:gpt-4o-mini"),
-    LLM_BASE_URL: conf("OPENAI_BASE_URL"),
-    // Meeting mode — from SQLite config_entries
-    MEETING_MODE: conf("MEETING_MODE", "auto"),
+    // Resolved config — based on available keys, no hardcoded provider assumptions
+    TTS_MODEL:      mc.ttsModel,
+    TTS_VOICE:      mc.ttsVoice,
+    TTS_GROQ_MODEL: mc.ttsGroqModel,
+    STT_MODEL:      mc.sttModel,
+    LLM_MODEL:      mc.llmModel,
+    LLM_BASE_URL:   mc.llmBaseUrl,
+    OLLAMA_BASE_URL:mc.ollamaUrl,
+    MEETING_MODE:   mc.meetingMode,
     BOT_NAME: opts.displayName || "Daemora",
   };
 

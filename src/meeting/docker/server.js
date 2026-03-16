@@ -674,6 +674,8 @@ async function speakSentence(text) {
     playPath = audioPath;
     ok = await ttsHTTP("https://api.openai.com/v1/audio/speech", process.env.OPENAI_API_KEY, "tts-1", text, openaiVoice, "mp3", playPath);
   }
+  // Local TTS fallback — espeak-ng, no API key needed
+  if (!ok) ok = await speakEspeak(text);
   if (!ok) return;
 
   // Unmute
@@ -713,13 +715,14 @@ async function speak(text) {
 function getLLMConfig() {
   const [provider, model] = LLM_MODEL.includes(":") ? LLM_MODEL.split(":", 2) : ["openai", LLM_MODEL];
   const map = {
-    groq:       { base: "https://api.groq.com/openai/v1",       key: process.env.GROQ_API_KEY },
-    openai:     { base: process.env.LLM_BASE_URL || "https://api.openai.com/v1", key: process.env.OPENAI_API_KEY },
-    deepseek:   { base: "https://api.deepseek.com/v1",           key: process.env.DEEPSEEK_API_KEY },
-    xai:        { base: "https://api.x.ai/v1",                   key: process.env.XAI_API_KEY },
-    openrouter: { base: "https://openrouter.ai/api/v1",          key: process.env.OPENROUTER_API_KEY },
-    mistral:    { base: "https://api.mistral.ai/v1",             key: process.env.MISTRAL_API_KEY },
-    anthropic:  { base: "https://api.anthropic.com/v1",          key: process.env.ANTHROPIC_API_KEY },
+    groq:       { base: "https://api.groq.com/openai/v1",                                          key: process.env.GROQ_API_KEY },
+    openai:     { base: process.env.LLM_BASE_URL || "https://api.openai.com/v1",                   key: process.env.OPENAI_API_KEY },
+    deepseek:   { base: "https://api.deepseek.com/v1",                                             key: process.env.DEEPSEEK_API_KEY },
+    xai:        { base: "https://api.x.ai/v1",                                                     key: process.env.XAI_API_KEY },
+    openrouter: { base: "https://openrouter.ai/api/v1",                                            key: process.env.OPENROUTER_API_KEY },
+    mistral:    { base: "https://api.mistral.ai/v1",                                               key: process.env.MISTRAL_API_KEY },
+    anthropic:  { base: "https://api.anthropic.com/v1",                                            key: process.env.ANTHROPIC_API_KEY },
+    ollama:     { base: process.env.OLLAMA_BASE_URL || "http://host.docker.internal:11434/v1",     key: "ollama" },
   };
   const c = map[provider] || map.openai;
   return { provider, model, baseURL: c.base, apiKey: c.key || process.env.LLM_API_KEY || process.env.OPENAI_API_KEY };
@@ -735,6 +738,22 @@ Rules:
 - If the conversation doesn't need you → respond with "" (empty string, nothing).
 - NEVER give presentations or long explanations. One sentence is usually enough.
 - NEVER start with "Certainly!" or "Great question!" — just answer.`;
+}
+
+// ── Local TTS (espeak-ng) — no API key needed ────────────────────────────
+
+function speakEspeak(text) {
+  return new Promise((resolve) => {
+    const wavPath = join(STORAGE, "recordings", `espeak-${Date.now()}.wav`);
+    const proc = spawn("espeak-ng", ["-w", wavPath, "--", text], { stdio: "ignore" });
+    proc.on("close", async (code) => {
+      if (code === 0) {
+        await playViaPulseAudio(wavPath).catch(() => {});
+        resolve(true);
+      } else resolve(false);
+    });
+    proc.on("error", () => resolve(false));
+  });
 }
 
 // ── HTTP helpers ─────────────────────────────────────────────────────────
