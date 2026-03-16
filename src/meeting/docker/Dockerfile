@@ -59,10 +59,9 @@ RUN arch=$(uname -m) && if [ "$arch" = "x86_64" ] || [ "$arch" = "amd64" ]; then
 RUN mkdir -p /root/ms-playwright && chmod -R 777 /root/ms-playwright
 RUN mkdir -p /app/storage/screenshots /app/storage/recordings /app/storage/transcripts && chmod -R 777 /app/storage
 
-# PulseAudio config — allow running as root in Docker
-RUN mkdir -p /root/.config/pulse /var/run/pulse /tmp/pulse && \
-    echo "autospawn = yes" > /root/.config/pulse/client.conf && \
-    echo "daemon-binary = /usr/bin/pulseaudio" >> /root/.config/pulse/client.conf
+# PulseAudio — disable autospawn, use explicit start in entrypoint
+RUN mkdir -p /var/run/pulse /root/.config/pulse && \
+    echo "autospawn = no" > /root/.config/pulse/client.conf
 
 # Entrypoint
 COPY src/meeting/docker/entrypoint.sh /app/entrypoint.sh
