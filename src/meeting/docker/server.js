@@ -8,12 +8,13 @@
  * This means first audio out in ~300ms after user stops speaking, not 4-6s.
  *
  * Modes:
- * 1. REALTIME  — OpenAI Realtime API: single WebSocket, <1s, audio-in/audio-out
- * 2. PIPELINE  — Deepgram WS STT → streaming LLM → sentence TTS → PulseAudio
- * 3. BATCH     — fallback: 1.5s flush STT → LLM → TTS
+ * 1. ELEVENLABS — ElevenLabs Conversational AI: WebSocket STT+LLM+TTS, best quality, ~300ms
+ * 2. REALTIME  — OpenAI Realtime API: single WebSocket, <1s, audio-in/audio-out
+ * 3. PIPELINE  — Deepgram WS STT → streaming LLM → sentence TTS → PulseAudio
+ * 4. BATCH     — fallback: VAD-flush STT → LLM → TTS
  *
- * MEETING_MODE env: realtime | pipeline | auto (default)
- *   auto: realtime if OPENAI_API_KEY, pipeline if DEEPGRAM_API_KEY, else batch
+ * MEETING_MODE env: elevenlabs | realtime | pipeline | auto (default)
+ *   auto: elevenlabs if ELEVENLABS_API_KEY, realtime if OPENAI_API_KEY, pipeline if DEEPGRAM_API_KEY, else batch
  *
  * HTTP API:
  *   POST /join                    — join meeting
@@ -365,9 +366,43 @@ let lastSpeechTime = 0;
 let lastRespondedIndex = 0;
 let pendingText = "";
 let respondTimer = null;
-const SILENCE_MS = 1800;     // wait for this silence before responding
+const SILENCE_MS = 1800;
 const MIN_WORDS = 2;
 const STT_SAMPLE_RATE = 16000;
+
+// VAD state for batch mode — flush when speech ends, not on a fixed timer
+let _vadSpeaking = false;
+let _vadSilenceStart = 0;
+const VAD_ENERGY_THRESHOLD = 0.008; // RMS level that counts as speech
+const VAD_SILENCE_FLUSH_MS = 450;   // flush after 450ms of silence post-speech
+const VAD_MIN_SPEECH_MS = 200;      // ignore clips shorter than 200ms
+let _vadSpeechStart = 0;
+
+function _rms(f32) {
+  let s = 0;
+  for (let i = 0; i < f32.length; i++) s += f32[i] * f32[i];
+  return Math.sqrt(s / f32.length);
+}
+
+function _vadProcess(f32) {
+  const energy = _rms(f32);
+  const now = Date.now();
+  if (energy > VAD_ENERGY_THRESHOLD) {
+    if (!_vadSpeaking) { _vadSpeaking = true; _vadSpeechStart = now; }
+    _vadSilenceStart = 0;
+  } else if (_vadSpeaking) {
+    if (_vadSilenceStart === 0) _vadSilenceStart = now;
+    if (now - _vadSilenceStart >= VAD_SILENCE_FLUSH_MS) {
+      if (now - _vadSpeechStart >= VAD_MIN_SPEECH_MS) {
+        flushBatchSTT(); // flush immediately when speech ends
+      } else {
+        audioBuffer = []; // too short — discard
+      }
+      _vadSpeaking = false;
+      _vadSilenceStart = 0;
+    }
+  }
+}
 
 async function startPipelineMode() {
   try {
@@ -378,6 +413,7 @@ async function startPipelineMode() {
           sttWs.send(float32ToPCM16(f32));
         } else {
           audioBuffer.push(f32);
+          _vadProcess(f32); // VAD-based flush — don't wait for timer
         }
       } catch {}
     });
@@ -396,9 +432,11 @@ async function startPipelineMode() {
   if (process.env.DEEPGRAM_API_KEY) {
     await startDeepgramSTT();
   } else {
-    sttTimer = setInterval(() => flushBatchSTT(), 1500);
+    // VAD-based flush — no fixed timer. Audio flushed 450ms after speech ends.
+    // Fallback safety timer catches any stuck buffers (e.g. very long speech)
+    sttTimer = setInterval(() => { if (audioBuffer.length > 0 && !_vadSpeaking) flushBatchSTT(); }, 3000);
     const p = process.env.GROQ_API_KEY ? "Groq" : process.env.OPENAI_API_KEY ? "OpenAI" : "none";
-    console.log(`[Pipeline] STT: batch (${p}) — silence=${SILENCE_MS}ms`);
+    console.log(`[Pipeline] STT: VAD-batch (${p}) — flush on speech end ~450ms`);
   }
 
   startResponseLoop();
@@ -733,15 +771,17 @@ function getLLMConfig() {
 }
 
 function buildSystemPrompt() {
-  return `You are ${BOT_NAME} — a real AI meeting participant. You are in a live meeting right now.
+  return `You are ${BOT_NAME} — a real AI participant in a live voice meeting. Talk like a person, not an assistant.
 
 Rules:
-- Respond in 1-2 short sentences MAX. Natural, conversational, human.
-- If someone asks you something → answer it directly.
-- If someone says your name → respond.
-- If the conversation doesn't need you → respond with "" (empty string, nothing).
-- NEVER give presentations or long explanations. One sentence is usually enough.
-- NEVER start with "Certainly!" or "Great question!" — just answer.`;
+- 1-2 sentences MAX. Short. Natural. No padding.
+- Actually answer the question — don't ask what they want, just respond with substance.
+- If someone asks about a topic → give a real answer on that topic immediately.
+- If they ask "can you tell me about X" → tell them about X, don't ask "what specifically about X?"
+- NEVER start with "I'm here to help" or any filler opener. Just answer.
+- NEVER ask generic follow-up questions like "what aspects interest you?" — pick the most relevant point and say it.
+- If the conversation doesn't need you → respond with "" (nothing).
+- Match the energy: casual question → casual answer. Technical question → direct technical answer.`;
 }
 
 // ── Local TTS (espeak-ng) — no API key needed ────────────────────────────
