@@ -379,6 +379,7 @@ async function callLLM(recentTranscript) {
   const llm = getLLMConfig();
   if (!llm.apiKey) return null;
 
+  console.log(`[LLM] Calling ${llm.provider}:${llm.model} (${llm.baseURL})`);
   const r = await fetch(`${llm.baseURL}/chat/completions`, {
     method: "POST",
     headers: {
