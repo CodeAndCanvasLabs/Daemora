@@ -19,7 +19,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# PulseAudio virtual devices created at runtime in entrypoint.sh (Vexa pattern)
+# PulseAudio config — allow running as root in Docker
+RUN mkdir -p /root/.config/pulse /var/run/pulse && \
+    echo "autospawn = yes" > /root/.config/pulse/client.conf && \
+    echo "daemon-binary = /usr/bin/pulseaudio" >> /root/.config/pulse/client.conf && \
+    sed -i 's/; allow-module-loading = yes/allow-module-loading = yes/' /etc/pulse/system.pa 2>/dev/null || true
 
 # ── Working directory ─────────────────────────────────────────────────────
 WORKDIR /app
