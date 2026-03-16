@@ -135,7 +135,7 @@ async function main() {
 
       // Block start if no AI provider is configured
       // Check: at least one provider key or Ollama host must be set
-      const providerKeys = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "OPENROUTER_API_KEY", "OLLAMA_HOST"];
+      const providerKeys = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "XAI_API_KEY", "GROQ_API_KEY", "DEEPSEEK_API_KEY", "MISTRAL_API_KEY", "OPENROUTER_API_KEY", "OLLAMA_HOST"];
       const hasProvider = providerKeys.some(k => {
         const v = process.env[k];
         return v && v.trim() && !v.includes("your_") && !v.includes("sk-xxx");
@@ -1971,11 +1971,11 @@ async function handleModels() {
   const providerEnvKeys = {
     openai: "OPENAI_API_KEY", anthropic: "ANTHROPIC_API_KEY", google: "GOOGLE_AI_API_KEY",
     xai: "XAI_API_KEY", deepseek: "DEEPSEEK_API_KEY", mistral: "MISTRAL_API_KEY",
-    openrouter: "OPENROUTER_API_KEY", ollama: null,
+    groq: "GROQ_API_KEY", openrouter: "OPENROUTER_API_KEY", ollama: null,
   };
   const providerNames = {
     openai: "OpenAI", anthropic: "Anthropic", google: "Google", xai: "xAI",
-    deepseek: "DeepSeek", mistral: "Mistral", openrouter: "OpenRouter", ollama: "Ollama (local)",
+    deepseek: "DeepSeek", mistral: "Mistral", groq: "Groq", openrouter: "OpenRouter", ollama: "Ollama (local)",
   };
 
   const providerMap = new Map();

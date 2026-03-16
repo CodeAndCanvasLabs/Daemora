@@ -16,6 +16,7 @@ const PROVIDERS = {
   deepseek:  { envKey: "DEEPSEEK_API_KEY",  baseURL: "https://api.deepseek.com" },
   mistral:   { envKey: "MISTRAL_API_KEY",   baseURL: "https://api.mistral.ai/v1" },
   openrouter: { envKey: "OPENROUTER_API_KEY", baseURL: "https://openrouter.ai/api/v1" },
+  groq:      { envKey: "GROQ_API_KEY",      baseURL: "https://api.groq.com/openai/v1" },
   ollama:    { envKey: null },
 };
 

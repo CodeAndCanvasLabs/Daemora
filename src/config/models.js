@@ -424,6 +424,81 @@ export const models = {
     tier: "cheap",
   },
 
+  // ─── Groq (hosted models — uses GROQ_API_KEY) ──────────────────────────────
+
+  // Groq Compound (agentic)
+  "groq:groq/compound": {
+    provider: "groq", model: "groq/compound",
+    contextWindow: 131_072, compactAt: 90_000,
+    costPer1kInput: 0, costPer1kOutput: 0,
+    capabilities: ["text", "tools"],
+    tier: "free",
+  },
+  "groq:groq/compound-mini": {
+    provider: "groq", model: "groq/compound-mini",
+    contextWindow: 131_072, compactAt: 90_000,
+    costPer1kInput: 0, costPer1kOutput: 0,
+    capabilities: ["text", "tools"],
+    tier: "free",
+  },
+
+  // Meta Llama on Groq
+  "groq:llama-3.1-8b-instant": {
+    provider: "groq", model: "llama-3.1-8b-instant",
+    contextWindow: 131_072, compactAt: 90_000,
+    costPer1kInput: 0.00005, costPer1kOutput: 0.00008,
+    capabilities: ["text", "tools"],
+    tier: "cheap",
+  },
+  "groq:llama-3.3-70b-versatile": {
+    provider: "groq", model: "llama-3.3-70b-versatile",
+    contextWindow: 131_072, compactAt: 90_000,
+    costPer1kInput: 0.00044, costPer1kOutput: 0.00067,
+    capabilities: ["text", "tools"],
+    tier: "cheap",
+  },
+  "groq:meta-llama/llama-4-scout-17b-16e-instruct": {
+    provider: "groq", model: "meta-llama/llama-4-scout-17b-16e-instruct",
+    contextWindow: 131_072, compactAt: 90_000,
+    costPer1kInput: 0.00011, costPer1kOutput: 0.00034,
+    capabilities: ["text", "tools", "vision"],
+    tier: "cheap",
+  },
+
+  // Alibaba Qwen on Groq
+  "groq:qwen/qwen3-32b": {
+    provider: "groq", model: "qwen/qwen3-32b",
+    contextWindow: 131_072, compactAt: 90_000,
+    costPer1kInput: 0.00029, costPer1kOutput: 0.00039,
+    capabilities: ["text", "tools", "reasoning"],
+    tier: "cheap",
+  },
+
+  // OpenAI OSS on Groq
+  "groq:openai/gpt-oss-120b": {
+    provider: "groq", model: "openai/gpt-oss-120b",
+    contextWindow: 131_072, compactAt: 90_000,
+    costPer1kInput: 0.00015, costPer1kOutput: 0.0006,
+    capabilities: ["text", "tools", "reasoning"],
+    tier: "cheap",
+  },
+  "groq:openai/gpt-oss-20b": {
+    provider: "groq", model: "openai/gpt-oss-20b",
+    contextWindow: 131_072, compactAt: 90_000,
+    costPer1kInput: 0.000075, costPer1kOutput: 0.0003,
+    capabilities: ["text", "tools", "reasoning"],
+    tier: "cheap",
+  },
+
+  // Moonshot Kimi on Groq
+  "groq:moonshotai/kimi-k2-instruct-0905": {
+    provider: "groq", model: "moonshotai/kimi-k2-instruct-0905",
+    contextWindow: 262_144, compactAt: 180_000,
+    costPer1kInput: 0.001, costPer1kOutput: 0.003,
+    capabilities: ["text", "tools"],
+    tier: "cheap",
+  },
+
   // ─── DeepSeek ──────────────────────────────────────────────────────────────
 
   "deepseek:deepseek-chat": {

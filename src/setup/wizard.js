@@ -100,6 +100,7 @@ export async function runSetupWizard() {
     xai:       { env: "XAI_API_KEY",       prompt: "xAI API key" },
     deepseek:  { env: "DEEPSEEK_API_KEY",  prompt: "DeepSeek API key (sk-...)" },
     mistral:   { env: "MISTRAL_API_KEY",   prompt: "Mistral API key" },
+    groq:       { env: "GROQ_API_KEY",       prompt: "Groq API key (gsk_...)" },
     openrouter: { env: "OPENROUTER_API_KEY", prompt: "OpenRouter API key (sk-or-...)" },
   };
 
@@ -868,7 +869,7 @@ export async function runSetupWizard() {
       const secretKeys = [
         // AI providers
         "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY",
-        "XAI_API_KEY", "DEEPSEEK_API_KEY", "MISTRAL_API_KEY", "OPENROUTER_API_KEY",
+        "XAI_API_KEY", "GROQ_API_KEY", "DEEPSEEK_API_KEY", "MISTRAL_API_KEY", "OPENROUTER_API_KEY",
         // Channel tokens
         "TELEGRAM_BOT_TOKEN", "DISCORD_BOT_TOKEN",
         "SLACK_BOT_TOKEN", "SLACK_APP_TOKEN",
