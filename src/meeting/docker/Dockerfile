@@ -59,10 +59,8 @@ RUN arch=$(uname -m) && if [ "$arch" = "x86_64" ] || [ "$arch" = "amd64" ]; then
 RUN mkdir -p /root/ms-playwright && chmod -R 777 /root/ms-playwright
 RUN mkdir -p /app/storage/screenshots /app/storage/recordings /app/storage/transcripts && chmod -R 777 /app/storage
 
-# PulseAudio — system mode client config, point to system socket
-RUN mkdir -p /var/run/pulse /root/.config/pulse && \
-    echo "autospawn = no" > /root/.config/pulse/client.conf && \
-    echo "default-server = unix:/var/run/pulse/native" >> /root/.config/pulse/client.conf
+# PulseAudio — no special config needed (user mode, same as Vexa)
+RUN mkdir -p /var/run/pulse
 
 # Entrypoint
 COPY src/meeting/docker/entrypoint.sh /app/entrypoint.sh
