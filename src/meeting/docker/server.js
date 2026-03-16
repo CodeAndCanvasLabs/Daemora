@@ -223,13 +223,9 @@ async function startAudioCapture() {
     });
   } catch {}
 
-  await page.evaluate(`
-    (function() {
-      if (window.__daemoraCaptureActive) return;
-      window.__daemoraCaptureActive = true;
-      ${AUDIO_CAPTURE_SCRIPT}
-    })();
-  `);
+  // AUDIO_CAPTURE_SCRIPT is already a self-contained IIFE — inject it directly
+  // Do NOT wrap in another IIFE that sets __daemoraCaptureActive (kills the script)
+  await page.evaluate(AUDIO_CAPTURE_SCRIPT);
 
   captureActive = true;
   console.log("[MeetingBot:Docker] Audio capture started");
