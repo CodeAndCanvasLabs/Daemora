@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # ── PulseAudio configuration ─────────────────────────────────────────────
 # Virtual sink (tts_sink) → monitor → virtual mic → Chromium picks up as mic input
 RUN mkdir -p /root/.config/pulse
-COPY pulse-default.pa /root/.config/pulse/default.pa
+COPY src/meeting/docker/pulse-default.pa /root/.config/pulse/default.pa
 
 # ── Working directory ─────────────────────────────────────────────────────
 WORKDIR /app
@@ -40,7 +40,7 @@ ENV PULSE_SERVER=unix:/tmp/pulse/native
 ENV NODE_ENV=production
 
 # ── Entrypoint ────────────────────────────────────────────────────────────
-COPY entrypoint.sh /entrypoint.sh
+COPY src/meeting/docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 EXPOSE 3456
