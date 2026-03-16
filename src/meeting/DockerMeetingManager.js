@@ -195,10 +195,12 @@ export async function dockerJoinMeeting(sessionId, opts) {
     DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY || "",
     MISTRAL_API_KEY: process.env.MISTRAL_API_KEY || "",
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || "",
-    // Model config
+    // Model config — read from SQLite-backed process.env (set via /api/settings)
     TTS_MODEL: process.env.TTS_MODEL || "tts-1",
-    STT_MODEL: process.env.STT_MODEL || "whisper-large-v3-turbo",
-    LLM_MODEL: process.env.SUB_AGENT_MODEL || process.env.DEFAULT_MODEL || "openai:o4-mini",
+    TTS_VOICE: process.env.TTS_VOICE || "",              // e.g. "nova", "alloy", "fritz" — empty = provider default
+    TTS_GROQ_MODEL: process.env.TTS_GROQ_MODEL || "",    // Groq TTS model override
+    STT_MODEL: process.env.STT_MODEL || "nova-3",        // Deepgram model or Whisper model
+    LLM_MODEL: process.env.MEETING_LLM || process.env.SUB_AGENT_MODEL || process.env.DEFAULT_MODEL || "openai:o4-mini",
     LLM_BASE_URL: process.env.OPENAI_BASE_URL || "",
     // Meeting mode: realtime | pipeline | auto
     MEETING_MODE: process.env.MEETING_MODE || "auto",

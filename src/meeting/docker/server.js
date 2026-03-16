@@ -408,7 +408,8 @@ async function startPipelineMode() {
 
 async function startDeepgramSTT() {
   const params = new URLSearchParams({
-    model: "nova-3", smart_format: "true", punctuate: "true",
+    model: process.env.STT_MODEL || "nova-3",
+    smart_format: "true", punctuate: "true",
     diarize: "false", interim_results: "true", endpointing: "300",
     sample_rate: "16000", channels: "1", encoding: "linear16",
   });
@@ -645,26 +646,33 @@ async function streamingRespond(context) {
 
 async function speakSentence(text) {
   const ttsModel = process.env.TTS_MODEL || "tts-1";
+  const ttsVoice = process.env.TTS_VOICE || "";  // user-configured via SQLite settings
+  const groqModel = process.env.TTS_GROQ_MODEL || "canopylabs/orpheus-v1-english";
   const isGroq = ttsModel === "groq" || ttsModel.includes("orpheus");
+
+  // Provider default voices (only used when TTS_VOICE is not set)
+  const openaiVoice = ttsVoice || "nova";
+  const groqVoice   = ttsVoice || "hannah";
+
   const audioPath = join(STORAGE, "recordings", `tts-${Date.now()}.mp3`);
   let playPath = audioPath;
   let ok = false;
 
   if (isGroq && process.env.GROQ_API_KEY) {
     playPath = audioPath.replace(".mp3", ".wav");
-    ok = await ttsHTTP("https://api.groq.com/openai/v1/audio/speech", process.env.GROQ_API_KEY, "canopylabs/orpheus-v1-english", text, "hannah", "wav", playPath);
+    ok = await ttsHTTP("https://api.groq.com/openai/v1/audio/speech", process.env.GROQ_API_KEY, groqModel, text, groqVoice, "wav", playPath);
   }
   if (!ok && !isGroq && process.env.OPENAI_API_KEY) {
-    ok = await ttsHTTP("https://api.openai.com/v1/audio/speech", process.env.OPENAI_API_KEY, ttsModel, text, "nova", "mp3", audioPath);
+    ok = await ttsHTTP("https://api.openai.com/v1/audio/speech", process.env.OPENAI_API_KEY, ttsModel, text, openaiVoice, "mp3", audioPath);
     playPath = audioPath;
   }
   if (!ok && process.env.GROQ_API_KEY) {
     playPath = audioPath.replace(".mp3", ".wav");
-    ok = await ttsHTTP("https://api.groq.com/openai/v1/audio/speech", process.env.GROQ_API_KEY, "canopylabs/orpheus-v1-english", text, "hannah", "wav", playPath);
+    ok = await ttsHTTP("https://api.groq.com/openai/v1/audio/speech", process.env.GROQ_API_KEY, groqModel, text, groqVoice, "wav", playPath);
   }
   if (!ok && process.env.OPENAI_API_KEY) {
     playPath = audioPath;
-    ok = await ttsHTTP("https://api.openai.com/v1/audio/speech", process.env.OPENAI_API_KEY, "tts-1", text, "nova", "mp3", playPath);
+    ok = await ttsHTTP("https://api.openai.com/v1/audio/speech", process.env.OPENAI_API_KEY, "tts-1", text, openaiVoice, "mp3", playPath);
   }
   if (!ok) return;
 
