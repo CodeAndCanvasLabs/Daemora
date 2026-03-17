@@ -89,13 +89,21 @@ export function listSessions(prefix = null) {
 }
 
 /**
- * Clear a session — removes messages and session record.
+ * Clear a session — removes messages, tasks, cost entries, and session record.
  */
 export function clearSession(sessionId) {
   const session = queryOne("SELECT id FROM sessions WHERE id = $id", { $id: sessionId });
   if (!session) return false;
   transaction(() => {
+    // Delete cost entries for tasks in this session
+    run(`DELETE FROM cost_entries WHERE task_id IN (
+      SELECT id FROM tasks WHERE session_id = $sid
+    )`, { $sid: sessionId });
+    // Delete tasks
+    run("DELETE FROM tasks WHERE session_id = $sid", { $sid: sessionId });
+    // Delete messages
     run("DELETE FROM messages WHERE session_id = $sid", { $sid: sessionId });
+    // Delete session
     run("DELETE FROM sessions WHERE id = $id", { $id: sessionId });
   });
   return true;
