@@ -22,6 +22,7 @@ import {
   clearRegistry,
   getPluginTools,
   getPluginServices,
+  initConfigStore,
 } from "./PluginRegistry.js";
 
 let _loaded = false;
@@ -49,6 +50,9 @@ export async function loadPlugins() {
     _loaded = true;
     return getRegistry();
   }
+
+  // Init configStore for plugin config access
+  await initConfigStore();
 
   console.log(`[PluginLoader] Discovering ${entries.length} plugin(s)...`);
 

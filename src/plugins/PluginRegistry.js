@@ -37,6 +37,20 @@ export function getPlugin(id) {
   return _registry.plugins.find(p => p.id === id) || null;
 }
 
+/**
+ * Get plugin tools filtered by tenant plan.
+ * If plugin has tenantPlans, only return tools if tenant's plan matches.
+ * @param {string} [tenantPlan] — "free" | "pro" | "admin" | null (admin/global)
+ */
+export function getPluginToolsForPlan(tenantPlan) {
+  if (!tenantPlan) return _registry.tools; // admin/global — all tools
+  return _registry.tools.filter(t => {
+    const plugin = _registry.plugins.find(p => p.id === t.pluginId);
+    if (!plugin?.tenantPlans) return true; // no restriction
+    return plugin.tenantPlans.includes(tenantPlan);
+  });
+}
+
 export function clearRegistry() {
   _registry.plugins.length = 0;
   _registry.tools.length = 0;
@@ -102,6 +116,12 @@ export function createPluginApi(record, manifest, pluginDir) {
       }
       record.channelIds.push(name);
       _registry.channels.push({ pluginId: record.id, name, impl });
+      // Wire into channelRegistry so it can instantiate this channel type
+      try {
+        import("../channels/index.js").then(mod => {
+          mod.default.registerPluginChannel(name, impl);
+        });
+      } catch {}
     },
 
     // ── Lifecycle hooks ─────────────────────────────────────────────────
@@ -140,9 +160,24 @@ export function createPluginApi(record, manifest, pluginDir) {
 
     // ── Config access (plugin's own config) ─────────────────────────────
     config(key) {
-      // Read from process.env with plugin prefix, or from manifest defaults
+      // Priority: process.env > SQLite config_entries > manifest defaults
       const envKey = `PLUGIN_${record.id.toUpperCase().replace(/-/g, "_")}_${key}`;
-      return process.env[envKey] || manifest?.config?.[key]?.default || null;
+      if (process.env[envKey]) return process.env[envKey];
+      // Check SQLite config_entries with plugin prefix (sync — configStore is already loaded)
+      if (_configStore) {
+        const val = _configStore.get(`plugin:${record.id}:${key}`);
+        if (val) return val;
+      }
+      return manifest?.config?.[key]?.default || null;
+    },
+
+    // ── Set plugin config ───────────────────────────────────────────────
+    setConfig(key, value) {
+      try {
+        import("../config/ConfigStore.js").then(mod => {
+          mod.configStore.set(`plugin:${record.id}:${key}`, value);
+        });
+      } catch {}
     },
 
     // ── Tenant-aware access (Daemora-specific, not in OpenClaw) ─────────
@@ -186,4 +221,12 @@ async function _getTenantManager() {
     _tenantManager = mod.default;
   }
   return _tenantManager;
+}
+
+let _configStore = null;
+export async function initConfigStore() {
+  try {
+    const mod = await import("../config/ConfigStore.js");
+    _configStore = mod.configStore;
+  } catch {}
 }
