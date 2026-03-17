@@ -1,0 +1,12 @@
+{
+  "id": "smart-home",
+  "name": "Smart Home",
+  "version": "1.0.0",
+  "description": "Philips Hue lights and Sonos speakers control",
+  "config": {
+    "HUE_BRIDGE_IP": { "type": "string", "label": "Hue Bridge IP" },
+    "HUE_API_KEY": { "type": "secret", "label": "Hue API Key" },
+    "SONOS_SPEAKER_IP": { "type": "string", "label": "Sonos Speaker IP" }
+  },
+  "profiles": ["assistant", "sysadmin"]
+}

@@ -42,15 +42,9 @@ import { generateImage } from "./generateImage.js";
 import { readPDF } from "./readPDF.js";
 import { gitTool } from "./gitTool.js";
 import { clipboard } from "./clipboard.js";
-import { notification } from "./notification.js";
-import { iMessageTool } from "./iMessageTool.js";
-import { calendar } from "./calendar.js";
-import { sshTool } from "./sshTool.js";
-import { database } from "./database.js";
-import { contacts } from "./contacts.js";
-import { googlePlaces } from "./googlePlaces.js";
-import { philipsHue } from "./philipsHue.js";
-import { sonos } from "./sonos.js";
+// Moved to bundled plugins: calendar, contacts, googlePlaces, philipsHue, sonos,
+// notification, iMessageTool, sshTool, database
+// They register via plugins/ on startup — no longer hardcoded here.
 import { reload } from "./reloadTool.js";
 
 // ─── Agent wrappers (params object → SubAgentManager) ────────────────────────
@@ -104,9 +98,7 @@ export const toolFunctions = {
   teamTask,
   meetingAction,
   generateImage, readPDF,
-  gitTool, clipboard, sshTool, database,
-  notification, iMessageTool, calendar, contacts,
-  googlePlaces, philipsHue, sonos,
+  gitTool, clipboard,
   reload,
 };
 
