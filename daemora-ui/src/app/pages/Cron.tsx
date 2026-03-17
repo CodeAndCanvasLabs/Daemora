@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback } from "react";
 import { apiFetch } from "../api";
 import {
   Clock, Plus, Trash2, Loader2, Play, Pause, RotateCcw, History,
-  Globe, Repeat, Timer, AlertTriangle, CheckCircle2, XCircle, RefreshCw
+  Globe, Repeat, Timer, AlertTriangle, CheckCircle2, XCircle, RefreshCw,
+  Send, Users, ChevronDown, ChevronRight, Check
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -66,6 +67,27 @@ interface SchedulerStatus {
   nextWakeAt: string | null;
 }
 
+interface DeliveryTarget {
+  tenantId: string | null;
+  channel: string;
+  userId: string | null;
+  channelMeta?: Record<string, unknown> | null;
+}
+
+interface TenantOption {
+  id: string;
+  name: string;
+  channels: { channel: string; userId: string; meta: Record<string, unknown> | null }[];
+}
+
+interface Preset {
+  id: string;
+  name: string;
+  description: string | null;
+  targets: DeliveryTarget[];
+  createdAt: string;
+}
+
 const EMPTY_FORM = {
   name: "",
   scheduleKind: "cron" as "cron" | "every" | "at",
@@ -89,6 +111,16 @@ export function Cron() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [activeTab, setActiveTab] = useState("jobs");
+  // Delivery targets
+  const [deliveryTenants, setDeliveryTenants] = useState<TenantOption[]>([]);
+  const [deliveryGlobal, setDeliveryGlobal] = useState<{ channel: string }[]>([]);
+  const [selectedTargets, setSelectedTargets] = useState<Set<string>>(new Set());
+  const [expandedTenants, setExpandedTenants] = useState<Set<string>>(new Set());
+  // Presets
+  const [presets, setPresets] = useState<Preset[]>([]);
+  const [selectedPresetId, setSelectedPresetId] = useState("");
+  const [presetForm, setPresetForm] = useState({ name: "", description: "" });
+  const [isPresetOpen, setIsPresetOpen] = useState(false);
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -115,11 +147,31 @@ export function Cron() {
     }
   }, []);
 
+  const fetchDeliveryTargets = useCallback(async () => {
+    try {
+      const [targetsRes, presetsRes] = await Promise.all([
+        apiFetch("/api/cron/delivery-targets"),
+        apiFetch("/api/cron/presets"),
+      ]);
+      if (targetsRes.ok) {
+        const d = await targetsRes.json();
+        setDeliveryTenants(d.tenants || []);
+        setDeliveryGlobal(d.globalChannels || []);
+      }
+      if (presetsRes.ok) setPresets((await presetsRes.json()).presets || []);
+    } catch {}
+  }, []);
+
   useEffect(() => { fetchJobs(); }, [fetchJobs]);
 
   useEffect(() => {
     if (activeTab === "history") fetchRuns(selectedJobId || undefined);
-  }, [activeTab, selectedJobId, fetchRuns]);
+    if (activeTab === "presets") fetchDeliveryTargets();
+  }, [activeTab, selectedJobId, fetchRuns, fetchDeliveryTargets]);
+
+  useEffect(() => {
+    if (isAddOpen) fetchDeliveryTargets();
+  }, [isAddOpen, fetchDeliveryTargets]);
 
   const handleCreate = async () => {
     if (!form.taskInput) return toast.error("Task input is required");
@@ -143,8 +195,23 @@ export function Cron() {
       body.at = new Date(form.atTime).toISOString();
     }
 
-    if (form.deliveryMode !== "none") {
-      body.delivery = { mode: form.deliveryMode };
+    if (form.deliveryMode === "preset" && selectedPresetId) {
+      body.delivery = { mode: "preset", presetId: selectedPresetId };
+    } else if (form.deliveryMode === "multi" && selectedTargets.size > 0) {
+      const targets: DeliveryTarget[] = [];
+      for (const key of selectedTargets) {
+        const [tid, ch, uid] = key.split("||");
+        if (tid === "__global__") {
+          targets.push({ tenantId: null, channel: ch, userId: null, channelMeta: null });
+        } else {
+          const tenant = deliveryTenants.find(t => t.id === tid);
+          const chData = tenant?.channels.find(c => c.channel === ch && c.userId === uid);
+          targets.push({ tenantId: tid, channel: ch, userId: uid || null, channelMeta: chData?.meta || null });
+        }
+      }
+      body.delivery = { mode: "multi", targets };
+    } else if (form.deliveryMode === "webhook") {
+      body.delivery = { mode: "webhook" };
     }
 
     try {
@@ -254,7 +321,7 @@ export function Cron() {
             <RefreshCw className="w-3 h-3 mr-2" />
             Refresh
           </Button>
-          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+          <Dialog open={isAddOpen} onOpenChange={(v) => { setIsAddOpen(v); if (!v) { setSelectedTargets(new Set()); setExpandedTenants(new Set()); setSelectedPresetId(""); } }}>
             <DialogTrigger asChild>
               <Button size="sm" className="bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] text-white uppercase text-xs tracking-tighter">
                 <Plus className="w-3 h-3 mr-2" />
@@ -337,6 +404,104 @@ export function Cron() {
                   <Input type="number" value={form.timeoutSeconds} onChange={(e) => setForm({ ...form, timeoutSeconds: e.target.value })} className="bg-slate-900 border-slate-800 text-xs" />
                 </div>
 
+                {/* Delivery */}
+                <div className="space-y-2 border-t border-slate-800 pt-4">
+                  <label className="text-[10px] text-gray-500 uppercase flex items-center gap-1"><Send className="w-3 h-3" /> Delivery</label>
+                  <Select value={form.deliveryMode} onValueChange={(v) => { setForm({ ...form, deliveryMode: v }); setSelectedTargets(new Set()); setSelectedPresetId(""); }}>
+                    <SelectTrigger className="bg-slate-900 border-slate-800 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-slate-950 border-slate-800">
+                      <SelectItem value="none">None</SelectItem>
+                      <SelectItem value="preset">Preset (saved group)</SelectItem>
+                      <SelectItem value="multi">Multi-Target (pick tenants)</SelectItem>
+                      <SelectItem value="webhook">Webhook URL</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {form.deliveryMode === "preset" && (
+                    <Select value={selectedPresetId} onValueChange={setSelectedPresetId}>
+                      <SelectTrigger className="bg-slate-900 border-slate-800 text-xs"><SelectValue placeholder="Select preset..." /></SelectTrigger>
+                      <SelectContent className="bg-slate-950 border-slate-800">
+                        {presets.map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.name} ({p.targets.length} targets)</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+
+                  {form.deliveryMode === "multi" && (
+                    <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-3 max-h-48 overflow-y-auto space-y-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[9px] text-gray-500 uppercase">{selectedTargets.size} selected</span>
+                        <button
+                          className="text-[9px] text-[#00d9ff] hover:underline"
+                          onClick={() => {
+                            const all = new Set<string>();
+                            deliveryTenants.forEach(t => t.channels.forEach(c => all.add(`${t.id}||${c.channel}||${c.userId}`)));
+                            deliveryGlobal.forEach(c => all.add(`__global__||${c.channel}||`));
+                            setSelectedTargets(selectedTargets.size === all.size ? new Set() : all);
+                          }}
+                        >{selectedTargets.size > 0 ? "Deselect All" : "Select All"}</button>
+                      </div>
+
+                      {/* Global channels */}
+                      {deliveryGlobal.length > 0 && (
+                        <div className="mb-2">
+                          <span className="text-[9px] text-gray-500 uppercase block mb-1">Global Channels</span>
+                          {deliveryGlobal.map(c => {
+                            const key = `__global__||${c.channel}||`;
+                            return (
+                              <label key={key} className="flex items-center gap-2 py-0.5 px-1 hover:bg-slate-800/50 rounded cursor-pointer">
+                                <input type="checkbox" checked={selectedTargets.has(key)} onChange={() => {
+                                  const s = new Set(selectedTargets);
+                                  s.has(key) ? s.delete(key) : s.add(key);
+                                  setSelectedTargets(s);
+                                }} className="accent-[#00d9ff]" />
+                                <span className="text-[10px] text-gray-400">{c.channel}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Tenant channels */}
+                      {deliveryTenants.map(t => (
+                        <div key={t.id} className="border-t border-slate-800/30 pt-1">
+                          <button
+                            className="flex items-center gap-1 w-full text-left py-1 hover:bg-slate-800/30 rounded px-1"
+                            onClick={() => {
+                              const s = new Set(expandedTenants);
+                              s.has(t.id) ? s.delete(t.id) : s.add(t.id);
+                              setExpandedTenants(s);
+                            }}
+                          >
+                            {expandedTenants.has(t.id) ? <ChevronDown className="w-3 h-3 text-gray-500" /> : <ChevronRight className="w-3 h-3 text-gray-500" />}
+                            <Users className="w-3 h-3 text-[#00d9ff]" />
+                            <span className="text-[10px] text-gray-300">{t.name}</span>
+                            <span className="text-[9px] text-gray-600 ml-auto">{t.channels.length} ch</span>
+                          </button>
+                          {expandedTenants.has(t.id) && (
+                            <div className="pl-6 space-y-0.5">
+                              {t.channels.map(c => {
+                                const key = `${t.id}||${c.channel}||${c.userId}`;
+                                return (
+                                  <label key={key} className="flex items-center gap-2 py-0.5 px-1 hover:bg-slate-800/50 rounded cursor-pointer">
+                                    <input type="checkbox" checked={selectedTargets.has(key)} onChange={() => {
+                                      const s = new Set(selectedTargets);
+                                      s.has(key) ? s.delete(key) : s.add(key);
+                                      setSelectedTargets(s);
+                                    }} className="accent-[#00d9ff]" />
+                                    <span className="text-[10px] text-gray-400">{c.channel}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <Button onClick={handleCreate} className="w-full bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] text-white uppercase text-xs tracking-tighter">
                   Create Job
                 </Button>
@@ -368,6 +533,9 @@ export function Cron() {
           </TabsTrigger>
           <TabsTrigger value="history" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white font-mono text-xs uppercase">
             <History className="w-3 h-3 mr-2" />Run History
+          </TabsTrigger>
+          <TabsTrigger value="presets" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white font-mono text-xs uppercase">
+            <Users className="w-3 h-3 mr-2" />Presets
           </TabsTrigger>
         </TabsList>
 
@@ -519,6 +687,191 @@ export function Cron() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+        {/* Presets Tab */}
+        <TabsContent value="presets" className="mt-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-purple-400" />
+              <span className="text-sm font-mono text-white uppercase tracking-tight">Delivery Presets</span>
+              <span className="text-[9px] font-mono text-gray-600">{presets.length} presets</span>
+            </div>
+            <Dialog open={isPresetOpen} onOpenChange={(v) => { setIsPresetOpen(v); if (!v) { setSelectedTargets(new Set()); setExpandedTenants(new Set()); } }}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="bg-gradient-to-r from-purple-500 to-purple-600 text-white uppercase text-xs tracking-tighter">
+                  <Plus className="w-3 h-3 mr-2" />New Preset
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-slate-950 border-slate-800 text-white font-mono max-w-lg">
+                <DialogHeader>
+                  <DialogTitle className="uppercase tracking-widest text-sm border-b border-slate-800 pb-4">Create Delivery Preset</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-4 max-h-[70vh] overflow-y-auto">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-gray-500 uppercase">Name</label>
+                    <Input value={presetForm.name} onChange={(e) => setPresetForm({ ...presetForm, name: e.target.value })} placeholder="e.g. engineers, team-leads, interns" className="bg-slate-900 border-slate-800 text-xs" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-gray-500 uppercase">Description</label>
+                    <Input value={presetForm.description} onChange={(e) => setPresetForm({ ...presetForm, description: e.target.value })} placeholder="Optional description" className="bg-slate-900 border-slate-800 text-xs" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] text-gray-500 uppercase">Select Tenants & Channels</label>
+                    <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-3 max-h-48 overflow-y-auto space-y-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[9px] text-gray-500 uppercase">{selectedTargets.size} selected</span>
+                        <button
+                          className="text-[9px] text-purple-400 hover:underline"
+                          onClick={() => {
+                            const all = new Set<string>();
+                            deliveryTenants.forEach(t => t.channels.forEach(c => all.add(`${t.id}||${c.channel}||${c.userId}`)));
+                            deliveryGlobal.forEach(c => all.add(`__global__||${c.channel}||`));
+                            setSelectedTargets(selectedTargets.size === all.size ? new Set() : all);
+                          }}
+                        >{selectedTargets.size > 0 ? "Deselect All" : "Select All"}</button>
+                      </div>
+                      {deliveryGlobal.length > 0 && (
+                        <div className="mb-2">
+                          <span className="text-[9px] text-gray-500 uppercase block mb-1">Global Channels</span>
+                          {deliveryGlobal.map(c => {
+                            const key = `__global__||${c.channel}||`;
+                            return (
+                              <label key={key} className="flex items-center gap-2 py-0.5 px-1 hover:bg-slate-800/50 rounded cursor-pointer">
+                                <input type="checkbox" checked={selectedTargets.has(key)} onChange={() => {
+                                  const s = new Set(selectedTargets);
+                                  s.has(key) ? s.delete(key) : s.add(key);
+                                  setSelectedTargets(s);
+                                }} className="accent-purple-400" />
+                                <span className="text-[10px] text-gray-400">{c.channel}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {deliveryTenants.map(t => (
+                        <div key={t.id} className="border-t border-slate-800/30 pt-1">
+                          <button
+                            className="flex items-center gap-1 w-full text-left py-1 hover:bg-slate-800/30 rounded px-1"
+                            onClick={() => {
+                              const s = new Set(expandedTenants);
+                              s.has(t.id) ? s.delete(t.id) : s.add(t.id);
+                              setExpandedTenants(s);
+                            }}
+                          >
+                            {expandedTenants.has(t.id) ? <ChevronDown className="w-3 h-3 text-gray-500" /> : <ChevronRight className="w-3 h-3 text-gray-500" />}
+                            <Users className="w-3 h-3 text-purple-400" />
+                            <span className="text-[10px] text-gray-300">{t.name}</span>
+                            <span className="text-[9px] text-gray-600 ml-auto">{t.channels.length} ch</span>
+                          </button>
+                          {expandedTenants.has(t.id) && (
+                            <div className="pl-6 space-y-0.5">
+                              {t.channels.map(c => {
+                                const key = `${t.id}||${c.channel}||${c.userId}`;
+                                return (
+                                  <label key={key} className="flex items-center gap-2 py-0.5 px-1 hover:bg-slate-800/50 rounded cursor-pointer">
+                                    <input type="checkbox" checked={selectedTargets.has(key)} onChange={() => {
+                                      const s = new Set(selectedTargets);
+                                      s.has(key) ? s.delete(key) : s.add(key);
+                                      setSelectedTargets(s);
+                                    }} className="accent-purple-400" />
+                                    <span className="text-[10px] text-gray-400">{c.channel}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={async () => {
+                      if (!presetForm.name) return toast.error("Name is required");
+                      if (selectedTargets.size === 0) return toast.error("Select at least one target");
+                      const targets: DeliveryTarget[] = [];
+                      for (const key of selectedTargets) {
+                        const [tid, ch, uid] = key.split("||");
+                        targets.push({ tenantId: tid === "__global__" ? null : tid, channel: ch, userId: uid || null });
+                      }
+                      try {
+                        const res = await apiFetch("/api/cron/presets", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ name: presetForm.name, description: presetForm.description || null, targets }),
+                        });
+                        if (res.ok) {
+                          toast.success("Preset created");
+                          setIsPresetOpen(false);
+                          setPresetForm({ name: "", description: "" });
+                          setSelectedTargets(new Set());
+                          fetchDeliveryTargets();
+                        } else {
+                          const err = await res.json();
+                          toast.error(err.error || "Failed to create preset");
+                        }
+                      } catch { toast.error("API error"); }
+                    }}
+                    className="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white uppercase text-xs tracking-tighter"
+                  >
+                    Create Preset
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {presets.length === 0 ? (
+            <Card className="bg-slate-900/50 border-slate-800">
+              <CardContent className="py-16 text-center">
+                <Users className="w-12 h-12 text-gray-700 mx-auto mb-4" />
+                <p className="text-gray-600 font-mono uppercase text-xs tracking-widest">No delivery presets</p>
+                <p className="text-gray-700 font-mono text-[10px] mt-2">Create presets like "engineers" or "team-leads" for reusable delivery groups</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {presets.map(p => (
+                <Card key={p.id} className="bg-slate-900/50 border-slate-800">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <Users className="w-3 h-3 text-purple-400" />
+                          <span className="font-mono text-sm text-white uppercase tracking-tight">{p.name}</span>
+                          <Badge variant="outline" className="text-[9px] border-purple-500/20 text-purple-400">
+                            {p.targets.length} targets
+                          </Badge>
+                        </div>
+                        {p.description && <p className="text-[10px] text-gray-600 font-mono">{p.description}</p>}
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {p.targets.map((t, i) => (
+                            <span key={i} className="text-[9px] bg-slate-800/50 px-2 py-0.5 rounded text-gray-400">
+                              {t.tenantId ? `${t.tenantId.split(":").pop()}:${t.channel}` : `global:${t.channel}`}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost" size="icon"
+                        onClick={async () => {
+                          try {
+                            await apiFetch(`/api/cron/presets/${p.id}`, { method: "DELETE" });
+                            toast.success("Preset deleted");
+                            fetchDeliveryTargets();
+                          } catch { toast.error("Failed to delete"); }
+                        }}
+                        className="text-gray-500 hover:text-red-400"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

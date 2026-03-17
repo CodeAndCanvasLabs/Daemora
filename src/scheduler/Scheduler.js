@@ -25,6 +25,7 @@ import eventBus from "../core/EventBus.js";
 import * as CronStore from "./CronStore.js";
 import { createTimer, computeNextRun, validateSchedule } from "./CronTimer.js";
 import { executeJob } from "./CronExecutor.js";
+import { loadPresetByName } from "./DeliveryPresetStore.js";
 
 const MAX_MISSED_CATCHUP = 5;
 const MISSED_STAGGER_MS = 5000;
@@ -148,6 +149,14 @@ class Scheduler {
       createdAt: now,
       updatedAt: now,
     };
+
+    // Resolve delivery preset by name → ID
+    if (opts.deliveryPreset) {
+      const preset = loadPresetByName(opts.deliveryPreset);
+      if (preset) {
+        job.delivery = { mode: "preset", presetId: preset.id };
+      }
+    }
 
     // Auto-populate delivery from legacy channel/channelMeta
     if (job.delivery.mode === "none" && opts.channelMeta) {

@@ -393,6 +393,7 @@ const toolSchemas = {
       timezone: optStr("IANA timezone: 'America/New_York'"),
       model: optStr("Model override for this job"),
       deleteAfterRun: optBool("Auto-delete after one-shot run (use with 'at')"),
+      deliveryPreset: optStr("Delivery preset name (admin only) — e.g. 'engineers', 'team-leads', 'interns'. Resolves to saved tenant/channel group."),
       delivery: z.object({
         mode: optStr("Delivery mode: 'announce'"),
         channel: optStr("Target channel name"),
@@ -404,7 +405,7 @@ const toolSchemas = {
         }).optional().describe("Channel routing metadata"),
       }).optional().describe("Cross-channel delivery override. Auto-set to calling channel if omitted"),
     }),
-    description: "Schedule and manage cron jobs. Delivery auto-routes to calling channel. Schedule types: cronExpression (recurring), every (interval), at (one-shot timestamp).",
+    description: "Schedule and manage cron jobs. Delivery auto-routes to calling channel. Admin can use deliveryPreset to deliver to named tenant groups. Schedule types: cronExpression (recurring), every (interval), at (one-shot timestamp).",
   },
 
   // ── System Reload ──────────────────────────────────────────────────────

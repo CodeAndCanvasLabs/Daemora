@@ -732,6 +732,72 @@ app.get("/api/cron/runs", (req, res) => {
   }
 });
 
+// --- Delivery Presets ---
+app.get("/api/cron/delivery-targets", (req, res) => {
+  try {
+    const tenants = tenantManager.list()
+      .filter(t => !t.suspended)
+      .map(t => ({
+        id: t.id,
+        name: t.name || t.id,
+        channels: tenantManager.getChannels(t.id).map(ch => ({
+          channel: ch.channel,
+          userId: ch.user_id,
+          meta: ch.meta,
+        })),
+      }))
+      .filter(t => t.channels.length > 0);
+
+    // Global channels (admin's own running channels, excluding tenant instances)
+    const globalChannels = channelRegistry.list()
+      .filter(ch => ch.running && !ch.tenantId)
+      .map(ch => ({ channel: ch.name, userId: null, meta: null }));
+
+    res.json({ tenants, globalChannels });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/cron/presets", async (req, res) => {
+  try {
+    const { listPresets } = await import("./scheduler/DeliveryPresetStore.js");
+    res.json({ presets: listPresets() });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/cron/presets", async (req, res) => {
+  try {
+    const { savePreset } = await import("./scheduler/DeliveryPresetStore.js");
+    const preset = savePreset(req.body);
+    res.status(201).json(preset);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.put("/api/cron/presets/:id", async (req, res) => {
+  try {
+    const { savePreset } = await import("./scheduler/DeliveryPresetStore.js");
+    const preset = savePreset({ ...req.body, id: req.params.id });
+    res.json(preset);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.delete("/api/cron/presets/:id", async (req, res) => {
+  try {
+    const { deletePreset } = await import("./scheduler/DeliveryPresetStore.js");
+    deletePreset(req.params.id);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 // --- Legacy schedule endpoints (deprecated, proxy to new cron API) ---
 app.post("/api/schedules", (req, res) => {
   try {
