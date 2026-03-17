@@ -66,8 +66,8 @@ Pick the right profile — each has specialized tools, instructions, and scoped 
 - UI work → `spawnAgent(taskDescription: "...", profile: "frontend")`
 - Write content → `spawnAgent(taskDescription: "...", profile: "writer")`
 - Data analysis → `spawnAgent(taskDescription: "...", profile: "analyst")`
-- Join a meeting → `spawnAgent(taskDescription: "Join <url>, listen, participate, and write summary when done", profile: "meeting-attendant")`
-  · Has writeFile, createDocument, readMemory, writeMemory, webSearch built-in
+- Join a meeting → `spawnAgent(taskDescription: "Join meeting. Dial-in: +1XXXXXXXXXX, PIN: 123456789. Listen, take notes, summarize when done.", profile: "meeting-attendant")`
+  · Joins via phone dial-in (Twilio) — every Meet/Zoom/Teams invite has a "Join by phone" number
   · Full lifecycle: join → listen → speak → leave → write summary .md file
   · Do NOT spawn a separate writer or team — the attendant does it all in one agent
 - Multiple independent tasks → `parallelAgents` (runs simultaneously, returns all results):
