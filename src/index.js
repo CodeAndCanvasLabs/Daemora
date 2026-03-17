@@ -832,6 +832,61 @@ app.post("/api/plugins/:id/reload", async (req, res) => {
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
+app.post("/api/plugins/install", async (req, res) => {
+  try {
+    const { pkg } = req.body;
+    if (!pkg) return res.status(400).json({ error: "pkg is required" });
+    const { installPlugin } = await import("./plugins/PluginInstaller.js");
+    await installPlugin(pkg);
+    // Reload plugins after install
+    const { reloadPlugins } = await import("./plugins/PluginLoader.js");
+    const { mergePluginTools } = await import("./tools/index.js");
+    const reg = await reloadPlugins();
+    await mergePluginTools();
+    res.json({ ok: true, plugins: reg.plugins.filter(p => p.status === "loaded").length });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.delete("/api/plugins/:id/uninstall", async (req, res) => {
+  try {
+    const { removePlugin } = await import("./plugins/PluginInstaller.js");
+    await removePlugin(req.params.id);
+    const { reloadPlugins } = await import("./plugins/PluginLoader.js");
+    const { mergePluginTools } = await import("./tools/index.js");
+    await reloadPlugins();
+    await mergePluginTools();
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.put("/api/plugins/:id/config", async (req, res) => {
+  try {
+    const { configStore } = await import("./config/ConfigStore.js");
+    const { updates } = req.body;
+    if (!updates || typeof updates !== "object") return res.status(400).json({ error: "updates object required" });
+    for (const [key, value] of Object.entries(updates)) {
+      configStore.set(`plugin:${req.params.id}:${key}`, String(value));
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.get("/api/plugins/:id/config", async (req, res) => {
+  try {
+    const { getPlugin } = await import("./plugins/PluginRegistry.js");
+    const plugin = getPlugin(req.params.id);
+    if (!plugin) return res.status(404).json({ error: "Plugin not found" });
+    const schema = plugin.configSchema || {};
+    // Read current values
+    const { configStore } = await import("./config/ConfigStore.js");
+    const values = {};
+    for (const key of Object.keys(schema)) {
+      values[key] = configStore.get(`plugin:${req.params.id}:${key}`) || schema[key]?.default || "";
+    }
+    res.json({ schema, values });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // --- Legacy schedule endpoints (deprecated, proxy to new cron API) ---
 app.post("/api/schedules", (req, res) => {
   try {

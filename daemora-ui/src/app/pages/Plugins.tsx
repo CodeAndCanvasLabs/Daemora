@@ -1,13 +1,16 @@
 import { useEffect, useState, useCallback } from "react";
 import { apiFetch } from "../api";
 import {
-  Puzzle, RefreshCw, Loader2, Power, PowerOff, RotateCcw, Trash2,
-  CheckCircle2, XCircle, AlertTriangle, Wrench, Radio
+  Puzzle, RefreshCw, Loader2, PowerOff, RotateCcw, Trash2, Download,
+  CheckCircle2, XCircle, AlertTriangle, Wrench, Radio, Settings2,
+  ChevronDown, ChevronRight, Save, Eye, EyeOff
 } from "lucide-react";
 import { Card, CardContent } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import { Switch } from "../components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { toast } from "sonner";
 
 interface PluginRecord {
@@ -25,11 +28,18 @@ interface PluginRecord {
   cliCommands: string[];
   httpRouteCount: number;
   tenantPlans: string[] | null;
+  configSchema: Record<string, { type: string; label?: string; required?: boolean; default?: string }> | null;
 }
 
 export function Plugins() {
   const [plugins, setPlugins] = useState<PluginRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [installPkg, setInstallPkg] = useState("");
+  const [installing, setInstalling] = useState(false);
+  const [configPlugin, setConfigPlugin] = useState<PluginRecord | null>(null);
+  const [configValues, setConfigValues] = useState<Record<string, string>>({});
+  const [configSaving, setConfigSaving] = useState(false);
+  const [visibleSecrets, setVisibleSecrets] = useState<Set<string>>(new Set());
 
   const fetchPlugins = useCallback(async () => {
     try {
@@ -52,8 +62,7 @@ export function Plugins() {
         toast.success(enable ? "Plugin enabled" : "Plugin disabled");
         fetchPlugins();
       } else {
-        const err = await res.json();
-        toast.error(err.error || "Failed");
+        toast.error((await res.json()).error || "Failed");
       }
     } catch { toast.error("API error"); }
   };
@@ -65,10 +74,73 @@ export function Plugins() {
         toast.success("Plugin reloaded");
         fetchPlugins();
       } else {
-        const err = await res.json();
-        toast.error(err.error || "Reload failed");
+        toast.error((await res.json()).error || "Reload failed");
       }
     } catch { toast.error("API error"); }
+  };
+
+  const handleInstall = async () => {
+    if (!installPkg.trim()) return;
+    setInstalling(true);
+    try {
+      const res = await apiFetch("/api/plugins/install", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pkg: installPkg.trim() }),
+      });
+      if (res.ok) {
+        toast.success(`Installed: ${installPkg}`);
+        setInstallPkg("");
+        fetchPlugins();
+      } else {
+        toast.error((await res.json()).error || "Install failed");
+      }
+    } catch { toast.error("Install failed"); }
+    finally { setInstalling(false); }
+  };
+
+  const handleUninstall = async (id: string) => {
+    if (!confirm(`Remove plugin "${id}"? This deletes the plugin folder.`)) return;
+    try {
+      const res = await apiFetch(`/api/plugins/${id}/uninstall`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Plugin removed");
+        fetchPlugins();
+      } else {
+        toast.error((await res.json()).error || "Remove failed");
+      }
+    } catch { toast.error("Remove failed"); }
+  };
+
+  const openConfig = async (plugin: PluginRecord) => {
+    setConfigPlugin(plugin);
+    setVisibleSecrets(new Set());
+    try {
+      const res = await apiFetch(`/api/plugins/${plugin.id}/config`);
+      if (res.ok) {
+        const d = await res.json();
+        setConfigValues(d.values || {});
+      }
+    } catch {}
+  };
+
+  const saveConfig = async () => {
+    if (!configPlugin) return;
+    setConfigSaving(true);
+    try {
+      const res = await apiFetch(`/api/plugins/${configPlugin.id}/config`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates: configValues }),
+      });
+      if (res.ok) {
+        toast.success("Config saved");
+        setConfigPlugin(null);
+      } else {
+        toast.error((await res.json()).error || "Save failed");
+      }
+    } catch { toast.error("Save failed"); }
+    finally { setConfigSaving(false); }
   };
 
   const statusIcon = (status: string) => {
@@ -98,6 +170,30 @@ export function Plugins() {
         </Button>
       </div>
 
+      {/* Install from npm */}
+      <Card className="bg-slate-900/50 border-slate-800">
+        <CardContent className="p-5">
+          <div className="flex items-center gap-3">
+            <Download className="w-5 h-5 text-[#38bdf8] shrink-0" />
+            <Input
+              value={installPkg}
+              onChange={(e) => setInstallPkg(e.target.value)}
+              placeholder="Install from npm — e.g. daemora-plugin-weather"
+              className="bg-slate-900 border-slate-700 text-sm flex-1"
+              onKeyDown={(e) => e.key === "Enter" && handleInstall()}
+            />
+            <Button
+              onClick={handleInstall}
+              disabled={!installPkg.trim() || installing}
+              size="sm"
+              className="bg-gradient-to-r from-[#0891b2] to-[#0d9488] text-white text-sm px-6"
+            >
+              {installing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Install"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Stats */}
       <div className="flex items-center gap-6 text-sm text-gray-500">
         <span>{plugins.length} plugin(s)</span>
@@ -114,12 +210,7 @@ export function Plugins() {
           <CardContent className="py-16 text-center">
             <Puzzle className="w-12 h-12 text-gray-700 mx-auto mb-4" />
             <p className="text-gray-500 text-base mb-2">No plugins installed</p>
-            <p className="text-gray-600 text-sm">
-              Drop plugin folders in <code className="text-[#38bdf8] bg-slate-800 px-2 py-0.5 rounded">plugins/</code> directory
-            </p>
-            <p className="text-gray-700 text-xs mt-4">
-              Each plugin needs a plugin.json manifest + index.js entry point
-            </p>
+            <p className="text-gray-600 text-sm">Install from npm above, or drop folders in <code className="text-[#38bdf8] bg-slate-800 px-2 py-0.5 rounded">plugins/</code></p>
           </CardContent>
         </Card>
       ) : (
@@ -131,7 +222,6 @@ export function Plugins() {
               <CardContent className="p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    {/* Header row */}
                     <div className="flex items-center gap-3 mb-2">
                       {statusIcon(plugin.status)}
                       <span className="text-base font-semibold text-white">{plugin.name}</span>
@@ -150,12 +240,10 @@ export function Plugins() {
                       )}
                     </div>
 
-                    {/* Description */}
                     {plugin.description && (
                       <p className="text-sm text-gray-400 mb-3">{plugin.description}</p>
                     )}
 
-                    {/* Registrations */}
                     <div className="flex flex-wrap gap-3 text-sm text-gray-500">
                       {plugin.toolNames.length > 0 && (
                         <span className="flex items-center gap-1">
@@ -171,18 +259,13 @@ export function Plugins() {
                         </span>
                       )}
                       {plugin.hookEvents.length > 0 && (
-                        <span className="text-xs text-gray-600">
-                          hooks: {plugin.hookEvents.join(", ")}
-                        </span>
+                        <span className="text-xs text-gray-600">hooks: {plugin.hookEvents.join(", ")}</span>
                       )}
                       {plugin.serviceIds.length > 0 && (
-                        <span className="text-xs text-gray-600">
-                          services: {plugin.serviceIds.join(", ")}
-                        </span>
+                        <span className="text-xs text-gray-600">services: {plugin.serviceIds.join(", ")}</span>
                       )}
                     </div>
 
-                    {/* Error */}
                     {plugin.error && (
                       <div className="flex items-center gap-2 mt-2 text-sm text-red-400">
                         <AlertTriangle className="w-3.5 h-3.5" />
@@ -193,6 +276,11 @@ export function Plugins() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 shrink-0">
+                    {plugin.configSchema && Object.keys(plugin.configSchema).length > 0 && (
+                      <Button variant="ghost" size="icon" onClick={() => openConfig(plugin)} className="text-gray-500 hover:text-[#38bdf8]" title="Configure">
+                        <Settings2 className="w-4 h-4" />
+                      </Button>
+                    )}
                     <Switch
                       checked={plugin.enabled}
                       onCheckedChange={(v) => handleToggle(plugin.id, v)}
@@ -200,6 +288,9 @@ export function Plugins() {
                     />
                     <Button variant="ghost" size="icon" onClick={() => handleReload(plugin.id)} className="text-gray-500 hover:text-[#38bdf8]" title="Reload">
                       <RotateCcw className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => handleUninstall(plugin.id)} className="text-gray-500 hover:text-red-400" title="Remove">
+                      <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
@@ -209,18 +300,61 @@ export function Plugins() {
         </div>
       )}
 
-      {/* How to install */}
-      <Card className="bg-slate-900/30 border-slate-800/50">
-        <CardContent className="p-5">
-          <p className="text-sm text-gray-400 mb-2">How to install plugins:</p>
-          <div className="space-y-1 text-sm text-gray-500">
-            <p>1. Create a folder in <code className="text-[#38bdf8]">plugins/my-plugin/</code></p>
-            <p>2. Add <code className="text-[#38bdf8]">plugin.json</code> with id, name, version</p>
-            <p>3. Add <code className="text-[#38bdf8]">index.js</code> with <code className="text-[#38bdf8]">register(api)</code> function</p>
-            <p>4. Restart server or run <code className="text-[#38bdf8]">reload all</code></p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Config Dialog */}
+      <Dialog open={!!configPlugin} onOpenChange={(v) => { if (!v) setConfigPlugin(null); }}>
+        <DialogContent className="bg-slate-950 border-slate-800 text-white max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg border-b border-slate-800 pb-4">
+              Configure: {configPlugin?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {configPlugin?.configSchema && (
+            <div className="space-y-4 pt-4 max-h-[60vh] overflow-y-auto">
+              {Object.entries(configPlugin.configSchema).map(([key, field]) => {
+                const isSecret = field.type === "secret" || field.type === "password";
+                const visible = visibleSecrets.has(key);
+                return (
+                  <div key={key} className="space-y-1.5">
+                    <label className="text-sm text-gray-300 flex items-center gap-2">
+                      {field.label || key}
+                      {field.required && <span className="text-red-400 text-xs">required</span>}
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type={isSecret && !visible ? "password" : "text"}
+                        value={configValues[key] || ""}
+                        onChange={(e) => setConfigValues(prev => ({ ...prev, [key]: e.target.value }))}
+                        placeholder={field.default || `Enter ${field.label || key}`}
+                        className="bg-slate-900 border-slate-700 text-sm flex-1"
+                      />
+                      {isSecret && (
+                        <Button variant="ghost" size="icon" onClick={() => {
+                          const s = new Set(visibleSecrets);
+                          s.has(key) ? s.delete(key) : s.add(key);
+                          setVisibleSecrets(s);
+                        }} className="text-gray-500 hover:text-[#38bdf8]">
+                          {visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </Button>
+                      )}
+                    </div>
+                    {field.type && field.type !== "secret" && field.type !== "password" && field.type !== "string" && (
+                      <p className="text-xs text-gray-600">Type: {field.type}</p>
+                    )}
+                  </div>
+                );
+              })}
+              <Button
+                onClick={saveConfig}
+                disabled={configSaving}
+                className="w-full bg-gradient-to-r from-[#0891b2] to-[#0d9488] text-white text-sm mt-4"
+              >
+                {configSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                Save Configuration
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

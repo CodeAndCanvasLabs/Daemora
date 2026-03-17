@@ -194,7 +194,9 @@ async function _loadPlugin(pluginDir) {
   const entryPath = join(pluginDir, "index.js");
   if (existsSync(entryPath)) {
     try {
-      const mod = await import(pathToFileURL(entryPath).href);
+      // Cache-bust: append timestamp to force Node to re-import on reload
+      const importUrl = `${pathToFileURL(entryPath).href}?t=${Date.now()}`;
+      const mod = await import(importUrl);
       const plugin = mod.default || mod;
 
       if (typeof plugin === "function") {
@@ -255,7 +257,7 @@ async function _loadDeclarativeProvides(api, record, manifest, pluginDir) {
       const files = readdirSync(toolsDir).filter(f => f.endsWith(".js"));
       for (const file of files) {
         try {
-          const mod = await import(pathToFileURL(join(toolsDir, file)).href);
+          const mod = await import(`${pathToFileURL(join(toolsDir, file)).href}?t=${Date.now()}`);
           const toolName = file.replace(".js", "");
           if (mod.default && typeof mod.default === "function") {
             api.registerTool(toolName, mod.default, mod.schema || null, mod.description || "");

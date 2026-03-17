@@ -170,6 +170,17 @@ export async function reload(toolParams) {
         return "Web fetch + search caches cleared.";
       }
 
+      case "plugins": {
+        const { reloadPlugins } = await import("../plugins/PluginLoader.js");
+        const { mergePluginTools } = await import("./index.js");
+        const reg = await reloadPlugins();
+        await mergePluginTools();
+        const count = reg.plugins.filter(p => p.status === "loaded").length;
+        const toolCount = reg.tools.length;
+        eventBus.emit("system:reload", { component: "plugins" });
+        return `Plugins reloaded: ${count} loaded, ${toolCount} tools`;
+      }
+
       case "all": {
         const results = {};
         results.vault = _reloadVault();
