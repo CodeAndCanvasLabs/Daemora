@@ -5,7 +5,9 @@
  *   1. DAEMORA_PUBLIC_URL / SERVER_URL set → use as-is (production)
  *   2. NGROK_AUTHTOKEN set → spawn ngrok CLI, parse URL from JSON stdout
  *   3. Tailscale serve/funnel → spawn tailscale CLI (if TAILSCALE_MODE set)
- *   4. Nothing → log setup instructions
+ *   4. cloudflared installed → free quick tunnel, no signup, no interstitial
+ *   5. ngrok CLI installed (no token) → try without auth
+ *   6. Nothing → log setup instructions
  *
  * Sets process.env.DAEMORA_PUBLIC_URL + VOICE_WEBHOOK_BASE_URL.
  */
@@ -59,7 +61,19 @@ export async function ensurePublicUrl(port) {
     }
   }
 
-  // 3. Auto-detect: try ngrok CLI without token, then tailscale
+  // 3. cloudflared — free, no signup, no interstitial (best for local dev)
+  if (await _isCmdAvailable("cloudflared")) {
+    try {
+      const url = await _startCloudflared(port);
+      _setUrls(url);
+      console.log(`[Tunnel] cloudflared: ${url}`);
+      return url;
+    } catch (e) {
+      console.log(`[Tunnel] cloudflared failed: ${e.message}`);
+    }
+  }
+
+  // 4. ngrok CLI without token
   if (await _isCmdAvailable("ngrok")) {
     try {
       const url = await _startNgrok(port);
@@ -71,11 +85,12 @@ export async function ensurePublicUrl(port) {
     }
   }
 
-  // 4. Nothing worked
+  // 5. Nothing worked
   console.log("[Tunnel] No public URL. Voice calls & meetings won't work.");
   console.log("[Tunnel] Options:");
   console.log("[Tunnel]   Production  → set DAEMORA_PUBLIC_URL=https://your-server.com");
-  console.log("[Tunnel]   Local dev   → install ngrok (brew install ngrok) + set NGROK_AUTHTOKEN");
+  console.log("[Tunnel]   Local dev   → brew install cloudflared (free, no signup)");
+  console.log("[Tunnel]   Local dev   → or install ngrok + set NGROK_AUTHTOKEN");
   console.log("[Tunnel]   Tailscale   → set TAILSCALE_MODE=serve or TAILSCALE_MODE=funnel");
   return "";
 }
@@ -204,6 +219,76 @@ async function _getTailscaleDns() {
     const status = JSON.parse(out);
     return status.Self?.DNSName?.replace(/\.$/, "") || null;
   } catch { return null; }
+}
+
+// ── cloudflared (free quick tunnel, no signup) ────────────────────────────────
+
+function _startCloudflared(port) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn("cloudflared", ["tunnel", "--url", `http://localhost:${port}`], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let resolved = false;
+    let buf = "";
+
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        proc.kill("SIGTERM");
+        reject(new Error("cloudflared startup timed out (30s)"));
+      }
+    }, 30000);
+
+    const parseLine = (line) => {
+      if (resolved) return;
+      // cloudflared prints: "... https://xxx.trycloudflare.com ..."
+      const match = line.match(/(https:\/\/[a-z0-9-]+\.trycloudflare\.com)/i);
+      if (match) {
+        resolved = true;
+        clearTimeout(timeout);
+        _tunnel = {
+          type: "cloudflared",
+          proc,
+          stop: async () => {
+            proc.kill("SIGTERM");
+            await new Promise((r) => { proc.on("close", r); setTimeout(r, 2000); });
+          },
+        };
+        resolve(match[1]);
+      }
+    };
+
+    // cloudflared logs to stderr
+    proc.stderr.on("data", (data) => {
+      buf += data.toString();
+      const lines = buf.split("\n");
+      buf = lines.pop() || "";
+      for (const line of lines) parseLine(line);
+    });
+
+    proc.stdout.on("data", (data) => {
+      const text = data.toString();
+      for (const line of text.split("\n")) parseLine(line);
+    });
+
+    proc.on("error", (e) => {
+      clearTimeout(timeout);
+      if (!resolved) {
+        resolved = true;
+        if (e.code === "ENOENT") reject(new Error("cloudflared not installed"));
+        else reject(e);
+      }
+    });
+
+    proc.on("close", (code) => {
+      clearTimeout(timeout);
+      if (!resolved) {
+        resolved = true;
+        reject(new Error(`cloudflared exited with code ${code}`));
+      }
+    });
+  });
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
