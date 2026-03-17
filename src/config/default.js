@@ -78,7 +78,7 @@ function buildConfig(env) {
     heartbeatIntervalMinutes: parseInt(env.HEARTBEAT_INTERVAL_MINUTES || "30", 10),
 
     // Twilio / Meeting
-    twilioPhoneNumber: env.TWILIO_PHONE_NUMBER || null,
+    twilioPhoneFrom: env.TWILIO_PHONE_FROM || null,
     daemoraPublicUrl: env.DAEMORA_PUBLIC_URL || env.SERVER_URL || null,
 
     // A2A Security

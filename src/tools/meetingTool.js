@@ -188,4 +188,4 @@ export const meetingActionDescription =
     deleteVoice   - {voiceId: "..."} → delete voice
     voiceInfo     - {voiceId: "..."} → voice details
     voiceSettings - {voiceId: "...", stability?: 0.5, similarityBoost?: 0.75} → get/set voice settings
-  Requires: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, DAEMORA_PUBLIC_URL in settings.`;
+  Requires: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_FROM, DAEMORA_PUBLIC_URL in settings.`;

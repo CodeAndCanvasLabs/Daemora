@@ -71,7 +71,7 @@ export const ConfigSchema = z.object({
   heartbeatIntervalMinutes: z.number().int().min(1).max(1440).default(30),
 
   // Twilio / Meeting
-  twilioPhoneNumber: stringOrNull,
+  twilioPhoneFrom: stringOrNull,
   daemoraPublicUrl:  stringOrNull,
 
   // A2A Security
