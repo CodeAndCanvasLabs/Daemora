@@ -13,14 +13,9 @@ const TOOL_REQUIRED_KEYS = {
   transcribeAudio: ["OPENAI_API_KEY"],
   textToSpeech:    ["OPENAI_API_KEY", "ELEVENLABS_API_KEY"],
   generateImage:   ["OPENAI_API_KEY"],
-  googlePlaces:    ["GOOGLE_PLACES_API_KEY"],
-  calendar:        ["GOOGLE_CALENDAR_API_KEY"],
-  contacts:        ["GOOGLE_CONTACTS_ACCESS_TOKEN"],
-  philipsHue:      ["HUE_BRIDGE_IP"],
-  sonos:           ["SONOS_HOST"],
-  database:        ["DATABASE_URL", "MYSQL_URL"],
-  sshTool:         ["SSH_DEFAULT_HOST"],
   meetingAction:   ["TWILIO_ACCOUNT_SID"],
+  // googlePlaces, calendar, contacts, philipsHue, sonos, database, sshTool
+  // → moved to plugins. Available when plugin is enabled + loaded.
 };
 
 function _getConfiguredKeys() {
