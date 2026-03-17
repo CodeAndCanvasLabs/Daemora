@@ -109,3 +109,24 @@ export const toolFunctions = {
   googlePlaces, philipsHue, sonos,
   reload,
 };
+
+/**
+ * Merge plugin-registered tools into the core tool map.
+ * Called after plugins load in startup sequence.
+ */
+export async function mergePluginTools() {
+  try {
+    const { getPluginTools } = await import("../plugins/PluginRegistry.js");
+    const pluginTools = getPluginTools();
+    for (const { name, fn, schema, description } of pluginTools) {
+      if (toolFunctions[name]) {
+        console.log(`[Tools] Plugin tool "${name}" skipped — name conflicts with built-in`);
+        continue;
+      }
+      toolFunctions[name] = fn;
+    }
+    if (pluginTools.length > 0) {
+      console.log(`[Tools] Merged ${pluginTools.length} plugin tool(s)`);
+    }
+  } catch {}
+}

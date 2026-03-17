@@ -798,6 +798,40 @@ app.delete("/api/cron/presets/:id", async (req, res) => {
   }
 });
 
+// --- Plugin Management API ---
+app.get("/api/plugins", async (req, res) => {
+  try {
+    const { getPlugins } = await import("./plugins/PluginRegistry.js");
+    res.json({ plugins: getPlugins() });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/plugins/:id/enable", async (req, res) => {
+  try {
+    const { configStore } = await import("./config/ConfigStore.js");
+    configStore.set(`plugin:${req.params.id}:enabled`, "true");
+    const { reloadPlugin } = await import("./plugins/PluginLoader.js");
+    await reloadPlugin(req.params.id);
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post("/api/plugins/:id/disable", async (req, res) => {
+  try {
+    const { configStore } = await import("./config/ConfigStore.js");
+    configStore.set(`plugin:${req.params.id}:enabled`, "false");
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post("/api/plugins/:id/reload", async (req, res) => {
+  try {
+    const { reloadPlugin } = await import("./plugins/PluginLoader.js");
+    await reloadPlugin(req.params.id);
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
 // --- Legacy schedule endpoints (deprecated, proxy to new cron API) ---
 app.post("/api/schedules", (req, res) => {
   try {
@@ -1643,6 +1677,23 @@ const httpServer = app.listen(config.port, async () => {
     console.log("[Startup] Skill embeddings ready");
   } catch { /* non-fatal — TF-IDF fallback always works */ }
 
+  // ── Phase 1.5: Load plugins ──
+  console.log("[Startup] Loading plugins...");
+  try {
+    const { loadPlugins } = await import("./plugins/PluginLoader.js");
+    const pluginRegistry = await loadPlugins();
+    // Merge plugin tools into core tool map
+    const { mergePluginTools } = await import("./tools/index.js");
+    mergePluginTools();
+    // Mount plugin HTTP routes
+    for (const route of pluginRegistry.httpRoutes) {
+      app[route.method.toLowerCase()](route.path, route.handler);
+    }
+    console.log(`[Startup] Plugins: ${pluginRegistry.plugins.filter(p => p.status === "loaded").length} loaded`);
+  } catch (e) {
+    console.log(`[Startup] Plugin loading (non-fatal): ${e.message}`);
+  }
+
   // ── Phase 2: Connect MCP servers ──
   console.log("[Startup] Connecting MCP servers...");
   try {
@@ -1680,12 +1731,13 @@ process.on("SIGHUP", async () => {
 });
 
 // Graceful shutdown
-process.on("SIGTERM", () => {
+process.on("SIGTERM", async () => {
   console.log("\n[Shutdown] SIGTERM received. Stopping...");
   scheduler.stop();
   heartbeat.stop();
   taskRunner.stop();
   supervisor.stop();
+  try { const { stopPlugins } = await import("./plugins/PluginLoader.js"); await stopPlugins(); } catch {}
   closeTunnel().then(() =>
     mcpManager.shutdown().then(() =>
       channelRegistry.stopAll().then(() => process.exit(0))
