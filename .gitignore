@@ -26,6 +26,8 @@ STATUS.md            # internal status tracking
 DEEP_RESEARCH_REPORT.md
 ANALYSIS.md
 GIT_RULES.md         # local dev notes
+.vscode/            # local VSCode settings
+.PHASES.md           # internal phase planning
 
 # ── Claude Code project context ───────────────────────────────────────────────
 .claude/
@@ -62,3 +64,4 @@ daemora-ui/npm-debug.log*
 daemora-ui/yarn-debug.log*
 daemora-ui/yarn-error.log*
 daemora-ui/pnpm-debug.log*
+
