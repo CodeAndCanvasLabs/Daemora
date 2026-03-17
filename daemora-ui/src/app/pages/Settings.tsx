@@ -382,7 +382,7 @@ export function Settings() {
         ttsVoice:       "TTS_VOICE",
         ttsGroqModel:   "TTS_GROQ_MODEL",
         meetingLlm:       "MEETING_LLM",
-        twilioPhoneNumber:"TWILIO_PHONE_NUMBER",
+        twilioPhoneNumber:"TWILIO_PHONE_FROM",
         ollamaBaseUrl:    "OLLAMA_BASE_URL",
       };
       const updates: Record<string, string> = {};

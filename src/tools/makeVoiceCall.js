@@ -33,7 +33,7 @@ function _getCreds() {
   return {
     accountSid: ch.twilio_account_sid || process.env.TWILIO_ACCOUNT_SID || null,
     authToken:  ch.twilio_auth_token  || process.env.TWILIO_AUTH_TOKEN  || null,
-    fromNumber: ch.twilio_phone_from  || process.env.TWILIO_PHONE_FROM  || null,
+    fromNumber: ch.twilio_phone_from  || process.env.TWILIO_PHONE_FROM  || process.env.TWILIO_PHONE_NUMBER || null,
   };
 }
 

@@ -211,7 +211,7 @@ export async function joinMeeting(sessionId, opts) {
 
   const accountSid = conf("TWILIO_ACCOUNT_SID");
   const authToken = conf("TWILIO_AUTH_TOKEN");
-  const fromNumber = conf("TWILIO_PHONE_NUMBER");
+  const fromNumber = conf("TWILIO_PHONE_NUMBER") || conf("TWILIO_PHONE_FROM");
   const publicUrl = conf("DAEMORA_PUBLIC_URL") || conf("SERVER_URL");
 
   if (!accountSid || !authToken) throw new Error("TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN required");
