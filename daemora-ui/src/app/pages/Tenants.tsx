@@ -87,8 +87,9 @@ export function Tenants() {
   const [mcpSaving, setMcpSaving] = useState(false);
 
   // Plugin state for tenant
-  const [allPlugins, setAllPlugins] = useState<{ id: string; name: string; enabled: boolean }[]>([]);
+  const [allPlugins, setAllPlugins] = useState<{ id: string; name: string; enabled: boolean; configSchema: Record<string, any> | null }[]>([]);
   const [tenantPlugins, setTenantPlugins] = useState<Set<string>>(new Set());
+  const [tenantPluginConfig, setTenantPluginConfig] = useState<Record<string, Record<string, string>>>({});
 
   // Create tenant dialog
   const [showCreate, setShowCreate] = useState(false);
@@ -351,7 +352,13 @@ export function Tenants() {
     fetchOwnMcpServers(tenant.id);
     // Fetch plugins
     apiFetch("/api/plugins").then(r => r.json()).then(d => {
-      setAllPlugins((d.plugins || []).map((p: any) => ({ id: p.id, name: p.name, enabled: p.status === "loaded" })));
+      setAllPlugins((d.plugins || []).map((p: any) => ({
+        id: p.id, name: p.name, enabled: p.status === "loaded",
+        configSchema: p.configSchema || null,
+      })));
+      // Load tenant's saved plugin config
+      const tenantCfg = (tenant as any).plugins || [];
+      setTenantPlugins(new Set(tenantCfg));
     }).catch(() => {});
   };
 
@@ -387,7 +394,22 @@ export function Tenants() {
       };
       if (editForm.maxCostPerTask !== "") body.maxCostPerTask = parseFloat(editForm.maxCostPerTask);
       if (editForm.maxDailyCost !== "") body.maxDailyCost = parseFloat(editForm.maxDailyCost);
-      if (tenantPlugins.size > 0) body.plugins = [...tenantPlugins];
+      body.plugins = [...tenantPlugins];
+      // Save plugin config as tenant API keys (per-plugin prefixed)
+      for (const [pluginId, config] of Object.entries(tenantPluginConfig)) {
+        if (!tenantPlugins.has(pluginId)) continue;
+        for (const [key, value] of Object.entries(config)) {
+          if (value) {
+            try {
+              await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/apikeys/${encodeURIComponent(key)}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ value }),
+              });
+            } catch {}
+          }
+        }
+      }
 
       const res = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}`, {
         method: "PATCH",
@@ -960,20 +982,47 @@ export function Tenants() {
                   <span className="text-xs text-gray-600">{tenantPlugins.size} enabled</span>
                 </div>
                 <div className="space-y-2">
-                  {allPlugins.map(p => (
-                    <label key={p.id} className="flex items-center justify-between p-2 bg-slate-900/50 rounded-lg border border-slate-800/50 cursor-pointer hover:border-slate-700">
-                      <span className="text-sm text-gray-300">{p.name}</span>
-                      <Switch
-                        checked={tenantPlugins.has(p.id)}
-                        onCheckedChange={(v) => {
-                          const s = new Set(tenantPlugins);
-                          v ? s.add(p.id) : s.delete(p.id);
-                          setTenantPlugins(s);
-                        }}
-                        className="data-[state=checked]:bg-emerald-500"
-                      />
-                    </label>
-                  ))}
+                  {allPlugins.map(p => {
+                    const isEnabled = tenantPlugins.has(p.id);
+                    const hasConfig = p.configSchema && Object.keys(p.configSchema).length > 0;
+                    return (
+                      <div key={p.id} className={`p-3 bg-slate-900/50 rounded-lg border transition-colors ${isEnabled ? "border-emerald-500/30" : "border-slate-800/50 hover:border-slate-700"}`}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-300">{p.name}</span>
+                          <Switch
+                            checked={isEnabled}
+                            onCheckedChange={(v) => {
+                              const s = new Set(tenantPlugins);
+                              v ? s.add(p.id) : s.delete(p.id);
+                              setTenantPlugins(s);
+                            }}
+                            className="data-[state=checked]:bg-emerald-500"
+                          />
+                        </div>
+                        {isEnabled && hasConfig && (
+                          <div className="mt-3 pt-3 border-t border-slate-800/50 space-y-2">
+                            {Object.entries(p.configSchema!).map(([key, field]: [string, any]) => (
+                              <div key={key}>
+                                <label className="text-xs text-gray-500 block mb-1">{field.label || key}</label>
+                                <Input
+                                  type={field.type === "secret" || field.type === "password" ? "password" : "text"}
+                                  placeholder={field.default || `Enter ${field.label || key}`}
+                                  value={tenantPluginConfig[p.id]?.[key] || ""}
+                                  onChange={(e) => {
+                                    setTenantPluginConfig(prev => ({
+                                      ...prev,
+                                      [p.id]: { ...prev[p.id], [key]: e.target.value }
+                                    }));
+                                  }}
+                                  className="bg-slate-900 border-slate-700 text-sm"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
