@@ -323,25 +323,25 @@ export function Cron() {
           </Button>
           <Dialog open={isAddOpen} onOpenChange={(v) => { setIsAddOpen(v); if (!v) { setSelectedTargets(new Set()); setExpandedTenants(new Set()); setSelectedPresetId(""); } }}>
             <DialogTrigger asChild>
-              <Button size="sm" className="bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] text-white uppercase text-xs tracking-tighter">
+              <Button size="sm" className="bg-gradient-to-r from-[#0891b2] to-[#0d9488] text-white uppercase text-xs tracking-tighter">
                 <Plus className="w-3 h-3 mr-2" />
                 New Job
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-slate-950 border-slate-800 text-white max-w-2xl">
+            <DialogContent className="bg-slate-950 border-slate-800 text-white max-w-3xl">
               <DialogHeader>
                 <DialogTitle className="uppercase tracking-widest text-sm border-b border-slate-800 pb-4">Create Cron Job</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-4 max-h-[70vh] overflow-y-auto">
                 <div className="space-y-1">
-                  <label className="text-[10px] text-gray-500 uppercase">Name</label>
-                  <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Daily Report" className="bg-slate-900 border-slate-800 text-xs" />
+                  <label className="text-xs text-gray-400">Name</label>
+                  <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Daily Report" className="bg-slate-900 border-slate-800 text-sm" />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] text-gray-500 uppercase">Schedule Type</label>
+                  <label className="text-xs text-gray-400">Schedule Type</label>
                   <Select value={form.scheduleKind} onValueChange={(v) => setForm({ ...form, scheduleKind: v as typeof form.scheduleKind })}>
-                    <SelectTrigger className="bg-slate-900 border-slate-800 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="bg-slate-900 border-slate-800 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-slate-950 border-slate-800">
                       <SelectItem value="cron">Cron Expression</SelectItem>
                       <SelectItem value="every">Fixed Interval</SelectItem>
@@ -353,62 +353,62 @@ export function Cron() {
                 {form.scheduleKind === "cron" && (
                   <>
                     <div className="space-y-1">
-                      <label className="text-[10px] text-gray-500 uppercase">Cron Expression</label>
-                      <Input value={form.cronExpr} onChange={(e) => setForm({ ...form, cronExpr: e.target.value })} placeholder="0 9 * * *" className="bg-slate-900 border-slate-800 text-xs text-[#00ff88]" />
-                      <p className="text-[9px] text-gray-600">min hour day month weekday (e.g. "0 9 * * *" = daily 9am)</p>
+                      <label className="text-xs text-gray-400">Cron Expression</label>
+                      <Input value={form.cronExpr} onChange={(e) => setForm({ ...form, cronExpr: e.target.value })} placeholder="0 9 * * *" className="bg-slate-900 border-slate-800 text-sm text-[#00ff88]" />
+                      <p className="text-xs text-gray-500">min hour day month weekday (e.g. "0 9 * * *" = daily 9am)</p>
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] text-gray-500 uppercase">Timezone (optional)</label>
-                      <Input value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} placeholder="America/New_York" className="bg-slate-900 border-slate-800 text-xs" />
+                      <label className="text-xs text-gray-400">Timezone (optional)</label>
+                      <Input value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} placeholder="America/New_York" className="bg-slate-900 border-slate-800 text-sm" />
                     </div>
                   </>
                 )}
 
                 {form.scheduleKind === "every" && (
                   <div className="space-y-1">
-                    <label className="text-[10px] text-gray-500 uppercase">Interval</label>
-                    <Input value={form.everyInterval} onChange={(e) => setForm({ ...form, everyInterval: e.target.value })} placeholder="30m (30s, 5m, 2h, 1d)" className="bg-slate-900 border-slate-800 text-xs text-[#00ff88]" />
+                    <label className="text-xs text-gray-400">Interval</label>
+                    <Input value={form.everyInterval} onChange={(e) => setForm({ ...form, everyInterval: e.target.value })} placeholder="30m (30s, 5m, 2h, 1d)" className="bg-slate-900 border-slate-800 text-sm text-[#00ff88]" />
                   </div>
                 )}
 
                 {form.scheduleKind === "at" && (
                   <div className="space-y-1">
-                    <label className="text-[10px] text-gray-500 uppercase">Date & Time</label>
-                    <Input type="datetime-local" value={form.atTime} onChange={(e) => setForm({ ...form, atTime: e.target.value })} className="bg-slate-900 border-slate-800 text-xs" />
+                    <label className="text-xs text-gray-400">Date & Time</label>
+                    <Input type="datetime-local" value={form.atTime} onChange={(e) => setForm({ ...form, atTime: e.target.value })} className="bg-slate-900 border-slate-800 text-sm" />
                   </div>
                 )}
 
                 <div className="space-y-1">
-                  <label className="text-[10px] text-gray-500 uppercase">Task Input (Agent Prompt)</label>
+                  <label className="text-xs text-gray-400">Task Input (Agent Prompt)</label>
                   <textarea
                     value={form.taskInput}
                     onChange={(e) => setForm({ ...form, taskInput: e.target.value })}
                     placeholder="What should the agent do when this job runs?"
-                    className="w-full bg-slate-900 border border-slate-800 rounded-md text-xs p-3 min-h-[80px] text-white resize-y"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-md text-sm p-3 min-h-[80px] text-white resize-y"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <label className="text-[10px] text-gray-500 uppercase">Model (optional)</label>
-                    <Input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} placeholder="openai:gpt-4.1-mini" className="bg-slate-900 border-slate-800 text-xs" />
+                    <label className="text-xs text-gray-400">Model (optional)</label>
+                    <Input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} placeholder="openai:gpt-4.1-mini" className="bg-slate-900 border-slate-800 text-sm" />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] text-gray-500 uppercase">Max Retries</label>
-                    <Input type="number" value={form.maxRetries} onChange={(e) => setForm({ ...form, maxRetries: e.target.value })} className="bg-slate-900 border-slate-800 text-xs" />
+                    <label className="text-xs text-gray-400">Max Retries</label>
+                    <Input type="number" value={form.maxRetries} onChange={(e) => setForm({ ...form, maxRetries: e.target.value })} className="bg-slate-900 border-slate-800 text-sm" />
                   </div>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] text-gray-500 uppercase">Timeout (seconds)</label>
-                  <Input type="number" value={form.timeoutSeconds} onChange={(e) => setForm({ ...form, timeoutSeconds: e.target.value })} className="bg-slate-900 border-slate-800 text-xs" />
+                  <label className="text-xs text-gray-400">Timeout (seconds)</label>
+                  <Input type="number" value={form.timeoutSeconds} onChange={(e) => setForm({ ...form, timeoutSeconds: e.target.value })} className="bg-slate-900 border-slate-800 text-sm" />
                 </div>
 
                 {/* Delivery */}
                 <div className="space-y-2 border-t border-slate-800 pt-4">
-                  <label className="text-[10px] text-gray-500 uppercase flex items-center gap-1"><Send className="w-3 h-3" /> Delivery</label>
+                  <label className="text-xs text-gray-400 flex items-center gap-1"><Send className="w-3 h-3" /> Delivery</label>
                   <Select value={form.deliveryMode} onValueChange={(v) => { setForm({ ...form, deliveryMode: v }); setSelectedTargets(new Set()); setSelectedPresetId(""); }}>
-                    <SelectTrigger className="bg-slate-900 border-slate-800 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="bg-slate-900 border-slate-800 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-slate-950 border-slate-800">
                       <SelectItem value="none">None</SelectItem>
                       <SelectItem value="preset">Preset (saved group)</SelectItem>
@@ -419,7 +419,7 @@ export function Cron() {
 
                   {form.deliveryMode === "preset" && (
                     <Select value={selectedPresetId} onValueChange={setSelectedPresetId}>
-                      <SelectTrigger className="bg-slate-900 border-slate-800 text-xs"><SelectValue placeholder="Select preset..." /></SelectTrigger>
+                      <SelectTrigger className="bg-slate-900 border-slate-800 text-sm"><SelectValue placeholder="Select preset..." /></SelectTrigger>
                       <SelectContent className="bg-slate-950 border-slate-800">
                         {presets.map(p => (
                           <SelectItem key={p.id} value={p.id}>{p.name} ({p.targets.length} targets)</SelectItem>
@@ -431,9 +431,9 @@ export function Cron() {
                   {form.deliveryMode === "multi" && (
                     <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-3 max-h-48 overflow-y-auto space-y-1">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-[9px] text-gray-500 uppercase">{selectedTargets.size} selected</span>
+                        <span className="text-xs text-gray-400">{selectedTargets.size} selected</span>
                         <button
-                          className="text-[9px] text-[#00d9ff] hover:underline"
+                          className="text-xs text-[#38bdf8] hover:underline"
                           onClick={() => {
                             const all = new Set<string>();
                             deliveryTenants.forEach(t => t.channels.forEach(c => all.add(`${t.id}||${c.channel}||${c.userId}`)));
@@ -446,7 +446,7 @@ export function Cron() {
                       {/* Global channels */}
                       {deliveryGlobal.length > 0 && (
                         <div className="mb-2">
-                          <span className="text-[9px] text-gray-500 uppercase block mb-1">Global Channels</span>
+                          <span className="text-xs text-gray-400 block mb-1">Global Channels</span>
                           {deliveryGlobal.map(c => {
                             const key = `__global__||${c.channel}||`;
                             return (
@@ -456,7 +456,7 @@ export function Cron() {
                                   s.has(key) ? s.delete(key) : s.add(key);
                                   setSelectedTargets(s);
                                 }} className="accent-[#00d9ff]" />
-                                <span className="text-[10px] text-gray-400">{c.channel}</span>
+                                <span className="text-sm text-gray-400">{c.channel}</span>
                               </label>
                             );
                           })}
@@ -476,8 +476,8 @@ export function Cron() {
                           >
                             {expandedTenants.has(t.id) ? <ChevronDown className="w-3 h-3 text-gray-500" /> : <ChevronRight className="w-3 h-3 text-gray-500" />}
                             <Users className="w-3 h-3 text-[#00d9ff]" />
-                            <span className="text-[10px] text-gray-300">{t.name?.includes(":") ? `${t.name.split(":")[0]}:${t.name.split(":").pop()?.slice(0,8)}` : t.name}</span>
-                            <span className="text-[9px] text-gray-600 ml-auto">{t.channels.length} ch</span>
+                            <span className="text-sm text-gray-300">{t.name?.includes(":") ? `${t.name.split(":")[0]}:${t.name.split(":").pop()?.slice(0,8)}` : t.name}</span>
+                            <span className="text-xs text-gray-500 ml-auto">{t.channels.length} ch</span>
                           </button>
                           {expandedTenants.has(t.id) && (
                             <div className="pl-6 space-y-0.5">
@@ -490,7 +490,7 @@ export function Cron() {
                                       s.has(key) ? s.delete(key) : s.add(key);
                                       setSelectedTargets(s);
                                     }} className="accent-[#00d9ff]" />
-                                    <span className="text-[10px] text-gray-400">{c.channel}</span>
+                                    <span className="text-sm text-gray-400">{c.channel}</span>
                                   </label>
                                 );
                               })}
@@ -502,7 +502,7 @@ export function Cron() {
                   )}
                 </div>
 
-                <Button onClick={handleCreate} className="w-full bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] text-white uppercase text-xs tracking-tighter">
+                <Button onClick={handleCreate} className="w-full bg-gradient-to-r from-[#0891b2] to-[#0d9488] text-white uppercase text-xs tracking-tighter">
                   Create Job
                 </Button>
               </div>
@@ -698,31 +698,31 @@ export function Cron() {
             </div>
             <Dialog open={isPresetOpen} onOpenChange={(v) => { setIsPresetOpen(v); if (!v) { setSelectedTargets(new Set()); setExpandedTenants(new Set()); } }}>
               <DialogTrigger asChild>
-                <Button size="sm" className="bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] text-white uppercase text-xs tracking-tighter">
+                <Button size="sm" className="bg-gradient-to-r from-[#0891b2] to-[#0d9488] text-white uppercase text-xs tracking-tighter">
                   <Plus className="w-3 h-3 mr-2" />New Preset
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-slate-950 border-slate-800 text-white max-w-2xl">
+              <DialogContent className="bg-slate-950 border-slate-800 text-white max-w-3xl">
                 <DialogHeader>
                   <DialogTitle className="uppercase tracking-widest text-sm border-b border-slate-800 pb-4">Create Delivery Preset</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 pt-4 max-h-[70vh] overflow-y-auto">
                   <div className="space-y-1">
-                    <label className="text-[10px] text-gray-500 uppercase">Name</label>
-                    <Input value={presetForm.name} onChange={(e) => setPresetForm({ ...presetForm, name: e.target.value })} placeholder="e.g. engineers, team-leads, interns" className="bg-slate-900 border-slate-800 text-xs" />
+                    <label className="text-xs text-gray-400">Name</label>
+                    <Input value={presetForm.name} onChange={(e) => setPresetForm({ ...presetForm, name: e.target.value })} placeholder="e.g. engineers, team-leads, interns" className="bg-slate-900 border-slate-800 text-sm" />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] text-gray-500 uppercase">Description</label>
-                    <Input value={presetForm.description} onChange={(e) => setPresetForm({ ...presetForm, description: e.target.value })} placeholder="Optional description" className="bg-slate-900 border-slate-800 text-xs" />
+                    <label className="text-xs text-gray-400">Description</label>
+                    <Input value={presetForm.description} onChange={(e) => setPresetForm({ ...presetForm, description: e.target.value })} placeholder="Optional description" className="bg-slate-900 border-slate-800 text-sm" />
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] text-gray-500 uppercase">Select Tenants & Channels</label>
+                    <label className="text-xs text-gray-400">Select Tenants & Channels</label>
                     <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-3 max-h-48 overflow-y-auto space-y-1">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-[9px] text-gray-500 uppercase">{selectedTargets.size} selected</span>
+                        <span className="text-xs text-gray-400">{selectedTargets.size} selected</span>
                         <button
-                          className="text-[9px] text-[#00d9ff] hover:underline"
+                          className="text-xs text-[#38bdf8] hover:underline"
                           onClick={() => {
                             const all = new Set<string>();
                             deliveryTenants.forEach(t => t.channels.forEach(c => all.add(`${t.id}||${c.channel}||${c.userId}`)));
@@ -733,7 +733,7 @@ export function Cron() {
                       </div>
                       {deliveryGlobal.length > 0 && (
                         <div className="mb-2">
-                          <span className="text-[9px] text-gray-500 uppercase block mb-1">Global Channels</span>
+                          <span className="text-xs text-gray-400 block mb-1">Global Channels</span>
                           {deliveryGlobal.map(c => {
                             const key = `__global__||${c.channel}||`;
                             return (
@@ -743,7 +743,7 @@ export function Cron() {
                                   s.has(key) ? s.delete(key) : s.add(key);
                                   setSelectedTargets(s);
                                 }} className="accent-[#00d9ff]" />
-                                <span className="text-[10px] text-gray-400">{c.channel}</span>
+                                <span className="text-sm text-gray-400">{c.channel}</span>
                               </label>
                             );
                           })}
@@ -761,8 +761,8 @@ export function Cron() {
                           >
                             {expandedTenants.has(t.id) ? <ChevronDown className="w-3 h-3 text-gray-500" /> : <ChevronRight className="w-3 h-3 text-gray-500" />}
                             <Users className="w-3 h-3 text-[#00d9ff]" />
-                            <span className="text-[10px] text-gray-300">{t.name?.includes(":") ? `${t.name.split(":")[0]}:${t.name.split(":").pop()?.slice(0,8)}` : t.name}</span>
-                            <span className="text-[9px] text-gray-600 ml-auto">{t.channels.length} ch</span>
+                            <span className="text-sm text-gray-300">{t.name?.includes(":") ? `${t.name.split(":")[0]}:${t.name.split(":").pop()?.slice(0,8)}` : t.name}</span>
+                            <span className="text-xs text-gray-500 ml-auto">{t.channels.length} ch</span>
                           </button>
                           {expandedTenants.has(t.id) && (
                             <div className="pl-6 space-y-0.5">
@@ -775,7 +775,7 @@ export function Cron() {
                                       s.has(key) ? s.delete(key) : s.add(key);
                                       setSelectedTargets(s);
                                     }} className="accent-[#00d9ff]" />
-                                    <span className="text-[10px] text-gray-400">{c.channel}</span>
+                                    <span className="text-sm text-gray-400">{c.channel}</span>
                                   </label>
                                 );
                               })}
@@ -813,7 +813,7 @@ export function Cron() {
                         }
                       } catch { toast.error("API error"); }
                     }}
-                    className="w-full bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] text-white uppercase text-xs tracking-tighter"
+                    className="w-full bg-gradient-to-r from-[#0891b2] to-[#0d9488] text-white uppercase text-xs tracking-tighter"
                   >
                     Create Preset
                   </Button>
