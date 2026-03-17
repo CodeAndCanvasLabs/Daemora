@@ -733,4 +733,13 @@ export function buildAITools(availableNames) {
   return aiTools;
 }
 
+/**
+ * Register a plugin tool's schema + description into the schema registry.
+ * Called by mergePluginTools() after plugins load.
+ */
+export function registerPluginSchema(name, schema, description) {
+  if (toolSchemas[name]) return; // don't override built-in
+  toolSchemas[name] = { schema: schema || z.object({}).passthrough(), description: description || `${name} — plugin tool` };
+}
+
 export default toolSchemas;

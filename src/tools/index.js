@@ -117,6 +117,7 @@ export const toolFunctions = {
 export async function mergePluginTools() {
   try {
     const { getPluginTools } = await import("../plugins/PluginRegistry.js");
+    const { registerPluginSchema } = await import("./schemas.js");
     const pluginTools = getPluginTools();
     for (const { name, fn, schema, description } of pluginTools) {
       if (toolFunctions[name]) {
@@ -124,9 +125,10 @@ export async function mergePluginTools() {
         continue;
       }
       toolFunctions[name] = fn;
+      registerPluginSchema(name, schema, description);
     }
     if (pluginTools.length > 0) {
-      console.log(`[Tools] Merged ${pluginTools.length} plugin tool(s)`);
+      console.log(`[Tools] Merged ${pluginTools.length} plugin tool(s) + schemas`);
     }
   } catch {}
 }
