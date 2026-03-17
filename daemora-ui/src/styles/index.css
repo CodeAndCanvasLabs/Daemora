@@ -30,6 +30,33 @@ code, pre, code.font-mono, pre.font-mono {
   font-family: 'JetBrains Mono', monospace !important;
 }
 
+/* ── Font size consistency — bump tiny text in main content + dialogs ───── */
+/* Scoped to main + dialogs only — sidebar untouched */
+main .text-\[9px\],
+[role="dialog"] .text-\[9px\] { font-size: 0.6875rem !important; }     /* 9→11px */
+
+main .text-\[10px\],
+[role="dialog"] .text-\[10px\] { font-size: 0.75rem !important; }      /* 10→12px */
+
+main .text-\[11px\],
+[role="dialog"] .text-\[11px\] { font-size: 0.8125rem !important; }    /* 11→13px */
+
+main .text-xs,
+[role="dialog"] .text-xs { font-size: 0.8125rem !important; }          /* 12→13px */
+
+/* ── Soften inline cyan (#00d9ff → #38bdf8) in main content ──────────────*/
+main [class*="text-\[#00d9ff\]"],
+[role="dialog"] [class*="text-\[#00d9ff\]"] { color: #38bdf8 !important; }
+
+main [class*="border-\[#00d9ff\]"],
+[role="dialog"] [class*="border-\[#00d9ff\]"] { border-color: #38bdf8 !important; }
+
+main [class*="hover\:text-\[#00d9ff\]"]:hover,
+[role="dialog"] [class*="hover\:text-\[#00d9ff\]"]:hover { color: #38bdf8 !important; }
+
+main [class*="focus\:border-\[#00d9ff\]"]:focus,
+[role="dialog"] [class*="focus\:border-\[#00d9ff\]"]:focus { border-color: #38bdf8 !important; }
+
 /* ── Modal / Dialog — bigger ─────────────────────────────────────────────── */
 [role="dialog"] {
   max-width: 42rem !important;
