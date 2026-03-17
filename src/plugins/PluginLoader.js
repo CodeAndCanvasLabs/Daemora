@@ -215,6 +215,29 @@ async function _loadPlugin(pluginDir) {
   // 2. Declarative auto-discovery (from provides in manifest)
   await _loadDeclarativeProvides(api, record, manifest, pluginDir);
 
+  // 3. Auto-append plugin tools to existing profiles (from manifest.profiles)
+  if (manifest.profiles && Array.isArray(manifest.profiles) && record.toolNames.length > 0) {
+    try {
+      const { getProfile } = await import("../config/ProfileLoader.js");
+      for (const profileId of manifest.profiles) {
+        const profile = getProfile(profileId);
+        if (profile) {
+          for (const toolName of record.toolNames) {
+            if (!profile.tools.includes(toolName)) {
+              profile.tools.push(toolName);
+            }
+          }
+        }
+      }
+      console.log(`[PluginLoader] Tools appended to profiles: ${manifest.profiles.join(", ")}`);
+    } catch {}
+  }
+
+  // 4. Store agentScope for filtering
+  if (manifest.agentScope) {
+    record.agentScope = manifest.agentScope;
+  }
+
   getRegistry().plugins.push(record);
   console.log(`[PluginLoader] Loaded: ${manifest.id} v${manifest.version || "0.0.0"} (${record.toolNames.length} tools, ${record.channelIds.length} channels)`);
 }

@@ -1591,9 +1591,33 @@ async function handlePlugin(action, args) {
       break;
     }
 
+    case "install": {
+      const pkg = args[0];
+      if (!pkg) {
+        console.error("  Usage: daemora plugin install <npm-package>");
+        console.error("  Example: daemora plugin install daemora-plugin-weather");
+        return;
+      }
+      const { installPlugin } = await import("./plugins/PluginInstaller.js");
+      await installPlugin(pkg);
+      break;
+    }
+
+    case "remove":
+    case "uninstall": {
+      const pluginId = args[0];
+      if (!pluginId) {
+        console.error("  Usage: daemora plugin remove <plugin-id>");
+        return;
+      }
+      const { removePlugin } = await import("./plugins/PluginInstaller.js");
+      await removePlugin(pluginId);
+      break;
+    }
+
     default:
       console.error(`  Unknown plugin command: ${action}`);
-      console.error("  Usage: daemora plugin list|reload|reload-all");
+      console.error("  Usage: daemora plugin list|install|remove|reload|reload-all");
   }
 }
 
@@ -2340,6 +2364,8 @@ ${line}
   ${t.cmd("tools")} ${t.dim("[filter]")}                    List all 50 built-in tools (filter by name/category)
 
   ${t.cmd("plugin list")}                       List installed plugins + status
+  ${t.cmd("plugin install")} ${t.dim("<npm-package>")}     Install plugin from npm
+  ${t.cmd("plugin remove")} ${t.dim("<id>")}              Remove installed plugin
   ${t.cmd("plugin reload")} ${t.dim("<id>")}               Hot-reload a plugin
   ${t.cmd("plugin reload-all")}                 Reload all plugins
 

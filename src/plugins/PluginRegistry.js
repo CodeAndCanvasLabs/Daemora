@@ -39,15 +39,26 @@ export function getPlugin(id) {
 
 /**
  * Get plugin tools filtered by tenant plan.
- * If plugin has tenantPlans, only return tools if tenant's plan matches.
  * @param {string} [tenantPlan] — "free" | "pro" | "admin" | null (admin/global)
  */
 export function getPluginToolsForPlan(tenantPlan) {
-  if (!tenantPlan) return _registry.tools; // admin/global — all tools
+  if (!tenantPlan) return _registry.tools;
   return _registry.tools.filter(t => {
     const plugin = _registry.plugins.find(p => p.id === t.pluginId);
-    if (!plugin?.tenantPlans) return true; // no restriction
+    if (!plugin?.tenantPlans) return true;
     return plugin.tenantPlans.includes(tenantPlan);
+  });
+}
+
+/**
+ * Get plugin tools filtered by agent scope.
+ * @param {string} scope — "main" | "sub-agent" | "team"
+ */
+export function getPluginToolsForScope(scope) {
+  return _registry.tools.filter(t => {
+    const plugin = _registry.plugins.find(p => p.id === t.pluginId);
+    if (!plugin?.agentScope) return true; // no restriction — available everywhere
+    return plugin.agentScope.includes(scope);
   });
 }
 
