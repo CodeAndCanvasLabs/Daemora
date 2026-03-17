@@ -85,7 +85,6 @@
     "grammy": "^1.40.1",
     "html-to-text": "^9.0.5",
     "imap": "^0.8.19",
-    "localtunnel": "^2.0.2",
     "node-cron": "^4.2.1",
     "nodemailer": "^8.0.1",
     "ollama-ai-provider": "^1.2.0",
