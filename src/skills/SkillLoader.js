@@ -115,14 +115,20 @@ class SkillLoader {
           // Flat file: skills/coding.md
           const content = readFileSync(entryPath, "utf-8");
           const skill = this.parseSkill(content, entry);
-          if (skill) this.skills.set(skill.name, skill);
+          if (skill) {
+            skill.filePath = entryPath;
+            this.skills.set(skill.name, skill);
+          }
         } else if (stat.isDirectory()) {
           // Subdirectory: skills/webapp-testing/SKILL.md
           const skillMd = join(entryPath, "SKILL.md");
           if (existsSync(skillMd)) {
             const content = readFileSync(skillMd, "utf-8");
             const skill = this.parseSkill(content, `${entry}/SKILL.md`);
-            if (skill) this.skills.set(skill.name, skill);
+            if (skill) {
+              skill.filePath = skillMd;
+              this.skills.set(skill.name, skill);
+            }
           }
         }
       } catch (error) {
@@ -191,14 +197,24 @@ class SkillLoader {
    * Called once at startup as fire-and-forget. Only re-embeds skills whose content changed.
    */
   async embedSkills() {
-    if (!getEmbeddingProvider()) return;
+    const provider = getEmbeddingProvider();
+    if (!provider) return;
     if (!this.loaded) this.load();
+
+    // TF-IDF vectors depend on entire vocabulary — invalidate when skill count changes
+    if (provider === "tfidf") {
+      const cachedCount = Object.keys(this._skillVectors).length;
+      if (cachedCount > 0 && cachedCount !== this.skills.size) {
+        console.log(`[SkillLoader] TF-IDF vocab changed (${cachedCount} cached, ${this.skills.size} skills) — re-embedding all`);
+        this._skillVectors = {};
+      }
+    }
 
     let changed = false;
 
     for (const [name, skill] of this.skills) {
       const hash = this._contentHash(skill);
-      if (this._skillVectors[name]?.hash === hash) continue;  // Cache hit - skip
+      if (this._skillVectors[name]?.hash === hash) continue;
 
       // Text to embed: name + description + triggers + first 500 chars of body
       const text = [
@@ -277,52 +293,80 @@ class SkillLoader {
    * Uses hybrid ranking: embeddings (API or local) → keyword fallback → list all.
    * Returns up to `limit` skills, sorted by relevance.
    */
-  async getMatchedSkillSummaries(taskInput, limit = 20) {
+  /**
+   * @param {string} taskInput
+   * @param {number} limit
+   * @param {object|null} skillScope - { include: string[], exclude: string[] } from profile YAML
+   */
+  async getMatchedSkillSummaries(taskInput, limit = 10, skillScope = null) {
     if (!this.loaded) this.load();
     if (this.skills.size === 0) return [];
 
-    const toSummary = (skill) => ({
-      name: skill.name,
-      description: skill.description,
-      path: join(config.skillsDir, `${skill.name}.md`),
-    });
+    // Skip skills for trivial/greeting inputs — no point wasting tokens
+    const TRIVIAL = /^(hi|hello|hey|thanks|thank you|ok|okay|yes|no|sure|yep|nope|bye|good morning|good evening|gm|gn|sup|yo)\s*[!.?]*$/i;
+    if (!taskInput || taskInput.trim().length < 8 || TRIVIAL.test(taskInput.trim())) return [];
 
-    // 1. Embedding match (OpenAI/Google/Ollama/TF-IDF — whatever is available)
-    if (taskInput) {
-      const vectorsAvailable = Object.keys(this._skillVectors).length > 0;
-      if (getEmbeddingProvider() && vectorsAvailable) {
-        const queryVector = await this._generateEmbedding(taskInput);
-        if (queryVector) {
-          const scored = [];
-          for (const [name, skill] of this.skills) {
-            const cached = this._skillVectors[name];
-            if (!cached?.vector) continue;
-            const score = this._cosineSim(queryVector, cached.vector);
+    const home = process.env.HOME || process.env.USERPROFILE || "";
+    const toSummary = (skill) => {
+      const fullPath = skill.filePath || join(config.skillsDir, `${skill.name}.md`);
+      const location = home && fullPath.startsWith(home) ? "~" + fullPath.slice(home.length) : fullPath;
+      return { name: skill.name, description: skill.description, location };
+    };
+
+    // ── Skill scoping filter — profile-based tag matching ────────────────────
+    // Match skill name + description + triggers against include/exclude tags
+    const isInScope = (skill) => {
+      if (!skillScope) return true; // no scoping = all skills
+      const haystack = `${skill.name} ${skill.description} ${(skill.triggers || []).join(" ")}`.toLowerCase();
+      // Exclude check first
+      if (skillScope.exclude?.length > 0) {
+        if (skillScope.exclude.some(tag => haystack.includes(tag.toLowerCase()))) return false;
+      }
+      // Include check — at least one include tag must match
+      if (skillScope.include?.length > 0) {
+        return skillScope.include.some(tag => haystack.includes(tag.toLowerCase()));
+      }
+      return true;
+    };
+
+    // 1. Embedding match — only return skills above similarity threshold
+    // TF-IDF produces lower scores (0.05-0.20) than neural embeddings (0.3-0.9)
+    const provider = getEmbeddingProvider();
+    const SKILL_MATCH_THRESHOLD = provider === "tfidf" ? 0.05 : 0.25;
+    const vectorsAvailable = Object.keys(this._skillVectors).length > 0;
+    if (provider && vectorsAvailable) {
+      const queryVector = await this._generateEmbedding(taskInput);
+      if (queryVector) {
+        const scored = [];
+        for (const [name, skill] of this.skills) {
+          if (!isInScope(skill)) continue; // skip out-of-scope skills
+          const cached = this._skillVectors[name];
+          if (!cached?.vector) continue;
+          const score = this._cosineSim(queryVector, cached.vector);
+          if (score >= SKILL_MATCH_THRESHOLD) {
             scored.push({ skill, score });
           }
-          scored.sort((a, b) => b.score - a.score);
-          const top = scored.slice(0, limit);
-          if (top.length > 0) {
-            console.log(`[SkillLoader] Ranked top ${top.length}/${this.skills.size} skills (embedding): [${top.map(s => s.skill.name).join(", ")}]`);
-            return top.map((s) => toSummary(s.skill));
-          }
         }
-      }
-
-      // 2. Keyword fallback — matched first, then fill remaining up to limit
-      const keywordMatched = this.matchSkills(taskInput);
-      if (keywordMatched.length > 0) {
-        const matchedNames = new Set(keywordMatched.map((s) => s.name));
-        const rest = [...this.skills.values()].filter((s) => !matchedNames.has(s.name));
-        const combined = [...keywordMatched, ...rest].slice(0, limit);
-        console.log(`[SkillLoader] Ranked top ${combined.length}/${this.skills.size} skills (keyword): [${combined.map(s => s.name).join(", ")}]`);
-        return combined.map(toSummary);
+        scored.sort((a, b) => b.score - a.score);
+        const top = scored.slice(0, limit);
+        if (top.length > 0) {
+          console.log(`[SkillLoader] Matched ${top.length}/${this.skills.size} skills above threshold${skillScope ? ` (scoped: ${skillScope.include?.join(",") || "all"})` : ""}`);
+          return top.map((s) => toSummary(s.skill));
+        }
+        console.log(`[SkillLoader] No skills above embedding threshold (${SKILL_MATCH_THRESHOLD}), falling through to keyword match`);
       }
     }
 
-    // 3. No match or no input — return first N alphabetically
-    const all = [...this.skills.values()].slice(0, limit);
-    return all.map(toSummary);
+    // 2. Keyword fallback — only return actual matches, don't pad with unrelated skills
+    const keywordMatched = this.matchSkills(taskInput).filter(isInScope);
+    if (keywordMatched.length > 0) {
+      const top = keywordMatched.slice(0, limit);
+      console.log(`[SkillLoader] Keyword matched ${top.length} skills: [${top.map(s => s.name).join(", ")}]`);
+      return top.map(toSummary);
+    }
+
+    // 3. No matches — return empty instead of dumping random skills
+    return [];
   }
 
   // ── Sync keyword API (fallback) ───────────────────────────────────────────────

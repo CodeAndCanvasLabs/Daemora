@@ -1,13 +1,17 @@
 /**
- * TeamTaskList — shared task list with claim/lock mechanics and dependency tracking.
+ * TeamTaskList — shared task list with claim/lock mechanics, dependency tracking, and priority.
  *
  * Each TeamTaskList instance is scoped to a single team.
  * Node.js single-threaded = no race conditions on claims.
  *
  * Task lifecycle: pending → claimed → in_progress → completed (or failed → back to pending)
+ * Priority: critical(4) > high(3) > medium(2) > low(1)
+ * Topological sort: Kahn's algorithm + priority tie-breaking for execution order.
  */
 
 import { v4 as uuidv4 } from "uuid";
+
+const PRIORITY_VALUES = { critical: 4, high: 3, medium: 2, low: 1 };
 
 export default class TeamTaskList {
   constructor() {
@@ -21,9 +25,11 @@ export default class TeamTaskList {
    * @param {string} opts.title
    * @param {string} [opts.description]
    * @param {string[]} [opts.blockedBy] - Task IDs that must complete before this one is claimable
-   * @returns {{id: string, title: string, status: string}}
+   * @param {string} [opts.priority] - critical|high|medium|low (default: medium)
+   * @param {Function} [opts.onRollback] - Rollback callback if workflow fails
+   * @returns {{id: string, title: string, status: string, priority: string}}
    */
-  add({ title, description = "", blockedBy = [] }) {
+  add({ title, description = "", blockedBy = [], priority = "medium", onRollback = null }) {
     if (!title) throw new Error("Task title is required");
     const id = uuidv4().slice(0, 8);
     const task = {
@@ -33,12 +39,16 @@ export default class TeamTaskList {
       status: "pending",
       assignee: null,
       blockedBy: [...blockedBy],
+      priority: PRIORITY_VALUES[priority] ? priority : "medium",
       result: null,
+      onRollback,
+      startedAt: null,
+      completedAt: null,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
     this._tasks.set(id, task);
-    return { id: task.id, title: task.title, status: task.status };
+    return { id: task.id, title: task.title, status: task.status, priority: task.priority };
   }
 
   /**
@@ -62,6 +72,7 @@ export default class TeamTaskList {
     }
     task.status = "claimed";
     task.assignee = teammateId;
+    task.startedAt = Date.now();
     task.updatedAt = Date.now();
     return this._serialize(task);
   }
@@ -81,6 +92,7 @@ export default class TeamTaskList {
     }
     task.status = "completed";
     task.result = result;
+    task.completedAt = Date.now();
     task.updatedAt = Date.now();
     return this._serialize(task);
   }
@@ -121,6 +133,7 @@ export default class TeamTaskList {
 
   /**
    * Get tasks that are pending AND have all dependencies completed.
+   * Sorted by priority (critical first).
    * @returns {Array}
    */
   claimable() {
@@ -132,6 +145,7 @@ export default class TeamTaskList {
           return dep && dep.status === "completed";
         });
       })
+      .sort((a, b) => (PRIORITY_VALUES[b.priority] || 2) - (PRIORITY_VALUES[a.priority] || 2))
       .map((t) => this._serialize(t));
   }
 
@@ -152,13 +166,111 @@ export default class TeamTaskList {
     return counts;
   }
 
+  /**
+   * Unclaim a claimed task — release it back to pending.
+   * Used when a teammate is restarted and its claimed tasks need recycling.
+   * @param {string} taskId
+   * @returns {object} Updated task
+   */
+  unclaim(taskId) {
+    const task = this._tasks.get(taskId);
+    if (!task) throw new Error(`Task "${taskId}" not found`);
+    if (task.status !== "claimed") {
+      throw new Error(`Task "${taskId}" is ${task.status}, not claimed — cannot unclaim`);
+    }
+    task.status = "pending";
+    task.assignee = null;
+    task.updatedAt = Date.now();
+    return this._serialize(task);
+  }
+
   /** Get a single task by ID. */
   get(taskId) {
     const task = this._tasks.get(taskId);
     return task ? this._serialize(task) : null;
   }
 
+  /**
+   * Topological sort — resolves execution order respecting deps + priority.
+   * Kahn's algorithm with priority tie-breaking.
+   * @returns {Array} Tasks in execution order
+   * @throws if circular dependency detected
+   */
+  resolveExecutionOrder() {
+    const resolved = [];
+    const resolvedIds = new Set();
+    const remaining = [...this._tasks.values()];
+
+    while (remaining.length > 0) {
+      const ready = remaining.filter(t =>
+        t.blockedBy.every(depId => resolvedIds.has(depId))
+      );
+
+      if (ready.length === 0 && remaining.length > 0) {
+        const stuck = remaining.map(t => t.id).join(", ");
+        throw new Error(`Circular dependency detected among tasks: ${stuck}`);
+      }
+
+      // Sort ready tasks by priority (critical first)
+      ready.sort((a, b) => (PRIORITY_VALUES[b.priority] || 2) - (PRIORITY_VALUES[a.priority] || 2));
+
+      for (const task of ready) {
+        resolved.push(this._serialize(task));
+        resolvedIds.add(task.id);
+        remaining.splice(remaining.indexOf(task), 1);
+      }
+    }
+
+    return resolved;
+  }
+
+  /**
+   * Rollback completed tasks in reverse order.
+   * Calls onRollback() on each completed task that has one.
+   * @returns {{rolledBack: number, errors: string[]}}
+   */
+  async rollback() {
+    const completed = [...this._tasks.values()]
+      .filter(t => t.status === "completed")
+      .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0)); // reverse chronological
+
+    let rolledBack = 0;
+    const errors = [];
+
+    for (const task of completed) {
+      if (typeof task.onRollback === "function") {
+        try {
+          await task.onRollback();
+          task.status = "pending";
+          task.assignee = null;
+          task.result = null;
+          task.completedAt = null;
+          task.updatedAt = Date.now();
+          rolledBack++;
+        } catch (e) {
+          errors.push(`${task.id}: ${e.message}`);
+          // Continue rollback — don't stop on individual errors
+        }
+      }
+    }
+
+    return { rolledBack, errors };
+  }
+
+  /**
+   * Get task duration in ms (completedAt - startedAt).
+   * @param {string} taskId
+   * @returns {number|null}
+   */
+  getDuration(taskId) {
+    const task = this._tasks.get(taskId);
+    if (!task || !task.startedAt) return null;
+    const end = task.completedAt || Date.now();
+    return end - task.startedAt;
+  }
+
   _serialize(task) {
-    return { ...task };
+    const { onRollback, ...rest } = task;
+    return { ...rest, hasRollback: typeof onRollback === "function" };
   }
 }

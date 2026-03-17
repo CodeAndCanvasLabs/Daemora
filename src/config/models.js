@@ -333,41 +333,169 @@ export const models = {
     tier: "cheap",
   },
 
-  // ─── xAI ───────────────────────────────────────────────────────────────────
+  // ─── xAI (Grok) ────────────────────────────────────────────────────────────
 
-  "xai:grok-4": {
-    provider: "xai", model: "grok-4",
+  // Grok 4.20 series (2M context)
+  "xai:grok-4.20-multi-agent-beta-0309": {
+    provider: "xai", model: "grok-4.20-multi-agent-beta-0309",
     contextWindow: 2_000_000, compactAt: 1_400_000,
-    costPer1kInput: 0.003, costPer1kOutput: 0.015,
+    costPer1kInput: 0.002, costPer1kOutput: 0.006,
+    capabilities: ["text", "tools", "structured-output", "vision", "reasoning", "multi-agent"],
+    tier: "standard",
+  },
+  "xai:grok-4.20-beta-0309-reasoning": {
+    provider: "xai", model: "grok-4.20-beta-0309-reasoning",
+    contextWindow: 2_000_000, compactAt: 1_400_000,
+    costPer1kInput: 0.002, costPer1kOutput: 0.006,
     capabilities: ["text", "tools", "structured-output", "vision", "reasoning"],
     tier: "standard",
   },
-  "xai:grok-4.1-fast": {
-    provider: "xai", model: "grok-4.1-fast",
+  "xai:grok-4.20-beta-0309-non-reasoning": {
+    provider: "xai", model: "grok-4.20-beta-0309-non-reasoning",
     contextWindow: 2_000_000, compactAt: 1_400_000,
-    costPer1kInput: 0.0002, costPer1kOutput: 0.0005,
+    costPer1kInput: 0.002, costPer1kOutput: 0.006,
     capabilities: ["text", "tools", "structured-output", "vision"],
-    tier: "cheap",
-  },
-  "xai:grok-4-fast": {
-    provider: "xai", model: "grok-4-fast",
-    contextWindow: 2_000_000, compactAt: 1_400_000,
-    costPer1kInput: 0.0002, costPer1kOutput: 0.0005,
-    capabilities: ["text", "tools", "structured-output", "vision"],
-    tier: "cheap",
-  },
-  "xai:grok-3-beta": {
-    provider: "xai", model: "grok-3-beta",
-    contextWindow: 131_072, compactAt: 90_000,
-    costPer1kInput: 0.003, costPer1kOutput: 0.015,
-    capabilities: ["text", "tools"],
     tier: "standard",
   },
-  "xai:grok-3-mini-beta": {
-    provider: "xai", model: "grok-3-mini-beta",
+
+  // Grok Code (256K context, cheapest)
+  "xai:grok-code-fast-1": {
+    provider: "xai", model: "grok-code-fast-1",
+    contextWindow: 256_000, compactAt: 180_000,
+    costPer1kInput: 0.0002, costPer1kOutput: 0.0015,
+    capabilities: ["text", "tools", "structured-output"],
+    tier: "cheap",
+  },
+
+  // Grok 4 Fast series (2M context, cheapest fast)
+  "xai:grok-4-fast-reasoning": {
+    provider: "xai", model: "grok-4-fast-reasoning",
+    contextWindow: 2_000_000, compactAt: 1_400_000,
+    costPer1kInput: 0.0002, costPer1kOutput: 0.0005,
+    capabilities: ["text", "tools", "structured-output", "vision", "reasoning"],
+    tier: "cheap",
+  },
+  "xai:grok-4-fast-non-reasoning": {
+    provider: "xai", model: "grok-4-fast-non-reasoning",
+    contextWindow: 2_000_000, compactAt: 1_400_000,
+    costPer1kInput: 0.0002, costPer1kOutput: 0.0005,
+    capabilities: ["text", "tools", "structured-output", "vision"],
+    tier: "cheap",
+  },
+
+  // Grok 4.1 Fast (2M context)
+  "xai:grok-4-1-fast-reasoning": {
+    provider: "xai", model: "grok-4-1-fast-reasoning",
+    contextWindow: 2_000_000, compactAt: 1_400_000,
+    costPer1kInput: 0.0002, costPer1kOutput: 0.0005,
+    capabilities: ["text", "tools", "structured-output", "vision", "reasoning"],
+    tier: "cheap",
+  },
+  "xai:grok-4-1-fast-non-reasoning": {
+    provider: "xai", model: "grok-4-1-fast-non-reasoning",
+    contextWindow: 2_000_000, compactAt: 1_400_000,
+    costPer1kInput: 0.0002, costPer1kOutput: 0.0005,
+    capabilities: ["text", "tools", "structured-output", "vision"],
+    tier: "cheap",
+  },
+
+  // Grok 4 (256K, premium)
+  "xai:grok-4-0709": {
+    provider: "xai", model: "grok-4-0709",
+    contextWindow: 256_000, compactAt: 180_000,
+    costPer1kInput: 0.003, costPer1kOutput: 0.015,
+    capabilities: ["text", "tools", "structured-output", "vision", "reasoning"],
+    tier: "expensive",
+  },
+
+  // Grok 3 (131K context)
+  "xai:grok-3": {
+    provider: "xai", model: "grok-3",
     contextWindow: 131_072, compactAt: 90_000,
-    costPer1kInput: 0.0005, costPer1kOutput: 0.005,
+    costPer1kInput: 0.003, costPer1kOutput: 0.015,
+    capabilities: ["text", "tools", "structured-output"],
+    tier: "standard",
+  },
+  "xai:grok-3-mini": {
+    provider: "xai", model: "grok-3-mini",
+    contextWindow: 131_072, compactAt: 90_000,
+    costPer1kInput: 0.0003, costPer1kOutput: 0.0005,
     capabilities: ["text", "tools", "reasoning"],
+    tier: "cheap",
+  },
+
+  // ─── Groq (hosted models — uses GROQ_API_KEY) ──────────────────────────────
+
+  // Groq Compound (agentic)
+  "groq:groq/compound": {
+    provider: "groq", model: "groq/compound",
+    contextWindow: 131_072, compactAt: 90_000,
+    costPer1kInput: 0, costPer1kOutput: 0,
+    capabilities: ["text", "tools"],
+    tier: "free",
+  },
+  "groq:groq/compound-mini": {
+    provider: "groq", model: "groq/compound-mini",
+    contextWindow: 131_072, compactAt: 90_000,
+    costPer1kInput: 0, costPer1kOutput: 0,
+    capabilities: ["text", "tools"],
+    tier: "free",
+  },
+
+  // Meta Llama on Groq
+  "groq:llama-3.1-8b-instant": {
+    provider: "groq", model: "llama-3.1-8b-instant",
+    contextWindow: 131_072, compactAt: 90_000,
+    costPer1kInput: 0.00005, costPer1kOutput: 0.00008,
+    capabilities: ["text", "tools"],
+    tier: "cheap",
+  },
+  "groq:llama-3.3-70b-versatile": {
+    provider: "groq", model: "llama-3.3-70b-versatile",
+    contextWindow: 131_072, compactAt: 90_000,
+    costPer1kInput: 0.00044, costPer1kOutput: 0.00067,
+    capabilities: ["text", "tools"],
+    tier: "cheap",
+  },
+  "groq:meta-llama/llama-4-scout-17b-16e-instruct": {
+    provider: "groq", model: "meta-llama/llama-4-scout-17b-16e-instruct",
+    contextWindow: 131_072, compactAt: 90_000,
+    costPer1kInput: 0.00011, costPer1kOutput: 0.00034,
+    capabilities: ["text", "tools", "vision"],
+    tier: "cheap",
+  },
+
+  // Alibaba Qwen on Groq
+  "groq:qwen/qwen3-32b": {
+    provider: "groq", model: "qwen/qwen3-32b",
+    contextWindow: 131_072, compactAt: 90_000,
+    costPer1kInput: 0.00029, costPer1kOutput: 0.00039,
+    capabilities: ["text", "tools", "reasoning"],
+    tier: "cheap",
+  },
+
+  // OpenAI OSS on Groq
+  "groq:openai/gpt-oss-120b": {
+    provider: "groq", model: "openai/gpt-oss-120b",
+    contextWindow: 131_072, compactAt: 90_000,
+    costPer1kInput: 0.00015, costPer1kOutput: 0.0006,
+    capabilities: ["text", "tools", "reasoning"],
+    tier: "cheap",
+  },
+  "groq:openai/gpt-oss-20b": {
+    provider: "groq", model: "openai/gpt-oss-20b",
+    contextWindow: 131_072, compactAt: 90_000,
+    costPer1kInput: 0.000075, costPer1kOutput: 0.0003,
+    capabilities: ["text", "tools", "reasoning"],
+    tier: "cheap",
+  },
+
+  // Moonshot Kimi on Groq
+  "groq:moonshotai/kimi-k2-instruct-0905": {
+    provider: "groq", model: "moonshotai/kimi-k2-instruct-0905",
+    contextWindow: 262_144, compactAt: 180_000,
+    costPer1kInput: 0.001, costPer1kOutput: 0.003,
+    capabilities: ["text", "tools"],
     tier: "cheap",
   },
 
@@ -433,6 +561,113 @@ export const models = {
     tier: "cheap",
   },
 
+  // ─── OpenRouter (any model via openrouter.ai) ───────────────────────────────
+  // OpenRouter proxies multiple providers. Model IDs use provider/model format.
+  // Pricing varies per upstream model — these are representative defaults.
+  // Any openrouter:* model not listed here works via dynamic passthrough.
+
+  // Free tier models (no cost, rate-limited)
+  "openrouter:stepfun/step-3.5-flash:free": {
+    provider: "openrouter", model: "stepfun/step-3.5-flash:free",
+    contextWindow: 128_000, compactAt: 90_000,
+    costPer1kInput: 0, costPer1kOutput: 0,
+    capabilities: ["text", "tools"],
+    tier: "free",
+  },
+  "openrouter:openrouter/free": {
+    provider: "openrouter", model: "openrouter/free",
+    contextWindow: 128_000, compactAt: 90_000,
+    costPer1kInput: 0, costPer1kOutput: 0,
+    capabilities: ["text", "tools"],
+    tier: "free",
+  },
+  "openrouter:nousresearch/hermes-3-llama-3.1-405b:free": {
+    provider: "openrouter", model: "nousresearch/hermes-3-llama-3.1-405b:free",
+    contextWindow: 128_000, compactAt: 90_000,
+    costPer1kInput: 0, costPer1kOutput: 0,
+    capabilities: ["text", "tools"],
+    tier: "free",
+  },
+  "openrouter:qwen/qwen3-4b:free": {
+    provider: "openrouter", model: "qwen/qwen3-4b:free",
+    contextWindow: 32_000, compactAt: 22_000,
+    costPer1kInput: 0, costPer1kOutput: 0,
+    capabilities: ["text", "tools"],
+    tier: "free",
+  },
+  "openrouter:openai/gpt-oss-20b:free": {
+    provider: "openrouter", model: "openai/gpt-oss-20b:free",
+    contextWindow: 128_000, compactAt: 90_000,
+    costPer1kInput: 0, costPer1kOutput: 0,
+    capabilities: ["text", "tools"],
+    tier: "free",
+  },
+  "openrouter:openai/gpt-oss-120b:free": {
+    provider: "openrouter", model: "openai/gpt-oss-120b:free",
+    contextWindow: 128_000, compactAt: 90_000,
+    costPer1kInput: 0, costPer1kOutput: 0,
+    capabilities: ["text", "tools"],
+    tier: "free",
+  },
+  "openrouter:qwen/qwen3-coder:free": {
+    provider: "openrouter", model: "qwen/qwen3-coder:free",
+    contextWindow: 128_000, compactAt: 90_000,
+    costPer1kInput: 0, costPer1kOutput: 0,
+    capabilities: ["text", "tools"],
+    tier: "free",
+  },
+  "openrouter:z-ai/glm-4.5-air:free": {
+    provider: "openrouter", model: "z-ai/glm-4.5-air:free",
+    contextWindow: 128_000, compactAt: 90_000,
+    costPer1kInput: 0, costPer1kOutput: 0,
+    capabilities: ["text", "tools"],
+    tier: "free",
+  },
+
+  // Paid models
+  "openrouter:anthropic/claude-opus-4-6": {
+    provider: "openrouter", model: "anthropic/claude-opus-4-6",
+    contextWindow: 200_000, compactAt: 140_000,
+    costPer1kInput: 0.015, costPer1kOutput: 0.075,
+    capabilities: ["text", "tools", "vision"],
+    tier: "expensive",
+  },
+  "openrouter:anthropic/claude-sonnet-4-6": {
+    provider: "openrouter", model: "anthropic/claude-sonnet-4-6",
+    contextWindow: 200_000, compactAt: 140_000,
+    costPer1kInput: 0.003, costPer1kOutput: 0.015,
+    capabilities: ["text", "tools", "vision"],
+    tier: "standard",
+  },
+  "openrouter:openai/gpt-4o": {
+    provider: "openrouter", model: "openai/gpt-4o",
+    contextWindow: 128_000, compactAt: 90_000,
+    costPer1kInput: 0.0025, costPer1kOutput: 0.010,
+    capabilities: ["text", "tools", "vision"],
+    tier: "standard",
+  },
+  "openrouter:google/gemini-2.5-pro": {
+    provider: "openrouter", model: "google/gemini-2.5-pro",
+    contextWindow: 1_000_000, compactAt: 700_000,
+    costPer1kInput: 0.00125, costPer1kOutput: 0.010,
+    capabilities: ["text", "tools", "vision"],
+    tier: "standard",
+  },
+  "openrouter:deepseek/deepseek-chat-v3": {
+    provider: "openrouter", model: "deepseek/deepseek-chat-v3",
+    contextWindow: 64_000, compactAt: 45_000,
+    costPer1kInput: 0.00014, costPer1kOutput: 0.00028,
+    capabilities: ["text", "tools"],
+    tier: "cheap",
+  },
+  "openrouter:meta-llama/llama-4-scout": {
+    provider: "openrouter", model: "meta-llama/llama-4-scout",
+    contextWindow: 512_000, compactAt: 350_000,
+    costPer1kInput: 0.00015, costPer1kOutput: 0.0006,
+    capabilities: ["text", "tools", "vision"],
+    tier: "cheap",
+  },
+
   // ─── Ollama (local — no cost) ────────────────────────────────────────────────
 
   "ollama:llama4:scout": {
@@ -479,16 +714,16 @@ export const fallbackChains = {
   cheap: [
     "openai:gpt-5-mini", "openai:gpt-4.1-mini", "anthropic:claude-haiku-4-5",
     "google:gemini-2.5-flash", "google:gemini-2.0-flash", "deepseek:deepseek-chat",
-    "mistral:mistral-small-latest", "xai:grok-4.1-fast", "xai:grok-4-fast", "ollama:llama3.1",
+    "mistral:mistral-small-latest", "xai:grok-4-1-fast-non-reasoning", "xai:grok-4-fast-non-reasoning", "ollama:llama3.1",
   ],
   standard: [
     "openai:gpt-5.2", "openai:gpt-4.1", "anthropic:claude-sonnet-4-6",
-    "google:gemini-2.5-pro", "xai:grok-4", "mistral:mistral-large-latest",
+    "google:gemini-2.5-pro", "xai:grok-4-0709", "mistral:mistral-large-latest",
     "deepseek:deepseek-chat", "ollama:llama3.1",
   ],
   expensive: [
     "anthropic:claude-opus-4-6", "openai:gpt-5.4", "anthropic:claude-sonnet-4-6",
-    "openai:o3-pro", "google:gemini-3.1-pro-preview", "xai:grok-4",
+    "openai:o3-pro", "google:gemini-3.1-pro-preview", "xai:grok-4-0709",
   ],
   local: ["ollama:llama4:scout", "ollama:llama4:maverick", "ollama:llama3.1", "ollama:qwen2.5-coder", "ollama:llama3"],
 };

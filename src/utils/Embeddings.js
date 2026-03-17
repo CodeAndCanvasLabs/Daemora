@@ -255,6 +255,24 @@ export function tfidfEmbed(text) {
 }
 
 /**
+ * Standard cosine similarity between two vectors.
+ * Shared utility — used by memory.js and TaskRunner auto-capture.
+ * @param {number[]} a
+ * @param {number[]} b
+ * @returns {number} Similarity score 0..1
+ */
+export function cosineSim(a, b) {
+  let dot = 0, na = 0, nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    na  += a[i] * a[i];
+    nb  += b[i] * b[i];
+  }
+  if (!na || !nb) return 0;
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+}
+
+/**
  * Generate a vector embedding for the given text using the best available provider.
  * Falls back through: API providers → local Ollama → built-in TF-IDF.
  *

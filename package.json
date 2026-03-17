@@ -1,6 +1,6 @@
 {
   "name": "daemora",
-  "version": "2026.1.0-beta.12",
+  "version": "2026.1.0-beta.13",
   "description": "A powerful open-source AI agent that runs on your machine. Connects to any AI model, any MCP server, any channel. Fully autonomous - plans, codes, tests, browses, emails, and manages your tools without asking permission.",
   "main": "src/index.js",
   "bin": {
@@ -20,7 +20,7 @@
     "test:coverage": "vitest run --coverage",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
-    "postinstall": "npx playwright install chromium || exit 0",
+    "postinstall": "npx playwright install chromium || exit 0; node -e \"try{require('child_process').execSync('paplay --version',{stdio:'ignore'})}catch{const p=process.platform;if(p==='darwin')try{require('child_process').execSync('brew install pulseaudio',{stdio:'inherit',timeout:120000})}catch{}else if(p==='linux')try{require('child_process').execSync('apt-get install -y pulseaudio 2>/dev/null||dnf install -y pulseaudio 2>/dev/null||true',{stdio:'ignore',timeout:120000})}catch{}}\" || exit 0",
     "prepublishOnly": "pnpm --filter daemora-ui build"
   },
   "keywords": [
@@ -69,14 +69,17 @@
     "@ai-sdk/google": "^3.0.34",
     "@ai-sdk/openai": "^3.0.37",
     "@clack/prompts": "^1.0.1",
+    "@huggingface/transformers": "^3.8.1",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@slack/bolt": "^4.4.0",
     "ai": "^6.0.105",
     "botbuilder": "^4.23.1",
     "chalk": "^5.6.2",
+    "cloudflared": "^0.7.1",
     "croner": "^10.0.1",
     "discord.js": "^14.25.1",
     "dotenv": "^17.3.1",
+    "edge-tts-universal": "^1.4.0",
     "express": "^5.2.1",
     "glob": "^13.0.6",
     "google-auth-library": "^9.15.0",
@@ -88,8 +91,11 @@
     "ollama-ai-provider": "^1.2.0",
     "openai": "^6.25.0",
     "playwright": "^1.58.2",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "twilio": "^5.12.2",
     "uuid": "^13.0.0",
+    "ws": "^8.19.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {

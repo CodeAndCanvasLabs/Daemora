@@ -1,7 +1,8 @@
 import { runAgentLoop } from "../core/AgentLoop.js";
 import { buildSystemPrompt } from "./systemPrompt.js";
 import { toolFunctions } from "../tools/index.js";
-import { agentProfiles, defaultSubAgentTools } from "../config/agentProfiles.js";
+import { defaultSubAgentTools } from "../config/agentProfiles.js";
+import { getProfile } from "../config/ProfileLoader.js";
 import { config } from "../config/default.js";
 import eventBus from "../core/EventBus.js";
 import { v4 as uuidv4 } from "uuid";
@@ -100,7 +101,7 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     toolOverride         = null,        // exact tool functions - specialist agents only (e.g. MCP)
     systemPromptOverride = null,        // replace system prompt - specialist agents only
     maxCost              = 0.10,
-    timeout              = 300_000,
+    timeout              = 1_800_000,
     depth                = 0,
     parentTaskId         = null,
     parentContext        = null,
@@ -157,13 +158,19 @@ export async function spawnSubAgent(taskDescription, options = {}) {
       // Caller provided explicit list - use as-is
       toolNames = [...allowedTools];
     } else if (profile) {
-      // Named role preset
-      const preset = agentProfiles[profile];
-      if (!preset) {
+      // Resolve profile from YAML (tenant override → custom → built-in)
+      const profileDef = getProfile(profile);
+      if (profileDef && profileDef.tools.length > 0) {
+        toolNames = [...profileDef.tools];
+        // Use profile model if set and no explicit model override
+        if (profileDef.model && !model) {
+          options.model = profileDef.model;
+        }
+        // Store profile definition for system prompt building
+        options._profileDef = profileDef;
+      } else {
         console.warn(`[SubAgent:${agentId}] Unknown profile "${profile}", using default`);
         toolNames = [...defaultSubAgentTools];
-      } else {
-        toolNames = [...preset];
       }
     } else {
       // No profile specified - use sensible default (not all 33 tools)
@@ -228,49 +235,26 @@ export async function spawnSubAgent(taskDescription, options = {}) {
   }
 
   // ── Skill injection ─────────────────────────────────────────────────────
-  // Priority: 1) Explicit skills passed by parent  2) Semantic embedding search
-  // Both produce full skill content so the sub-agent doesn't waste a readFile turn.
+  // Explicit skills only (parent passed skill paths/names directly).
+  // Scoped skill summaries are handled by systemPrompt.js → renderSkills() with profile tags.
+  // No duplicate semantic search here — system prompt already does it with proper scoping.
   let skillContext = "";
   try {
-    const injectedSkills = [];
-
-    // 1. Explicit skills — parent agent passed skill paths/names directly
     if (skills && skills.length > 0) {
+      const injectedSkills = [];
       for (const ref of skills) {
         const skill = skillLoader.getSkill(ref);
-        if (skill) {
-          injectedSkills.push(skill);
-        } else {
-          console.log(`[SubAgent:${agentId}] Skill not found: "${ref}"`);
-        }
+        if (skill) injectedSkills.push(skill);
+        else console.log(`[SubAgent:${agentId}] Skill not found: "${ref}"`);
       }
-    }
-
-    // 2. Semantic embedding search — find relevant skills the parent didn't explicitly pass
-    // Exclude orchestration — sub-agents must not spin up teams/sub-agents themselves
-    const SUBAGENT_SKILL_EXCLUDE = ["orchestration"];
-    if (injectedSkills.length === 0 && taskDescription) {
-      const semanticResult = await skillLoader.getSkillPromptsAsync(taskDescription, { exclude: SUBAGENT_SKILL_EXCLUDE });
-      if (semanticResult) {
-        // getSkillPromptsAsync returns formatted string with --- Skill: name --- blocks
-        skillContext = semanticResult;
+      if (injectedSkills.length > 0) {
+        skillContext = injectedSkills.map(s =>
+          `\n--- Skill: ${s.name} ---\n${s.content}\n--- End Skill ---`
+        ).join("\n");
+        console.log(`[SubAgent:${agentId}] Injected ${injectedSkills.length} skill(s) (explicit): ${injectedSkills.map(s => s.name).join(", ")}`);
       }
-    }
-
-    // Format explicitly-passed skills
-    if (injectedSkills.length > 0) {
-      skillContext = injectedSkills.map(s =>
-        `\n--- Skill: ${s.name} ---\n${s.content}\n--- End Skill ---`
-      ).join("\n");
-    }
-
-    if (injectedSkills.length > 0) {
-      console.log(`[SubAgent:${agentId}] Injected ${injectedSkills.length} skill(s) (explicit): ${injectedSkills.map(s => s.name).join(", ")}`);
-    } else if (skillContext) {
-      console.log(`[SubAgent:${agentId}] Injected skills (semantic embedding match)`);
     }
   } catch (e) {
-    // Non-blocking — skills are optional
     console.log(`[SubAgent:${agentId}] Skill injection failed (non-blocking): ${e.message}`);
   }
 
@@ -302,6 +286,7 @@ export async function spawnSubAgent(taskDescription, options = {}) {
           agentId,
           taskDescription,
           profile,
+          profileDef: options._profileDef || null,
         }),
         tools:        agentTools,
         modelId:      resolvedModel,

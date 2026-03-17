@@ -1,0 +1,13 @@
+node_modules
+.git
+agents
+data
+daemora-ui/node_modules
+daemora-ui/.next
+*.log
+.env
+.env.*
+.DS_Store
+components
+daemoreDir
+ANALYSIS.md

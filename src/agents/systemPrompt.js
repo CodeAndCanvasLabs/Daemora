@@ -20,6 +20,7 @@ const TOOL_REQUIRED_KEYS = {
   sonos:           ["SONOS_HOST"],
   database:        ["DATABASE_URL", "MYSQL_URL"],
   sshTool:         ["SSH_DEFAULT_HOST"],
+  meetingAction:   ["TWILIO_ACCOUNT_SID"],
 };
 
 function _getConfiguredKeys() {
@@ -49,9 +50,9 @@ export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeM
         renderResponseFormat(),
         renderToolList(true),
         renderMCPTools(),
-        renderSkills(taskInput, 20, true),
+        renderSkills(taskInput, 10, true, runtimeMeta.profileDef?.skills),
         renderMemory(),
-        renderSubagentContext(runtimeMeta.profile),
+        renderSubagentContext(runtimeMeta.profile, runtimeMeta.profileDef),
       ])
     : await Promise.all([
         renderSoul(false),
@@ -193,28 +194,30 @@ function renderToolUsageRules() {
 - Every spawnAgent / parallelAgents / teamTask / useMCP instruction must include full contract: TASK · CONTEXT · FILES · SPEC · CONSTRAINTS · OUTPUT.`;
 }
 
-async function renderSkills(taskInput, limit = 20, isSubAgent = false) {
+async function renderSkills(taskInput, limit = 20, isSubAgent = false, skillScope = null) {
   const totalCount = skillLoader.list().length;
   if (totalCount === 0) return "";
 
-  const summaries = await skillLoader.getMatchedSkillSummaries(taskInput, limit);
+  const summaries = await skillLoader.getMatchedSkillSummaries(taskInput, limit, skillScope);
   if (!summaries || summaries.length === 0) return "";
 
   const items = summaries.map(s =>
-    `  <skill name="${s.name}" path="${s.path}">${s.description}</skill>`
+    `  <skill>\n    <name>${s.name}</name>\n    <description>${s.description}</description>\n    <location>${s.location}</location>\n  </skill>`
   );
   const remaining = totalCount - summaries.length;
   const dirHint = remaining > 0
-    ? `\n  <!-- ${totalCount} skills total in ${config.skillsDir} -->`
+    ? `\n  <!-- ${totalCount} skills total -->`
     : "";
 
   const preamble = isSubAgent
-    ? `Before acting: scan list. If one clearly applies → readFile its path, follow it. Skip "confirm with user" steps. If multiple → pick most specific. If none → proceed.`
-    : `Before acting: scan list below.
-- Exactly one clearly applies → readFile its path, follow it.
-- Multiple could apply → pick the most specific one, read/follow it.
-- None clearly apply → proceed without loading.
-Constraint: never load more than one skill up front.`;
+    ? `Before acting: scan <available_skills> <description> entries.
+If one clearly applies → readFile its <location>, follow it. Skip "confirm with user" steps. If multiple → pick most specific. If none → proceed.`
+    : `Before replying: scan <available_skills> <description> entries.
+- If exactly one skill clearly applies: read its SKILL.md at <location> with readFile, then follow it.
+- If multiple could apply: choose the most specific one, then read/follow it.
+- If none clearly apply: do not read any SKILL.md.
+Constraints: never read more than one skill up front; only read after selecting.
+- When a skill drives external API writes, assume rate limits: prefer fewer larger writes, avoid tight one-item loops, serialize bursts when possible, and respect 429/Retry-After.`;
 
   return `## Skills (mandatory)
 
@@ -266,15 +269,12 @@ function renderDailyLog() {
   return `# Today's Log (${today})\n\n${dailyLog}`;
 }
 
-const _PROFILE_IDENTITY = {
-  coder:      "You are a Senior Software Engineer. You build, fix, and ship — end to end. You write clean code, run tests, verify output, and fix failures without asking.",
-  researcher: "You are a Senior Research Analyst. You gather, synthesize, and deliver structured findings. You search deeply, cross-reference sources, and produce clear, actionable reports.",
-  writer:     "You are a Senior Content Strategist. You produce polished, audience-aware content. You research before writing, match tone to context, and deliver final output — not drafts.",
-  analyst:    "You are a Senior Data Analyst. You process data, run scripts, extract insights, and produce findings with evidence. You deliver conclusions, not raw numbers.",
-};
+// Fallback identity for profiles without a YAML definition
+const _FALLBACK_IDENTITY = "You are a specialist agent. You execute assigned tasks with full autonomy.";
 
-function renderSubagentContext(profile = null) {
-  const identity = _PROFILE_IDENTITY[profile] || "You are a specialist agent. You execute assigned tasks with full autonomy.";
+function renderSubagentContext(profile = null, profileDef = null) {
+  // Use YAML systemPrompt if available, else fallback
+  const identity = profileDef?.systemPrompt || _FALLBACK_IDENTITY;
 
   return `# You are a specialist agent
 
@@ -294,7 +294,7 @@ ${identity}
 
 **Parallel when it makes sense.** Independent actions don't need to wait for each other.
 
-Read before editing. Verify after changes. Save verbose output to files. Return a brief summary of what was actually accomplished.`;
+Read before editing. Verify after changes.`;
 }
 
 function renderRuntime(meta = {}) {

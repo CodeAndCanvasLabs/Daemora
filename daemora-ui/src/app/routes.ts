@@ -2,7 +2,7 @@ import { createBrowserRouter } from "react-router";
 import { Layout } from "./components/Layout";
 import { Dashboard } from "./pages/Dashboard";
 import { Chat } from "./pages/Chat";
-import { Tasks } from "./pages/Tasks";
+import { Logs } from "./pages/Logs";
 import { TaskDetail } from "./pages/TaskDetail";
 import { Configuration } from "./pages/Configuration";
 import { Channels } from "./pages/Channels";
@@ -21,7 +21,10 @@ export const router = createBrowserRouter([
     children: [
       { index: true, Component: Dashboard },
       { path: "chat", Component: Chat },
-      { path: "tasks", Component: Tasks },
+      { path: "logs", Component: Logs },
+      { path: "logs/:id", Component: TaskDetail },
+      // Keep old /tasks routes for backwards compat
+      { path: "tasks", Component: Logs },
       { path: "tasks/:id", Component: TaskDetail },
       { path: "config", Component: Configuration },
       { path: "channels", Component: Channels },

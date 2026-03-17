@@ -123,7 +123,7 @@ const toolSchemas = {
   },
   browserAction: {
     schema: z.object({
-      action: str("navigate|snapshot|click|fill|type|hover|selectOption|pressKey|scroll|drag|getText|getContent|screenshot|pdf|evaluate|getLinks|console|waitFor|waitForNavigation|reload|goBack|goForward|newTab|switchTab|listTabs|closeTab|getCookies|setCookie|clearCookies|getStorage|setStorage|clearStorage|upload|download|resize|highlight|handleDialog|newSession|status|close"),
+      action: str("navigate|snapshot|snapshotFrame|listFrames|click|fill|type|hover|selectOption|pressKey|scroll|drag|getText|getContent|screenshot|pdf|evaluate|getLinks|console|pageErrors|networkRequests|captureResponses|getCapturedResponses|waitFor|waitForNavigation|reload|goBack|goForward|newTab|switchTab|listTabs|closeTab|getCookies|setCookie|clearCookies|getStorage|setStorage|clearStorage|upload|download|resize|highlight|configureDialog|handleDialog|getLastDialog|batch|listDownloads|saveDownload|interceptNetwork|clearInterceptions|listProfiles|recoverStuck|forceDisconnect|traceStart|traceStop|newSession|status|close"),
       param1: optStr("Primary param (url, ref, selector, path, key, direction, condition, json, WxH, profile)"),
       param2: optStr("Secondary param (value, amount, timeout, text, target, full, filter, limit, targetId, local|session)"),
     }),
@@ -294,22 +294,22 @@ const toolSchemas = {
   spawnAgent: {
     schema: z.object({
       taskDescription: str("Complete task brief — include what, constraints, files/APIs, expected output. Agent has zero other context."),
-      profile: optStr("Agent profile: 'coder' | 'researcher' | 'writer' | 'analyst'"),
+      profile: str("Agent profile (REQUIRED) — Dev: coder|architect|reviewer|tester|devops|security|database|frontend|api. Research: researcher|analyst|investigator. Content: writer|editor|translator. Business: planner|strategist|assistant. Ops: sysadmin|designer|coordinator|meeting-attendant"),
       parentContext: optStr("Extra context from parent task"),
       extraTools: z.array(z.string()).optional().describe("Additional tool names to enable"),
       skills: z.array(z.string()).optional().describe("Skill names to load"),
     }),
-    description: "Spawn specialist sub-agent. Use for any deep-focus task: research, writing, coding, analysis. Profile sets identity.",
+    description: "Spawn specialist sub-agent. Use for any deep-focus task. Profile sets identity, tools, and skill scope.",
   },
   parallelAgents: {
     schema: z.object({
       tasks: z.array(z.object({
-        description: str("Task description"),
-        profile: optStr("Agent profile: 'coder' | 'researcher' | 'writer' | 'analyst'"),
-      })).describe("Array of tasks to run in parallel"),
+        description: str("Task description — full brief, agent has zero context"),
+        profile: str("Agent profile (REQUIRED) — Dev: coder|architect|reviewer|tester|devops|security|database|frontend|api. Research: researcher|analyst|investigator. Content: writer|editor|translator. Business: planner|strategist|assistant. Ops: sysadmin|designer|coordinator|meeting-attendant"),
+      })).describe("Array of tasks to run simultaneously"),
       sharedContext: optStr("Context shared across all agents"),
     }),
-    description: "Spawn multiple sub-agents simultaneously for independent tasks.",
+    description: "Spawn multiple sub-agents simultaneously for independent tasks. Each gets its own profile, tools, and skill scope.",
   },
   delegateToAgent: {
     schema: z.object({
@@ -464,6 +464,30 @@ const toolSchemas = {
       status: optStr("Filter by status (for list)"),
     }),
     description: "Outbound voice calls via Twilio",
+  },
+
+  // ── Meetings + Voice Cloning ─────────────────────────────────────────────
+  meetingAction: {
+    schema: z.object({
+      action: str("join|leave|speak|wait|transcript|status|cloneVoice|listVoices|deleteVoice|voiceInfo|voiceSettings"),
+      dialIn: optStr("Meeting dial-in phone number in E.164 format, e.g. +12405603685 (required for join)"),
+      pin: optStr("Meeting PIN/access code, digits only, e.g. 717937610 (for join)"),
+      sessionId: optStr("Session ID (required for leave/speak/wait/transcript)"),
+      displayName: optStr("Bot display name (for join, default: Daemora)"),
+      meetingUrl: optStr("Original meeting URL for reference (optional for join)"),
+      voiceId: optStr("ElevenLabs voice ID (for join, voiceInfo, voiceSettings, deleteVoice)"),
+      text: optStr("Text to speak (required for speak)"),
+      last: optNum("Number of transcript entries to return (for transcript)"),
+      name: optStr("Voice name (required for cloneVoice)"),
+      samplePaths: optStr("Audio sample file paths, comma-separated (required for cloneVoice)"),
+      description: optStr("Voice description (for cloneVoice)"),
+      source: optStr("Voice list source: 'tenant' | 'all' (for listVoices)"),
+      stability: optNum("Voice stability 0-1 (for voiceSettings)"),
+      similarityBoost: optNum("Voice similarity boost 0-1 (for voiceSettings)"),
+      style: optNum("Voice style 0-1 (for voiceSettings)"),
+      useSpeakerBoost: optBool("Use speaker boost (for voiceSettings)"),
+    }),
+    description: "Join meetings via phone dial-in (Twilio). join={dialIn, pin} dials meeting number. wait=blocks until call ends, returns full transcript. Bot converses autonomously via OpenAI Realtime STT + TTS. Voice cloning via ElevenLabs.",
   },
 
   // ── Git ──────────────────────────────────────────────────────────────────

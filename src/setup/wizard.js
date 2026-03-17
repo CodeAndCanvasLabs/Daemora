@@ -84,6 +84,8 @@ export async function runSetupWizard() {
       { value: "xai",       label: "xAI",        hint: "Grok 4 \u2014 conversational & capable" },
       { value: "deepseek",  label: "DeepSeek",   hint: "DeepSeek V3 / R1 \u2014 excellent coder, cheap" },
       { value: "mistral",   label: "Mistral",    hint: "Mistral Large \u2014 European AI, GDPR-friendly" },
+      { value: "groq",      label: "Groq",       hint: "Llama, Qwen, GPT-OSS \u2014 fastest inference, free tier" },
+      { value: "openrouter", label: "OpenRouter", hint: "Any model via openrouter.ai \u2014 one key, all providers" },
       { value: "ollama",    label: "Ollama",     hint: "Local models \u2014 free, private, offline" },
     ],
   }));
@@ -99,6 +101,8 @@ export async function runSetupWizard() {
     xai:       { env: "XAI_API_KEY",       prompt: "xAI API key" },
     deepseek:  { env: "DEEPSEEK_API_KEY",  prompt: "DeepSeek API key (sk-...)" },
     mistral:   { env: "MISTRAL_API_KEY",   prompt: "Mistral API key" },
+    groq:       { env: "GROQ_API_KEY",       prompt: "Groq API key (gsk_...)" },
+    openrouter: { env: "OPENROUTER_API_KEY", prompt: "OpenRouter API key (sk-or-...)" },
   };
 
   if (provider === "ollama") {
@@ -866,7 +870,7 @@ export async function runSetupWizard() {
       const secretKeys = [
         // AI providers
         "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY",
-        "XAI_API_KEY", "DEEPSEEK_API_KEY", "MISTRAL_API_KEY",
+        "XAI_API_KEY", "GROQ_API_KEY", "DEEPSEEK_API_KEY", "MISTRAL_API_KEY", "OPENROUTER_API_KEY",
         // Channel tokens
         "TELEGRAM_BOT_TOKEN", "DISCORD_BOT_TOKEN",
         "SLACK_BOT_TOKEN", "SLACK_APP_TOKEN",

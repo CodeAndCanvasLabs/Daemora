@@ -15,6 +15,8 @@ const PROVIDERS = {
   xai:       { envKey: "XAI_API_KEY",      baseURL: "https://api.x.ai/v1" },
   deepseek:  { envKey: "DEEPSEEK_API_KEY",  baseURL: "https://api.deepseek.com" },
   mistral:   { envKey: "MISTRAL_API_KEY",   baseURL: "https://api.mistral.ai/v1" },
+  openrouter: { envKey: "OPENROUTER_API_KEY", baseURL: "https://openrouter.ai/api/v1" },
+  groq:      { envKey: "GROQ_API_KEY",      baseURL: "https://api.groq.com/openai/v1" },
   ollama:    { envKey: null },
 };
 
@@ -30,6 +32,8 @@ function _createProvider(name, apiKey) {
   if (name === "openai")    return createOpenAI({ apiKey });
   if (name === "anthropic") return createAnthropic({ apiKey });
   if (name === "google")    return createGoogleGenerativeAI({ apiKey });
+  // OpenRouter — include ranking headers
+  if (name === "openrouter") return createOpenAI({ apiKey, baseURL: info.baseURL, headers: { "HTTP-Referer": "https://daemora.com", "X-OpenRouter-Title": "Daemora" } });
   // OpenAI-compatible providers (xAI, DeepSeek, Mistral)
   if (info?.baseURL)        return createOpenAI({ apiKey, baseURL: info.baseURL });
   return null;

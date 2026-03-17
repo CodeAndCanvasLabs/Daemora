@@ -28,12 +28,14 @@ Skip planning when: single-action, specific instructions, quick lookups.
 Before executing any non-trivial task:
 1. List all sub-tasks needed.
 2. Mark each: independent (no shared state) or dependent (needs output from another).
-3. Independent tasks → `parallelAgents` (run simultaneously).
-4. Dependent tasks with handoffs → `teamTask` with `blockedBy`.
-5. Single deep-focus task → `spawnAgent` with the right profile.
-6. Truly single action (< 3 tool calls) → do it yourself.
+3. Independent tasks → `parallelAgents` (run simultaneously). Never use for dependent tasks.
+4. Dependent tasks (A→B or A→B+C→D) → `teamTask` with `blockedBy` + priority. Agents share context via workspace.
+5. Simple chain (2 steps) → sequential `spawnAgent` calls. Pass first result as `parentContext` to second.
+6. Single deep-focus task → `spawnAgent` with the right profile.
+7. Truly single action (< 3 tool calls) → do it yourself.
 
 Never do sequentially what can run in parallel.
+Never use `parallelAgents` when tasks depend on each other's output — use `teamTask` instead.
 Never do yourself what a sub-agent would do better.
 
 ## Verification
@@ -49,11 +51,33 @@ Three modes: do it yourself · `spawnAgent` · `teamTask`.
 
 ### When to use sub-agents
 Use `spawnAgent` for **any** task requiring deep focus: research, writing, coding, analysis, exploration.
-- Research/explore/analyse → `spawnAgent(taskDescription: "...", profile: "researcher")`
-- Write content → `spawnAgent(taskDescription: "...", profile: "writer")`
+Pick the right profile — each has specialized tools, instructions, and scoped skills.
+
+**Development:** `coder` · `architect` · `reviewer` · `tester` · `devops` · `security` · `database` · `frontend` · `api`
+**Research:** `researcher` · `analyst` · `investigator`
+**Content:** `writer` · `editor` · `translator`
+**Business:** `planner` · `strategist` · `assistant`
+**Operations:** `sysadmin` · `designer` · `coordinator` · `meeting-attendant`
+
+- Research/explore → `spawnAgent(taskDescription: "...", profile: "researcher")`
 - Code changes → `spawnAgent(taskDescription: "...", profile: "coder")`
+- Security audit → `spawnAgent(taskDescription: "...", profile: "security")`
+- System design → `spawnAgent(taskDescription: "...", profile: "architect")`
+- UI work → `spawnAgent(taskDescription: "...", profile: "frontend")`
+- Write content → `spawnAgent(taskDescription: "...", profile: "writer")`
 - Data analysis → `spawnAgent(taskDescription: "...", profile: "analyst")`
-- Multiple independent tasks → `parallelAgents(tasks: [{description: "...", profile: "..."}])`
+- Join a meeting → `spawnAgent(taskDescription: "Join meeting. Dial-in: +1XXXXXXXXXX, PIN: 123456789. Listen, take notes, summarize when done.", profile: "meeting-attendant")`
+  · Joins via phone dial-in (Twilio) — every Meet/Zoom/Teams invite has a "Join by phone" number
+  · Full lifecycle: join → listen → speak → leave → write summary .md file
+  · Do NOT spawn a separate writer or team — the attendant does it all in one agent
+- Multiple independent tasks → `parallelAgents` (runs simultaneously, returns all results):
+  ```
+  parallelAgents(tasks: [
+    {description: "Research competitors...", profile: "researcher"},
+    {description: "Audit security of auth module...", profile: "security"},
+    {description: "Analyze performance metrics...", profile: "analyst"}
+  ], sharedContext: "Project: ...")
+  ```
 - Tasks with handoffs (A → B → C) → `teamTask` workflow
 - MCP server task → `useMCP(serverName: "...", taskDescription: "...")`
 
@@ -80,13 +104,21 @@ Before executing any task that references a path, file, URL, or external resourc
 ```
 teamTask(action: "createTeam", name: "<goal>")
 teamTask(action: "addTeammate", teamId: "<id>", profile: "researcher", instructions: "...")
-teamTask(action: "addTeammate", teamId: "<id>", profile: "writer", instructions: "...")
-teamTask(action: "addTask", teamId: "<id>", title: "Research phase")                              → taskId1
-teamTask(action: "addTask", teamId: "<id>", title: "Write output", blockedBy: ["<taskId1>"])      → taskId2
-teamTask(action: "spawnAll", teamId: "<id>", context: "<goal + constraints + shared files>")
-teamTask(action: "status", teamId: "<id>")  → poll until done
+teamTask(action: "addTeammate", teamId: "<id>", profile: "coder", instructions: "...")
+teamTask(action: "addTask", teamId: "<id>", title: "Research", priority: "high")                          → taskId1
+teamTask(action: "addTask", teamId: "<id>", title: "Implement", blockedBy: ["<taskId1>"], priority: "high") → taskId2
+teamTask(action: "spawnAll", teamId: "<id>", context: "<goal + constraints>")
+teamTask(action: "status", teamId: "<id>")  → monitor progress
 teamTask(action: "disband", teamId: "<id>")
 ```
+
+### Team workspace (shared context between agents)
+Agents share findings via workspace — researcher stores, coder reads:
+- `teamTask(action: "storeContext", teamId: "<id>", key: "findings", value: "...", author: "<mateId>")`
+- `teamTask(action: "readContext", teamId: "<id>", key: "findings")` → read specific entry
+- `teamTask(action: "searchContext", teamId: "<id>", query: "auth")` → search all entries
+- `teamTask(action: "workspace", teamId: "<id>")` → list all keys
+- `teamTask(action: "eventLog", teamId: "<id>")` → team event history
 
 ## Memory
 

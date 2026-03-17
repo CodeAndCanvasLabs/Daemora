@@ -50,7 +50,7 @@ function buildConfig(env) {
     subAgentModel: env.SUB_AGENT_MODEL || null,
 
     // Agent loop
-    maxLoops: 40,
+    maxLoops: 100,
     maxSubAgentDepth: 3,
 
     // Thinking level: "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh"
@@ -66,6 +66,9 @@ function buildConfig(env) {
     // Cost limits
     maxCostPerTask: parseFloat(env.MAX_COST_PER_TASK || "0.50"),
     maxDailyCost: parseFloat(env.MAX_DAILY_COST || "10.00"),
+
+    // Auto-capture: log task summaries to daily log after each substantive task
+    autoCapture: env.AUTO_CAPTURE !== "false",
 
     // Cleanup
     cleanupAfterDays: parseInt(env.CLEANUP_AFTER_DAYS || "30", 10),

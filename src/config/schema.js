@@ -60,6 +60,9 @@ export const ConfigSchema = z.object({
   maxCostPerTask: z.number().positive().default(0.50),
   maxDailyCost:   z.number().positive().default(10.00),
 
+  // Auto-capture memory
+  autoCapture: z.boolean().default(true),
+
   // Cleanup
   cleanupAfterDays: z.number().int().min(0).default(30),
 

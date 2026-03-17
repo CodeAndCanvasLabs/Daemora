@@ -29,9 +29,15 @@ import {
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { FaTelegram, FaDiscord, FaSlack, FaWhatsapp, FaLine } from "react-icons/fa6";
-import { SiSignal, SiGooglechat } from "react-icons/si";
+import { SiSignal, SiGooglechat, SiOpenai, SiAnthropic, SiGooglegemini } from "react-icons/si";
 import { BsMicrosoftTeams } from "react-icons/bs";
 import { MdEmail } from "react-icons/md";
+
+const OpenRouterIcon = ({ className = "" }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M16.778 1.844v1.919q-.569-.026-1.138-.032-.708-.008-1.415.037c-1.93.126-4.023.728-6.149 2.237-2.911 2.066-2.731 1.95-4.14 2.75-.396.223-1.342.574-2.185.798-.841.225-1.753.333-1.751.333v4.229s.768.108 1.61.333c.842.224 1.789.575 2.185.799 1.41.798 1.228.683 4.14 2.75 2.126 1.509 4.22 2.11 6.148 2.236.88.058 1.716.041 2.555.005v1.918l7.222-4.168-7.222-4.17v2.176c-.86.038-1.611.065-2.278.021-1.364-.09-2.417-.357-3.979-1.465-2.244-1.593-2.866-2.027-3.68-2.508.889-.518 1.449-.906 3.822-2.59 1.56-1.109 2.614-1.377 3.978-1.466.667-.044 1.418-.017 2.278.02v2.176L24 6.014Z"/>
+  </svg>
+);
 
 interface SettingsData {
   vars: Record<string, string>;
@@ -97,7 +103,7 @@ function Section({
   }, [open]);
 
   return (
-    <div className="bg-slate-900/50 border border-slate-800 rounded-2xl backdrop-blur-sm shadow-xl overflow-hidden transition-all duration-300 hover:border-slate-700/80">
+    <div className={`bg-slate-900/50 border border-slate-800 rounded-2xl backdrop-blur-sm shadow-xl transition-all duration-300 hover:border-slate-700/80 ${open ? "relative z-20" : ""}`}>
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between px-6 py-5 group cursor-pointer"
@@ -122,7 +128,7 @@ function Section({
       <div
         ref={contentRef}
         style={{ height: height !== undefined ? `${height}px` : "auto" }}
-        className="transition-[height] duration-350 ease-in-out overflow-hidden"
+        className={`transition-[height] duration-350 ease-in-out ${height !== undefined ? "overflow-hidden" : "overflow-visible"}`}
       >
         <div className="px-6 pb-6 pt-1">{children}</div>
       </div>
@@ -139,10 +145,11 @@ function ModelSelect({
 }: {
   value: string;
   onChange: (v: string) => void;
-  modelsByProvider: Record<string, ModelOption[]>;
+  modelsByProvider: Record<string, (ModelOption & { available?: boolean })[]>;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<"all" | "configured">("configured");
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -156,11 +163,18 @@ function ModelSelect({
   }, []);
 
   const q = search.toLowerCase();
-  const filtered: Record<string, ModelOption[]> = {};
+  const filtered: Record<string, (ModelOption & { available?: boolean })[]> = {};
   for (const [provider, models] of Object.entries(modelsByProvider)) {
-    const matches = models.filter((m) => m.id.toLowerCase().includes(q) || provider.toLowerCase().includes(q));
+    const matches = models.filter((m) => {
+      const matchesSearch = m.id.toLowerCase().includes(q) || provider.toLowerCase().includes(q);
+      const matchesFilter = filter === "all" || m.available !== false;
+      return matchesSearch && matchesFilter;
+    });
     if (matches.length > 0) filtered[provider] = matches;
   }
+
+  const configuredCount = Object.values(modelsByProvider).flat().filter(m => m.available !== false).length;
+  const totalCount = Object.values(modelsByProvider).flat().length;
 
   const selectedLabel = value ? (value.split(":")[1] || value) : "Same as main agent (default)";
   const tierColor = (tier?: string) => {
@@ -200,6 +214,22 @@ function ModelSelect({
             )}
           </div>
 
+          {/* Filter tabs */}
+          <div className="flex gap-1 px-3 py-2 border-b border-slate-800/60">
+            <button
+              onClick={() => setFilter("configured")}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-mono uppercase tracking-wider transition-colors ${filter === "configured" ? "bg-[#00ff88]/10 text-[#00ff88] border border-[#00ff88]/20" : "text-gray-500 hover:text-gray-300"}`}
+            >
+              Configured ({configuredCount})
+            </button>
+            <button
+              onClick={() => setFilter("all")}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-mono uppercase tracking-wider transition-colors ${filter === "all" ? "bg-[#00d9ff]/10 text-[#00d9ff] border border-[#00d9ff]/20" : "text-gray-500 hover:text-gray-300"}`}
+            >
+              All ({totalCount})
+            </button>
+          </div>
+
           {/* Options */}
           <div className="max-h-[280px] overflow-y-auto overscroll-contain">
             {/* Default option */}
@@ -222,14 +252,16 @@ function ModelSelect({
                   {models.map((m) => {
                     const isSelected = m.id === value;
                     const modelName = m.id.split(":")[1] || m.id;
+                    const isAvailable = m.available !== false;
                     return (
                       <button
                         key={m.id}
                         onClick={() => { onChange(m.id); setOpen(false); setSearch(""); }}
-                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-mono text-left hover:bg-slate-800/50 transition-colors ${isSelected ? "text-[#00d9ff] bg-[#00d9ff]/5" : "text-gray-300"}`}
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-mono text-left hover:bg-slate-800/50 transition-colors ${isSelected ? "text-[#00d9ff] bg-[#00d9ff]/5" : isAvailable ? "text-gray-300" : "text-gray-600"}`}
                       >
                         {isSelected ? <Check className="w-4 h-4 text-[#00d9ff] shrink-0" /> : <div className="w-4" />}
                         <span className="flex-1 truncate">{modelName}</span>
+                        {!isAvailable && <span className="text-[8px] uppercase tracking-wider text-gray-600 border border-slate-800 px-1.5 py-0.5 rounded">no key</span>}
                         {m.tier && <span className={`text-[9px] uppercase tracking-wider ${tierColor(m.tier)}`}>{m.tier}</span>}
                       </button>
                     );
@@ -292,6 +324,7 @@ export function Settings() {
   const [memorySaved, setMemorySaved] = useState(false);
 
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
+  const [allModels, setAllModels] = useState<(ModelOption & { available?: boolean })[]>([]);
 
   const [globalConfig, setGlobalConfig] = useState<Record<string, any>>({});
   const [configDirty, setConfigDirty] = useState(false);
@@ -312,8 +345,9 @@ export function Settings() {
       apiFetch("/api/models").then((r) => r.json()),
       apiFetch("/api/vault/status").then((r) => r.json()),
       apiFetch("/api/config").then((r) => r.json()),
+      apiFetch("/api/models/all").then((r) => r.json()).catch(() => ({ models: [] })),
     ])
-      .then(([settingsData, profileData, skillsData, memoryData, modelsData, vaultData, configData]) => {
+      .then(([settingsData, profileData, skillsData, memoryData, modelsData, vaultData, configData, allModelsData]) => {
         setData(settingsData);
         setGlobalConfig(configData || {});
         setProfile({
@@ -322,6 +356,7 @@ export function Settings() {
         setCustomSkills(skillsData.skills || []);
         setMemory(memoryData.content || "");
         setAvailableModels(modelsData.available || []);
+        setAllModels(allModelsData.models || []);
         setVault(vaultData);
         setIsLoading(false);
       })
@@ -338,10 +373,16 @@ export function Settings() {
     setConfigSaving(true);
     try {
       const envMap: Record<string, string> = {
-        defaultModel: "DEFAULT_MODEL",
+        defaultModel:   "DEFAULT_MODEL",
         permissionTier: "PERMISSION_TIER",
         maxCostPerTask: "MAX_COST_PER_TASK",
-        maxDailyCost: "MAX_DAILY_COST",
+        maxDailyCost:   "MAX_DAILY_COST",
+        sttModel:       "STT_MODEL",
+        ttsModel:       "TTS_MODEL",
+        ttsVoice:       "TTS_VOICE",
+        ttsGroqModel:   "TTS_GROQ_MODEL",
+        meetingLlm:       "MEETING_LLM",
+        ollamaBaseUrl:    "OLLAMA_BASE_URL",
       };
       const updates: Record<string, string> = {};
       for (const [configKey, envKey] of Object.entries(envMap)) {
@@ -498,9 +539,10 @@ export function Settings() {
     );
   }
 
-  // Group models by provider for the dropdown
-  const modelsByProvider: Record<string, ModelOption[]> = {};
-  for (const m of availableModels) {
+  // Group ALL models by provider for the dropdown (show available status)
+  const modelsByProvider: Record<string, (ModelOption & { available?: boolean })[]> = {};
+  const modelsSource = allModels.length > 0 ? allModels : availableModels.map(m => ({ ...m, available: true }));
+  for (const m of modelsSource) {
     const p = m.provider || "other";
     if (!modelsByProvider[p]) modelsByProvider[p] = [];
     modelsByProvider[p].push(m);
@@ -547,6 +589,108 @@ export function Settings() {
                   <SelectItem value="full" className="text-xs font-mono">FULL — all tools, unrestricted</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Transcription Model (STT)</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  list="stt-models"
+                  className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-gray-600 focus:border-[#00d9ff]/50 focus:outline-none"
+                  placeholder="gpt-4o-mini-transcribe"
+                  value={globalConfig.sttModel || ""}
+                  onChange={(e) => handleConfigChange("sttModel", e.target.value)}
+                />
+                <datalist id="stt-models">
+                  <option value="gpt-4o-mini-transcribe">$0.003/min — fast, cheap</option>
+                  <option value="gpt-4o-transcribe">$0.006/min — best accuracy</option>
+                  <option value="gpt-4o-transcribe-diarize">$0.006/min — speaker ID</option>
+                  <option value="whisper-1">legacy</option>
+                  <option value="whisper-large-v3-turbo">Groq — free tier</option>
+                </datalist>
+              </div>
+            </div>
+            <div>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Speech Model (TTS)</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  list="tts-models"
+                  className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-gray-600 focus:border-[#00d9ff]/50 focus:outline-none"
+                  placeholder="gpt-4o-mini-tts"
+                  value={globalConfig.ttsModel || ""}
+                  onChange={(e) => handleConfigChange("ttsModel", e.target.value)}
+                />
+                <datalist id="tts-models">
+                  <option value="groq">Groq PlayAI — free tier</option>
+                  <option value="edge">Edge TTS — free, no API key</option>
+                  <option value="gpt-4o-mini-tts">steerable, 14 voices</option>
+                  <option value="tts-1">standard</option>
+                  <option value="tts-1-hd">high quality</option>
+                </datalist>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Meeting Bot ─────────────────────────────────────────── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">TTS Voice</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  list="tts-voices"
+                  className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-gray-600 focus:border-[#00d9ff]/50 focus:outline-none"
+                  placeholder="auto (based on model)"
+                  value={globalConfig.ttsVoice || ""}
+                  onChange={(e) => handleConfigChange("ttsVoice", e.target.value)}
+                />
+                <datalist id="tts-voices">
+                  <option value="nova">nova — OpenAI female</option>
+                  <option value="alloy">alloy — OpenAI neutral</option>
+                  <option value="echo">echo — OpenAI male</option>
+                  <option value="fable">fable — OpenAI UK</option>
+                  <option value="onyx">onyx — OpenAI deep</option>
+                  <option value="shimmer">shimmer — OpenAI soft</option>
+                  <option value="hannah">hannah — Groq orpheus</option>
+                  <option value="fritz">fritz — Groq orpheus</option>
+                </datalist>
+              </div>
+            </div>
+            <div>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Meeting LLM</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  list="meeting-llm-models"
+                  className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-gray-600 focus:border-[#00d9ff]/50 focus:outline-none"
+                  placeholder="auto (best available)"
+                  value={globalConfig.meetingLlm || ""}
+                  onChange={(e) => handleConfigChange("meetingLlm", e.target.value)}
+                />
+                <datalist id="meeting-llm-models">
+                  <option value="openai:gpt-4o-mini">gpt-4o-mini — fast, cheap</option>
+                  <option value="groq:llama-3.3-70b-versatile">groq llama-3.3-70b — fast free</option>
+                  <option value="anthropic:claude-haiku-4-5-20251001">claude haiku — fast</option>
+                  <option value="ollama:llama3.2">ollama llama3.2 — local</option>
+                </datalist>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Ollama Base URL</label>
+              <input
+                type="text"
+                className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-gray-600 focus:border-[#00d9ff]/50 focus:outline-none"
+                placeholder="http://localhost:11434/v1"
+                value={globalConfig.ollamaBaseUrl || ""}
+                onChange={(e) => handleConfigChange("ollamaBaseUrl", e.target.value)}
+              />
             </div>
           </div>
 
@@ -795,7 +939,7 @@ export function Settings() {
         title="AI Provider Keys"
         subtitle="API keys for LLM providers — encrypted in vault"
         badge={(() => {
-          const providerKeys = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY"];
+          const providerKeys = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "OPENROUTER_API_KEY", "XAI_API_KEY", "DEEPSEEK_API_KEY", "MISTRAL_API_KEY", "GROQ_API_KEY"];
           const set = providerKeys.filter(k => data.vars[k]);
           return set.length > 0 ? (
             <span className="text-[9px] font-mono text-[#00ff88] bg-[#00ff88]/10 px-2 py-0.5 rounded-md border border-[#00ff88]/20">
@@ -807,15 +951,21 @@ export function Settings() {
       >
         <div className="space-y-3">
           {[
-            { name: "OpenAI", key: "OPENAI_API_KEY", color: "#00d9ff" },
-            { name: "Anthropic", key: "ANTHROPIC_API_KEY", color: "#d4a574" },
-            { name: "Google AI", key: "GOOGLE_AI_API_KEY", color: "#4285f4" },
-          ].map(({ name, key, color }) => {
+            { name: "OpenAI", key: "OPENAI_API_KEY", color: "#00d9ff", icon: <SiOpenai className="w-3.5 h-3.5" /> },
+            { name: "Anthropic", key: "ANTHROPIC_API_KEY", color: "#d4a574", icon: <SiAnthropic className="w-3.5 h-3.5" /> },
+            { name: "Google AI", key: "GOOGLE_AI_API_KEY", color: "#4285f4", icon: <SiGooglegemini className="w-3.5 h-3.5" /> },
+            { name: "xAI (Grok)", key: "XAI_API_KEY", color: "#1DA1F2", icon: <Cpu className="w-3.5 h-3.5" /> },
+            { name: "DeepSeek", key: "DEEPSEEK_API_KEY", color: "#4f6ef7", icon: <Cpu className="w-3.5 h-3.5" /> },
+            { name: "Mistral", key: "MISTRAL_API_KEY", color: "#ff7000", icon: <Cpu className="w-3.5 h-3.5" /> },
+            { name: "Groq", key: "GROQ_API_KEY", color: "#f55036", icon: <Zap className="w-3.5 h-3.5" /> },
+            { name: "OpenRouter", key: "OPENROUTER_API_KEY", color: "#6366f1", icon: <OpenRouterIcon className="w-3.5 h-3.5" /> },
+          ].map(({ name, key, color, icon }) => {
             const isSet = !!data.vars[key];
             const hasEdit = editValues[key] !== undefined;
             return (
               <div key={key} className="p-4 bg-slate-800/20 rounded-xl border border-slate-800/40">
                 <div className="flex items-center gap-2 mb-2.5">
+                  <span style={{ color }}>{icon}</span>
                   <span className="text-[12px] font-mono font-medium" style={{ color }}>{name}</span>
                   {isSet && !hasEdit && <span className="text-[8px] font-mono text-[#00ff88] bg-[#00ff88]/8 px-1.5 py-0.5 rounded border border-[#00ff88]/15">CONFIGURED</span>}
                   {data.vaultActive && isSet && <span className="text-[8px] font-mono text-[#00d9ff] bg-[#00d9ff]/8 px-1.5 py-0.5 rounded border border-[#00d9ff]/15 flex items-center gap-0.5"><Shield className="w-2.5 h-2.5" /> vault</span>}

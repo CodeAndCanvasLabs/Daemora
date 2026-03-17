@@ -77,7 +77,7 @@ export function TaskDetail() {
           const res = await apiFetch(`/api/tasks/${id}`, { method: "DELETE" });
           if (res.ok) {
             toast.success("Task deleted", { id: toastId });
-            navigate("/tasks");
+            navigate("/logs");
           } else {
             const err = await res.json();
             toast.error(err.error || "Failed to delete", { id: toastId });
@@ -164,7 +164,7 @@ export function TaskDetail() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link to="/tasks">
+        <Link to="/logs">
           <Button variant="outline" size="icon" className="bg-slate-900 border-slate-800 text-white hover:bg-slate-800">
             <ArrowLeft className="w-5 h-5" />
           </Button>

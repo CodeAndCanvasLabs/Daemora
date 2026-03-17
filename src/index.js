@@ -7,6 +7,7 @@ import { toolFunctions } from "./tools/index.js";
 import { getSession, listSessions, createSession, clearSession } from "./services/sessions.js";
 import { config, reloadFromDb } from "./config/default.js";
 import { listAvailableModels, resolveDefaultModel } from "./models/ModelRouter.js";
+import { models as modelRegistry } from "./config/models.js";
 import taskQueue from "./core/TaskQueue.js";
 import taskRunner from "./core/TaskRunner.js";
 import { loadTask, listTasks, listChildTasks, deleteTask } from "./storage/TaskStore.js";
@@ -381,6 +382,8 @@ app.delete("/api/sessions/:id", (req, res) => {
 
 // --- Config endpoint ---
 app.get("/api/config", (req, res) => {
+  // Read from configStore directly — process.env may lag before reloadFromDb
+  const cs = (key) => process.env[key] || configStore.get(key) || "";
   res.json({
     defaultModel: config.defaultModel,
     permissionTier: config.permissionTier,
@@ -391,6 +394,14 @@ app.get("/api/config", (req, res) => {
     channels: Object.fromEntries(
       Object.entries(config.channels).map(([k, v]) => [k, { enabled: v.enabled }])
     ),
+    // Voice / meeting config — stored in config_entries via /api/settings
+    sttModel:      cs("STT_MODEL"),
+    ttsModel:      cs("TTS_MODEL"),
+    ttsVoice:      cs("TTS_VOICE"),
+    ttsGroqModel:  cs("TTS_GROQ_MODEL"),
+    meetingLlm:    cs("MEETING_LLM"),
+    meetingMode:   cs("MEETING_MODE"),
+    ollamaBaseUrl: cs("OLLAMA_BASE_URL"),
   });
 });
 
@@ -407,6 +418,20 @@ app.get("/api/models", (req, res) => {
       } : { input: "$0", output: "$0" },
     })),
   });
+});
+
+// --- All models (registry) endpoint ---
+app.get("/api/models/all", (req, res) => {
+  const available = new Set(listAvailableModels().map(m => m.id));
+  const all = Object.entries(modelRegistry).map(([id, m]) => ({
+    id,
+    provider: m.provider,
+    model: m.model,
+    tier: m.tier,
+    contextWindow: m.contextWindow,
+    available: available.has(id),
+  }));
+  res.json({ models: all });
 });
 
 // --- Model switch endpoint ---
@@ -1223,11 +1248,13 @@ app.put("/api/profile", (req, res) => {
   const profile = { name: name || "", personality: personality || "", tone: tone || "", instructions: instructions || "", subAgentModel: subAgentModel || "" };
   mkdirSync(dirname(profilePath), { recursive: true });
   writeFileSync(profilePath, JSON.stringify(profile, null, 2), "utf-8");
-  // Apply sub-agent model to runtime so it takes effect immediately
+  // Apply sub-agent model to runtime + persist to DB so it survives restarts
   if (subAgentModel) {
     process.env.SUB_AGENT_MODEL = subAgentModel;
+    try { configStore.set("SUB_AGENT_MODEL", subAgentModel); } catch {}
   } else {
     delete process.env.SUB_AGENT_MODEL;
+    try { configStore.set("SUB_AGENT_MODEL", ""); } catch {}
   }
   res.json({ message: "Profile saved", profile });
 });
@@ -1291,6 +1318,102 @@ app.delete("/api/skills/custom/:name", (req, res) => {
   unlinkSync(filePath);
   skillLoader.reload();
   res.json({ message: "Custom skill deleted" });
+});
+
+// --- Agent Profiles endpoints (YAML-based, read-only API) ---
+import { listProfiles as listYamlProfiles, getProfile as getYamlProfile } from "./config/ProfileLoader.js";
+import { defaultSubAgentTools } from "./config/agentProfiles.js";
+import { createSession as createMeetingSession, getSession as getMeetingSession, listSessions as listMeetingSessions } from "./meeting/MeetingSessionManager.js";
+import { joinMeeting, leaveMeeting } from "./meeting/PhoneMeetingBot.js";
+import { createClone, listVoices, deleteVoice, listTenantVoices } from "./voice/VoiceCloneManager.js";
+
+app.get("/api/agent-profiles", (req, res) => {
+  try {
+    res.json(listYamlProfiles());
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get("/api/agent-profiles/tools", (req, res) => {
+  res.json([...defaultSubAgentTools]);
+});
+
+app.get("/api/agent-profiles/:id", (req, res) => {
+  const profile = getYamlProfile(req.params.id);
+  if (!profile) return res.status(404).json({ error: "Profile not found" });
+  res.json(profile);
+});
+
+// --- Meeting endpoints ---
+app.get("/api/meetings", (req, res) => {
+  res.json(listMeetingSessions());
+});
+
+app.get("/api/meetings/:id", (req, res) => {
+  const session = getMeetingSession(req.params.id);
+  if (!session) return res.status(404).json({ error: "Session not found" });
+  res.json(session);
+});
+
+app.post("/api/meetings/join", async (req, res) => {
+  try {
+    const { dialIn, pin, displayName, voiceId, meetingUrl } = req.body;
+    if (!dialIn) return res.status(400).json({ error: "dialIn (meeting phone number) is required" });
+    const session = createMeetingSession(dialIn, { displayName, voiceId, pin, meetingUrl });
+    const result = await joinMeeting(session.id, { dialIn, pin, displayName });
+    res.json({ ...session, joinResult: result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/meetings/:id/leave", async (req, res) => {
+  try {
+    const result = await leaveMeeting(req.params.id);
+    res.json({ message: result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/meetings/:id/transcript", (req, res) => {
+  const session = getMeetingSession(req.params.id);
+  if (!session) return res.status(404).json({ error: "Session not found" });
+  res.json({ transcript: session.transcript });
+});
+
+// --- Voice clone endpoints ---
+app.get("/api/voices", async (req, res) => {
+  try {
+    const source = req.query.source;
+    if (source === "tenant") {
+      res.json(listTenantVoices());
+    } else {
+      res.json(await listVoices());
+    }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/voices/clone", async (req, res) => {
+  try {
+    const { name, samplePaths, description } = req.body;
+    if (!name || !samplePaths) return res.status(400).json({ error: "name and samplePaths required" });
+    const paths = Array.isArray(samplePaths) ? samplePaths : samplePaths.split(",").map(s => s.trim());
+    const result = await createClone(name, paths, { description });
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete("/api/voices/:voiceId", async (req, res) => {
+  try {
+    await deleteVoice(req.params.voiceId);
+    res.json({ deleted: true, voiceId: req.params.voiceId });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // --- Memory endpoints ---
@@ -1374,8 +1497,52 @@ const readinessGate = (req, res, next) => {
 app.use("/api/chat", readinessGate);
 app.post("/api/tasks", readinessGate);
 
+// --- Twilio meeting webhooks (TwiML + media stream control) ---
+import { attachStream as attachMeetingStream } from "./meeting/PhoneMeetingBot.js";
+import { attachMediaStreamServer, getStream } from "./voice/MediaStreamHandler.js";
+import { ensurePublicUrl, closeTunnel } from "./utils/TunnelManager.js";
+
+// When Twilio connects the outbound call, return TwiML to:
+//   1. Dial the meeting PIN via DTMF
+//   2. Open a bidirectional WebSocket media stream
+app.post("/voice/meeting/answer/:sessionId", express.urlencoded({ extended: false }), (req, res) => {
+  const { sessionId } = req.params;
+  const session = getMeetingSession(sessionId);
+  const publicUrl = process.env.DAEMORA_PUBLIC_URL || process.env.SERVER_URL || `http://localhost:${config.port}`;
+  const streamUrl = `${publicUrl.replace(/^http/, "ws")}/voice/stream?token=${sessionId}`;
+  const dtmf = session?.pin ? `<Play digits="ww${session.pin}#"/>` : "";
+  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  ${dtmf}
+  <Connect>
+    <Stream url="${streamUrl}">
+      <Parameter name="sessionId" value="${sessionId}"/>
+    </Stream>
+  </Connect>
+</Response>`;
+  res.type("text/xml").send(twiml);
+});
+
+// Twilio status callback — clean up when call ends
+app.post("/voice/meeting/status/:sessionId", express.urlencoded({ extended: false }), (req, res) => {
+  const { CallStatus } = req.body || {};
+  const { sessionId } = req.params;
+  console.log(`[Meeting] Twilio status: ${sessionId} → ${CallStatus}`);
+  if (["completed", "failed", "busy", "no-answer"].includes(CallStatus)) {
+    const stream = getStream(sessionId);
+    if (stream) stream.close();
+  }
+  res.status(204).end();
+});
+
 // --- Start server ---
-app.listen(config.port, async () => {
+const httpServer = app.listen(config.port, async () => {
+  // Attach WebSocket handler for Twilio media streams (/voice/stream)
+  attachMediaStreamServer(httpServer);
+
+  // Auto-expose public URL for Twilio webhooks (localtunnel / ngrok / manual)
+  ensurePublicUrl(config.port).catch(() => {});
+
   console.log("\n--- Daemora Server ---");
   console.log(`Running on http://localhost:${config.port}`);
   console.log(`Model: ${config.defaultModel}`);
@@ -1453,8 +1620,10 @@ process.on("SIGTERM", () => {
   heartbeat.stop();
   taskRunner.stop();
   supervisor.stop();
-  mcpManager.shutdown().then(() =>
-    channelRegistry.stopAll().then(() => process.exit(0))
+  closeTunnel().then(() =>
+    mcpManager.shutdown().then(() =>
+      channelRegistry.stopAll().then(() => process.exit(0))
+    )
   );
 });
 

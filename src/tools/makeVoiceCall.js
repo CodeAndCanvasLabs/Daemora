@@ -153,7 +153,7 @@ export async function makeVoiceCall(params) {
     const from = opts.from || fromNumber;
     if (!from) return 'Error: No outbound number. Set TWILIO_PHONE_FROM in .env or pass optionsJson {"from":"+1555..."}';
 
-    const webhookBase = process.env.VOICE_WEBHOOK_BASE_URL?.replace(/\/$/, "");
+    const webhookBase = (process.env.VOICE_WEBHOOK_BASE_URL || process.env.DAEMORA_PUBLIC_URL)?.replace(/\/$/, "");
     if (!webhookBase) {
       return "Error: VOICE_WEBHOOK_BASE_URL not set. Set it to your public URL (e.g. https://myagent.example.com) so Twilio can reach the webhooks.";
     }

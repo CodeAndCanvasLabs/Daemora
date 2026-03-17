@@ -36,6 +36,7 @@ import { manageMCP } from "./manageMCP.js";
 import { useMCP } from "./useMCP.js";
 import { makeVoiceCall } from "./makeVoiceCall.js";
 import { teamTask } from "./teamTool.js";
+import { meetingAction } from "./meetingTool.js";
 import { replyToUser } from "./replyToUser.js";
 import { generateImage } from "./generateImage.js";
 import { readPDF } from "./readPDF.js";
@@ -68,7 +69,12 @@ function parallelAgents(params) {
   // New schema: tasks is array of objects, sharedContext is flat string
   // Legacy: tasks is JSON string, sharedOptions is JSON string
   const tasksRaw = params?.tasks;
-  const tasks = typeof tasksRaw === "string" ? JSON.parse(tasksRaw) : (tasksRaw || []);
+  const rawTasks = typeof tasksRaw === "string" ? JSON.parse(tasksRaw) : (tasksRaw || []);
+  // Normalize: schema puts profile/parentContext at top level, spawnParallelAgents expects them inside options
+  const tasks = rawTasks.map(t => {
+    const { description, profile, parentContext, ...rest } = t;
+    return { description, options: { profile, parentContext, ...t.options, ...rest } };
+  });
   const sharedStr = params?.sharedOptions;
   const legacyShared = sharedStr ? (typeof sharedStr === "string" ? JSON.parse(sharedStr) : sharedStr) : {};
   const sharedOptions = params?.sharedContext ? { ...legacyShared, sharedContext: params.sharedContext } : legacyShared;
@@ -96,6 +102,7 @@ export const toolFunctions = {
   manageMCP, useMCP,
   makeVoiceCall,
   teamTask,
+  meetingAction,
   generateImage, readPDF,
   gitTool, clipboard, sshTool, database,
   notification, iMessageTool, calendar, contacts,
