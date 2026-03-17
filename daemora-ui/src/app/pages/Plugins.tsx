@@ -40,13 +40,33 @@ export function Plugins() {
   const [configValues, setConfigValues] = useState<Record<string, string>>({});
   const [configSaving, setConfigSaving] = useState(false);
   const [visibleSecrets, setVisibleSecrets] = useState<Set<string>>(new Set());
+  const [pluginConfigStatus, setPluginConfigStatus] = useState<Record<string, { configured: boolean; missing: string[] }>>({});
 
   const fetchPlugins = useCallback(async () => {
     try {
       const res = await apiFetch("/api/plugins");
       if (res.ok) {
         const d = await res.json();
-        setPlugins(d.plugins || []);
+        const pluginList = d.plugins || [];
+        setPlugins(pluginList);
+        // Check config status for each plugin with configSchema
+        const statuses: Record<string, { configured: boolean; missing: string[] }> = {};
+        for (const p of pluginList) {
+          if (p.configSchema && Object.keys(p.configSchema).length > 0) {
+            try {
+              const cfgRes = await apiFetch(`/api/plugins/${p.id}/config`);
+              if (cfgRes.ok) {
+                const cfg = await cfgRes.json();
+                const missing: string[] = [];
+                for (const [key, field] of Object.entries(cfg.schema as Record<string, any>)) {
+                  if (field.required && !cfg.values[key]) missing.push(field.label || key);
+                }
+                statuses[p.id] = { configured: missing.length === 0, missing };
+              }
+            } catch {}
+          }
+        }
+        setPluginConfigStatus(statuses);
       }
     } catch {} finally {
       setIsLoading(false);
@@ -143,10 +163,12 @@ export function Plugins() {
     finally { setConfigSaving(false); }
   };
 
-  const statusIcon = (status: string) => {
-    if (status === "loaded") return <CheckCircle2 className="w-4 h-4 text-emerald-400" />;
-    if (status === "disabled") return <PowerOff className="w-4 h-4 text-gray-500" />;
-    return <XCircle className="w-4 h-4 text-red-400" />;
+  const statusIcon = (plugin: PluginRecord) => {
+    if (plugin.status === "disabled") return <PowerOff className="w-4 h-4 text-gray-500" />;
+    if (plugin.status === "error") return <XCircle className="w-4 h-4 text-red-400" />;
+    const cfg = pluginConfigStatus[plugin.id];
+    if (cfg && !cfg.configured) return <AlertTriangle className="w-4 h-4 text-amber-400" />;
+    return <CheckCircle2 className="w-4 h-4 text-emerald-400" />;
   };
 
   if (isLoading) {
@@ -223,15 +245,19 @@ export function Plugins() {
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-2">
-                      {statusIcon(plugin.status)}
+                      {statusIcon(plugin)}
                       <span className="text-base font-semibold text-white">{plugin.name}</span>
                       <span className="text-sm text-gray-500">v{plugin.version || "0.0.0"}</span>
                       <Badge variant="outline" className={`text-xs ${
-                        plugin.status === "loaded" ? "border-emerald-500/30 text-emerald-400" :
+                        plugin.status === "error" ? "border-red-500/30 text-red-400" :
                         plugin.status === "disabled" ? "border-gray-700 text-gray-500" :
-                        "border-red-500/30 text-red-400"
+                        pluginConfigStatus[plugin.id] && !pluginConfigStatus[plugin.id].configured ? "border-amber-500/30 text-amber-400" :
+                        "border-emerald-500/30 text-emerald-400"
                       }`}>
-                        {plugin.status}
+                        {plugin.status === "error" ? "error" :
+                         plugin.status === "disabled" ? "disabled" :
+                         pluginConfigStatus[plugin.id] && !pluginConfigStatus[plugin.id].configured ? "needs config" :
+                         "active"}
                       </Badge>
                       {plugin.tenantPlans && (
                         <Badge variant="outline" className="text-xs border-[#38bdf8]/20 text-[#38bdf8]">
@@ -241,7 +267,17 @@ export function Plugins() {
                     </div>
 
                     {plugin.description && (
-                      <p className="text-sm text-gray-400 mb-3">{plugin.description}</p>
+                      <p className="text-sm text-gray-400 mb-2">{plugin.description}</p>
+                    )}
+
+                    {pluginConfigStatus[plugin.id] && !pluginConfigStatus[plugin.id].configured && (
+                      <div className="flex items-center gap-2 mb-3 p-2 bg-amber-500/5 border border-amber-500/20 rounded-lg">
+                        <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                        <span className="text-sm text-amber-400">
+                          Missing: {pluginConfigStatus[plugin.id].missing.join(", ")}
+                        </span>
+                        <button onClick={() => openConfig(plugin)} className="text-xs text-[#38bdf8] hover:underline ml-auto">Configure</button>
+                      </div>
                     )}
 
                     <div className="flex flex-wrap gap-3 text-sm text-gray-500">

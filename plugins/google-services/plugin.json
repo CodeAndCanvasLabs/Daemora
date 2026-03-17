@@ -4,11 +4,11 @@
   "version": "1.0.0",
   "description": "Google Calendar, Contacts, and Places integration",
   "config": {
-    "GOOGLE_CALENDAR_API_KEY": { "type": "secret", "label": "Calendar API Key" },
+    "GOOGLE_CALENDAR_API_KEY": { "type": "secret", "required": true, "label": "Calendar API Key" },
     "GOOGLE_CALENDAR_ID": { "type": "string", "label": "Calendar ID" },
     "GOOGLE_CALENDAR_ACCESS_TOKEN": { "type": "secret", "label": "Calendar Access Token" },
     "GOOGLE_CONTACTS_ACCESS_TOKEN": { "type": "secret", "label": "Contacts Access Token" },
-    "GOOGLE_PLACES_API_KEY": { "type": "secret", "label": "Places API Key" }
+    "GOOGLE_PLACES_API_KEY": { "type": "secret", "required": true, "label": "Places API Key" }
   },
   "profiles": ["assistant", "planner", "coordinator"]
 }

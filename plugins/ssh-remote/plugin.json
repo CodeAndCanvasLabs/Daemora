@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "SSH remote execution and SCP file transfer",
   "config": {
-    "SSH_DEFAULT_HOST": { "type": "string", "label": "Default SSH Host" }
+    "SSH_DEFAULT_HOST": { "type": "string", "required": true, "label": "Default SSH Host" }
   },
   "profiles": ["sysadmin", "devops", "coder"]
 }
