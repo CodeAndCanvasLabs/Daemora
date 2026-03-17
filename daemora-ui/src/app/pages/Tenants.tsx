@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
-import { Users, Loader2, Trash2, Pause, Play, Pencil, RotateCcw, Key, Plus, X, Eye, EyeOff } from "lucide-react";
+import { Users, Loader2, Trash2, Pause, Play, Pencil, RotateCcw, Key, Plus, X, Eye, EyeOff, Puzzle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel } from "../components/ui/alert-dialog";
 import { Input } from "../components/ui/input";
+import { Switch } from "../components/ui/switch";
 import { Textarea } from "../components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { toast } from "sonner";
@@ -84,6 +85,10 @@ export function Tenants() {
   const [newMcpName, setNewMcpName] = useState("");
   const [newMcpConfig, setNewMcpConfig] = useState('{\n  "command": "npx",\n  "args": ["-y", "@scope/server-name"],\n  "env": {}\n}');
   const [mcpSaving, setMcpSaving] = useState(false);
+
+  // Plugin state for tenant
+  const [allPlugins, setAllPlugins] = useState<{ id: string; name: string; enabled: boolean }[]>([]);
+  const [tenantPlugins, setTenantPlugins] = useState<Set<string>>(new Set());
 
   // Create tenant dialog
   const [showCreate, setShowCreate] = useState(false);
@@ -344,6 +349,10 @@ export function Tenants() {
     fetchApiKeys(tenant.id);
     fetchChannelCredKeys(tenant.id);
     fetchOwnMcpServers(tenant.id);
+    // Fetch plugins
+    apiFetch("/api/plugins").then(r => r.json()).then(d => {
+      setAllPlugins((d.plugins || []).map((p: any) => ({ id: p.id, name: p.name, enabled: p.status === "loaded" })));
+    }).catch(() => {});
   };
 
   const handleSaveEdit = async () => {
@@ -941,8 +950,35 @@ export function Tenants() {
               </div>
             </div>
 
+            {/* Plugins */}
+            {allPlugins.length > 0 && (
+              <div className="space-y-3 border-t border-slate-800 pt-4">
+                <div className="flex items-center gap-2">
+                  <Puzzle className="w-4 h-4 text-[#38bdf8]" />
+                  <span className="text-sm text-gray-300 font-medium">Plugins</span>
+                  <span className="text-xs text-gray-600">{tenantPlugins.size} enabled</span>
+                </div>
+                <div className="space-y-2">
+                  {allPlugins.map(p => (
+                    <label key={p.id} className="flex items-center justify-between p-2 bg-slate-900/50 rounded-lg border border-slate-800/50 cursor-pointer hover:border-slate-700">
+                      <span className="text-sm text-gray-300">{p.name}</span>
+                      <Switch
+                        checked={tenantPlugins.has(p.id)}
+                        onCheckedChange={(v) => {
+                          const s = new Set(tenantPlugins);
+                          v ? s.add(p.id) : s.delete(p.id);
+                          setTenantPlugins(s);
+                        }}
+                        className="data-[state=checked]:bg-emerald-500"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <Button onClick={handleSaveEdit}
-              className="w-full bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] hover:opacity-90 text-white mt-4 uppercase tracking-tighter">
+              className="w-full bg-gradient-to-r from-[#0891b2] to-[#0d9488] hover:opacity-90 text-white mt-4">
               Save Changes
             </Button>
           </div>
