@@ -10,82 +10,30 @@ body {
   font-family: 'Inter', -apple-system, system-ui, sans-serif;
 }
 
-/* JetBrains Mono ONLY for actual code — inputs, code blocks, pre tags */
+/* JetBrains Mono ONLY for code blocks and pre tags */
 code, pre {
   font-family: 'JetBrains Mono', monospace;
 }
 
-/* Override font-mono globally — Inter for all UI text.
-   382 instances of font-mono in pages used it for labels, buttons, etc.
-   This makes the entire UI readable without touching every file. */
+/* Override font-mono globally to Inter.
+   Pages use font-mono on labels, buttons, descriptions — all should be Inter.
+   JetBrains Mono re-applied below only for actual code/data inputs. */
 .font-mono {
   font-family: 'Inter', -apple-system, system-ui, sans-serif !important;
 }
 
-/* Re-apply mono ONLY where it actually belongs */
-input.font-mono,
-textarea.font-mono,
-code.font-mono,
-pre.font-mono,
-[data-mono] {
+/* Re-apply mono for code and form inputs */
+input, textarea, select {
+  font-family: 'JetBrains Mono', monospace;
+}
+code, pre, code.font-mono, pre.font-mono {
   font-family: 'JetBrains Mono', monospace !important;
 }
 
-/* Soften uppercase — remove from most elements, keep for tiny badges only */
-.uppercase {
-  text-transform: none !important;
-  letter-spacing: 0.01em !important;
-}
-
-/* Keep uppercase for very small badge text */
-.text-\[7px\].uppercase,
-.text-\[8px\].uppercase,
-.text-\[9px\].uppercase {
-  text-transform: uppercase !important;
-  letter-spacing: 0.05em !important;
-}
-
-/* Soften tracking-widest — too spaced out for body text */
-.tracking-widest {
-  letter-spacing: 0.02em !important;
-}
-
-.tracking-tighter {
-  letter-spacing: -0.01em !important;
-}
-
-/* ── Global size fixes — text too small across all pages ──────────────────── */
-
-/* Bump tiny text sizes — 9px/10px/11px are unreadable */
-.text-\[9px\] { font-size: 0.6875rem !important; }   /* 11px */
-.text-\[10px\] { font-size: 0.75rem !important; }     /* 12px */
-.text-\[11px\] { font-size: 0.8125rem !important; }   /* 13px */
-.text-xs { font-size: 0.8125rem !important; }          /* 13px instead of 12px */
-
-/* ── Modal / Dialog — bigger, more readable ──────────────────────────────── */
+/* ── Modal / Dialog — bigger ─────────────────────────────────────────────── */
 [role="dialog"] {
-  max-width: 42rem !important;  /* ~672px — wider modals */
+  max-width: 42rem !important;
 }
-[role="dialog"] .max-w-lg,
-[role="dialog"] .max-w-2xl {
-  max-width: 100% !important;
-}
-
-/* ── Override inline #00d9ff in TSX — softer cyan globally ───────────────── */
-[class*="text-\[#00d9ff\]"] { color: #38bdf8 !important; }
-[class*="bg-\[#00d9ff\]"] { background-color: #38bdf8 !important; }
-[class*="border-\[#00d9ff\]"] { border-color: #38bdf8 !important; }
-[class*="from-\[#00d9ff\]"] { --tw-gradient-from: #38bdf8 !important; }
-[class*="ring-\[#00d9ff\]"] { --tw-ring-color: #38bdf8 !important; }
-[class*="shadow-\[#00d9ff\]"] { --tw-shadow-color: #38bdf8 !important; }
-
-/* Also soften hover/focus states */
-[class*="hover\:text-\[#00d9ff\]"]:hover { color: #38bdf8 !important; }
-[class*="hover\:border-\[#00d9ff\]"]:hover { border-color: #38bdf8 !important; }
-[class*="focus\:border-\[#00d9ff\]"]:focus { border-color: #38bdf8 !important; }
-
-/* Soften opacity variants */
-[class*="\[#00d9ff\]\/"] { --daemora-accent: #38bdf8; }
 
 /* Markdown prose styling for dark theme */
 .prose-invert {
@@ -94,7 +42,7 @@ pre.font-mono,
 
 .prose-invert code {
   color: #38bdf8;
-  background-color: rgba(0, 217, 255, 0.1);
+  background-color: rgba(56, 189, 248, 0.1);
   padding: 0.125rem 0.25rem;
   border-radius: 0.25rem;
 }
