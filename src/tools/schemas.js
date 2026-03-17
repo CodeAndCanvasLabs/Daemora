@@ -469,13 +469,15 @@ const toolSchemas = {
   // ── Meetings + Voice Cloning ─────────────────────────────────────────────
   meetingAction: {
     schema: z.object({
-      action: str("join|leave|speak|listen|wait|poll|transcript|status|participants|mute|unmute|cloneVoice|listVoices|deleteVoice|voiceInfo|voiceSettings|setVoice"),
-      url: optStr("Meeting URL (required for join)"),
-      sessionId: optStr("Session ID (required for most actions)"),
-      displayName: optStr("Bot display name in meeting (for join)"),
-      voiceId: optStr("ElevenLabs voice ID (for join, setVoice, voiceInfo, voiceSettings, deleteVoice)"),
+      action: str("join|leave|speak|wait|transcript|status|cloneVoice|listVoices|deleteVoice|voiceInfo|voiceSettings"),
+      dialIn: optStr("Meeting dial-in phone number in E.164 format, e.g. +12405603685 (required for join)"),
+      pin: optStr("Meeting PIN/access code, digits only, e.g. 717937610 (for join)"),
+      sessionId: optStr("Session ID (required for leave/speak/wait/transcript)"),
+      displayName: optStr("Bot display name (for join, default: Daemora)"),
+      meetingUrl: optStr("Original meeting URL for reference (optional for join)"),
+      voiceId: optStr("ElevenLabs voice ID (for join, voiceInfo, voiceSettings, deleteVoice)"),
       text: optStr("Text to speak (required for speak)"),
-      last: optNum("Number of transcript entries to return (for listen/transcript)"),
+      last: optNum("Number of transcript entries to return (for transcript)"),
       name: optStr("Voice name (required for cloneVoice)"),
       samplePaths: optStr("Audio sample file paths, comma-separated (required for cloneVoice)"),
       description: optStr("Voice description (for cloneVoice)"),
@@ -485,7 +487,7 @@ const toolSchemas = {
       style: optNum("Voice style 0-1 (for voiceSettings)"),
       useSpeakerBoost: optBool("Use speaker boost (for voiceSettings)"),
     }),
-    description: "Join video meetings (Zoom/Meet/Teams). wait=blocks until meeting ends then returns full transcript (use this — Docker handles voice autonomously). speak/listen/poll for manual control. Voice cloning via ElevenLabs.",
+    description: "Join meetings via phone dial-in (Twilio). join={dialIn, pin} dials meeting number. wait=blocks until call ends, returns full transcript. Bot converses autonomously via OpenAI Realtime STT + TTS. Voice cloning via ElevenLabs.",
   },
 
   // ── Git ──────────────────────────────────────────────────────────────────
