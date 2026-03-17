@@ -224,8 +224,19 @@ async function _getTailscaleDns() {
 // ── cloudflared (free quick tunnel, no signup) ────────────────────────────────
 
 function _startCloudflared(port) {
-  return new Promise((resolve, reject) => {
-    const proc = spawn("cloudflared", ["tunnel", "--url", `http://localhost:${port}`], {
+  return new Promise(async (resolve, reject) => {
+    // Use npm cloudflared package binary, fall back to system CLI
+    let binPath = "cloudflared";
+    try {
+      const { bin, install } = await import("cloudflared");
+      const { existsSync } = await import("node:fs");
+      if (!existsSync(bin)) await install(bin);
+      binPath = bin;
+    } catch {
+      // npm package not available, try system cloudflared
+    }
+
+    const proc = spawn(binPath, ["tunnel", "--url", `http://localhost:${port}`], {
       stdio: ["ignore", "pipe", "pipe"],
     });
 
