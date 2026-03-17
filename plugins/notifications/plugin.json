@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Push notifications via ntfy and Pushover",
   "config": {
-    "NTFY_URL": { "type": "string", "label": "ntfy Server URL" },
+    "NTFY_URL": { "type": "string", "required": true, "label": "ntfy Server URL" },
     "NTFY_TOPIC": { "type": "string", "label": "ntfy Topic" },
     "NTFY_TOKEN": { "type": "secret", "label": "ntfy Token" },
     "PUSHOVER_API_TOKEN": { "type": "secret", "label": "Pushover API Token" },

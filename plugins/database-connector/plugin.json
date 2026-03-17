@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Query PostgreSQL, MySQL, and SQLite databases",
   "config": {
-    "DATABASE_URL": { "type": "secret", "label": "PostgreSQL URL" },
+    "DATABASE_URL": { "type": "secret", "required": true, "label": "PostgreSQL URL" },
     "MYSQL_URL": { "type": "secret", "label": "MySQL URL" }
   },
   "profiles": ["coder", "analyst", "sysadmin"]
