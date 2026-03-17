@@ -25,7 +25,6 @@ const navItems = [
   { path: "/mcp", label: "MCP", icon: Network },
   { path: "/skills", label: "Skills", icon: Flame },
   { path: "/cron", label: "Cron", icon: Timer },
-  { path: "/config", label: "Config", icon: SlidersHorizontal },
   { path: "/security", label: "Security", icon: ShieldAlert },
   { path: "/costs", label: "Costs", icon: Fingerprint },
   { path: "/tenants", label: "Tenants", icon: Users },
