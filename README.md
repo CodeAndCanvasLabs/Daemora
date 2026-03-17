@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-black" alt="platform" />
 </p>
 
-Daemora runs on your own machine. It connects to your messaging apps, accepts tasks in plain language, executes them autonomously with 55 built-in tools across 20 channels, and reports back — without you watching over it.
+Daemora runs on your own machine. It connects to your messaging apps, accepts tasks in plain language, executes them autonomously with 56 built-in tools across 20 channels, and reports back — without you watching over it.
 
 Unlike cloud AI assistants, nothing leaves your infrastructure except the tokens you intentionally send to model APIs. You own the data, the keys, and the security boundary.
 
@@ -30,6 +30,7 @@ Unlike cloud AI assistants, nothing leaves your infrastructure except the tokens
 | **Automation** | Production-grade cron scheduling (one-shot, interval, cron expressions) with overlap prevention, retry with backoff, channel delivery, failure alerts, and run history. Runs while you sleep. |
 | **Communicate** | Send emails, Telegram messages, Slack posts, Discord messages — autonomously. Screenshots, files, and media sent directly back to you via `replyWithFile`. |
 | **Tools** | Connect to any MCP server — create Notion pages, open GitHub issues, update Linear tasks, manage Shopify products, query databases. |
+| **Voice & Meetings** | Join any meeting (Google Meet, Zoom, Teams) via phone dial-in. OpenAI Realtime STT + ElevenLabs/OpenAI TTS. Voice cloning. Outbound voice calls. Auto-transcription + meeting summaries. |
 | **Multi-Agent** | Spawn parallel sub-agents (researcher + coder + writer working simultaneously). Create agent teams with shared task lists, dependencies, and inter-agent messaging. |
 | **Multi-Tenant** | Run one instance for your whole team. Per-user memory, cost caps, tool allowlists, filesystem isolation, and encrypted API keys. |
 
@@ -259,7 +260,7 @@ daemora mcp remove github     # Remove permanently
 
 ## Built-in Tools
 
-55 tools the agent uses autonomously:
+56 tools the agent uses autonomously:
 
 | Category | Tools |
 |---|---|
@@ -268,7 +269,7 @@ daemora mcp remove github     # Remove permanently
 | **Shell** | executeCommand (foreground + background) |
 | **Web** | webFetch, webSearch, browserAction (navigate, click, fill, screenshot) |
 | **Vision** | imageAnalysis, screenCapture |
-| **Communication** | sendEmail, messageChannel, sendFile, replyWithFile, replyToUser, makeVoiceCall, transcribeAudio, textToSpeech |
+| **Communication** | sendEmail, messageChannel, sendFile, replyWithFile, replyToUser, makeVoiceCall, meetingAction, transcribeAudio, textToSpeech |
 | **Documents** | createDocument (Markdown, PDF, DOCX), readPDF |
 | **Memory** | readMemory, writeMemory, searchMemory, pruneMemory, readDailyLog, writeDailyLog, listMemoryCategories |
 | **Agents** | spawnAgent, parallelAgents, delegateToAgent, manageAgents, teamTask |
@@ -354,7 +355,7 @@ Always follow this order when deploying:
 6. Notify the user with the live URL
 ```
 
-**47 built-in skills** cover: coding, research, email, weather, Spotify, Obsidian, Apple Notes, Apple Reminders, Things, Trello, Tmux, PDF, image generation, video frames, health checks, GIF search, webcam capture, documents (PDF/DOCX/XLSX/PPTX), data analysis, DevOps, API development, browser automation, planning, orchestration, and more.
+**52 built-in skills** cover: coding, research, email, weather, Spotify, Obsidian, Apple Notes, Apple Reminders, Things, Trello, Tmux, PDF, image generation, video frames, health checks, GIF search, webcam capture, documents (PDF/DOCX/XLSX/PPTX), data analysis, DevOps, API development, browser automation, meeting attendance, planning, orchestration, and more.
 
 ---
 
@@ -597,6 +598,7 @@ Use nginx or Caddy as a reverse proxy for HTTPS if exposing the API port.
 | Testing | Vitest (unit + integration), Playwright (E2E) |
 | MCP | `@modelcontextprotocol/sdk` — stdio, HTTP, SSE |
 | Channels | grammy, twilio, discord.js, @slack/bolt, nodemailer/imap, botbuilder, google-auth-library |
+| Voice/Meetings | Twilio (phone dial-in + WebSocket media streams), OpenAI Realtime API (STT), ElevenLabs/OpenAI (TTS), cloudflared (auto-tunneling) |
 | Scheduling | croner — production-grade cron with overlap prevention, retry, delivery |
 | Vault | Node.js `crypto` built-in — AES-256-GCM + scrypt, no binary deps |
 | Sandbox | Node.js tool-level path enforcement — no Docker required |
