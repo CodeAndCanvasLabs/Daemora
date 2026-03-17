@@ -54,6 +54,39 @@ pre.font-mono,
   letter-spacing: -0.01em !important;
 }
 
+/* ── Global size fixes — text too small across all pages ──────────────────── */
+
+/* Bump tiny text sizes — 9px/10px/11px are unreadable */
+.text-\[9px\] { font-size: 0.6875rem !important; }   /* 11px */
+.text-\[10px\] { font-size: 0.75rem !important; }     /* 12px */
+.text-\[11px\] { font-size: 0.8125rem !important; }   /* 13px */
+.text-xs { font-size: 0.8125rem !important; }          /* 13px instead of 12px */
+
+/* ── Modal / Dialog — bigger, more readable ──────────────────────────────── */
+[role="dialog"] {
+  max-width: 42rem !important;  /* ~672px — wider modals */
+}
+[role="dialog"] .max-w-lg,
+[role="dialog"] .max-w-2xl {
+  max-width: 100% !important;
+}
+
+/* ── Override inline #00d9ff in TSX — softer cyan globally ───────────────── */
+[class*="text-\[#00d9ff\]"] { color: #38bdf8 !important; }
+[class*="bg-\[#00d9ff\]"] { background-color: #38bdf8 !important; }
+[class*="border-\[#00d9ff\]"] { border-color: #38bdf8 !important; }
+[class*="from-\[#00d9ff\]"] { --tw-gradient-from: #38bdf8 !important; }
+[class*="ring-\[#00d9ff\]"] { --tw-ring-color: #38bdf8 !important; }
+[class*="shadow-\[#00d9ff\]"] { --tw-shadow-color: #38bdf8 !important; }
+
+/* Also soften hover/focus states */
+[class*="hover\:text-\[#00d9ff\]"]:hover { color: #38bdf8 !important; }
+[class*="hover\:border-\[#00d9ff\]"]:hover { border-color: #38bdf8 !important; }
+[class*="focus\:border-\[#00d9ff\]"]:focus { border-color: #38bdf8 !important; }
+
+/* Soften opacity variants */
+[class*="\[#00d9ff\]\/"] { --daemora-accent: #38bdf8; }
+
 /* Markdown prose styling for dark theme */
 .prose-invert {
   color: #e2e8f0;
