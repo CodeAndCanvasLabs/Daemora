@@ -314,7 +314,7 @@ export function Cron() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">Cron</h2>
-          <p className="text-gray-400 font-mono text-sm tracking-widest">SCHEDULED TASKS & RUN HISTORY</p>
+          <p className="text-gray-400 text-sm tracking-widest">SCHEDULED TASKS & RUN HISTORY</p>
         </div>
         <div className="flex items-center gap-3">
           <Button onClick={fetchJobs} variant="ghost" size="sm" className="text-gray-400 hover:text-[#00d9ff] font-mono text-[10px] uppercase">
@@ -328,7 +328,7 @@ export function Cron() {
                 New Job
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-slate-950 border-slate-800 text-white font-mono max-w-lg">
+            <DialogContent className="bg-slate-950 border-slate-800 text-white max-w-2xl">
               <DialogHeader>
                 <DialogTitle className="uppercase tracking-widest text-sm border-b border-slate-800 pb-4">Create Cron Job</DialogTitle>
               </DialogHeader>
@@ -476,7 +476,7 @@ export function Cron() {
                           >
                             {expandedTenants.has(t.id) ? <ChevronDown className="w-3 h-3 text-gray-500" /> : <ChevronRight className="w-3 h-3 text-gray-500" />}
                             <Users className="w-3 h-3 text-[#00d9ff]" />
-                            <span className="text-[10px] text-gray-300">{t.name}</span>
+                            <span className="text-[10px] text-gray-300">{t.name?.includes(":") ? `${t.name.split(":")[0]}:${t.name.split(":").pop()?.slice(0,8)}` : t.name}</span>
                             <span className="text-[9px] text-gray-600 ml-auto">{t.channels.length} ch</span>
                           </button>
                           {expandedTenants.has(t.id) && (
@@ -567,7 +567,7 @@ export function Cron() {
                             {job.schedule.kind}
                           </Badge>
                           {job.delivery?.mode !== "none" && (
-                            <Badge variant="outline" className="text-[9px] border-purple-500/20 text-purple-400">
+                            <Badge variant="outline" className="text-[9px] border-[#00d9ff]/20 text-[#00d9ff]">
                               {job.delivery.mode}
                             </Badge>
                           )}
@@ -637,7 +637,7 @@ export function Cron() {
             <CardHeader className="border-b border-slate-800/50 pb-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <History className="w-5 h-5 text-purple-400" />
+                  <History className="w-5 h-5 text-[#00d9ff]" />
                   <div>
                     <CardTitle className="text-white uppercase tracking-tight text-sm">Run History</CardTitle>
                     <CardDescription className="text-gray-500 font-mono text-[10px] uppercase">
@@ -677,7 +677,7 @@ export function Cron() {
                       {run.duration_ms && <span className="text-gray-600">{Math.round(run.duration_ms / 1000)}s</span>}
                       {run.retry_attempt > 0 && <span className="text-yellow-500">retry #{run.retry_attempt}</span>}
                       {run.delivery_status !== "not-requested" && (
-                        <Badge variant="outline" className="text-[9px] border-purple-500/20 text-purple-400">{run.delivery_status}</Badge>
+                        <Badge variant="outline" className="text-[9px] border-[#00d9ff]/20 text-[#00d9ff]">{run.delivery_status}</Badge>
                       )}
                       {run.error && <span className="text-red-400/60 truncate flex-1">{run.error}</span>}
                       {run.result_preview && !run.error && <span className="text-gray-600 truncate flex-1">{run.result_preview.slice(0, 80)}</span>}
@@ -692,17 +692,17 @@ export function Cron() {
         <TabsContent value="presets" className="mt-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-purple-400" />
+              <Users className="w-5 h-5 text-[#00d9ff]" />
               <span className="text-sm font-mono text-white uppercase tracking-tight">Delivery Presets</span>
               <span className="text-[9px] font-mono text-gray-600">{presets.length} presets</span>
             </div>
             <Dialog open={isPresetOpen} onOpenChange={(v) => { setIsPresetOpen(v); if (!v) { setSelectedTargets(new Set()); setExpandedTenants(new Set()); } }}>
               <DialogTrigger asChild>
-                <Button size="sm" className="bg-gradient-to-r from-purple-500 to-purple-600 text-white uppercase text-xs tracking-tighter">
+                <Button size="sm" className="bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] text-white uppercase text-xs tracking-tighter">
                   <Plus className="w-3 h-3 mr-2" />New Preset
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-slate-950 border-slate-800 text-white font-mono max-w-lg">
+              <DialogContent className="bg-slate-950 border-slate-800 text-white max-w-2xl">
                 <DialogHeader>
                   <DialogTitle className="uppercase tracking-widest text-sm border-b border-slate-800 pb-4">Create Delivery Preset</DialogTitle>
                 </DialogHeader>
@@ -722,7 +722,7 @@ export function Cron() {
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[9px] text-gray-500 uppercase">{selectedTargets.size} selected</span>
                         <button
-                          className="text-[9px] text-purple-400 hover:underline"
+                          className="text-[9px] text-[#00d9ff] hover:underline"
                           onClick={() => {
                             const all = new Set<string>();
                             deliveryTenants.forEach(t => t.channels.forEach(c => all.add(`${t.id}||${c.channel}||${c.userId}`)));
@@ -742,7 +742,7 @@ export function Cron() {
                                   const s = new Set(selectedTargets);
                                   s.has(key) ? s.delete(key) : s.add(key);
                                   setSelectedTargets(s);
-                                }} className="accent-purple-400" />
+                                }} className="accent-[#00d9ff]" />
                                 <span className="text-[10px] text-gray-400">{c.channel}</span>
                               </label>
                             );
@@ -760,8 +760,8 @@ export function Cron() {
                             }}
                           >
                             {expandedTenants.has(t.id) ? <ChevronDown className="w-3 h-3 text-gray-500" /> : <ChevronRight className="w-3 h-3 text-gray-500" />}
-                            <Users className="w-3 h-3 text-purple-400" />
-                            <span className="text-[10px] text-gray-300">{t.name}</span>
+                            <Users className="w-3 h-3 text-[#00d9ff]" />
+                            <span className="text-[10px] text-gray-300">{t.name?.includes(":") ? `${t.name.split(":")[0]}:${t.name.split(":").pop()?.slice(0,8)}` : t.name}</span>
                             <span className="text-[9px] text-gray-600 ml-auto">{t.channels.length} ch</span>
                           </button>
                           {expandedTenants.has(t.id) && (
@@ -774,7 +774,7 @@ export function Cron() {
                                       const s = new Set(selectedTargets);
                                       s.has(key) ? s.delete(key) : s.add(key);
                                       setSelectedTargets(s);
-                                    }} className="accent-purple-400" />
+                                    }} className="accent-[#00d9ff]" />
                                     <span className="text-[10px] text-gray-400">{c.channel}</span>
                                   </label>
                                 );
@@ -813,7 +813,7 @@ export function Cron() {
                         }
                       } catch { toast.error("API error"); }
                     }}
-                    className="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white uppercase text-xs tracking-tighter"
+                    className="w-full bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] text-white uppercase text-xs tracking-tighter"
                   >
                     Create Preset
                   </Button>
@@ -838,9 +838,9 @@ export function Cron() {
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
-                          <Users className="w-3 h-3 text-purple-400" />
+                          <Users className="w-3 h-3 text-[#00d9ff]" />
                           <span className="font-mono text-sm text-white uppercase tracking-tight">{p.name}</span>
-                          <Badge variant="outline" className="text-[9px] border-purple-500/20 text-purple-400">
+                          <Badge variant="outline" className="text-[9px] border-[#00d9ff]/20 text-[#00d9ff]">
                             {p.targets.length} targets
                           </Badge>
                         </div>
