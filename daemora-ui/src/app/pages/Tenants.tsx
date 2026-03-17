@@ -387,6 +387,7 @@ export function Tenants() {
       };
       if (editForm.maxCostPerTask !== "") body.maxCostPerTask = parseFloat(editForm.maxCostPerTask);
       if (editForm.maxDailyCost !== "") body.maxDailyCost = parseFloat(editForm.maxDailyCost);
+      if (tenantPlugins.size > 0) body.plugins = [...tenantPlugins];
 
       const res = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}`, {
         method: "PATCH",
