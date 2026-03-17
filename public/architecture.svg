@@ -46,7 +46,7 @@
   <!-- Agent Loop -->
   <rect x="60" y="328" width="780" height="68" rx="8" fill="#1a2332" stroke="#58a6ff" stroke-width="1.5"/>
   <text x="450" y="352" text-anchor="middle" fill="#58a6ff" font-size="13" font-weight="700">AGENT LOOP</text>
-  <text x="450" y="372" text-anchor="middle" fill="#8b949e" font-size="10">Vercel AI SDK · System prompt (SOUL.md + memory + skills) · 4 providers: OpenAI / Anthropic / Google / Ollama</text>
+  <text x="450" y="372" text-anchor="middle" fill="#8b949e" font-size="10">Vercel AI SDK · System prompt (SOUL.md + memory + skills) · 9 providers: OpenAI / Anthropic / Google / xAI / DeepSeek / Mistral / Groq / OpenRouter / Ollama</text>
 
   <!-- Arrows to bottom row -->
   <line x1="230" y1="396" x2="230" y2="430" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrowCyan)"/>
@@ -60,11 +60,11 @@
 
   <!-- Built-in Tools -->
   <rect x="60" y="432" width="320" height="120" rx="8" fill="#1a2332" stroke="#58a6ff" stroke-width="1.5"/>
-  <text x="220" y="456" text-anchor="middle" fill="#58a6ff" font-size="13" font-weight="700">BUILT-IN TOOLS (54+)</text>
+  <text x="220" y="456" text-anchor="middle" fill="#58a6ff" font-size="13" font-weight="700">BUILT-IN TOOLS (56)</text>
   <text x="220" y="476" text-anchor="middle" fill="#8b949e" font-size="10">File I/O · Shell · Web · Browser</text>
   <text x="220" y="492" text-anchor="middle" fill="#8b949e" font-size="10">Email · Vision · TTS · PDF · Documents</text>
-  <text x="220" y="508" text-anchor="middle" fill="#8b949e" font-size="10">Memory · Cron · Git · SSH · Database</text>
-  <text x="220" y="524" text-anchor="middle" fill="#8b949e" font-size="10">Calendar · IoT · Media · Location</text>
+  <text x="220" y="508" text-anchor="middle" fill="#8b949e" font-size="10">Voice Calls · Meetings · Voice Cloning</text>
+  <text x="220" y="524" text-anchor="middle" fill="#8b949e" font-size="10">Memory · Cron · Git · SSH · Database</text>
 
   <!-- Sub-Agents + Teams -->
   <rect x="400" y="432" width="230" height="120" rx="8" fill="#1a2332" stroke="#f0883e" stroke-width="1.5"/>
@@ -86,8 +86,8 @@
 
   <!-- Skills bar -->
   <rect x="60" y="572" width="780" height="48" rx="8" fill="#1a2332" stroke="#d2a8ff" stroke-width="1.5"/>
-  <text x="450" y="596" text-anchor="middle" fill="#d2a8ff" font-size="13" font-weight="700">50+ BUILT-IN SKILLS</text>
-  <text x="450" y="612" text-anchor="middle" fill="#8b949e" font-size="10">Coding · Research · Email · Weather · Spotify · Obsidian · PDF · DevOps · Data Analysis · Browser · Documents · Planning · Image Gen</text>
+  <text x="450" y="596" text-anchor="middle" fill="#d2a8ff" font-size="13" font-weight="700">52 BUILT-IN SKILLS</text>
+  <text x="450" y="612" text-anchor="middle" fill="#8b949e" font-size="10">Coding · Research · Email · Weather · Spotify · Obsidian · PDF · DevOps · Data Analysis · Browser · Documents · Meetings · Planning · Image Gen</text>
 
   <!-- Security badge -->
   <rect x="60" y="636" width="780" height="32" rx="8" fill="#1a2332" stroke="#f85149" stroke-width="1.5"/>
