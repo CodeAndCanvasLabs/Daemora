@@ -34,6 +34,7 @@ export async function ensurePublicUrl(port) {
       const url = listener.url();
       _tunnel = { type: "ngrok", listener };
       process.env.DAEMORA_PUBLIC_URL = url;
+      process.env.VOICE_WEBHOOK_BASE_URL = url;
       console.log(`[Tunnel] ngrok tunnel: ${url}`);
       return url;
     } catch (e) {
@@ -52,6 +53,7 @@ export async function ensurePublicUrl(port) {
     tunnel.on("close", () => {
       console.log("[Tunnel] localtunnel closed");
       process.env.DAEMORA_PUBLIC_URL = "";
+      process.env.VOICE_WEBHOOK_BASE_URL = "";
     });
     tunnel.on("error", (e) => {
       console.log(`[Tunnel] localtunnel error: ${e.message}`);
