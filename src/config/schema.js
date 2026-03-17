@@ -70,10 +70,6 @@ export const ConfigSchema = z.object({
   daemonMode:               z.boolean().default(false),
   heartbeatIntervalMinutes: z.number().int().min(1).max(1440).default(30),
 
-  // Twilio / Meeting
-  twilioPhoneFrom: stringOrNull,
-  daemoraPublicUrl:  stringOrNull,
-
   // A2A Security
   a2a: z.object({
     enabled:            z.boolean().default(false),

@@ -382,7 +382,6 @@ export function Settings() {
         ttsVoice:       "TTS_VOICE",
         ttsGroqModel:   "TTS_GROQ_MODEL",
         meetingLlm:       "MEETING_LLM",
-        twilioPhoneNumber:"TWILIO_PHONE_FROM",
         ollamaBaseUrl:    "OLLAMA_BASE_URL",
       };
       const updates: Record<string, string> = {};
@@ -679,19 +678,6 @@ export function Settings() {
                   <option value="ollama:llama3.2">ollama llama3.2 — local</option>
                 </datalist>
               </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Twilio Phone Number</label>
-              <input
-                type="text"
-                className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-gray-600 focus:border-[#00d9ff]/50 focus:outline-none"
-                placeholder="+14155550100 (E.164 format)"
-                value={globalConfig.twilioPhoneNumber || ""}
-                onChange={(e) => handleConfigChange("twilioPhoneNumber", e.target.value)}
-              />
             </div>
           </div>
 

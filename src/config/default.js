@@ -77,10 +77,6 @@ function buildConfig(env) {
     daemonMode: env.DAEMON_MODE === "true",
     heartbeatIntervalMinutes: parseInt(env.HEARTBEAT_INTERVAL_MINUTES || "30", 10),
 
-    // Twilio / Meeting
-    twilioPhoneFrom: env.TWILIO_PHONE_FROM || null,
-    daemoraPublicUrl: env.DAEMORA_PUBLIC_URL || env.SERVER_URL || null,
-
     // A2A Security
     a2a: {
       enabled: env.A2A_ENABLED === "true",
