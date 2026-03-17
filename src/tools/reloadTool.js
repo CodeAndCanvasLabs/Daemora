@@ -45,6 +45,8 @@ async function _reloadSkills() {
   const count = skillLoader.list().length;
   // Re-embed in background (non-blocking)
   skillLoader.embedSkills().catch(() => {});
+  // Clear profile list cache so dynamic profile names refresh
+  try { const { clearProfileListCache } = await import("./schemas.js"); clearProfileListCache(); } catch {}
   return { skills: count };
 }
 

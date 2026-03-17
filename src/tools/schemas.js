@@ -1,5 +1,18 @@
 import { z } from "zod";
 import { tool } from "ai";
+import { listProfiles } from "../config/ProfileLoader.js";
+
+// ── Dynamic profile list (cached, rebuilt on reload) ────────────────────────
+let _profileListCache = null;
+function _cachedProfileList() {
+  if (!_profileListCache) {
+    try {
+      _profileListCache = listProfiles().map(p => p.id).join("|");
+    } catch { _profileListCache = ""; }
+  }
+  return _profileListCache;
+}
+export function clearProfileListCache() { _profileListCache = null; }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const str = (desc) => z.string().describe(desc);
@@ -601,12 +614,20 @@ export function buildToolDocLines(availableTools) {
  * Dispatch is handled manually in AgentLoop with guards.
  */
 export function buildAITools(availableNames) {
+  // Build dynamic profile list for spawnAgent/parallelAgents
+  const profileList = _cachedProfileList();
+
   const aiTools = {};
   for (const name of availableNames) {
     const entry = toolSchemas[name];
     if (!entry) continue;
+    let desc = entry.description;
+    // Inject dynamic profile list into agent tools
+    if (profileList && (name === "spawnAgent" || name === "parallelAgents")) {
+      desc = desc + ` Available profiles: ${profileList}`;
+    }
     aiTools[name] = tool({
-      description: entry.description,
+      description: desc,
       inputSchema: entry.schema,
     });
   }
