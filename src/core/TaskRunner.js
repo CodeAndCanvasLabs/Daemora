@@ -1,6 +1,7 @@
 import { runAgentLoop } from "./AgentLoop.js";
 import { buildSystemPrompt } from "../agents/systemPrompt.js";
 import { toolFunctions } from "../tools/index.js";
+import { CORE_TOOLS } from "../config/agentProfiles.js";
 import { createSession, getSession, setMessages, appendMessage } from "../services/sessions.js";
 import taskQueue from "./TaskQueue.js";
 import { isDailyBudgetExceeded, isTenantDailyBudgetExceeded } from "./CostTracker.js";
@@ -274,10 +275,13 @@ class TaskRunner {
       }
     }
 
-    // Narrow tool list if tenant has a tool allowlist
+    // Main agent gets CORE_TOOLS only (24 tools, ~5K tokens).
+    // Specialized tools available through profiles (sub-agents).
+    // Tenant can further narrow with allowlist.
+    const coreSet = new Set(CORE_TOOLS);
     let tools = resolvedConfig.tools?.length
-      ? Object.fromEntries(Object.entries(toolFunctions).filter(([k]) => resolvedConfig.tools.includes(k)))
-      : { ...toolFunctions };
+      ? Object.fromEntries(Object.entries(toolFunctions).filter(([k]) => resolvedConfig.tools.includes(k) && coreSet.has(k)))
+      : Object.fromEntries(Object.entries(toolFunctions).filter(([k]) => coreSet.has(k)));
 
     // Remove blocked tools
     if (resolvedConfig.blockedTools?.length) {

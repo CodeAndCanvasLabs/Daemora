@@ -46,6 +46,7 @@ import { clipboard } from "./clipboard.js";
 // notification, iMessageTool, sshTool, database
 // They register via plugins/ on startup — no longer hardcoded here.
 import { reload } from "./reloadTool.js";
+import { discoverProfiles } from "./discoverProfiles.js";
 
 // ─── Agent wrappers (params object → SubAgentManager) ────────────────────────
 
@@ -99,6 +100,7 @@ export const toolFunctions = {
   meetingAction,
   generateImage, readPDF,
   gitTool, clipboard,
+  discoverProfiles,
   reload,
 };
 

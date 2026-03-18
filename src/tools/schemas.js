@@ -303,6 +303,17 @@ const toolSchemas = {
     description: "List memory categories with entry counts",
   },
 
+  // ── Profile Discovery ──────────────────────────────────────────────────
+  discoverProfiles: {
+    schema: z.object({
+      query: str("Task description to match against profiles — e.g. 'send email', 'query database', 'create jira tickets'"),
+      limit: optNum("Max results (default: 5)"),
+      offset: optNum("Skip first N results for pagination (default: 0)"),
+      all: optBool("Return all profiles (ignore query matching)"),
+    }),
+    description: "Find the right sub-agent profile for a task. Returns matching profiles + disabled plugins. Use before spawnAgent when unsure which profile fits.",
+  },
+
   // ── Agents ───────────────────────────────────────────────────────────────
   spawnAgent: {
     schema: z.object({
@@ -312,7 +323,7 @@ const toolSchemas = {
       extraTools: z.array(z.string()).optional().describe("Additional tool names to enable"),
       skills: z.array(z.string()).optional().describe("Skill names to load"),
     }),
-    description: "Spawn specialist sub-agent. Use for any deep-focus task. Profile sets identity, tools, and skill scope.",
+    description: "Spawn specialist sub-agent. Use discoverProfiles first to find the right profile. Profile sets identity, tools, and skill scope.",
   },
   parallelAgents: {
     schema: z.object({

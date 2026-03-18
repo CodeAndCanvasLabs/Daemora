@@ -104,6 +104,31 @@ export const agentProfiles = {
  * spawnAgent and parallelAgents are NOT available to sub-agents - they are removed
  * dynamically into sub-agents by SubAgentManager based on recursion depth.
  */
+/**
+ * Core tools — always available to the main agent.
+ * Rule: if it needs an API key or external service, it's NOT core.
+ * Everything else goes through profiles (sub-agents).
+ */
+export const CORE_TOOLS = [
+  // File I/O
+  "readFile", "writeFile", "editFile", "listDirectory",
+  "searchFiles", "searchContent", "glob", "grep", "applyPatch",
+  // Shell
+  "executeCommand",
+  // Web
+  "webFetch", "webSearch",
+  // Memory
+  "readMemory", "writeMemory", "searchMemory",
+  // Orchestration
+  "spawnAgent", "parallelAgents", "manageAgents", "teamTask", "discoverProfiles",
+  // Communication (reply only — sendEmail/messageChannel need auth)
+  "replyToUser",
+  // Tasks
+  "taskManager", "cron",
+  // MCP
+  "useMCP",
+];
+
 export const defaultSubAgentTools = [
   // File
   "readFile", "writeFile", "editFile", "listDirectory",
