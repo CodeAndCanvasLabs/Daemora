@@ -35,6 +35,7 @@ tools:
   - useMCP
   - teamTask
   - replyToUser
+  - gitTool
 skills:
   include: [coding, debugging, api-development, web-development, frontend-design, devops, browser, changelog, healthcheck, tmux, git]
   exclude: [orchestration]
