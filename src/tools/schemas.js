@@ -65,7 +65,7 @@ const toolSchemas = {
       minSize: optStr("Min file size: '10k', '1m'"),
       maxSize: optStr("Max file size: '10k', '1m'"),
     }),
-    description: "Find files by name pattern",
+    description: "Find LOCAL files on disk by name pattern (NOT web search)",
   },
   searchContent: {
     schema: z.object({
@@ -77,7 +77,7 @@ const toolSchemas = {
       fileType: optStr("Filter by extension: 'js', 'ts', 'py'"),
       regex: optBool("Treat pattern as regex"),
     }),
-    description: "Search inside file contents",
+    description: "Search inside LOCAL file contents on disk — like grep. NOT for web search. Use webSearch for internet.",
   },
   glob: {
     schema: z.object({

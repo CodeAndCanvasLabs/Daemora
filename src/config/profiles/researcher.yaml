@@ -31,7 +31,6 @@ tools:
   - imageAnalysis
   - browserAction
   - useMCP
-  - teamTask
   - replyToUser
 
 skills:
