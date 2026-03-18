@@ -56,7 +56,6 @@ const toolSchemas = {
     }),
     description: "List files and folders with types/sizes",
   },
-  // searchFiles + searchContent removed — duplicates of glob + grep
   glob: {
     schema: z.object({
       pattern: str("Glob pattern (e.g. src/**/*.ts)"),
@@ -385,7 +384,7 @@ const toolSchemas = {
   // ── Automation ───────────────────────────────────────────────────────────
   cron: {
     schema: z.object({
-      action: str("add|list|status|update|enable|disable|remove|run|history"),
+      action: str("add|list|status|update|enable|disable|remove|run|history|listPresets"),
       id: optStr("Job ID (required for update/enable/disable/remove/run/history)"),
       name: optStr("Human-readable job name"),
       taskInput: optStr("The prompt to execute autonomously (required for add)"),

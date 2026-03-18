@@ -379,17 +379,12 @@ export async function runSetupWizard() {
 
   p.note(
     [
-      "Some built-in tools need their own API keys to work.",
-      "You can skip this now and add keys later via: daemora config set <KEY> <value>",
+      "Some tools and plugins need their own API keys to work.",
+      "You can skip this now and configure later via Settings UI or: daemora config set <KEY> <value>",
       "",
       `  ${S.info}  generateImage / textToSpeech / transcribeAudio → OPENAI_API_KEY`,
       `  ${S.info}  textToSpeech (premium voices) → ELEVENLABS_API_KEY`,
-      `  ${S.info}  googlePlaces → GOOGLE_PLACES_API_KEY`,
-      `  ${S.info}  calendar (Google) → GOOGLE_CALENDAR_API_KEY`,
-      `  ${S.info}  database → DATABASE_URL / MYSQL_URL`,
-      `  ${S.info}  notification (ntfy) → NTFY_TOPIC + NTFY_TOKEN`,
-      `  ${S.info}  notification (pushover) → PUSHOVER_API_TOKEN + PUSHOVER_USER_KEY`,
-      `  ${S.info}  philipsHue → HUE_BRIDGE_IP + HUE_API_KEY`,
+      `  ${S.info}  Plugins (Google, Database, SSH, etc.) → configure in Settings → Plugins`,
     ].join("\n"),
     "Optional Tool Credentials"
   );
@@ -400,14 +395,7 @@ export async function runSetupWizard() {
     options: [
       { value: "openai_tools",  label: "OpenAI (images, TTS, transcription)", hint: "OPENAI_API_KEY — skip if already set as main provider" },
       { value: "elevenlabs",    label: "ElevenLabs TTS",                      hint: "Premium voice synthesis" },
-      { value: "google_places", label: "Google Places",                       hint: "Location search & details" },
-      { value: "google_cal",    label: "Google Calendar",                     hint: "Calendar read/write" },
-      { value: "database",      label: "Database",                            hint: "PostgreSQL / MySQL connection" },
-      { value: "ntfy",          label: "Ntfy notifications",                  hint: "Push notifications via ntfy.sh" },
-      { value: "pushover",      label: "Pushover notifications",              hint: "Push notifications via Pushover" },
-      { value: "hue",           label: "Philips Hue",                         hint: "Smart light control" },
-      { value: "sonos",         label: "Sonos speaker",                       hint: "Music / audio control" },
-      { value: "none",          label: "Skip for now",                        hint: "Add later via daemora config set" },
+      { value: "none",          label: "Skip for now",                        hint: "Configure plugins later in Settings → Plugins" },
     ],
   }));
 
@@ -421,64 +409,14 @@ export async function runSetupWizard() {
     if (key) envConfig.ELEVENLABS_API_KEY = key;
   }
 
-  if (toolKeys.includes("google_places")) {
-    const key = guard(await p.password({ message: "Google Places API key" }));
-    if (key) envConfig.GOOGLE_PLACES_API_KEY = key;
-  }
-
-  if (toolKeys.includes("google_cal")) {
-    const key = guard(await p.password({ message: "Google Calendar API key" }));
-    if (key) envConfig.GOOGLE_CALENDAR_API_KEY = key;
-    const calId = guard(await p.text({ message: "Calendar ID", initialValue: "primary" }));
-    if (calId) envConfig.GOOGLE_CALENDAR_ID = calId;
-  }
-
-  if (toolKeys.includes("database")) {
-    p.note(
-      "Format: postgresql://user:pass@host:5432/db  or  mysql://user:pass@host:3306/db",
-      "Database URL"
-    );
-    const dbUrl = guard(await p.text({ message: "Database URL (PostgreSQL or MySQL)" }));
-    if (dbUrl) {
-      if (dbUrl.startsWith("mysql")) envConfig.MYSQL_URL = dbUrl;
-      else envConfig.DATABASE_URL = dbUrl;
-    }
-  }
-
-  if (toolKeys.includes("ntfy")) {
-    envConfig.NTFY_URL   = guard(await p.text({ message: "Ntfy server URL", initialValue: "https://ntfy.sh" }));
-    envConfig.NTFY_TOPIC = guard(await p.text({ message: "Ntfy topic name" }));
-    const ntfyToken = guard(await p.password({ message: "Ntfy access token (optional)" }));
-    if (ntfyToken) envConfig.NTFY_TOKEN = ntfyToken;
-  }
-
-  if (toolKeys.includes("pushover")) {
-    envConfig.PUSHOVER_API_TOKEN = guard(await p.password({ message: "Pushover API token" }));
-    envConfig.PUSHOVER_USER_KEY  = guard(await p.password({ message: "Pushover user key" }));
-  }
-
-  if (toolKeys.includes("hue")) {
-    p.note(
-      [
-        "Find bridge IP: check your router or use the Hue app.",
-        "Get API key: press the bridge button, then run:",
-        '  curl -X POST http://<bridge-ip>/api -d \'{"devicetype":"daemora"}\'',
-      ].join("\n"),
-      "Philips Hue Setup"
-    );
-    envConfig.HUE_BRIDGE_IP = guard(await p.text({ message: "Hue Bridge IP" }));
-    envConfig.HUE_API_KEY   = guard(await p.password({ message: "Hue API key" }));
-  }
-
-  if (toolKeys.includes("sonos")) {
-    envConfig.SONOS_SPEAKER_IP = guard(await p.text({ message: "Sonos speaker IP address" }));
-  }
+  // Plugin-specific keys (google, database, hue, sonos, ntfy, pushover)
+  // are now configured via Settings → Plugins page, not the setup wizard.
 
   const toolCount = toolKeys.filter(k => k !== "none").length;
   if (toolCount > 0) {
-    p.log.success(`${toolCount} tool integration(s) configured`);
+    p.log.success(`${toolCount} tool key(s) configured. Plugin keys → Settings → Plugins`);
   } else {
-    p.log.info("No tool keys configured. Add later via: daemora config set <KEY> <value>");
+    p.log.info("No tool keys configured. Add later via Settings UI or CLI.");
   }
 
   // ━━━ Step 7: Daemon Mode ━━━

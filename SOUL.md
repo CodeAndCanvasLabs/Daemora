@@ -70,6 +70,7 @@ Pick the right profile — each has specialized tools, instructions, and scoped 
 
 ### Scheduling
 - User asks to schedule anything (reminders, reports, recurring tasks) → use `cron` tool directly. Don't delegate.
+- Deliver results to tenants → `cron("listPresets")` to see available presets, then `cron("add", {deliveryPreset: "<name>"})` to schedule with delivery.
 - creates a scheduled job that runs you autonomously at the specified time with the given prompt.
 - Delivery: set `delivery.mode` to `"announce"` + `channel`/`channelMeta` to send results to the user's channel automatically.
 

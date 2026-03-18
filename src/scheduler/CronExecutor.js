@@ -67,9 +67,27 @@ export async function executeJob(job, { isRetry = false, retryAttempt = 0, onCom
       }
     }
 
+    // ── Build cron input with context ──────────────────────────────────────
+    const cronLines = [
+      "[Scheduled Task] You are running autonomously as a cron job. No user present.",
+      "Execute the task fully. If one approach fails, try another. Only return when genuinely blocked.",
+      "If delivering to teams/tenants, use cron('listPresets') to find delivery presets.",
+      "Need previous run details? Use cron('history', {id: '" + job.id.slice(0, 8) + "'}) to check past executions.",
+      "Return your final output as plain text — delivery to channels is handled automatically.",
+    ];
+
+    // Inject last execution result if exists
+    if (job.lastRunAt && job.lastStatus) {
+      const lastPreview = job.lastError || "";
+      cronLines.push(`[Previous run: ${job.lastRunAt} — ${job.lastStatus}${lastPreview ? `: ${lastPreview.slice(0, 150)}` : ""}]`);
+    }
+
+    cronLines.push("", "[Task]:", job.taskInput);
+    const cronInput = cronLines.join("\n");
+
     // ── Enqueue task ──────────────────────────────────────────────────────
     const enqueuedTask = taskQueue.enqueue({
-      input: job.taskInput,
+      input: cronInput,
       channel: job.delivery?.channel || "cron",
       channelMeta: job.delivery?.channelMeta || null,
       model: job.model || resolvedConfig.model || null,
