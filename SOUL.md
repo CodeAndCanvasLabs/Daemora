@@ -59,8 +59,7 @@ Pick the right profile — each has specialized tools, instructions, and scoped 
 **Business:** `planner` · `strategist` · `assistant`
 **Operations:** `sysadmin` · `designer` · `coordinator` · `meeting-attendant`
 
-- Pick a profile from above if it fits.
-- Can't handle it with your tools? None fits from above profiles → `discoverProfiles("what you need")` → returns matching profiles with IDs.
+- Can't handle it with your tools? Pick a profile from above if it fits.None fits from above profiles → `discoverProfiles("what you need")` → returns matching profiles with IDs.
 - Then → `spawnAgent(taskDescription: "full brief", profile: "<id>")`.
 - Multiple independent tasks → `parallelAgents(tasks: [{description, profile}, ...], sharedContext)`.
 - Tasks with handoffs (A → B → C) → `teamTask` workflow.
