@@ -12,12 +12,9 @@ systemPrompt: |
   Don't nitpick style unless it affects readability. Focus on substance.
   Check for: input validation, SQL injection, XSS, auth bypass, race conditions.
   Verify tests exist and cover the changed code paths.
-
 tools:
   - readFile
   - listDirectory
-  - searchFiles
-  - searchContent
   - glob
   - grep
   - writeFile
@@ -27,11 +24,9 @@ tools:
   - searchMemory
   - teamTask
   - replyToUser
-
 skills:
   include: [coding, debugging, api-development, web-development, healthcheck]
   exclude: [orchestration]
-
 capabilities:
   - code-review
   - security-audit

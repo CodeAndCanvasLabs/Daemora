@@ -56,29 +56,7 @@ const toolSchemas = {
     }),
     description: "List files and folders with types/sizes",
   },
-  searchFiles: {
-    schema: z.object({
-      pattern: str("File name pattern with wildcards"),
-      directory: optStr("Search directory"),
-      sortBy: optStr("Sort order: 'modified'"),
-      maxDepth: optNum("Max directory depth"),
-      minSize: optStr("Min file size: '10k', '1m'"),
-      maxSize: optStr("Max file size: '10k', '1m'"),
-    }),
-    description: "Find files on disk by name pattern",
-  },
-  searchContent: {
-    schema: z.object({
-      pattern: str("Search pattern (text or regex)"),
-      directory: optStr("Search directory"),
-      limit: optNum("Max results (default: 50)"),
-      caseInsensitive: optBool("Case insensitive search"),
-      contextLines: optNum("Lines of context around matches"),
-      fileType: optStr("Filter by extension: 'js', 'ts', 'py'"),
-      regex: optBool("Treat pattern as regex"),
-    }),
-    description: "Search text inside files on disk (like grep)",
-  },
+  // searchFiles + searchContent removed — duplicates of glob + grep
   glob: {
     schema: z.object({
       pattern: str("Glob pattern (e.g. src/**/*.ts)"),

@@ -4,8 +4,7 @@ import { readFile } from "./readFile.js";
 import { writeFile } from "./writeFile.js";
 import { editFile } from "./editFile.js";
 import { listDirectory } from "./listDirectory.js";
-import { searchFiles } from "./searchFiles.js";
-import { searchContent } from "./searchContent.js";
+// searchFiles + searchContent removed — duplicates of glob + grep
 import { webFetch } from "./webFetch.js";
 import { webSearch } from "./webSearch.js";
 import { sendEmail } from "./sendEmail.js";
@@ -80,7 +79,6 @@ function parallelAgents(params) {
 
 export const toolFunctions = {
   readFile, writeFile, editFile, listDirectory,
-  searchFiles, searchContent,
   glob: globSearch, grep, applyPatch,
   executeCommand,
   webFetch, webSearch,

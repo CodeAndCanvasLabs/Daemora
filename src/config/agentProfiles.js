@@ -41,7 +41,7 @@ export const agentProfiles = {
    */
   coder: [
     "readFile", "writeFile", "editFile", "listDirectory",
-    "searchFiles", "searchContent", "glob", "grep", "applyPatch",
+    "glob", "grep", "applyPatch",
     "executeCommand",
     "webFetch", "webSearch",
     "browserAction",    // test web UIs, click, fill forms, navigate
@@ -62,7 +62,7 @@ export const agentProfiles = {
    */
   writer: [
     "readFile", "writeFile", "editFile", "listDirectory",
-    "searchFiles", "searchContent", "glob", "grep",
+    "glob", "grep",
     "webFetch", "webSearch",
     "createDocument",
     "readMemory", "writeMemory", "searchMemory",
@@ -112,7 +112,7 @@ export const agentProfiles = {
 export const CORE_TOOLS = [
   // File I/O
   "readFile", "writeFile", "editFile", "listDirectory",
-  "searchFiles", "searchContent", "glob", "grep", "applyPatch",
+  "glob", "grep", "applyPatch",
   // Shell
   "executeCommand",
   // Web
@@ -132,7 +132,7 @@ export const CORE_TOOLS = [
 export const defaultSubAgentTools = [
   // File
   "readFile", "writeFile", "editFile", "listDirectory",
-  "searchFiles", "searchContent", "glob", "grep", "applyPatch",
+  "glob", "grep", "applyPatch",
   // System
   "executeCommand",
   // Web

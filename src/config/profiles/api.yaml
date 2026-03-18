@@ -12,14 +12,11 @@ systemPrompt: |
   Version APIs. Don't break existing consumers.
   Rate limiting, authentication, CORS — handle these properly.
   Test with real HTTP requests. Verify response shapes match docs.
-
 tools:
   - readFile
   - writeFile
   - editFile
   - listDirectory
-  - searchFiles
-  - searchContent
   - glob
   - grep
   - executeCommand
@@ -30,11 +27,9 @@ tools:
   - useMCP
   - teamTask
   - replyToUser
-
 skills:
   include: [api-development, coding, debugging, web-development, healthcheck]
   exclude: [orchestration]
-
 capabilities:
   - api-design
   - rest

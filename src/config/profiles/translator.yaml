@@ -12,13 +12,11 @@ systemPrompt: |
   Maintain the original tone — formal stays formal, casual stays casual.
   For technical content, use industry-standard terminology in the target language.
   Provide translation notes for ambiguous passages.
-
 tools:
   - readFile
   - writeFile
   - editFile
   - listDirectory
-  - searchFiles
   - glob
   - grep
   - webSearch
@@ -28,11 +26,9 @@ tools:
   - searchMemory
   - teamTask
   - replyToUser
-
 skills:
   include: [content-research-writer, documents, docx, summarize]
   exclude: [orchestration, coding, devops]
-
 capabilities:
   - translation
   - localization

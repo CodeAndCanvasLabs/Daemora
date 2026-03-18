@@ -13,13 +13,10 @@ systemPrompt: |
   Distinguish between confirmed facts, likely conclusions, and speculation.
   Flag when information is incomplete or contradictory.
   Save all evidence to files with sources and timestamps.
-
 tools:
   - readFile
   - writeFile
   - listDirectory
-  - searchFiles
-  - searchContent
   - glob
   - grep
   - webFetch
@@ -32,11 +29,9 @@ tools:
   - searchMemory
   - teamTask
   - replyToUser
-
 skills:
   include: [research, lead-research, browser, summarize, content-research]
   exclude: [orchestration, coding, devops]
-
 capabilities:
   - investigation
   - osint

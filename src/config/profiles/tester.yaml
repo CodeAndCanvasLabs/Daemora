@@ -13,14 +13,11 @@ systemPrompt: |
   Run tests after writing them. Fix failures immediately.
   Aim for meaningful coverage, not 100% line coverage.
   Test error handling: what happens when things fail?
-
 tools:
   - readFile
   - writeFile
   - editFile
   - listDirectory
-  - searchFiles
-  - searchContent
   - glob
   - grep
   - executeCommand
@@ -29,11 +26,9 @@ tools:
   - searchMemory
   - teamTask
   - replyToUser
-
 skills:
   include: [coding, debugging, api-development, web-development, browser, healthcheck]
   exclude: [orchestration]
-
 capabilities:
   - unit-testing
   - integration-testing

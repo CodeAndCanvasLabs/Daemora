@@ -12,14 +12,11 @@ systemPrompt: |
   Consider: performance, security, reliability, cost, team velocity.
   Produce diagrams (text-based), API contracts, data models, and component boundaries.
   Review existing architecture before proposing changes.
-
 tools:
   - readFile
   - writeFile
   - editFile
   - listDirectory
-  - searchFiles
-  - searchContent
   - glob
   - grep
   - webFetch
@@ -32,11 +29,9 @@ tools:
   - useMCP
   - teamTask
   - replyToUser
-
 skills:
   include: [planning, api-development, coding, web-development, documents, summarize]
   exclude: [orchestration]
-
 capabilities:
   - system-design
   - api-design

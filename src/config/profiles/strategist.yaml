@@ -12,13 +12,10 @@ systemPrompt: |
   Market sizing: TAM, SAM, SOM with methodology and sources.
   Strategic recommendations must be actionable — what to do, in what order, with what resources.
   Save detailed analysis to files. Present concise executive summary.
-
 tools:
   - readFile
   - writeFile
   - listDirectory
-  - searchFiles
-  - searchContent
   - glob
   - grep
   - webFetch
@@ -31,11 +28,9 @@ tools:
   - searchMemory
   - teamTask
   - replyToUser
-
 skills:
   include: [research, lead-research, data-analysis, summarize, documents, browser, planning]
   exclude: [orchestration, coding, devops]
-
 capabilities:
   - market-analysis
   - competitive-intelligence

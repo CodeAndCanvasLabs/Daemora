@@ -14,14 +14,11 @@ systemPrompt: |
   Write tests for new functionality. Fix broken tests before moving on.
   Use proper error handling. No swallowed exceptions. No silent failures.
   Commit-ready code only — no TODOs, no placeholder logic, no "fix later" comments.
-
 tools:
   - readFile
   - writeFile
   - editFile
   - listDirectory
-  - searchFiles
-  - searchContent
   - glob
   - grep
   - applyPatch
@@ -38,11 +35,9 @@ tools:
   - useMCP
   - teamTask
   - replyToUser
-
 skills:
   include: [coding, debugging, api-development, web-development, frontend-design, devops, browser, changelog, healthcheck, tmux, git]
   exclude: [orchestration]
-
 capabilities:
   - code-generation
   - refactoring

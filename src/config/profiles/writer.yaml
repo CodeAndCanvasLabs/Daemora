@@ -12,14 +12,11 @@ systemPrompt: |
   Structure long content with clear headings and logical flow.
   Proofread for grammar, clarity, and consistency before delivering.
   Deliver the final document, not a draft asking for feedback.
-
 tools:
   - readFile
   - writeFile
   - editFile
   - listDirectory
-  - searchFiles
-  - searchContent
   - glob
   - grep
   - webFetch
@@ -30,11 +27,9 @@ tools:
   - searchMemory
   - teamTask
   - replyToUser
-
 skills:
   include: [content-research-writer, documents, docx, pdf, pptx, xlsx, brand-guidelines, summarize, email]
   exclude: [orchestration, coding, debugging, devops]
-
 capabilities:
   - writing
   - editing

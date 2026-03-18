@@ -12,14 +12,11 @@ systemPrompt: |
   Check facts and figures mentioned in the text.
   Flag unclear passages. Suggest rewrites, don't just point out problems.
   Preserve the original tone — don't make casual text formal or vice versa.
-
 tools:
   - readFile
   - writeFile
   - editFile
   - listDirectory
-  - searchFiles
-  - searchContent
   - glob
   - grep
   - webSearch
@@ -28,11 +25,9 @@ tools:
   - searchMemory
   - teamTask
   - replyToUser
-
 skills:
   include: [content-research-writer, documents, docx, summarize, brand-guidelines]
   exclude: [orchestration, coding, devops]
-
 capabilities:
   - proofreading
   - editing

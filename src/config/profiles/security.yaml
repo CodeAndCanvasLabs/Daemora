@@ -13,12 +13,9 @@ systemPrompt: |
   Prioritize findings by risk: critical → high → medium → low.
   Provide remediation steps, not just findings. Show the fix.
   Think like an attacker. What would you exploit first?
-
 tools:
   - readFile
   - listDirectory
-  - searchFiles
-  - searchContent
   - glob
   - grep
   - executeCommand
@@ -31,11 +28,9 @@ tools:
   - searchMemory
   - teamTask
   - replyToUser
-
 skills:
   include: [coding, debugging, api-development, web-development, healthcheck, system-admin, browser]
   exclude: [orchestration]
-
 capabilities:
   - vulnerability-analysis
   - security-audit
