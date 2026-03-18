@@ -227,7 +227,7 @@ export class TelegramChannel extends BaseChannel {
       const failed  = completedTask.status === "failed";
       await this.sendReaction({ chatId, messageId }, failed ? "❌" : "✅");
 
-      // Skip text reply if agent already sent a file directly via replyWithFile
+      // Skip text reply if agent already sent a file directly via sendFile
       if (completedTask.directReplySent && !failed) return;
 
       const response = failed

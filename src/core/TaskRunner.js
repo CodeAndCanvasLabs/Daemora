@@ -399,7 +399,7 @@ class TaskRunner {
           tenantManager.recordCost(tenant.id, estimatedCost);
         }
 
-        // If agent already replied directly (via replyWithFile), mark task so channel skips text reply
+        // If agent already replied directly (via sendFile), mark task so channel skips text reply
         const store = tenantContext.getStore();
         if (store?.directReplySent) {
           task.directReplySent = true;

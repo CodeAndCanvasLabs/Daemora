@@ -16,7 +16,6 @@ const MCP_BASE_TOOLS = [
   "webFetch", "webSearch",
   "createDocument",
   "replyToUser",
-  "teamTask",
 ];
 
 /**

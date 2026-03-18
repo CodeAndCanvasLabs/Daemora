@@ -98,4 +98,4 @@ export const sendFileDescription =
   'Always sends to the current user — never to arbitrary external targets. ' +
   'channel: optional, specify a different channel (e.g. "telegram") only if the user explicitly requests it and has that channel linked to their account. ' +
   'filePath: absolute path to the file. caption: optional text alongside the file. ' +
-  'Prefer replyWithFile() for simplicity — sendFile() is for explicit cross-channel sends.';
+  'Send file to user on current or specified channel.';
