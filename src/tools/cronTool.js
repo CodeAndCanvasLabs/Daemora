@@ -2,18 +2,20 @@
  * cron(action, paramsJson?) - Manage scheduled tasks.
  *
  * Actions:
- *   status   - scheduler status (jobs, next wake, running count)
- *   list     - list all jobs (tenant-scoped if in tenant context)
- *   add      - create a new job (cron, every, or at schedule)
- *   update   - patch an existing job
- *   enable   - re-enable a disabled job
- *   disable  - pause a job without deleting it
- *   remove   - delete a job permanently
- *   run      - trigger a job immediately
- *   history  - get run history for a job
+ *   status      - scheduler status (jobs, next wake, running count)
+ *   list        - list all jobs (tenant-scoped if in tenant context)
+ *   add         - create a new job (cron, every, or at schedule)
+ *   update      - patch an existing job
+ *   enable      - re-enable a disabled job
+ *   disable     - pause a job without deleting it
+ *   remove      - delete a job permanently
+ *   run         - trigger a job immediately
+ *   history     - get run history for a job
+ *   listPresets - list available delivery presets (for deliveryPreset param)
  */
 import scheduler from "../scheduler/Scheduler.js";
 import tenantContext from "../tenants/TenantContext.js";
+import { listPresets } from "../scheduler/DeliveryPresetStore.js";
 
 function _getTenantId() {
   return tenantContext.getStore()?.tenant?.id || null;
@@ -158,6 +160,14 @@ export function cron(toolParams) {
         return `Job ${params.id.slice(0, 8)} triggered. Check history for results.`;
       }
 
+      case "listPresets": {
+        const presets = listPresets();
+        if (presets.length === 0) return "No delivery presets configured. Admin can create them from Cron → Presets in the dashboard.";
+        return presets.map(p =>
+          `• "${p.name}" — ${p.targets.length} target(s)${p.description ? ` | ${p.description}` : ""}`
+        ).join("\n");
+      }
+
       case "history": {
         if (!params.id) return "Error: id is required.";
         const runs = scheduler.getHistory(params.id, {
@@ -172,7 +182,7 @@ export function cron(toolParams) {
       }
 
       default:
-        return `Unknown action: "${action}". Available: status, list, add, update, enable, disable, remove, run, history`;
+        return `Unknown action: "${action}". Available: status, list, add, update, enable, disable, remove, run, history, listPresets`;
     }
   } catch (error) {
     return `Cron error: ${error.message}`;
