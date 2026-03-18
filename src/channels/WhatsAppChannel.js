@@ -36,9 +36,59 @@ export class WhatsAppChannel extends BaseChannel {
     this.twilioClient = twilio.default(this.config.accountSid, this.config.authToken);
     this.running = true;
     console.log(`[Channel:WhatsApp] Ready (webhook: POST /webhooks/whatsapp)`);
+
+    // Auto-configure Twilio sandbox webhook URL if tunnel is available
+    this._autoConfigureWebhook();
     if (this.config.allowlist?.length) {
       console.log(`[Channel:WhatsApp] Allowlist active - ${this.config.allowlist.length} authorized number(s)`);
     }
+  }
+
+  /**
+   * Auto-configure Twilio WhatsApp sandbox webhook URL.
+   * Waits for DAEMORA_PUBLIC_URL (set by tunnel) then updates Twilio sandbox.
+   */
+  async _autoConfigureWebhook() {
+    // Wait up to 30s for tunnel URL to be available
+    let publicUrl = null;
+    for (let i = 0; i < 30; i++) {
+      publicUrl = process.env.DAEMORA_PUBLIC_URL || process.env.SERVER_URL;
+      if (publicUrl) break;
+      await new Promise(r => setTimeout(r, 1000));
+    }
+    if (!publicUrl) return;
+
+    const webhookUrl = `${publicUrl}/webhooks/whatsapp`;
+    try {
+      // Update sandbox webhook via Twilio API
+      const sandboxes = await this.twilioClient.messaging.v1.services.list({ limit: 1 });
+      if (sandboxes.length > 0) {
+        // Try sandbox configuration
+        await this.twilioClient.messaging.v1.services(sandboxes[0].sid).update({
+          inboundRequestUrl: webhookUrl,
+        });
+        console.log(`[Channel:WhatsApp] Webhook auto-configured: ${webhookUrl}`);
+        return;
+      }
+    } catch {}
+
+    // Fallback: try phone number webhook update
+    try {
+      const from = this.config.from?.replace("whatsapp:", "") || "";
+      if (from) {
+        const numbers = await this.twilioClient.incomingPhoneNumbers.list({ phoneNumber: from });
+        if (numbers.length > 0) {
+          await this.twilioClient.incomingPhoneNumbers(numbers[0].sid).update({
+            smsUrl: webhookUrl,
+            smsMethod: "POST",
+          });
+          console.log(`[Channel:WhatsApp] Webhook auto-configured on ${from}: ${webhookUrl}`);
+          return;
+        }
+      }
+    } catch {}
+
+    console.log(`[Channel:WhatsApp] Auto-webhook skipped — set manually in Twilio Console: ${webhookUrl}`);
   }
 
   async stop() {
