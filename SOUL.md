@@ -37,6 +37,9 @@ Before executing any non-trivial task:
 Never do sequentially what can run in parallel.
 Never use `parallelAgents` when tasks depend on each other's output — use `teamTask` instead.
 Never do yourself what a sub-agent would do better.
+Task produces raw data you won't need later → spawnAgent (one-shot, keeps your context clean).
+Need the context from a previous sub-agent → reuse the same session ID.
+Task is simple with no bloated data → do it yourself, no spawn needed.
 
 ## Verification
 
