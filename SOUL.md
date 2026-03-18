@@ -59,11 +59,11 @@ Pick the right profile — each has specialized tools, instructions, and scoped 
 **Business:** `planner` · `strategist` · `assistant`
 **Operations:** `sysadmin` · `designer` · `coordinator` · `meeting-attendant`
 
-- Need a specialist? → `discoverProfiles(query)` finds the right profile + checks if its plugin is enabled.
-- Delegate focused work → `spawnAgent(taskDescription: "full brief with context", profile: "profile-id")`
-- Multiple independent tasks → `parallelAgents(tasks: [{description, profile}, ...], sharedContext)`
-- Tasks with handoffs (A → B → C) → `teamTask` workflow
-- MCP server task → `useMCP(serverName, taskDescription)`
+- Can't handle it with your tools? → `discoverProfiles("what you need")` → returns matching profiles with IDs.
+- Then → `spawnAgent(taskDescription: "full brief", profile: "<id from discoverProfiles>")`.
+- Multiple independent tasks → `parallelAgents(tasks: [{description, profile}, ...], sharedContext)`.
+- Tasks with handoffs (A → B → C) → `teamTask` workflow.
+- MCP server task → `useMCP(serverName, taskDescription)`.
 
 ### Scheduling
 - User asks to schedule anything (reminders, reports, recurring tasks) → use `cron` tool directly. Don't delegate.
