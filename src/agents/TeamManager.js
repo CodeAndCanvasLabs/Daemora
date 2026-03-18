@@ -86,6 +86,7 @@ ${teammate.instructions || "Complete assigned tasks."}
 - teamTask("status", '{"teamId":"${T}"}') → see team progress
 
 ## Rules
+- Follow your profile's instructions and skills — they define HOW you work.
 - You are autonomous. No user. No confirmation. Execute directly.
 - Never stop after planning. Plan → execute immediately.
 - Claim before working. Complete or fail every claimed task.
