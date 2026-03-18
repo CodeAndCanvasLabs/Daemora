@@ -4,7 +4,6 @@ import { Dashboard } from "./pages/Dashboard";
 import { Chat } from "./pages/Chat";
 import { Logs } from "./pages/Logs";
 import { TaskDetail } from "./pages/TaskDetail";
-import { Configuration } from "./pages/Configuration";
 import { Channels } from "./pages/Channels";
 import { MCP } from "./pages/MCP";
 import { Skills } from "./pages/Skills";
@@ -13,6 +12,7 @@ import { Costs } from "./pages/Costs";
 import { Tenants } from "./pages/Tenants";
 import { Settings } from "./pages/Settings";
 import { Cron } from "./pages/Cron";
+import { Plugins } from "./pages/Plugins";
 
 export const router = createBrowserRouter([
   {
@@ -26,7 +26,7 @@ export const router = createBrowserRouter([
       // Keep old /tasks routes for backwards compat
       { path: "tasks", Component: Logs },
       { path: "tasks/:id", Component: TaskDetail },
-      { path: "config", Component: Configuration },
+      { path: "config", Component: Settings },
       { path: "channels", Component: Channels },
       { path: "mcp", Component: MCP },
       { path: "skills", Component: Skills },
@@ -34,6 +34,7 @@ export const router = createBrowserRouter([
       { path: "security", Component: Security },
       { path: "costs", Component: Costs },
       { path: "tenants", Component: Tenants },
+      { path: "plugins", Component: Plugins },
       { path: "settings", Component: Settings },
     ],
   },

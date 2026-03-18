@@ -3,7 +3,7 @@
  * Requires GOOGLE_PLACES_API_KEY env var.
  */
 import { resolveKey } from "./_env.js";
-import { mergeLegacyParams as _mergeLegacy } from "../utils/mergeToolParams.js";
+import { mergeLegacyParams as _mergeLegacy } from "../../../src/utils/mergeToolParams.js";
 
 export async function googlePlaces(_params) {
   const action = _params?.action;

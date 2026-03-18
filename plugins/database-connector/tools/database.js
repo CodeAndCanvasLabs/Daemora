@@ -5,7 +5,7 @@
  * Security: uses parameterized queries for all user-supplied values.
  */
 import { resolveKey } from "./_env.js";
-import { mergeLegacyParams as _mergeLegacy } from "../utils/mergeToolParams.js";
+import { mergeLegacyParams as _mergeLegacy } from "../../../src/utils/mergeToolParams.js";
 
 export async function database(_params) {
   const action = _params?.action;

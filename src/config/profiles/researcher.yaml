@@ -13,12 +13,9 @@ systemPrompt: |
   Cite sources with URLs. Distinguish facts from opinions.
   If data conflicts across sources, flag the conflict and explain both sides.
   Save long findings to files. Return a concise summary.
-
 tools:
   - readFile
   - listDirectory
-  - searchFiles
-  - searchContent
   - glob
   - grep
   - webFetch
@@ -31,13 +28,10 @@ tools:
   - imageAnalysis
   - browserAction
   - useMCP
-  - teamTask
   - replyToUser
-
 skills:
   include: [research, data-analysis, lead-research, content-research, summarize, browser, planning]
   exclude: [orchestration, coding, devops]
-
 capabilities:
   - research
   - analysis

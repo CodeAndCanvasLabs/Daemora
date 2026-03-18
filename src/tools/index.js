@@ -4,8 +4,7 @@ import { readFile } from "./readFile.js";
 import { writeFile } from "./writeFile.js";
 import { editFile } from "./editFile.js";
 import { listDirectory } from "./listDirectory.js";
-import { searchFiles } from "./searchFiles.js";
-import { searchContent } from "./searchContent.js";
+// searchFiles + searchContent removed — duplicates of glob + grep
 import { webFetch } from "./webFetch.js";
 import { webSearch } from "./webSearch.js";
 import { sendEmail } from "./sendEmail.js";
@@ -42,16 +41,11 @@ import { generateImage } from "./generateImage.js";
 import { readPDF } from "./readPDF.js";
 import { gitTool } from "./gitTool.js";
 import { clipboard } from "./clipboard.js";
-import { notification } from "./notification.js";
-import { iMessageTool } from "./iMessageTool.js";
-import { calendar } from "./calendar.js";
-import { sshTool } from "./sshTool.js";
-import { database } from "./database.js";
-import { contacts } from "./contacts.js";
-import { googlePlaces } from "./googlePlaces.js";
-import { philipsHue } from "./philipsHue.js";
-import { sonos } from "./sonos.js";
+// Moved to bundled plugins: calendar, contacts, googlePlaces, philipsHue, sonos,
+// notification, iMessageTool, sshTool, database
+// They register via plugins/ on startup — no longer hardcoded here.
 import { reload } from "./reloadTool.js";
+import { discoverProfiles } from "./discoverProfiles.js";
 
 // ─── Agent wrappers (params object → SubAgentManager) ────────────────────────
 
@@ -85,7 +79,6 @@ function parallelAgents(params) {
 
 export const toolFunctions = {
   readFile, writeFile, editFile, listDirectory,
-  searchFiles, searchContent,
   glob: globSearch, grep, applyPatch,
   executeCommand,
   webFetch, webSearch,
@@ -104,8 +97,30 @@ export const toolFunctions = {
   teamTask,
   meetingAction,
   generateImage, readPDF,
-  gitTool, clipboard, sshTool, database,
-  notification, iMessageTool, calendar, contacts,
-  googlePlaces, philipsHue, sonos,
+  gitTool, clipboard,
+  discoverProfiles,
   reload,
 };
+
+/**
+ * Merge plugin-registered tools into the core tool map.
+ * Called after plugins load in startup sequence.
+ */
+export async function mergePluginTools() {
+  try {
+    const { getPluginTools } = await import("../plugins/PluginRegistry.js");
+    const { registerPluginSchema } = await import("./schemas.js");
+    const pluginTools = getPluginTools();
+    for (const { name, fn, schema, description } of pluginTools) {
+      if (toolFunctions[name]) {
+        console.log(`[Tools] Plugin tool "${name}" skipped — name conflicts with built-in`);
+        continue;
+      }
+      toolFunctions[name] = fn;
+      registerPluginSchema(name, schema, description);
+    }
+    if (pluginTools.length > 0) {
+      console.log(`[Tools] Merged ${pluginTools.length} plugin tool(s) + schemas`);
+    }
+  } catch {}
+}

@@ -13,14 +13,11 @@ systemPrompt: |
   Consider read/write patterns when designing schemas.
   Monitor query performance. Explain plans for slow queries.
   Backup strategy before destructive operations.
-
 tools:
   - readFile
   - writeFile
   - editFile
   - listDirectory
-  - searchFiles
-  - searchContent
   - glob
   - grep
   - executeCommand
@@ -29,11 +26,9 @@ tools:
   - searchMemory
   - teamTask
   - replyToUser
-
 skills:
   include: [coding, api-development, data-analysis]
   exclude: [orchestration]
-
 capabilities:
   - schema-design
   - query-optimization

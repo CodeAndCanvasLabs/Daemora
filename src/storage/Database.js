@@ -272,6 +272,29 @@ function _runMigrations(db) {
     console.log("[Database] Migration: added tenant_channels.meta");
   }
 
+  // Cron: add delivery_targets + delivery_preset_id columns
+  const _cronCols = () => db.prepare("PRAGMA table_info(cron_jobs)").all().map(r => r.name);
+  if (!_cronCols().includes("delivery_targets")) {
+    db.exec("ALTER TABLE cron_jobs ADD COLUMN delivery_targets TEXT");
+    console.log("[Database] Migration: added cron_jobs.delivery_targets");
+  }
+  if (!_cronCols().includes("delivery_preset_id")) {
+    db.exec("ALTER TABLE cron_jobs ADD COLUMN delivery_preset_id TEXT");
+    console.log("[Database] Migration: added cron_jobs.delivery_preset_id");
+  }
+
+  // Delivery presets table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS delivery_presets (
+      id TEXT PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL,
+      description TEXT,
+      targets TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+
   // Backfill tenant_channels from existing "channel:userId" tenant IDs (idempotent)
   const tenants = db.prepare("SELECT id FROM tenants").all();
   for (const { id } of tenants) {

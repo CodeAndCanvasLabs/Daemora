@@ -5,7 +5,7 @@
  */
 import { resolveKey } from "./_env.js";
 import { execSync } from "node:child_process";
-import { mergeLegacyOptions as _mergeLegacyOpts } from "../utils/mergeToolParams.js";
+import { mergeLegacyOptions as _mergeLegacyOpts } from "../../../src/utils/mergeToolParams.js";
 
 function platform() { return process.platform; }
 

@@ -732,6 +732,161 @@ app.get("/api/cron/runs", (req, res) => {
   }
 });
 
+// --- Delivery Presets ---
+app.get("/api/cron/delivery-targets", (req, res) => {
+  try {
+    const tenants = tenantManager.list()
+      .filter(t => !t.suspended)
+      .map(t => ({
+        id: t.id,
+        name: t.name || t.id,
+        channels: tenantManager.getChannels(t.id).map(ch => ({
+          channel: ch.channel,
+          userId: ch.user_id,
+          meta: ch.meta,
+        })),
+      }))
+      .filter(t => t.channels.length > 0);
+
+    // Global channels (admin's own running channels, excluding tenant instances)
+    const globalChannels = channelRegistry.list()
+      .filter(ch => ch.running && !ch.tenantId)
+      .map(ch => ({ channel: ch.name, userId: null, meta: null }));
+
+    res.json({ tenants, globalChannels });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/cron/presets", async (req, res) => {
+  try {
+    const { listPresets } = await import("./scheduler/DeliveryPresetStore.js");
+    res.json({ presets: listPresets() });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/cron/presets", async (req, res) => {
+  try {
+    const { savePreset } = await import("./scheduler/DeliveryPresetStore.js");
+    const preset = savePreset(req.body);
+    res.status(201).json(preset);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.put("/api/cron/presets/:id", async (req, res) => {
+  try {
+    const { savePreset } = await import("./scheduler/DeliveryPresetStore.js");
+    const preset = savePreset({ ...req.body, id: req.params.id });
+    res.json(preset);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.delete("/api/cron/presets/:id", async (req, res) => {
+  try {
+    const { deletePreset } = await import("./scheduler/DeliveryPresetStore.js");
+    deletePreset(req.params.id);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// --- Plugin Management API ---
+app.get("/api/plugins", async (req, res) => {
+  try {
+    const { getPlugins } = await import("./plugins/PluginRegistry.js");
+    res.json({ plugins: getPlugins() });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/plugins/:id/enable", async (req, res) => {
+  try {
+    const { configStore } = await import("./config/ConfigStore.js");
+    configStore.set(`plugin:${req.params.id}:enabled`, "true");
+    const { reloadPlugin } = await import("./plugins/PluginLoader.js");
+    await reloadPlugin(req.params.id);
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post("/api/plugins/:id/disable", async (req, res) => {
+  try {
+    const { configStore } = await import("./config/ConfigStore.js");
+    configStore.set(`plugin:${req.params.id}:enabled`, "false");
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post("/api/plugins/:id/reload", async (req, res) => {
+  try {
+    const { reloadPlugin } = await import("./plugins/PluginLoader.js");
+    await reloadPlugin(req.params.id);
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post("/api/plugins/install", async (req, res) => {
+  try {
+    const { pkg } = req.body;
+    if (!pkg) return res.status(400).json({ error: "pkg is required" });
+    const { installPlugin } = await import("./plugins/PluginInstaller.js");
+    await installPlugin(pkg);
+    // Reload plugins after install
+    const { reloadPlugins } = await import("./plugins/PluginLoader.js");
+    const { mergePluginTools } = await import("./tools/index.js");
+    const reg = await reloadPlugins();
+    await mergePluginTools();
+    res.json({ ok: true, plugins: reg.plugins.filter(p => p.status === "loaded").length });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.delete("/api/plugins/:id/uninstall", async (req, res) => {
+  try {
+    const { removePlugin } = await import("./plugins/PluginInstaller.js");
+    await removePlugin(req.params.id);
+    const { reloadPlugins } = await import("./plugins/PluginLoader.js");
+    const { mergePluginTools } = await import("./tools/index.js");
+    await reloadPlugins();
+    await mergePluginTools();
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.put("/api/plugins/:id/config", async (req, res) => {
+  try {
+    const { configStore } = await import("./config/ConfigStore.js");
+    const { updates } = req.body;
+    if (!updates || typeof updates !== "object") return res.status(400).json({ error: "updates object required" });
+    for (const [key, value] of Object.entries(updates)) {
+      configStore.set(`plugin:${req.params.id}:${key}`, String(value));
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.get("/api/plugins/:id/config", async (req, res) => {
+  try {
+    const { getPlugin } = await import("./plugins/PluginRegistry.js");
+    const plugin = getPlugin(req.params.id);
+    if (!plugin) return res.status(404).json({ error: "Plugin not found" });
+    const schema = plugin.configSchema || {};
+    // Read current values
+    const { configStore } = await import("./config/ConfigStore.js");
+    const values = {};
+    for (const key of Object.keys(schema)) {
+      values[key] = configStore.get(`plugin:${req.params.id}:${key}`) || schema[key]?.default || "";
+    }
+    res.json({ schema, values });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // --- Legacy schedule endpoints (deprecated, proxy to new cron API) ---
 app.post("/api/schedules", (req, res) => {
   try {
@@ -1577,6 +1732,23 @@ const httpServer = app.listen(config.port, async () => {
     console.log("[Startup] Skill embeddings ready");
   } catch { /* non-fatal — TF-IDF fallback always works */ }
 
+  // ── Phase 1.5: Load plugins ──
+  console.log("[Startup] Loading plugins...");
+  try {
+    const { loadPlugins } = await import("./plugins/PluginLoader.js");
+    const pluginRegistry = await loadPlugins();
+    // Merge plugin tools into core tool map
+    const { mergePluginTools } = await import("./tools/index.js");
+    mergePluginTools();
+    // Mount plugin HTTP routes
+    for (const route of pluginRegistry.httpRoutes) {
+      app[route.method.toLowerCase()](route.path, route.handler);
+    }
+    console.log(`[Startup] Plugins: ${pluginRegistry.plugins.filter(p => p.status === "loaded").length} loaded`);
+  } catch (e) {
+    console.log(`[Startup] Plugin loading (non-fatal): ${e.message}`);
+  }
+
   // ── Phase 2: Connect MCP servers ──
   console.log("[Startup] Connecting MCP servers...");
   try {
@@ -1614,12 +1786,13 @@ process.on("SIGHUP", async () => {
 });
 
 // Graceful shutdown
-process.on("SIGTERM", () => {
+process.on("SIGTERM", async () => {
   console.log("\n[Shutdown] SIGTERM received. Stopping...");
   scheduler.stop();
   heartbeat.stop();
   taskRunner.stop();
   supervisor.stop();
+  try { const { stopPlugins } = await import("./plugins/PluginLoader.js"); await stopPlugins(); } catch {}
   closeTunnel().then(() =>
     mcpManager.shutdown().then(() =>
       channelRegistry.stopAll().then(() => process.exit(0))

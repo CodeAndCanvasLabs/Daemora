@@ -13,14 +13,11 @@ systemPrompt: |
   Backup before making changes. Document what you changed and why.
   Automate recurring tasks. Write scripts, not notes.
   Test changes in a safe way before applying to production.
-
 tools:
   - readFile
   - writeFile
   - editFile
   - listDirectory
-  - searchFiles
-  - searchContent
   - glob
   - grep
   - executeCommand
@@ -31,11 +28,9 @@ tools:
   - searchMemory
   - teamTask
   - replyToUser
-
 skills:
   include: [system-admin, devops, healthcheck, tmux, coding, debugging]
   exclude: [orchestration]
-
 capabilities:
   - server-management
   - networking

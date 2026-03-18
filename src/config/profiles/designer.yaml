@@ -13,14 +13,11 @@ systemPrompt: |
   User flows: map the complete journey. Identify friction points.
   Responsive: design for mobile first, then scale up.
   Prototype with code when possible. Screenshots for validation.
-
 tools:
   - readFile
   - writeFile
   - editFile
   - listDirectory
-  - searchFiles
-  - searchContent
   - glob
   - grep
   - browserAction
@@ -34,11 +31,9 @@ tools:
   - searchMemory
   - teamTask
   - replyToUser
-
 skills:
   include: [frontend-design, web-development, browser, image-gen, image-enhancer, brand-guidelines]
   exclude: [orchestration, devops, system-admin]
-
 capabilities:
   - ui-design
   - ux-research

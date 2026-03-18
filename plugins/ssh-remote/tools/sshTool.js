@@ -9,7 +9,7 @@ import { writeFileSync, unlinkSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { getTenantTmpDir } from "./_paths.js";
-import { mergeLegacyParams as _mergeLegacy } from "../utils/mergeToolParams.js";
+import { mergeLegacyParams as _mergeLegacy } from "../../../src/utils/mergeToolParams.js";
 
 export async function sshTool(_params) {
   const action = _params?.action;

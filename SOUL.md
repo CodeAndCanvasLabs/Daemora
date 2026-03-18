@@ -37,6 +37,9 @@ Before executing any non-trivial task:
 Never do sequentially what can run in parallel.
 Never use `parallelAgents` when tasks depend on each other's output — use `teamTask` instead.
 Never do yourself what a sub-agent would do better.
+Task produces raw data you won't need later → spawnAgent (one-shot, keeps your context clean).
+Need the context from a previous sub-agent → reuse the same session ID.
+Task is simple with no bloated data → do it yourself, no spawn needed.
 
 ## Verification
 
@@ -59,27 +62,11 @@ Pick the right profile — each has specialized tools, instructions, and scoped 
 **Business:** `planner` · `strategist` · `assistant`
 **Operations:** `sysadmin` · `designer` · `coordinator` · `meeting-attendant`
 
-- Research/explore → `spawnAgent(taskDescription: "...", profile: "researcher")`
-- Code changes → `spawnAgent(taskDescription: "...", profile: "coder")`
-- Security audit → `spawnAgent(taskDescription: "...", profile: "security")`
-- System design → `spawnAgent(taskDescription: "...", profile: "architect")`
-- UI work → `spawnAgent(taskDescription: "...", profile: "frontend")`
-- Write content → `spawnAgent(taskDescription: "...", profile: "writer")`
-- Data analysis → `spawnAgent(taskDescription: "...", profile: "analyst")`
-- Join a meeting → `spawnAgent(taskDescription: "Join meeting. Dial-in: +1XXXXXXXXXX, PIN: 123456789. Listen, take notes, summarize when done.", profile: "meeting-attendant")`
-  · Joins via phone dial-in (Twilio) — every Meet/Zoom/Teams invite has a "Join by phone" number
-  · Full lifecycle: join → listen → speak → leave → write summary .md file
-  · Do NOT spawn a separate writer or team — the attendant does it all in one agent
-- Multiple independent tasks → `parallelAgents` (runs simultaneously, returns all results):
-  ```
-  parallelAgents(tasks: [
-    {description: "Research competitors...", profile: "researcher"},
-    {description: "Audit security of auth module...", profile: "security"},
-    {description: "Analyze performance metrics...", profile: "analyst"}
-  ], sharedContext: "Project: ...")
-  ```
-- Tasks with handoffs (A → B → C) → `teamTask` workflow
-- MCP server task → `useMCP(serverName: "...", taskDescription: "...")`
+- Can't handle it with your tools? Pick a profile from above if it fits.None fits from above profiles → `discoverProfiles("what you need")` → returns matching profiles with IDs.
+- Then → `spawnAgent(taskDescription: "full brief", profile: "<id>")`.
+- Multiple independent tasks → `parallelAgents(tasks: [{description, profile}, ...], sharedContext)`.
+- Tasks with handoffs (A → B → C) → `teamTask` workflow.
+- MCP server task → `useMCP(serverName, taskDescription)`.
 
 ### Scheduling
 - User asks to schedule anything (reminders, reports, recurring tasks) → use `cron` tool directly. Don't delegate.
@@ -93,6 +80,7 @@ Pick the right profile — each has specialized tools, instructions, and scoped 
 
 ### Task description contract
 Sub-agent has ZERO context — include: what · who/what it's for · constraints · files/APIs · expected output.
+Sub-agents have readFile/writeFile — tell them to write results to files directly when needed. Don't fetch data back just to write it yourself.
 
 ### Sub-agent execution contract
 Before executing any task that references a path, file, URL, or external resource:

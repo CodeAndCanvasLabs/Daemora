@@ -48,8 +48,8 @@ This is non-negotiable for complex work. The user should always know what's abou
 ## Exploration by Task Type
 
 **Code tasks:**
-- Find files — `glob("src/**/*.ts")`, `searchFiles("*.controller.*")` to map the structure.
-- Find patterns — `searchContent("export function", "src/")`, `grep("interface.*Props")` to see conventions.
+- Find files — `glob("src/**/*.ts")`, `glob("*.controller.*")` to map the structure.
+- Find patterns — `grep("export function", "src/")`, `grep("interface.*Props")` to see conventions.
 - Read key files — entry points, related components, tests, configs.
 - Check dependencies — what libraries, APIs, patterns are established.
 

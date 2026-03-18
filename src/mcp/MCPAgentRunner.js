@@ -12,7 +12,6 @@ import tenantContext from "../tenants/TenantContext.js";
  */
 const MCP_BASE_TOOLS = [
   "readFile", "writeFile", "editFile", "listDirectory",
-  "searchFiles", "searchContent", "glob", "grep",
   "executeCommand",
   "webFetch", "webSearch",
   "createDocument",
@@ -70,9 +69,7 @@ You also have standard tools for research, file operations, and output:
 - writeFile(filePath, content) — Create or overwrite file
 - editFile(filePath, oldString, newString) — Find-and-replace in file
 - listDirectory(dirPath) — List files and folders
-- searchFiles(pattern, directory?) — Find files by name
-- searchContent(pattern, directory?) — Search inside files
-- glob(pattern, directory?) — Glob file search
+- glob(pattern, directory?) — Find files by glob pattern
 - grep(pattern, optionsJson?) — Content search
 - executeCommand(command, optionsJson?) — Run shell command
 - webFetch(url, optionsJson?) — Fetch URL content as text

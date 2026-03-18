@@ -262,7 +262,7 @@ class TenantManager {
     const allowed = [
       "model", "allowedPaths", "blockedPaths", "maxCostPerTask",
       "maxDailyCost", "tools", "blockedTools", "suspended", "plan", "notes",
-      "modelRoutes", "mcpServers", "ownMcpServers",
+      "modelRoutes", "mcpServers", "ownMcpServers", "plugins",
     ];
     for (const key of allowed) {
       if (updates[key] !== undefined) cfg[key] = updates[key];

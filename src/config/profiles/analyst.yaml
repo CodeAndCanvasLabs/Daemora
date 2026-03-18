@@ -12,13 +12,10 @@ systemPrompt: |
   Validate data quality before analysis. Flag anomalies.
   Statistical claims need sample sizes, confidence intervals, or at minimum caveats.
   Save analysis outputs to files. Return a concise summary of findings.
-
 tools:
   - readFile
   - writeFile
   - listDirectory
-  - searchFiles
-  - searchContent
   - glob
   - grep
   - webFetch
@@ -31,11 +28,9 @@ tools:
   - searchMemory
   - teamTask
   - replyToUser
-
 skills:
   include: [data-analysis, research, summarize, xlsx, documents, planning]
   exclude: [orchestration, coding, devops]
-
 capabilities:
   - data-analysis
   - statistics

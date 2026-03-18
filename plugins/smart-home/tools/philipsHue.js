@@ -4,7 +4,7 @@
  * All requests go to the local bridge — no cloud dependency.
  */
 import { resolveKey } from "./_env.js";
-import { mergeLegacyParams as _mergeLegacy } from "../utils/mergeToolParams.js";
+import { mergeLegacyParams as _mergeLegacy } from "../../../src/utils/mergeToolParams.js";
 
 export async function philipsHue(_params) {
   const action = _params?.action;

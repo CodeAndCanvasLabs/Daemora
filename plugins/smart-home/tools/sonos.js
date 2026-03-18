@@ -5,7 +5,7 @@
  * Requires SONOS_SPEAKER_IP or uses discovery.
  */
 import { resolveKey } from "./_env.js";
-import { mergeLegacyParams as _mergeLegacy } from "../utils/mergeToolParams.js";
+import { mergeLegacyParams as _mergeLegacy } from "../../../src/utils/mergeToolParams.js";
 
 const SONOS_PORT = 1400;
 

@@ -79,6 +79,10 @@ export function cron(toolParams) {
           delivery = { mode: "announce", channel: channelMeta.channel, to: null, channelMeta };
         }
 
+        // Admin-only: delivery preset (resolves named group → preset ID)
+        const isAdmin = !tenantId || tenantId === "__global__";
+        const deliveryPreset = isAdmin ? (params.deliveryPreset || null) : null;
+
         const job = scheduler.create({
           schedule,
           taskInput: params.taskInput,
@@ -88,6 +92,7 @@ export function cron(toolParams) {
           thinking: params.thinking,
           timeoutSeconds: params.timeoutSeconds,
           delivery,
+          deliveryPreset,
           maxRetries: params.maxRetries,
           retryBackoffMs: params.retryBackoffMs,
           failureAlert: params.failureAlert,

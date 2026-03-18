@@ -68,6 +68,18 @@ class ChannelRegistry {
     // Map<instanceKey, channelInstance>
     // Global: "discord" | Per-tenant: "discord::telegram:123456"
     this.channels = new Map();
+    // Map<channelType, channelClass/factory> — plugin-registered channels
+    this.pluginChannels = new Map();
+  }
+
+  /**
+   * Register a plugin-provided channel implementation.
+   * @param {string} name — channel type name
+   * @param {Function|object} impl — channel class or factory { create(config) → instance }
+   */
+  registerPluginChannel(name, impl) {
+    this.pluginChannels.set(name, impl);
+    console.log(`[ChannelRegistry] Plugin channel registered: ${name}`);
   }
 
   _instanceKey(channelType, tenantId) {
@@ -81,7 +93,20 @@ class ChannelRegistry {
       case "slack":    return new SlackChannel({ ...channelConfig });
       case "whatsapp": return new WhatsAppChannel({ ...channelConfig, enabled: true });
       case "line":     return new LineChannel({ ...channelConfig });
-      default:         return null;
+      default: {
+        // Check plugin-registered channels
+        const pluginImpl = this.pluginChannels.get(channelType);
+        if (pluginImpl) {
+          if (typeof pluginImpl === "function") {
+            // Class constructor: new PluginChannel(config)
+            return new pluginImpl(channelConfig);
+          } else if (pluginImpl.create) {
+            // Factory: { create(config) → instance }
+            return pluginImpl.create(channelConfig);
+          }
+        }
+        return null;
+      }
     }
   }
 

@@ -35,7 +35,7 @@ triggers: code, function, bug, error, refactor, implement, class, module, typesc
 - To edit files use editFile — not sed or awk. editFile for surgical fixes (specific string replacement).
 - To create files use writeFile — not cat with heredoc or echo redirection. writeFile only for new files or full rewrites.
 - To search for files use listDirectory or glob — not find or ls.
-- To search the content of files use searchContent or grep — not grep via shell.
+- To search the content of files use grep or grep — not grep via shell.
 - Always prefer editing existing files in the codebase. Never write new files unless explicitly required.
 - When editing text, ensure you preserve the exact indentation (tabs/spaces) as it appears in the file.
 - The edit will fail if the old string is not unique in the file. Either provide a larger string with more surrounding context to make it unique, or target every instance.

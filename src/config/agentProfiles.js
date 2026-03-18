@@ -22,7 +22,7 @@ export const agentProfiles = {
    * Produces structured output: facts, sources, analysis, recommendations.
    */
   researcher: [
-    "readFile", "listDirectory", "searchFiles", "searchContent",
+    "readFile", "listDirectory",
     "glob", "grep",
     "webFetch", "webSearch",
     "writeFile",        // save research notes and findings to workspace
@@ -41,7 +41,7 @@ export const agentProfiles = {
    */
   coder: [
     "readFile", "writeFile", "editFile", "listDirectory",
-    "searchFiles", "searchContent", "glob", "grep", "applyPatch",
+    "glob", "grep", "applyPatch",
     "executeCommand",
     "webFetch", "webSearch",
     "browserAction",    // test web UIs, click, fill forms, navigate
@@ -62,7 +62,7 @@ export const agentProfiles = {
    */
   writer: [
     "readFile", "writeFile", "editFile", "listDirectory",
-    "searchFiles", "searchContent", "glob", "grep",
+    "glob", "grep",
     "webFetch", "webSearch",
     "createDocument",
     "readMemory", "writeMemory", "searchMemory",
@@ -76,7 +76,7 @@ export const agentProfiles = {
    * Runs scripts, parses output, draws conclusions. Delivers findings, not raw data.
    */
   analyst: [
-    "readFile", "writeFile", "listDirectory", "searchFiles", "searchContent",
+    "readFile", "writeFile", "listDirectory",
     "glob", "grep",
     "webFetch", "webSearch",
     "executeCommand",   // run data processing scripts, query CLIs
@@ -104,10 +104,35 @@ export const agentProfiles = {
  * spawnAgent and parallelAgents are NOT available to sub-agents - they are removed
  * dynamically into sub-agents by SubAgentManager based on recursion depth.
  */
+/**
+ * Core tools — always available to the main agent.
+ * Rule: if it needs an API key or external service, it's NOT core.
+ * Everything else goes through profiles (sub-agents).
+ */
+export const CORE_TOOLS = [
+  // File I/O
+  "readFile", "writeFile", "editFile", "listDirectory",
+  "glob", "grep", "applyPatch",
+  // Shell
+  "executeCommand",
+  // Web
+  "webFetch", "webSearch",
+  // Memory
+  "readMemory", "writeMemory", "searchMemory",
+  // Orchestration
+  "spawnAgent", "parallelAgents", "manageAgents", "teamTask", "discoverProfiles",
+  // Communication (reply only — sendEmail/messageChannel need auth)
+  "replyToUser",
+  // Tasks
+  "taskManager", "cron",
+  // MCP
+  "useMCP",
+];
+
 export const defaultSubAgentTools = [
   // File
   "readFile", "writeFile", "editFile", "listDirectory",
-  "searchFiles", "searchContent", "glob", "grep", "applyPatch",
+  "glob", "grep", "applyPatch",
   // System
   "executeCommand",
   // Web

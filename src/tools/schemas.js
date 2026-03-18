@@ -1,5 +1,18 @@
 import { z } from "zod";
 import { tool } from "ai";
+import { listProfiles } from "../config/ProfileLoader.js";
+
+// ── Dynamic profile list (cached, rebuilt on reload) ────────────────────────
+let _profileListCache = null;
+function _cachedProfileList() {
+  if (!_profileListCache) {
+    try {
+      _profileListCache = listProfiles().map(p => p.id).join("|");
+    } catch { _profileListCache = ""; }
+  }
+  return _profileListCache;
+}
+export function clearProfileListCache() { _profileListCache = null; }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const str = (desc) => z.string().describe(desc);
@@ -43,35 +56,13 @@ const toolSchemas = {
     }),
     description: "List files and folders with types/sizes",
   },
-  searchFiles: {
-    schema: z.object({
-      pattern: str("File name pattern with wildcards"),
-      directory: optStr("Search directory"),
-      sortBy: optStr("Sort order: 'modified'"),
-      maxDepth: optNum("Max directory depth"),
-      minSize: optStr("Min file size: '10k', '1m'"),
-      maxSize: optStr("Max file size: '10k', '1m'"),
-    }),
-    description: "Find files by name pattern",
-  },
-  searchContent: {
-    schema: z.object({
-      pattern: str("Search pattern (text or regex)"),
-      directory: optStr("Search directory"),
-      limit: optNum("Max results (default: 50)"),
-      caseInsensitive: optBool("Case insensitive search"),
-      contextLines: optNum("Lines of context around matches"),
-      fileType: optStr("Filter by extension: 'js', 'ts', 'py'"),
-      regex: optBool("Treat pattern as regex"),
-    }),
-    description: "Search inside file contents",
-  },
+  // searchFiles + searchContent removed — duplicates of glob + grep
   glob: {
     schema: z.object({
       pattern: str("Glob pattern (e.g. src/**/*.ts)"),
       directory: optStr("Base directory"),
     }),
-    description: "Glob file search, sorted by recently modified",
+    description: "Find files on disk by glob pattern, sorted by recently modified",
   },
   grep: {
     schema: z.object({
@@ -83,7 +74,7 @@ const toolSchemas = {
       outputMode: optStr("Output: 'content' | 'files_only' | 'count'"),
       limit: optNum("Max results (default: 50)"),
     }),
-    description: "Content search with context and filtering",
+    description: "Regex search inside files on disk with context lines (like ripgrep)",
   },
   applyPatch: {
     schema: z.object({
@@ -101,7 +92,7 @@ const toolSchemas = {
       timeout: optNum("Timeout in ms (default: 120000, max: 600000)"),
       background: optBool("Run in background"),
     }),
-    description: "Run shell command. Use gh CLI for GitHub ops",
+    description: "Run any shell command. Use to fullfill user requests related to local",
   },
 
   // ── Web & Browser ────────────────────────────────────────────────────────
@@ -110,7 +101,7 @@ const toolSchemas = {
       url: str("URL to fetch"),
       maxChars: optNum("Max chars to return (default: 50000)"),
     }),
-    description: "Fetch URL content as text (cached 15m)",
+    description: "Fetch web URL content as text (cached 15m)",
   },
   webSearch: {
     schema: z.object({
@@ -290,6 +281,17 @@ const toolSchemas = {
     description: "List memory categories with entry counts",
   },
 
+  // ── Profile Discovery ──────────────────────────────────────────────────
+  discoverProfiles: {
+    schema: z.object({
+      query: str("Task description to match against profiles — e.g. 'send email', 'query database', 'create jira tickets'"),
+      limit: optNum("Max results (default: 5)"),
+      offset: optNum("Skip first N results for pagination (default: 0)"),
+      all: optBool("Return all profiles (ignore query matching)"),
+    }),
+    description: "Find the right sub-agent profile for a task. Returns matching profiles + disabled plugins. Use before spawnAgent when unsure which profile fits.",
+  },
+
   // ── Agents ───────────────────────────────────────────────────────────────
   spawnAgent: {
     schema: z.object({
@@ -299,7 +301,7 @@ const toolSchemas = {
       extraTools: z.array(z.string()).optional().describe("Additional tool names to enable"),
       skills: z.array(z.string()).optional().describe("Skill names to load"),
     }),
-    description: "Spawn specialist sub-agent. Use for any deep-focus task. Profile sets identity, tools, and skill scope.",
+    description: "Spawn specialist sub-agent. Use discoverProfiles first to find the right profile. Profile sets identity, tools, and skill scope.",
   },
   parallelAgents: {
     schema: z.object({
@@ -393,6 +395,7 @@ const toolSchemas = {
       timezone: optStr("IANA timezone: 'America/New_York'"),
       model: optStr("Model override for this job"),
       deleteAfterRun: optBool("Auto-delete after one-shot run (use with 'at')"),
+      deliveryPreset: optStr("Delivery preset name (admin only) — e.g. 'engineers', 'team-leads', 'interns'. Resolves to saved tenant/channel group."),
       delivery: z.object({
         mode: optStr("Delivery mode: 'announce'"),
         channel: optStr("Target channel name"),
@@ -404,7 +407,7 @@ const toolSchemas = {
         }).optional().describe("Channel routing metadata"),
       }).optional().describe("Cross-channel delivery override. Auto-set to calling channel if omitted"),
     }),
-    description: "Schedule and manage cron jobs. Delivery auto-routes to calling channel. Schedule types: cronExpression (recurring), every (interval), at (one-shot timestamp).",
+    description: "Schedule and manage cron jobs. Delivery auto-routes to calling channel. Admin can use deliveryPreset to deliver to named tenant groups. Schedule types: cronExpression (recurring), every (interval), at (one-shot timestamp).",
   },
 
   // ── System Reload ──────────────────────────────────────────────────────
@@ -526,129 +529,9 @@ const toolSchemas = {
     }),
     description: "Read/write system clipboard",
   },
-  notification: {
-    schema: z.object({
-      title: str("Notification title"),
-      message: str("Notification body"),
-      service: optStr("Service: 'desktop' | 'ntfy' | 'pushover' (default: desktop)"),
-      sound: optBool("Play sound"),
-      url: optStr("URL for ntfy/pushover"),
-      topic: optStr("Topic for ntfy"),
-      urgency: optStr("Urgency: 'low' | 'normal' | 'critical' (Linux)"),
-      expireMs: optNum("Auto-dismiss timeout in ms (Linux, default: 5000)"),
-    }),
-    description: "Send desktop or push notification",
-  },
-  iMessageTool: {
-    schema: z.object({
-      action: str("send|read"),
-      to: optStr("Phone number or email (required for send)"),
-      message: optStr("Message text (required for send)"),
-      service: optStr("Service: 'iMessage' | 'SMS' (default: iMessage)"),
-      count: optNum("Number of messages to read (default: 10)"),
-    }),
-    description: "Send/read iMessages and SMS on macOS",
-  },
-  calendar: {
-    schema: z.object({
-      action: str("list|create|search"),
-      provider: optStr("Provider: 'macos' | 'google' (default: macos)"),
-      days: optNum("Days ahead to list (default: 7)"),
-      calendarId: optStr("Google Calendar ID"),
-      calendarName: optStr("macOS calendar name (default: 'Calendar')"),
-      title: optStr("Event title (required for create)"),
-      startDate: optStr("ISO start date (required for create)"),
-      endDate: optStr("ISO end date"),
-      notes: optStr("Event notes"),
-      query: optStr("Search query (required for search)"),
-      maxResults: optNum("Max results for Google (default: 10)"),
-    }),
-    description: "Read/create calendar events (macOS or Google)",
-  },
-  contacts: {
-    schema: z.object({
-      action: str("search|list|get"),
-      provider: optStr("Provider: 'macos' | 'google' (default: macos)"),
-      query: optStr("Search query"),
-      name: optStr("Contact name (required for get)"),
-      limit: optNum("Max results (default: 20)"),
-    }),
-    description: "Search/read contacts (macOS or Google)",
-  },
-
-  // ── Network & Remote ─────────────────────────────────────────────────────
-  sshTool: {
-    schema: z.object({
-      action: str("exec|upload|download|keygen"),
-      host: optStr("SSH host (required for exec/upload/download)"),
-      user: optStr("SSH user (default: root)"),
-      port: optNum("SSH port (default: 22)"),
-      keyPath: optStr("SSH private key path"),
-      timeout: optNum("Connection timeout in seconds (default: 30)"),
-      command: optStr("Command to execute (required for exec)"),
-      localPath: optStr("Local file path (required for upload/download)"),
-      remotePath: optStr("Remote file path (required for upload/download)"),
-    }),
-    description: "Execute commands/transfer files over SSH",
-  },
-  database: {
-    schema: z.object({
-      action: str("query|execute|schema|list"),
-      type: optStr("Database type: 'sqlite' | 'postgres' | 'mysql' (default: sqlite)"),
-      dbPath: optStr("SQLite database file path"),
-      connectionString: optStr("PostgreSQL/MySQL connection string"),
-      query: optStr("SQL query (required for query/execute)"),
-      table: optStr("Table name filter (for schema)"),
-      values: z.array(z.unknown()).optional().describe("Query parameter values"),
-    }),
-    description: "Query SQLite, PostgreSQL, or MySQL databases",
-  },
-
-  // ── External Services ────────────────────────────────────────────────────
-  googlePlaces: {
-    schema: z.object({
-      action: str("search|details|nearby|autocomplete"),
-      query: optStr("Search query (for search)"),
-      input: optStr("Autocomplete input text (for autocomplete)"),
-      location: optStr("Coordinates 'lat,lng' (for search, nearby, autocomplete)"),
-      radius: optNum("Search radius in meters (default: 5000)"),
-      type: optStr("Place type filter"),
-      limit: optNum("Max results (default: 5)"),
-      placeId: optStr("Place ID (required for details)"),
-      fields: optStr("Fields to return (for details)"),
-      includeReviews: optBool("Include reviews (for details)"),
-      apiKey: optStr("Google API key override"),
-    }),
-    description: "Search places, get details, find nearby",
-  },
-  philipsHue: {
-    schema: z.object({
-      action: str("list|on|off|brightness|color|scene|discover"),
-      bridgeIp: optStr("Hue bridge IP (env: HUE_BRIDGE_IP)"),
-      apiKey: optStr("Hue API key (env: HUE_API_KEY)"),
-      lightId: optStr("Light ID"),
-      groupId: optStr("Group/room ID"),
-      level: optNum("Brightness 0-254 (for brightness)"),
-      hex: optStr("Hex color '#ff6600' (for color)"),
-      hue: optNum("Hue 0-65535 (for color)"),
-      sat: optNum("Saturation 0-254 (for color)"),
-      bri: optNum("Brightness override (for color)"),
-      colorTemp: optNum("Color temp 153-500 (for color)"),
-      sceneId: optStr("Scene ID (for scene, omit to list scenes)"),
-    }),
-    description: "Control Philips Hue smart lights",
-  },
-  sonos: {
-    schema: z.object({
-      action: str("play|pause|stop|next|prev|volume|mute|queue|info"),
-      speakerIp: optStr("Speaker IP (env: SONOS_SPEAKER_IP)"),
-      level: optNum("Volume 0-100 (for volume, omit to get current)"),
-      muted: optBool("Mute state (for mute, default: true)"),
-      uri: optStr("Track URI (required for queue)"),
-      title: optStr("Track title (for queue)"),
-    }),
-    description: "Control Sonos speakers",
-  },
+  // notification, iMessageTool, calendar, contacts, sshTool, database,
+  // googlePlaces, philipsHue, sonos — moved to bundled plugins.
+  // Schemas registered dynamically via registerPluginSchema() when plugins load.
 };
 
 // Tools whose descriptions should include active channel names
@@ -720,16 +603,33 @@ export function buildToolDocLines(availableTools) {
  * Dispatch is handled manually in AgentLoop with guards.
  */
 export function buildAITools(availableNames) {
+  // Build dynamic profile list for spawnAgent/parallelAgents
+  const profileList = _cachedProfileList();
+
   const aiTools = {};
   for (const name of availableNames) {
     const entry = toolSchemas[name];
     if (!entry) continue;
+    let desc = entry.description;
+    // Inject dynamic profile list into agent tools
+    if (profileList && (name === "spawnAgent" || name === "parallelAgents")) {
+      desc = desc + ` Available profiles: ${profileList}`;
+    }
     aiTools[name] = tool({
-      description: entry.description,
+      description: desc,
       inputSchema: entry.schema,
     });
   }
   return aiTools;
+}
+
+/**
+ * Register a plugin tool's schema + description into the schema registry.
+ * Called by mergePluginTools() after plugins load.
+ */
+export function registerPluginSchema(name, schema, description) {
+  if (toolSchemas[name]) return; // don't override built-in
+  toolSchemas[name] = { schema: schema || z.object({}).passthrough(), description: description || `${name} — plugin tool` };
 }
 
 export default toolSchemas;

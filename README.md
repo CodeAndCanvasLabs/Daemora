@@ -265,7 +265,7 @@ daemora mcp remove github     # Remove permanently
 | Category | Tools |
 |---|---|
 | **Files** | readFile, writeFile, editFile, listDirectory, applyPatch |
-| **Search** | searchFiles, searchContent, glob, grep |
+| **Search** | glob, grep |
 | **Shell** | executeCommand (foreground + background) |
 | **Web** | webFetch, webSearch, browserAction (navigate, click, fill, screenshot) |
 | **Vision** | imageAnalysis, screenCapture |

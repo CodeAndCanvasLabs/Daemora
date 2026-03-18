@@ -1,0 +1,14 @@
+{
+  "id": "notifications",
+  "name": "Notifications",
+  "version": "1.0.0",
+  "description": "Push notifications via ntfy and Pushover",
+  "config": {
+    "NTFY_URL": { "type": "string", "required": true, "label": "ntfy Server URL" },
+    "NTFY_TOPIC": { "type": "string", "label": "ntfy Topic" },
+    "NTFY_TOKEN": { "type": "secret", "label": "ntfy Token" },
+    "PUSHOVER_API_TOKEN": { "type": "secret", "label": "Pushover API Token" },
+    "PUSHOVER_USER_KEY": { "type": "secret", "label": "Pushover User Key" }
+  },
+  "profiles": ["assistant", "sysadmin", "coordinator"]
+}

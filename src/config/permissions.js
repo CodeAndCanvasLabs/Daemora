@@ -11,8 +11,6 @@ export const permissionTiers = {
       // File reads
       "readFile",
       "listDirectory",
-      "searchFiles",
-      "searchContent",
       "glob",
       "grep",
       // Web reads
@@ -33,7 +31,6 @@ export const permissionTiers = {
     allowedTools: [
       // File operations
       "readFile", "writeFile", "editFile", "listDirectory",
-      "searchFiles", "searchContent", "glob", "grep", "applyPatch",
       // System
       "executeCommand",
       // Web & browser
@@ -64,7 +61,6 @@ export const permissionTiers = {
     allowedTools: [
       // File operations
       "readFile", "writeFile", "editFile", "listDirectory",
-      "searchFiles", "searchContent", "glob", "grep", "applyPatch",
       // System
       "executeCommand",
       // Web & browser

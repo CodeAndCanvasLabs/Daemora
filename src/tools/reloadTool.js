@@ -45,6 +45,8 @@ async function _reloadSkills() {
   const count = skillLoader.list().length;
   // Re-embed in background (non-blocking)
   skillLoader.embedSkills().catch(() => {});
+  // Clear profile list cache so dynamic profile names refresh
+  try { const { clearProfileListCache } = await import("./schemas.js"); clearProfileListCache(); } catch {}
   return { skills: count };
 }
 
@@ -170,6 +172,17 @@ export async function reload(toolParams) {
         return "Web fetch + search caches cleared.";
       }
 
+      case "plugins": {
+        const { reloadPlugins } = await import("../plugins/PluginLoader.js");
+        const { mergePluginTools } = await import("./index.js");
+        const reg = await reloadPlugins();
+        await mergePluginTools();
+        const count = reg.plugins.filter(p => p.status === "loaded").length;
+        const toolCount = reg.tools.length;
+        eventBus.emit("system:reload", { component: "plugins" });
+        return `Plugins reloaded: ${count} loaded, ${toolCount} tools`;
+      }
+
       case "all": {
         const results = {};
         results.vault = _reloadVault();
@@ -180,6 +193,15 @@ export async function reload(toolParams) {
         results.scheduler = await _reloadScheduler();
         results.channels = await _reloadChannels();
         results.caches = _clearCaches();
+        // Reload plugins
+        let pluginCount = 0;
+        try {
+          const { reloadPlugins } = await import("../plugins/PluginLoader.js");
+          const { mergePluginTools } = await import("./index.js");
+          const reg = await reloadPlugins();
+          await mergePluginTools();
+          pluginCount = reg.plugins.filter(p => p.status === "loaded").length;
+        } catch {}
         eventBus.emit("system:reload", { component: "all" });
 
         const summary = [
@@ -187,6 +209,7 @@ export async function reload(toolParams) {
           `Config: reloaded (model: ${results.models.current})`,
           `Models: provider cache cleared`,
           `Skills: ${results.skills.skills} loaded`,
+          `Plugins: ${pluginCount} loaded`,
           `MCP: ${results.mcp.mcpServers} servers reconnected`,
           `Scheduler: ${results.scheduler.jobs} jobs`,
           `Channels: ${results.channels.channels} active`,

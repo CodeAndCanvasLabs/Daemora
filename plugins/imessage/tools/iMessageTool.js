@@ -4,7 +4,7 @@
  * Uses osascript (AppleScript) — no external deps.
  */
 import { execSync } from "node:child_process";
-import { mergeLegacyParams as _mergeLegacy } from "../utils/mergeToolParams.js";
+import { mergeLegacyParams as _mergeLegacy } from "../../../src/utils/mergeToolParams.js";
 
 export async function iMessageTool(_params) {
   const action = _params?.action;

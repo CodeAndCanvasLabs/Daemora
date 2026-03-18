@@ -203,6 +203,11 @@ async function main() {
       handleAuth(subcommand);
       break;
 
+    case "plugin":
+    case "plugins":
+      await handlePlugin(subcommand, rest);
+      break;
+
     case "setup":
       const { runSetupWizard } = await import("./setup/wizard.js");
       await runSetupWizard();
@@ -1540,6 +1545,82 @@ async function handleTenant(action, args) {
 
 // ── Security Doctor ────────────────────────────────────────────────────────────
 
+async function handlePlugin(action, args) {
+  const { loadPlugins, reloadPlugins, reloadPlugin } = await import("./plugins/PluginLoader.js");
+
+  switch (action) {
+    case "list":
+    case undefined: {
+      const registry = await loadPlugins();
+      if (registry.plugins.length === 0) {
+        console.log("\n  No plugins installed. Drop plugin folders in plugins/ directory.\n");
+        return;
+      }
+      console.log(`\n  ${chalk.bold("Installed Plugins")} (${registry.plugins.length})\n`);
+      for (const p of registry.plugins) {
+        const status = p.status === "loaded"
+          ? chalk.green("✓ loaded")
+          : p.status === "disabled"
+          ? chalk.yellow("○ disabled")
+          : chalk.red("✗ error");
+        console.log(`  ${status}  ${chalk.bold(p.name)} ${chalk.dim(`v${p.version || "0.0.0"}`)}  ${chalk.dim(p.id)}`);
+        if (p.toolNames.length) console.log(`         tools: ${p.toolNames.join(", ")}`);
+        if (p.channelIds.length) console.log(`         channels: ${p.channelIds.join(", ")}`);
+        if (p.hookEvents.length) console.log(`         hooks: ${p.hookEvents.join(", ")}`);
+        if (p.serviceIds.length) console.log(`         services: ${p.serviceIds.join(", ")}`);
+        if (p.error) console.log(`         ${chalk.red("error: " + p.error)}`);
+      }
+      console.log(`\n  Total: ${registry.tools.length} tools, ${registry.channels.length} channels, ${registry.hooks.length} hooks\n`);
+      break;
+    }
+
+    case "reload": {
+      const pluginId = args[0];
+      if (!pluginId) {
+        console.error("  Usage: daemora plugin reload <plugin-id>");
+        return;
+      }
+      await reloadPlugin(pluginId);
+      console.log(`  Reloaded: ${pluginId}`);
+      break;
+    }
+
+    case "reload-all": {
+      await reloadPlugins();
+      console.log("  All plugins reloaded.");
+      break;
+    }
+
+    case "install": {
+      const pkg = args[0];
+      if (!pkg) {
+        console.error("  Usage: daemora plugin install <npm-package>");
+        console.error("  Example: daemora plugin install daemora-plugin-weather");
+        return;
+      }
+      const { installPlugin } = await import("./plugins/PluginInstaller.js");
+      await installPlugin(pkg);
+      break;
+    }
+
+    case "remove":
+    case "uninstall": {
+      const pluginId = args[0];
+      if (!pluginId) {
+        console.error("  Usage: daemora plugin remove <plugin-id>");
+        return;
+      }
+      const { removePlugin } = await import("./plugins/PluginInstaller.js");
+      await removePlugin(pluginId);
+      break;
+    }
+
+    default:
+      console.error(`  Unknown plugin command: ${action}`);
+      console.error("  Usage: daemora plugin list|install|remove|reload|reload-all");
+  }
+}
+
 async function handleDoctor() {
   const header = `\n  ${t.h("Daemora Doctor")}  ${t.muted("Security audit")}\n`;
   console.log(header);
@@ -2087,8 +2168,6 @@ async function handleTools(filter) {
     { name: "writeFile",            cat: "Files",        desc: "Write/create files" },
     { name: "editFile",             cat: "Files",        desc: "Edit files (search & replace)" },
     { name: "listDirectory",        cat: "Files",        desc: "List directory contents" },
-    { name: "searchFiles",          cat: "Files",        desc: "Find files by name/pattern" },
-    { name: "searchContent",        cat: "Files",        desc: "Search file content (ripgrep-style)" },
     { name: "glob",                 cat: "Files",        desc: "Glob file pattern matching" },
     { name: "grep",                 cat: "Files",        desc: "Regex search in files" },
     { name: "applyPatch",           cat: "Files",        desc: "Apply unified diff patches" },
@@ -2281,6 +2360,12 @@ ${line}
   ${t.cmd("channels add")} ${t.dim("[name]")}               Configure a new channel interactively
   ${t.cmd("models")}                            List all model providers + task-type routing
   ${t.cmd("tools")} ${t.dim("[filter]")}                    List all 50 built-in tools (filter by name/category)
+
+  ${t.cmd("plugin list")}                       List installed plugins + status
+  ${t.cmd("plugin install")} ${t.dim("<npm-package>")}     Install plugin from npm
+  ${t.cmd("plugin remove")} ${t.dim("<id>")}              Remove installed plugin
+  ${t.cmd("plugin reload")} ${t.dim("<id>")}               Hot-reload a plugin
+  ${t.cmd("plugin reload-all")}                 Reload all plugins
 
   ${t.cmd("doctor")}                           Security audit - check for misconfigurations
   ${t.cmd("cleanup")}                          Delete old tasks, logs, and sessions

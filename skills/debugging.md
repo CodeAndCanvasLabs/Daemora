@@ -8,7 +8,7 @@ triggers: debug, error, crash, stack trace, traceback, exception, failing, broke
 1. **Reproduce** — run the failing command/test. Get the exact error message + stack trace.
 2. **Isolate** — trace the error to its source:
    - Read the stack trace bottom-up (most recent call first)
-   - `searchContent` for the error message or failing function
+   - `grep` for the error message or failing function
    - Check recent changes: `git log --oneline -10` then `git diff HEAD~3`
    - Add logging if the cause isn't obvious
 3. **Fix** — make the minimal change that fixes the root cause (not the symptom)

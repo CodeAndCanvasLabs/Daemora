@@ -12,13 +12,10 @@ systemPrompt: |
   Track progress against milestones. Flag blockers immediately.
   Prioritize ruthlessly. What must ship vs what's nice-to-have.
   Communicate status clearly: what's done, what's next, what's blocked.
-
 tools:
   - readFile
   - writeFile
   - listDirectory
-  - searchFiles
-  - searchContent
   - glob
   - grep
   - webFetch
@@ -31,11 +28,9 @@ tools:
   - cron
   - teamTask
   - replyToUser
-
 skills:
   include: [planning, research, summarize, documents, trello]
   exclude: [orchestration, coding, devops]
-
 capabilities:
   - project-planning
   - estimation

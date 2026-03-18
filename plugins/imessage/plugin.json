@@ -1,0 +1,8 @@
+{
+  "id": "imessage",
+  "name": "iMessage",
+  "version": "1.0.0",
+  "description": "Send and read iMessages (macOS only)",
+  "platform": "darwin",
+  "profiles": ["assistant"]
+}

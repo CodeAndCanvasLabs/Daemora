@@ -6,22 +6,119 @@
   scroll-behavior: smooth;
 }
 
+/* ── Typography ──────────────────────────────────────────────────────────── */
+
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-code, pre, .font-mono {
+/* JetBrains Mono for code and pre only */
+code, pre {
   font-family: 'JetBrains Mono', monospace;
 }
 
-/* Markdown prose styling for dark theme */
+/* Override font-mono to Inter across all pages.
+   382 instances of font-mono used on labels, buttons, descriptions.
+   JetBrains Mono re-applied below only where it belongs. */
+.font-mono {
+  font-family: 'Inter', -apple-system, system-ui, sans-serif !important;
+}
+
+/* Re-apply JetBrains Mono for actual data inputs */
+input, textarea, select {
+  font-family: 'JetBrains Mono', monospace;
+}
+code, pre, code.font-mono, pre.font-mono {
+  font-family: 'JetBrains Mono', monospace !important;
+}
+
+/* ── Font Size Normalization ─────────────────────────────────────────────── */
+/* Bump tiny text in main content + dialogs — sidebar untouched */
+
+main .text-\[7px\],  [role="dialog"] .text-\[7px\]  { font-size: 0.625rem !important; }   /* 7→10px */
+main .text-\[8px\],  [role="dialog"] .text-\[8px\]  { font-size: 0.6875rem !important; }  /* 8→11px */
+main .text-\[9px\],  [role="dialog"] .text-\[9px\]  { font-size: 0.6875rem !important; }  /* 9→11px */
+main .text-\[10px\], [role="dialog"] .text-\[10px\] { font-size: 0.75rem !important; }    /* 10→12px */
+main .text-\[11px\], [role="dialog"] .text-\[11px\] { font-size: 0.8125rem !important; }  /* 11→13px */
+main .text-xs,       [role="dialog"] .text-xs       { font-size: 0.8125rem !important; }  /* 12→13px */
+
+/* ── Uppercase Normalization ─────────────────────────────────────────────── */
+/* Remove uppercase from labels/headings in main content — keep for badges only */
+
+main .uppercase {
+  text-transform: none !important;
+}
+
+/* Preserve uppercase for small badge-like text and specific UI elements */
+main .text-\[7px\].uppercase,
+main .text-\[8px\].uppercase,
+main .text-\[9px\].uppercase,
+main span.uppercase,
+[role="dialog"] .text-\[7px\].uppercase,
+[role="dialog"] .text-\[8px\].uppercase,
+[role="dialog"] .text-\[9px\].uppercase {
+  text-transform: uppercase !important;
+}
+
+/* ── Tracking Normalization ──────────────────────────────────────────────── */
+main .tracking-widest  { letter-spacing: 0.025em !important; }
+main .tracking-tighter { letter-spacing: -0.01em !important; }
+
+/* ── Color Normalization ─────────────────────────────────────────────────── */
+/* Soften #00d9ff → #38bdf8 across main content and dialogs */
+
+main [class*="text-\[#00d9ff\]"],
+[role="dialog"] [class*="text-\[#00d9ff\]"] {
+  color: #38bdf8 !important;
+}
+
+main [class*="border-\[#00d9ff\]"],
+[role="dialog"] [class*="border-\[#00d9ff\]"] {
+  border-color: rgba(56, 189, 248, 0.3) !important;
+}
+
+main [class*="hover\:text-\[#00d9ff\]"]:hover,
+[role="dialog"] [class*="hover\:text-\[#00d9ff\]"]:hover {
+  color: #38bdf8 !important;
+}
+
+main [class*="focus\:border-\[#00d9ff\]"]:focus,
+[role="dialog"] [class*="focus\:border-\[#00d9ff\]"]:focus {
+  border-color: rgba(56, 189, 248, 0.5) !important;
+}
+
+/* Soften glow/shadow effects */
+main [class*="shadow-\[0_0"] {
+  box-shadow: none !important;
+}
+
+/* ── Button Normalization ────────────────────────────────────────────────── */
+/* Make gradient buttons darker so white text is readable */
+main [class*="from-\[#00d9ff\]"] {
+  --tw-gradient-from: #0891b2 !important;
+}
+main [class*="to-\[#4ECDC4\]"] {
+  --tw-gradient-to: #0d9488 !important;
+}
+
+/* ── Modal / Dialog ──────────────────────────────────────────────────────── */
+[role="dialog"] {
+  max-width: 44rem !important;
+}
+[role="dialog"] .uppercase {
+  text-transform: none !important;
+}
+
+/* ── Markdown Prose (dark theme) ─────────────────────────────────────────── */
 .prose-invert {
   color: #e2e8f0;
 }
 
 .prose-invert code {
-  color: #00d9ff;
-  background-color: rgba(0, 217, 255, 0.1);
+  color: #38bdf8;
+  background-color: rgba(56, 189, 248, 0.1);
   padding: 0.125rem 0.25rem;
   border-radius: 0.25rem;
 }
@@ -37,7 +134,7 @@ code, pre, .font-mono {
 }
 
 .prose-invert a {
-  color: #00d9ff;
+  color: #38bdf8;
   text-decoration: none;
 }
 
@@ -81,7 +178,7 @@ code, pre, .font-mono {
 }
 
 .prose-invert blockquote {
-  border-left: 3px solid #00d9ff;
+  border-left: 3px solid #38bdf8;
   padding-left: 1em;
   margin: 0.75em 0;
   color: #94a3b8;

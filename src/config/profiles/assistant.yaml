@@ -12,33 +12,25 @@ systemPrompt: |
   Calendar management: check for conflicts, suggest optimal times.
   Follow up on pending items. Track commitments.
   Maintain confidentiality. Handle sensitive information appropriately.
-
 tools:
   - readFile
   - writeFile
   - listDirectory
-  - searchFiles
-  - searchContent
   - glob
   - grep
   - webFetch
   - webSearch
   - sendEmail
-  - calendar
-  - contacts
   - createDocument
   - readMemory
   - writeMemory
   - searchMemory
-  - notification
   - cron
   - teamTask
   - replyToUser
-
 skills:
   include: [email, apple-notes, apple-reminders, things, obsidian, planning, summarize, file-organizer, invoice-organizer, weather, spotify]
   exclude: [orchestration, coding, devops]
-
 capabilities:
   - email-management
   - scheduling

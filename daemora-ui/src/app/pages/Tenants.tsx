@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
-import { Users, Loader2, Trash2, Pause, Play, Pencil, RotateCcw, Key, Plus, X, Eye, EyeOff } from "lucide-react";
+import { Users, Loader2, Trash2, Pause, Play, Pencil, RotateCcw, Key, Plus, X, Eye, EyeOff, Puzzle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel } from "../components/ui/alert-dialog";
 import { Input } from "../components/ui/input";
+import { Switch } from "../components/ui/switch";
 import { Textarea } from "../components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { toast } from "sonner";
@@ -84,6 +85,11 @@ export function Tenants() {
   const [newMcpName, setNewMcpName] = useState("");
   const [newMcpConfig, setNewMcpConfig] = useState('{\n  "command": "npx",\n  "args": ["-y", "@scope/server-name"],\n  "env": {}\n}');
   const [mcpSaving, setMcpSaving] = useState(false);
+
+  // Plugin state for tenant
+  const [allPlugins, setAllPlugins] = useState<{ id: string; name: string; enabled: boolean; configSchema: Record<string, any> | null }[]>([]);
+  const [tenantPlugins, setTenantPlugins] = useState<Set<string>>(new Set());
+  const [tenantPluginConfig, setTenantPluginConfig] = useState<Record<string, Record<string, string>>>({});
 
   // Create tenant dialog
   const [showCreate, setShowCreate] = useState(false);
@@ -344,6 +350,16 @@ export function Tenants() {
     fetchApiKeys(tenant.id);
     fetchChannelCredKeys(tenant.id);
     fetchOwnMcpServers(tenant.id);
+    // Fetch plugins
+    apiFetch("/api/plugins").then(r => r.json()).then(d => {
+      setAllPlugins((d.plugins || []).map((p: any) => ({
+        id: p.id, name: p.name, enabled: p.status === "loaded",
+        configSchema: p.configSchema || null,
+      })));
+      // Load tenant's saved plugin config
+      const tenantCfg = (tenant as any).plugins || [];
+      setTenantPlugins(new Set(tenantCfg));
+    }).catch(() => {});
   };
 
   const handleSaveEdit = async () => {
@@ -378,6 +394,22 @@ export function Tenants() {
       };
       if (editForm.maxCostPerTask !== "") body.maxCostPerTask = parseFloat(editForm.maxCostPerTask);
       if (editForm.maxDailyCost !== "") body.maxDailyCost = parseFloat(editForm.maxDailyCost);
+      body.plugins = [...tenantPlugins];
+      // Save plugin config as tenant API keys (per-plugin prefixed)
+      for (const [pluginId, config] of Object.entries(tenantPluginConfig)) {
+        if (!tenantPlugins.has(pluginId)) continue;
+        for (const [key, value] of Object.entries(config)) {
+          if (value) {
+            try {
+              await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}/apikeys/${encodeURIComponent(key)}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ value }),
+              });
+            } catch {}
+          }
+        }
+      }
 
       const res = await apiFetch(`/api/tenants/${encodeURIComponent(editTenant.id)}`, {
         method: "PATCH",
@@ -941,8 +973,62 @@ export function Tenants() {
               </div>
             </div>
 
+            {/* Plugins */}
+            {allPlugins.length > 0 && (
+              <div className="space-y-3 border-t border-slate-800 pt-4">
+                <div className="flex items-center gap-2">
+                  <Puzzle className="w-4 h-4 text-[#38bdf8]" />
+                  <span className="text-sm text-gray-300 font-medium">Plugins</span>
+                  <span className="text-xs text-gray-600">{tenantPlugins.size} enabled</span>
+                </div>
+                <div className="space-y-2">
+                  {allPlugins.map(p => {
+                    const isEnabled = tenantPlugins.has(p.id);
+                    const hasConfig = p.configSchema && Object.keys(p.configSchema).length > 0;
+                    return (
+                      <div key={p.id} className={`p-3 bg-slate-900/50 rounded-lg border transition-colors ${isEnabled ? "border-emerald-500/30" : "border-slate-800/50 hover:border-slate-700"}`}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-300">{p.name}</span>
+                          <Switch
+                            checked={isEnabled}
+                            onCheckedChange={(v) => {
+                              const s = new Set(tenantPlugins);
+                              v ? s.add(p.id) : s.delete(p.id);
+                              setTenantPlugins(s);
+                            }}
+                            className="data-[state=checked]:bg-emerald-500"
+                          />
+                        </div>
+                        {isEnabled && hasConfig && (
+                          <div className="mt-3 pt-3 border-t border-slate-800/50 space-y-2">
+                            {Object.entries(p.configSchema!).map(([key, field]: [string, any]) => (
+                              <div key={key}>
+                                <label className="text-xs text-gray-500 block mb-1">{field.label || key}</label>
+                                <Input
+                                  type={field.type === "secret" || field.type === "password" ? "password" : "text"}
+                                  placeholder={field.default || `Enter ${field.label || key}`}
+                                  value={tenantPluginConfig[p.id]?.[key] || ""}
+                                  onChange={(e) => {
+                                    setTenantPluginConfig(prev => ({
+                                      ...prev,
+                                      [p.id]: { ...prev[p.id], [key]: e.target.value }
+                                    }));
+                                  }}
+                                  className="bg-slate-900 border-slate-700 text-sm"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <Button onClick={handleSaveEdit}
-              className="w-full bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] hover:opacity-90 text-white mt-4 uppercase tracking-tighter">
+              className="w-full bg-gradient-to-r from-[#0891b2] to-[#0d9488] hover:opacity-90 text-white mt-4">
               Save Changes
             </Button>
           </div>
