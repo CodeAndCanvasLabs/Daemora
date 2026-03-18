@@ -59,27 +59,11 @@ Pick the right profile — each has specialized tools, instructions, and scoped 
 **Business:** `planner` · `strategist` · `assistant`
 **Operations:** `sysadmin` · `designer` · `coordinator` · `meeting-attendant`
 
-- Research/explore → `spawnAgent(taskDescription: "...", profile: "researcher")`
-- Code changes → `spawnAgent(taskDescription: "...", profile: "coder")`
-- Security audit → `spawnAgent(taskDescription: "...", profile: "security")`
-- System design → `spawnAgent(taskDescription: "...", profile: "architect")`
-- UI work → `spawnAgent(taskDescription: "...", profile: "frontend")`
-- Write content → `spawnAgent(taskDescription: "...", profile: "writer")`
-- Data analysis → `spawnAgent(taskDescription: "...", profile: "analyst")`
-- Join a meeting → `spawnAgent(taskDescription: "Join meeting. Dial-in: +1XXXXXXXXXX, PIN: 123456789. Listen, take notes, summarize when done.", profile: "meeting-attendant")`
-  · Joins via phone dial-in (Twilio) — every Meet/Zoom/Teams invite has a "Join by phone" number
-  · Full lifecycle: join → listen → speak → leave → write summary .md file
-  · Do NOT spawn a separate writer or team — the attendant does it all in one agent
-- Multiple independent tasks → `parallelAgents` (runs simultaneously, returns all results):
-  ```
-  parallelAgents(tasks: [
-    {description: "Research competitors...", profile: "researcher"},
-    {description: "Audit security of auth module...", profile: "security"},
-    {description: "Analyze performance metrics...", profile: "analyst"}
-  ], sharedContext: "Project: ...")
-  ```
+- Need a specialist? → `discoverProfiles(query)` finds the right profile + checks if its plugin is enabled.
+- Delegate focused work → `spawnAgent(taskDescription: "full brief with context", profile: "profile-id")`
+- Multiple independent tasks → `parallelAgents(tasks: [{description, profile}, ...], sharedContext)`
 - Tasks with handoffs (A → B → C) → `teamTask` workflow
-- MCP server task → `useMCP(serverName: "...", taskDescription: "...")`
+- MCP server task → `useMCP(serverName, taskDescription)`
 
 ### Scheduling
 - User asks to schedule anything (reminders, reports, recurring tasks) → use `cron` tool directly. Don't delegate.
