@@ -124,7 +124,6 @@ export const CORE_TOOLS = [
   // Communication
   "replyToUser",
   "sendFile",
-  "replyWithFile",
   // Tasks
   "taskManager", "cron",
   // MCP

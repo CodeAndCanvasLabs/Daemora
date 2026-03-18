@@ -152,13 +152,7 @@ const toolSchemas = {
     }),
     description: "Send file to user. Omit channel = current channel. Set channel = cross-channel delivery (auto-resolved, never ask user for IDs).",
   },
-  replyWithFile: {
-    schema: z.object({
-      filePath: str("Absolute path to file"),
-      caption: optStr("File caption"),
-    }),
-    description: "Send file back to the current user",
-  },
+  // replyWithFile removed — duplicate of sendFile
   replyToUser: {
     schema: z.object({
       message: str("Message text"),
