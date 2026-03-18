@@ -56,7 +56,6 @@ const toolSchemas = {
     }),
     description: "List files and folders with types/sizes",
   },
-  // searchFiles + searchContent removed — duplicates of glob + grep
   glob: {
     schema: z.object({
       pattern: str("Glob pattern (e.g. src/**/*.ts)"),
