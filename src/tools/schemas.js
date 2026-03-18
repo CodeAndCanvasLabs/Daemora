@@ -92,7 +92,7 @@ const toolSchemas = {
       timeout: optNum("Timeout in ms (default: 120000, max: 600000)"),
       background: optBool("Run in background"),
     }),
-    description: "Run shell command. Use gh CLI for GitHub ops",
+    description: "Run any shell command. Use to fullfill user requests related to local",
   },
 
   // ── Web & Browser ────────────────────────────────────────────────────────
