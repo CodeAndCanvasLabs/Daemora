@@ -65,7 +65,7 @@ const toolSchemas = {
       minSize: optStr("Min file size: '10k', '1m'"),
       maxSize: optStr("Max file size: '10k', '1m'"),
     }),
-    description: "Find LOCAL files on disk by name pattern (NOT web search)",
+    description: "Find files on disk by name pattern",
   },
   searchContent: {
     schema: z.object({
@@ -77,14 +77,14 @@ const toolSchemas = {
       fileType: optStr("Filter by extension: 'js', 'ts', 'py'"),
       regex: optBool("Treat pattern as regex"),
     }),
-    description: "Search inside LOCAL file contents on disk — like grep. NOT for web search. Use webSearch for internet.",
+    description: "Search text inside files on disk (like grep)",
   },
   glob: {
     schema: z.object({
       pattern: str("Glob pattern (e.g. src/**/*.ts)"),
       directory: optStr("Base directory"),
     }),
-    description: "Glob file search, sorted by recently modified",
+    description: "Find files on disk by glob pattern, sorted by recently modified",
   },
   grep: {
     schema: z.object({
@@ -96,7 +96,7 @@ const toolSchemas = {
       outputMode: optStr("Output: 'content' | 'files_only' | 'count'"),
       limit: optNum("Max results (default: 50)"),
     }),
-    description: "Content search with context and filtering",
+    description: "Regex search inside files on disk with context lines (like ripgrep)",
   },
   applyPatch: {
     schema: z.object({
@@ -123,7 +123,7 @@ const toolSchemas = {
       url: str("URL to fetch"),
       maxChars: optNum("Max chars to return (default: 50000)"),
     }),
-    description: "Fetch URL content as text (cached 15m)",
+    description: "Fetch web URL content as text (cached 15m)",
   },
   webSearch: {
     schema: z.object({
