@@ -189,12 +189,15 @@ export async function spawnSubAgent(taskDescription, options = {}) {
       if (toolFunctions[name]) agentTools[name] = toolFunctions[name];
     }
 
-    // Sub-agents NEVER get spawnAgent or parallelAgents.
-    // Allowing sub-agents to spawn creates unpredictable delegation chains
-    // where each agent re-delegates instead of doing the work.
+    // Sub-agents NEVER get orchestration tools.
     // Only the main agent orchestrates. Sub-agents execute.
+    // Allowing sub-agents to spawn/team creates unpredictable delegation chains.
     delete agentTools.spawnAgent;
     delete agentTools.parallelAgents;
+    delete agentTools.teamTask;
+    delete agentTools.manageAgents;
+    delete agentTools.discoverProfiles;
+    delete agentTools.delegateToAgent;
   }
 
   // ── Coordination primitives ───────────────────────────────────────────────
