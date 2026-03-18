@@ -22,7 +22,7 @@ export const agentProfiles = {
    * Produces structured output: facts, sources, analysis, recommendations.
    */
   researcher: [
-    "readFile", "listDirectory", "searchFiles", "searchContent",
+    "readFile", "listDirectory",
     "glob", "grep",
     "webFetch", "webSearch",
     "writeFile",        // save research notes and findings to workspace
@@ -76,7 +76,7 @@ export const agentProfiles = {
    * Runs scripts, parses output, draws conclusions. Delivers findings, not raw data.
    */
   analyst: [
-    "readFile", "writeFile", "listDirectory", "searchFiles", "searchContent",
+    "readFile", "writeFile", "listDirectory",
     "glob", "grep",
     "webFetch", "webSearch",
     "executeCommand",   // run data processing scripts, query CLIs

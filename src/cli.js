@@ -2168,8 +2168,6 @@ async function handleTools(filter) {
     { name: "writeFile",            cat: "Files",        desc: "Write/create files" },
     { name: "editFile",             cat: "Files",        desc: "Edit files (search & replace)" },
     { name: "listDirectory",        cat: "Files",        desc: "List directory contents" },
-    { name: "searchFiles",          cat: "Files",        desc: "Find files by name/pattern" },
-    { name: "searchContent",        cat: "Files",        desc: "Search file content (ripgrep-style)" },
     { name: "glob",                 cat: "Files",        desc: "Glob file pattern matching" },
     { name: "grep",                 cat: "Files",        desc: "Regex search in files" },
     { name: "applyPatch",           cat: "Files",        desc: "Apply unified diff patches" },
