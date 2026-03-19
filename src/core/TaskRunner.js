@@ -296,6 +296,11 @@ class TaskRunner {
       ? Object.fromEntries(Object.entries(toolFunctions).filter(([k]) => resolvedConfig.tools.includes(k) && coreSet.has(k)))
       : Object.fromEntries(Object.entries(toolFunctions).filter(([k]) => coreSet.has(k)));
 
+    // Inject broadcast tool for cron tasks (delivery to presets)
+    if (task.type === "cron" && toolFunctions.broadcast) {
+      tools.broadcast = toolFunctions.broadcast;
+    }
+
     // Remove blocked tools
     if (resolvedConfig.blockedTools?.length) {
       tools = Object.fromEntries(Object.entries(tools).filter(([k]) => !resolvedConfig.blockedTools.includes(k)));

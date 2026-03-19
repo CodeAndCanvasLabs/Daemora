@@ -46,6 +46,7 @@ import { clipboard } from "./clipboard.js";
 // They register via plugins/ on startup — no longer hardcoded here.
 import { reload } from "./reloadTool.js";
 import { discoverProfiles } from "./discoverProfiles.js";
+import { broadcast } from "./broadcast.js";
 
 // ─── Agent wrappers (params object → SubAgentManager) ────────────────────────
 
@@ -99,6 +100,7 @@ export const toolFunctions = {
   generateImage, readPDF,
   gitTool, clipboard,
   discoverProfiles,
+  broadcast,
   reload,
 };
 
