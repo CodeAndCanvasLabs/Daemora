@@ -316,6 +316,35 @@ export async function runAgentLoop({
 
     return { text: finalText, messages: conversationMessages, cost, toolCalls: toolCallLog };
   } catch (error) {
+    // Tool call validation errors — retry once with error feedback to the model
+    const isToolCallError = /tool call validation|not in request\.tools|failed_generation/i.test(error.message);
+    if (isToolCallError && totalSteps < 3) {
+      console.log(`[AgentLoop] Tool call error — retrying with error feedback to model`);
+      inputMessages.push({ role: "assistant", content: "I made an error with tool calling." });
+      inputMessages.push({ role: "user", content: `Tool call failed: ${error.message}. Please respond without using tools, or use the correct tool name and format.` });
+      try {
+        const retryResult = await generateText({
+          model,
+          tools: aiTools,
+          system: systemPrompt.content,
+          messages: inputMessages,
+          maxTokens: 8192,
+          abortSignal: signal || undefined,
+          ...thinkingParams,
+        });
+        const finalText = retryResult.text || "Something went wrong. Please try again.";
+        console.log(`[AgentLoop] Retry succeeded: "${finalText.slice(0, 100)}"`);
+        return {
+          text: finalText,
+          messages: [...inputMessages, ...retryResult.response.messages],
+          cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, estimatedCost: 0, modelCalls: totalSteps + 1, model: resolvedModelId },
+          toolCalls: toolCallLog,
+        };
+      } catch (retryErr) {
+        console.log(`[AgentLoop] Retry also failed: ${retryErr.message}`);
+      }
+    }
+
     if (signal?.aborted || error.name === "AbortError") {
       console.log(`[AgentLoop] Aborted.`);
       return {
