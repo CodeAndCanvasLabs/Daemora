@@ -75,6 +75,20 @@ export async function executeJob(job, { isRetry = false, retryAttempt = 0, onCom
       "Return your final output as plain text — if a delivery preset is configured, results are also broadcast automatically.",
     ];
 
+    // Inject delivery channels so agent knows where to send
+    if (job.delivery?.mode === "preset" && job.delivery.presetId) {
+      const preset = loadPreset(job.delivery.presetId);
+      if (preset?.targets?.length) {
+        const unique = [...new Set(preset.targets.map(t => t.channel).filter(Boolean))];
+        cronLines.push(`[Delivery channels: ${unique.join(", ")}]`);
+      }
+    } else if (job.delivery?.mode === "multi" && job.delivery.targets?.length) {
+      const unique = [...new Set(job.delivery.targets.map(t => t.channel).filter(Boolean))];
+      cronLines.push(`[Delivery channels: ${unique.join(", ")}]`);
+    } else if (job.delivery?.mode === "announce" && job.delivery.channel) {
+      cronLines.push(`[Delivery channel: ${job.delivery.channel}]`);
+    }
+
     // Inject last execution result if exists
     if (job.lastRunAt && job.lastStatus) {
       const lastPreview = job.lastError || "";
