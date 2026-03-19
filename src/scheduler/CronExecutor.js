@@ -105,7 +105,7 @@ export async function executeJob(job, { isRetry = false, retryAttempt = 0, onCom
     const durationMs = new Date(completedAt).getTime() - new Date(startedAt).getTime();
 
     // ── Success ───────────────────────────────────────────────────────────
-    const resultText = typeof result === "string" ? result : (result?.text || JSON.stringify(result) || "");
+    const resultText = typeof result === "string" ? result : (result?.text || result?.result || "Task completed.");
     const preview = resultText.slice(0, 500);
 
     job.runningSince = null;
