@@ -82,7 +82,8 @@ export function cron(toolParams) {
         }
 
         // Admin-only: delivery preset (resolves named group → preset ID)
-        const isAdmin = !tenantId || tenantId === "__global__";
+        const store = tenantContext.getStore();
+        const isAdmin = !tenantId || tenantId === "__global__" || store?.tenant?.globalAdmin === true;
         const deliveryPreset = isAdmin ? (params.deliveryPreset || null) : null;
 
         const job = scheduler.create({
