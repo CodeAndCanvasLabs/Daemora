@@ -426,21 +426,7 @@ export const models = {
 
   // ─── Groq (hosted models — uses GROQ_API_KEY) ──────────────────────────────
 
-  // Groq Compound (agentic)
-  "groq:groq/compound": {
-    provider: "groq", model: "groq/compound",
-    contextWindow: 131_072, compactAt: 90_000,
-    costPer1kInput: 0, costPer1kOutput: 0,
-    capabilities: ["text", "tools"],
-    tier: "free",
-  },
-  "groq:groq/compound-mini": {
-    provider: "groq", model: "groq/compound-mini",
-    contextWindow: 131_072, compactAt: 90_000,
-    costPer1kInput: 0, costPer1kOutput: 0,
-    capabilities: ["text", "tools"],
-    tier: "free",
-  },
+  // groq/compound and groq/compound-mini removed — don't support custom tool calling (only Groq built-in tools)
 
   // Meta Llama on Groq
   "groq:llama-3.1-8b-instant": {
