@@ -71,8 +71,9 @@ export async function executeJob(job, { isRetry = false, retryAttempt = 0, onCom
     const cronLines = [
       "[Scheduled Task] You are running autonomously as a cron job. No user present.",
       "Execute the task fully. If one approach fails, try another. Only return when genuinely blocked.",
-      "IMPORTANT: Delivery to channels/presets is handled AUTOMATICALLY after you finish. Do NOT use sendFile, sendMessage, or any channel tool to deliver results yourself. Just return your final output as plain text.",
+      "If delivering to teams/tenants, use cron('listPresets') to find delivery presets.",
       "Need previous run details? Use cron('history', {id: '" + job.id.slice(0, 8) + "'}) to check past executions.",
+      "Return your final output as plain text — if a delivery preset is configured, results are also broadcast automatically.",
     ];
 
     // Inject last execution result if exists
