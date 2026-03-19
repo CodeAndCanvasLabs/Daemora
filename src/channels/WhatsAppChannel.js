@@ -129,7 +129,7 @@ export class WhatsAppChannel extends BaseChannel {
 
       if (mediaType.startsWith("audio/")) {
         console.log(`[Channel:WhatsApp] Audio media - transcribing...`);
-        const transcript = await transcribeAudio(localPath);
+        const transcript = await transcribeAudio({ audioPath: localPath });
         inputParts.push(transcript.startsWith("Error:")
           ? `[Audio file: ${localPath}]\n${transcript}`
           : `[Voice/Audio transcript]: ${transcript}`);

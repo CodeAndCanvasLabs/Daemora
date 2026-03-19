@@ -88,7 +88,7 @@ export class TelegramChannel extends BaseChannel {
         return;
       }
 
-      const transcript = await transcribeAudio(audioPath);
+      const transcript = await transcribeAudio({ audioPath });
       if (transcript.startsWith("Error:")) {
         // Fall back: let user know STT isn't configured
         await ctx.reply(`I received your voice message but couldn't transcribe it: ${transcript}\n\nPlease type your request instead.`);
@@ -112,7 +112,7 @@ export class TelegramChannel extends BaseChannel {
       const audioPath = await this._downloadFile(audio.file_id, ext);
       if (!audioPath) { await ctx.reply("Couldn't download audio file."); return; }
 
-      const transcript = await transcribeAudio(audioPath);
+      const transcript = await transcribeAudio({ audioPath });
       const input = transcript.startsWith("Error:")
         ? `[Audio file received: ${audioPath}]\n${transcript}`
         : `[Audio transcript]: ${transcript}`;
