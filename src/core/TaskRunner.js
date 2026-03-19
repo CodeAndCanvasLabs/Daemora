@@ -229,7 +229,20 @@ class TaskRunner {
     } else if (task.channel && task.sessionId) {
       const userId = task.sessionId.slice(task.channel.length + 1);
       if (userId) {
-        tenant = tenantManager.getOrCreate(task.channel, userId);
+        // For global channels: reuse existing global tenant if one exists
+        // This links all global channel identities (telegram, discord, etc.) to one admin tenant
+        const isGlobalChannel = !task.channelMeta?.tenantId;
+        if (isGlobalChannel) {
+          const existingGlobal = tenantManager.findGlobalTenant();
+          if (existingGlobal) {
+            tenant = existingGlobal;
+          } else {
+            tenant = tenantManager.getOrCreate(task.channel, userId);
+            tenantManager.markAsGlobal(tenant.id);
+          }
+        } else {
+          tenant = tenantManager.getOrCreate(task.channel, userId);
+        }
       }
     }
 
