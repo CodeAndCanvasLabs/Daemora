@@ -84,7 +84,7 @@ export const permissionTiers = {
       // Project & task tracking
       "projectTracker", "taskManager",
       // Automation
-      "cron",
+      "cron", "broadcast",
       // Voice & Meetings
       "makeVoiceCall", "meetingAction",
       // Phase 24
