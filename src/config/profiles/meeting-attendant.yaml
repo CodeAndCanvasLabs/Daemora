@@ -72,6 +72,7 @@ tools:
   - writeMemory
   - searchMemory
   - replyToUser
+  - makeVoiceCall
 skills:
   include: [meeting, notes, summarize, transcription]
   exclude: [orchestration, coding, devops]

@@ -31,6 +31,7 @@ tools:
   - searchMemory
   - teamTask
   - replyToUser
+  - generateImage
 skills:
   include: [frontend-design, web-development, browser, image-gen, image-enhancer, brand-guidelines]
   exclude: [orchestration, devops, system-admin]

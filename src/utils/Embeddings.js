@@ -279,8 +279,8 @@ export function cosineSim(a, b) {
  * @param {string} text
  * @returns {Promise<number[]|null>}
  */
-export async function generateEmbedding(text) {
-  const provider = await getEmbeddingProviderAsync();
+export async function generateEmbedding(text, forceProvider = null) {
+  const provider = forceProvider || await getEmbeddingProviderAsync();
   if (!provider) return null;
 
   // Built-in TF-IDF — no API call needed

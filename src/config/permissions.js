@@ -36,7 +36,7 @@ export const permissionTiers = {
       // Web & browser
       "webFetch", "webSearch", "browserAction",
       // Communication (no sendEmail/messageChannel — those are full-only)
-      "sendFile", "replyWithFile", "replyToUser",
+      "sendFile", "replyToUser",
       // Media
       "transcribeAudio", "textToSpeech",
       // Documents
@@ -66,7 +66,7 @@ export const permissionTiers = {
       // Web & browser
       "webFetch", "webSearch", "browserAction",
       // Communication
-      "sendEmail", "messageChannel", "sendFile", "replyWithFile", "replyToUser",
+      "sendEmail", "messageChannel", "sendFile", "replyToUser",
       // Media
       "transcribeAudio", "textToSpeech",
       // Documents

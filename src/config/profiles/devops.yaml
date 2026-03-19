@@ -27,6 +27,7 @@ tools:
   - searchMemory
   - teamTask
   - replyToUser
+  - gitTool
 skills:
   include: [devops, system-admin, healthcheck, coding, tmux]
   exclude: [orchestration]

@@ -28,6 +28,7 @@ tools:
   - cron
   - teamTask
   - replyToUser
+  - transcribeAudio
 skills:
   include: [email, apple-notes, apple-reminders, things, obsidian, planning, summarize, file-organizer, invoice-organizer, weather, spotify]
   exclude: [orchestration, coding, devops]

@@ -121,8 +121,9 @@ export const CORE_TOOLS = [
   "readMemory", "writeMemory", "searchMemory",
   // Orchestration
   "spawnAgent", "parallelAgents", "manageAgents", "teamTask", "discoverProfiles",
-  // Communication (reply only — sendEmail/messageChannel need auth)
+  // Communication
   "replyToUser",
+  "sendFile",
   // Tasks
   "taskManager", "cron",
   // MCP

@@ -175,8 +175,8 @@ class SkillLoader {
     } catch {}
   }
 
-  _generateEmbedding(text) {
-    return generateEmbedding(text);
+  _generateEmbedding(text, forceProvider = null) {
+    return generateEmbedding(text, forceProvider);
   }
 
   _cosineSim(a, b) {
@@ -226,7 +226,7 @@ class SkillLoader {
 
       const vector = await this._generateEmbedding(text);
       if (vector) {
-        this._skillVectors[name] = { hash, vector };
+        this._skillVectors[name] = { hash, vector, provider };
         changed = true;
         console.log(`[SkillLoader] Embedded skill: ${name}`);
       }
@@ -329,13 +329,14 @@ class SkillLoader {
       return true;
     };
 
-    // 1. Embedding match — only return skills above similarity threshold
-    // TF-IDF produces lower scores (0.05-0.20) than neural embeddings (0.3-0.9)
-    const provider = getEmbeddingProvider();
-    const SKILL_MATCH_THRESHOLD = provider === "tfidf" ? 0.05 : 0.25;
+    // 1. Embedding match — use the SAME provider that created the vectors.
+    // If vectors are TF-IDF, query with TF-IDF. Never mix providers.
+    const firstVector = Object.values(this._skillVectors)[0];
+    const vectorProvider = firstVector?.provider || "tfidf";
+    const SKILL_MATCH_THRESHOLD = vectorProvider === "tfidf" ? 0.05 : 0.25;
     const vectorsAvailable = Object.keys(this._skillVectors).length > 0;
-    if (provider && vectorsAvailable) {
-      const queryVector = await this._generateEmbedding(taskInput);
+    if (vectorsAvailable) {
+      const queryVector = await this._generateEmbedding(taskInput, vectorProvider);
       if (queryVector) {
         const scored = [];
         for (const [name, skill] of this.skills) {

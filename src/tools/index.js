@@ -19,7 +19,7 @@ import { spawnSubAgent, spawnParallelAgents } from "../agents/SubAgentManager.js
 import { delegateToAgent } from "../a2a/A2AClient.js";
 import { transcribeAudio } from "./transcribeAudio.js";
 import { sendFile } from "./sendFile.js";
-import { replyWithFile } from "./replyWithFile.js";
+// replyWithFile removed — duplicate of sendFile
 import { textToSpeech } from "./textToSpeech.js";
 import { globSearch } from "./glob.js";
 import { grep } from "./grep.js";
@@ -83,7 +83,7 @@ export const toolFunctions = {
   executeCommand,
   webFetch, webSearch,
   browserAction,
-  sendEmail, messageChannel, sendFile, replyWithFile, replyToUser,
+  sendEmail, messageChannel, sendFile, replyToUser,
   transcribeAudio, textToSpeech,
   createDocument,
   readMemory, writeMemory, readDailyLog, writeDailyLog,

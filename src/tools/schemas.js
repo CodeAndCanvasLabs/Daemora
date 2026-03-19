@@ -7,7 +7,11 @@ let _profileListCache = null;
 function _cachedProfileList() {
   if (!_profileListCache) {
     try {
-      _profileListCache = listProfiles().map(p => p.id).join("|");
+      const profiles = listProfiles();
+      _profileListCache = profiles.map(p => {
+        const tools = (p.tools || []).filter(t => !["readFile","writeFile","editFile","listDirectory","glob","grep","readMemory","writeMemory","searchMemory","replyToUser","teamTask","useMCP"].includes(t));
+        return tools.length > 0 ? `${p.id}(${tools.join(",")})` : p.id;
+      }).join(" · ");
     } catch { _profileListCache = ""; }
   }
   return _profileListCache;
@@ -152,13 +156,7 @@ const toolSchemas = {
     }),
     description: "Send file to user. Omit channel = current channel. Set channel = cross-channel delivery (auto-resolved, never ask user for IDs).",
   },
-  replyWithFile: {
-    schema: z.object({
-      filePath: str("Absolute path to file"),
-      caption: optStr("File caption"),
-    }),
-    description: "Send file back to the current user",
-  },
+  // replyWithFile removed — duplicate of sendFile
   replyToUser: {
     schema: z.object({
       message: str("Message text"),

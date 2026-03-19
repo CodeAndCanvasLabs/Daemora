@@ -28,6 +28,7 @@ tools:
   - searchMemory
   - teamTask
   - replyToUser
+  - reload
 skills:
   include: [system-admin, devops, healthcheck, tmux, coding, debugging]
   exclude: [orchestration]
