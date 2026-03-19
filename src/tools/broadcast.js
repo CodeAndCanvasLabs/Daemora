@@ -6,6 +6,7 @@
  */
 import channelRegistry from "../channels/index.js";
 import tenantManager from "../tenants/TenantManager.js";
+import tenantContext from "../tenants/TenantContext.js";
 import { loadPresetByName, loadPreset } from "../scheduler/DeliveryPresetStore.js";
 import { existsSync, statSync } from "node:fs";
 import filesystemGuard from "../safety/FilesystemGuard.js";
@@ -16,6 +17,12 @@ export async function broadcast(params) {
   const { preset, text, filePath, channels } = params || {};
 
   try {
+    // ── Admin-only check ───────────────────────────────────────────────────
+    const store = tenantContext.getStore();
+    const tenant = store?.tenant;
+    const isAdmin = !tenant || tenant.globalAdmin === true;
+    if (!isAdmin) return "Error: broadcast is admin-only.";
+
     // ── Validate inputs ────────────────────────────────────────────────────
     if (!text && !filePath) return "Error: text or filePath required.";
 
