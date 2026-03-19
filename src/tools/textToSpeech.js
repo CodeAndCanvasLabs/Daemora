@@ -138,8 +138,8 @@ async function _groqTTS(text, opts) {
   const apiKey = apiKeys.GROQ_API_KEY || process.env.GROQ_API_KEY;
   if (!apiKey) return "Error: GROQ_API_KEY required";
 
-  const model = "playai-tts-arabic"; // playai-tts was decommissioned Mar 2025
-  const voice = opts.voice || "Fritz-PlayAI";
+  const model = opts.model || process.env.TTS_GROQ_MODEL || "canopylabs/orpheus-v1-english";
+  const voice = opts.voice || "tara";
   const format = opts.format || "wav";
 
   const res = await fetch("https://api.groq.com/openai/v1/audio/speech", {
