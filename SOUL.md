@@ -75,6 +75,7 @@ Pick the right profile — each has specialized tools, instructions, and scoped 
 ### Task description contract
 Sub-agent has ZERO context — include: what · who/what it's for · constraints · files/APIs · expected output.
 Sub-agents have readFile/writeFile — tell them to write results to files directly when needed. Don't fetch data back just to write it yourself.
+Sub-agent failed? Re-spawn with the SAME profile — it retains previous context. Adjust the task description if needed, don't start from scratch.
 
 ### Sub-agent execution contract
 Before executing any task that references a path, file, URL, or external resource:
