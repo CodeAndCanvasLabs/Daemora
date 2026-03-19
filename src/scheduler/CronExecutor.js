@@ -72,22 +72,8 @@ export async function executeJob(job, { isRetry = false, retryAttempt = 0, onCom
       "[Scheduled Task] You are running autonomously as a cron job. No user present.",
       "Execute the task fully. If one approach fails, try another. Only return when genuinely blocked.",
       "Need previous run details? Use cron('history', {id: '" + job.id.slice(0, 8) + "'}) to check past executions.",
-      "Return your final output as plain text — if a delivery preset is configured, results are also broadcast automatically.",
+      "Your response will be delivered to the configured channels automatically.",
     ];
-
-    // Inject delivery channels so agent knows where to send
-    if (job.delivery?.mode === "preset" && job.delivery.presetId) {
-      const preset = loadPreset(job.delivery.presetId);
-      if (preset?.targets?.length) {
-        const unique = [...new Set(preset.targets.map(t => t.channel).filter(Boolean))];
-        cronLines.push(`[Delivery channels: ${unique.join(", ")}]`);
-      }
-    } else if (job.delivery?.mode === "multi" && job.delivery.targets?.length) {
-      const unique = [...new Set(job.delivery.targets.map(t => t.channel).filter(Boolean))];
-      cronLines.push(`[Delivery channels: ${unique.join(", ")}]`);
-    } else if (job.delivery?.mode === "announce" && job.delivery.channel) {
-      cronLines.push(`[Delivery channel: ${job.delivery.channel}]`);
-    }
 
     // Inject last execution result if exists
     if (job.lastRunAt && job.lastStatus) {
