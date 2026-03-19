@@ -324,8 +324,7 @@ export async function runAgentLoop({
     if (isToolCallError && retryCount < MAX_RETRIES) {
       retryCount++;
       console.log(`[AgentLoop] Tool call error (retry ${retryCount}/${MAX_RETRIES}) — feeding error back to model`);
-      inputMessages.push({ role: "assistant", content: "I attempted an invalid tool call." });
-      inputMessages.push({ role: "user", content: `Your tool call failed: ${error.message}. Respond with text or use the correct tool name from your available tools.` });
+      inputMessages.push({ role: "user", content: `[system] Tool call failed. Try again.` });
       continue; // retry the while loop with full tracking
     }
 
