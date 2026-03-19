@@ -1054,7 +1054,7 @@ export function Settings() {
         title="Tool Config"
         subtitle="API keys and settings for built-in tools"
         badge={(() => {
-          const toolKeys = ["ELEVENLABS_API_KEY", "GOOGLE_PLACES_API_KEY", "GOOGLE_CALENDAR_API_KEY", "HUE_API_KEY", "DATABASE_URL", "NTFY_URL"];
+          const toolKeys = ["ELEVENLABS_API_KEY"];
           const set = toolKeys.filter(k => data.vars[k]);
           return set.length > 0 ? (
             <span className="text-[9px] font-mono text-[#00ff88] bg-[#00ff88]/10 px-2 py-0.5 rounded-md border border-[#00ff88]/20">
@@ -1067,14 +1067,6 @@ export function Settings() {
         <div className="space-y-3">
           {[
             { name: "Text-to-Speech (ElevenLabs)", color: "#f0883e", keys: [{ key: "ELEVENLABS_API_KEY", label: "API Key" }] },
-            { name: "Google Places", color: "#4285f4", keys: [{ key: "GOOGLE_PLACES_API_KEY", label: "API Key" }] },
-            { name: "Google Calendar", color: "#0f9d58", keys: [{ key: "GOOGLE_CALENDAR_API_KEY", label: "API Key" }, { key: "GOOGLE_CALENDAR_ID", label: "Calendar ID" }, { key: "GOOGLE_CALENDAR_ACCESS_TOKEN", label: "Access Token" }] },
-            { name: "Google Contacts", color: "#4285f4", keys: [{ key: "GOOGLE_CONTACTS_ACCESS_TOKEN", label: "Access Token" }] },
-            { name: "Philips Hue", color: "#ffcc00", keys: [{ key: "HUE_BRIDGE_IP", label: "Bridge IP" }, { key: "HUE_API_KEY", label: "API Key" }] },
-            { name: "Sonos", color: "#00d9ff", keys: [{ key: "SONOS_SPEAKER_IP", label: "Speaker IP" }] },
-            { name: "Notifications (ntfy)", color: "#00ff88", keys: [{ key: "NTFY_URL", label: "Server URL" }, { key: "NTFY_TOPIC", label: "Topic" }, { key: "NTFY_TOKEN", label: "Token" }] },
-            { name: "Notifications (Pushover)", color: "#2e9afe", keys: [{ key: "PUSHOVER_API_TOKEN", label: "API Token" }, { key: "PUSHOVER_USER_KEY", label: "User Key" }] },
-            { name: "Database", color: "#a78bfa", keys: [{ key: "DATABASE_URL", label: "PostgreSQL URL" }, { key: "MYSQL_URL", label: "MySQL URL" }] },
           ].map(({ name, color, keys }) => {
             const anySet = keys.some(k => data.vars[k.key]);
             return (
