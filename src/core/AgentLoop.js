@@ -327,8 +327,16 @@ export async function runAgentLoop({
     }
 
     console.log(`[AgentLoop] Fatal error: ${error.message}`);
+
+    // User-facing errors: billing, rate limits, auth — show to user
+    const msg = error.message || "";
+    const isUserFacing = /rate.limit|quota|budget|billing|unauthorized|auth|too.large|TPM|RPM/i.test(msg);
+    const userText = isUserFacing
+      ? `I encountered an error: ${msg}`
+      : "Something went wrong while processing your request. Please try again.";
+
     return {
-      text: `I encountered an error: ${error.message}`,
+      text: userText,
       messages: inputMessages,
       cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, estimatedCost: 0, modelCalls: totalSteps, model: resolvedModelId },
       toolCalls: toolCallLog,
