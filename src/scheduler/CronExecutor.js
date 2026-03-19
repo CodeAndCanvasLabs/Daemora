@@ -71,9 +71,8 @@ export async function executeJob(job, { isRetry = false, retryAttempt = 0, onCom
     const cronLines = [
       "[Scheduled Task] You are running autonomously as a cron job. No user present.",
       "Execute the task fully. If one approach fails, try another. Only return when genuinely blocked.",
-      "If delivering to teams/tenants, use cron('listPresets') to find delivery presets.",
+      "IMPORTANT: Delivery to channels/presets is handled AUTOMATICALLY after you finish. Do NOT use sendFile, sendMessage, or any channel tool to deliver results yourself. Just return your final output as plain text.",
       "Need previous run details? Use cron('history', {id: '" + job.id.slice(0, 8) + "'}) to check past executions.",
-      "Return your final output as plain text — delivery to channels is handled automatically.",
     ];
 
     // Inject last execution result if exists
@@ -296,6 +295,7 @@ async function _deliverSingle(channelType, channelMeta, text) {
 /**
  * Resolve fresh channelMeta from tenant_channels at delivery time.
  * Prevents stale routing metadata — always uses current data.
+ * Also resolves instanceKey for per-tenant channel routing.
  */
 function _freshMeta(channelType, fallbackMeta, tenantId, userId) {
   if (!tenantId) return fallbackMeta; // global channel — use stored meta
@@ -304,7 +304,14 @@ function _freshMeta(channelType, fallbackMeta, tenantId, userId) {
     const match = channels.find(c =>
       c.channel === channelType && (!userId || c.user_id === userId)
     );
-    return match?.meta || fallbackMeta;
+    if (!match?.meta) return fallbackMeta;
+    // Resolve instanceKey — try tenant-specific channel instance first
+    const instanceKey = `${channelType}::${tenantId}`;
+    const instance = channelRegistry.get(channelType, instanceKey);
+    if (instance) {
+      return { ...match.meta, instanceKey };
+    }
+    return match.meta;
   } catch {
     return fallbackMeta;
   }

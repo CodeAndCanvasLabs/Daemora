@@ -73,18 +73,19 @@ export function cron(toolParams) {
 
         if (params.staggerMs) schedule.staggerMs = params.staggerMs;
 
-        // Build delivery from context
-        const channelMeta = _getChannelMeta();
-        let delivery = params.delivery || { mode: "none" };
-        if (delivery.mode === "none" && channelMeta) {
-          // Auto-announce to calling channel
-          delivery = { mode: "announce", channel: channelMeta.channel, to: null, channelMeta };
-        }
-
         // Admin-only: delivery preset (resolves named group → preset ID)
         const store = tenantContext.getStore();
         const isAdmin = !tenantId || tenantId === "__global__" || store?.tenant?.globalAdmin === true;
         const deliveryPreset = isAdmin ? (params.deliveryPreset || null) : null;
+
+        // Build delivery — preset takes priority over auto-announce
+        let delivery = params.delivery || { mode: "none" };
+        if (!deliveryPreset && delivery.mode === "none") {
+          const channelMeta = _getChannelMeta();
+          if (channelMeta) {
+            delivery = { mode: "announce", channel: channelMeta.channel, to: null, channelMeta };
+          }
+        }
 
         const job = scheduler.create({
           schedule,
@@ -106,7 +107,7 @@ export function cron(toolParams) {
           : schedule.kind === "every" ? `every ${Math.round(schedule.everyMs / 1000)}s`
           : `at ${schedule.at}`;
 
-        return `Job created: "${job.name}" | ${schedDesc} | delivery: ${delivery.mode} | ID: ${job.id.slice(0, 8)} | next: ${job.nextRunAt || "now"}`;
+        return `Job created: "${job.name}" | ${schedDesc} | delivery: ${job.delivery.mode}${job.delivery.presetId ? ` (preset)` : ""} | ID: ${job.id.slice(0, 8)} | next: ${job.nextRunAt || "now"}`;
       }
 
       case "update": {
