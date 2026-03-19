@@ -229,7 +229,20 @@ class TaskRunner {
     } else if (task.channel && task.sessionId) {
       const userId = task.sessionId.slice(task.channel.length + 1);
       if (userId) {
-        tenant = tenantManager.getOrCreate(task.channel, userId);
+        // For global channels: reuse existing global tenant if one exists
+        // This links all global channel identities (telegram, discord, etc.) to one admin tenant
+        const isGlobalChannel = !task.channelMeta?.tenantId;
+        if (isGlobalChannel) {
+          const existingGlobal = tenantManager.findGlobalTenant();
+          if (existingGlobal) {
+            tenant = existingGlobal;
+          } else {
+            tenant = tenantManager.getOrCreate(task.channel, userId);
+            tenantManager.markAsGlobal(tenant.id);
+          }
+        } else {
+          tenant = tenantManager.getOrCreate(task.channel, userId);
+        }
       }
     }
 
@@ -282,6 +295,11 @@ class TaskRunner {
     let tools = resolvedConfig.tools?.length
       ? Object.fromEntries(Object.entries(toolFunctions).filter(([k]) => resolvedConfig.tools.includes(k) && coreSet.has(k)))
       : Object.fromEntries(Object.entries(toolFunctions).filter(([k]) => coreSet.has(k)));
+
+    // Inject broadcast tool for cron tasks (delivery to presets)
+    if (task.type === "cron" && toolFunctions.broadcast) {
+      tools.broadcast = toolFunctions.broadcast;
+    }
 
     // Remove blocked tools
     if (resolvedConfig.blockedTools?.length) {

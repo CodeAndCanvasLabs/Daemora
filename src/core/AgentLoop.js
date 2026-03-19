@@ -227,7 +227,10 @@ export async function runAgentLoop({
   let totalSteps = 0;
 
   const startTime = Date.now();
+  const MAX_RETRIES = 2;
+  let retryCount = 0;
 
+  while (retryCount <= MAX_RETRIES) {
   try {
     const result = await generateText({
       model,
@@ -316,6 +319,15 @@ export async function runAgentLoop({
 
     return { text: finalText, messages: conversationMessages, cost, toolCalls: toolCallLog };
   } catch (error) {
+    // Tool call validation errors — inject error into conversation, retry the full loop
+    const isToolCallError = /tool call validation|not in request\.tools|failed_generation/i.test(error.message);
+    if (isToolCallError && retryCount < MAX_RETRIES) {
+      retryCount++;
+      console.log(`[AgentLoop] Tool call error (retry ${retryCount}/${MAX_RETRIES}) — feeding error back to model`);
+      inputMessages.push({ role: "user", content: `[system] Tool call failed. Try again.` });
+      continue; // retry the while loop with full tracking
+    }
+
     if (signal?.aborted || error.name === "AbortError") {
       console.log(`[AgentLoop] Aborted.`);
       return {
@@ -327,11 +339,20 @@ export async function runAgentLoop({
     }
 
     console.log(`[AgentLoop] Fatal error: ${error.message}`);
+
+    // User-facing errors: billing, rate limits, auth — show to user
+    const msg = error.message || "";
+    const isUserFacing = /rate.limit|quota|budget|billing|unauthorized|auth|too.large|TPM|RPM/i.test(msg);
+    const userText = isUserFacing
+      ? `I encountered an error: ${msg}`
+      : "Something went wrong while processing your request. Please try again.";
+
     return {
-      text: `I encountered an error: ${error.message}`,
+      text: userText,
       messages: inputMessages,
       cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, estimatedCost: 0, modelCalls: totalSteps, model: resolvedModelId },
       toolCalls: toolCallLog,
     };
   }
+  } // end while retry loop
 }

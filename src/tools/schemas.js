@@ -157,6 +157,15 @@ const toolSchemas = {
     description: "Send file to user. Omit channel = current channel. Set channel = cross-channel delivery (auto-resolved, never ask user for IDs).",
   },
   // replyWithFile removed — duplicate of sendFile
+  broadcast: {
+    schema: z.object({
+      preset: str("Delivery preset name (e.g. 'leads-team', 'engineers')"),
+      text: optStr("Text message to send"),
+      filePath: optStr("Absolute path to file to send"),
+      channels: optStr("Optional comma-separated channel filter (e.g. 'telegram,discord')"),
+    }),
+    description: "Send text or file to all targets in a delivery preset. Use cron('listPresets') to see available presets.",
+  },
   replyToUser: {
     schema: z.object({
       message: str("Message text"),

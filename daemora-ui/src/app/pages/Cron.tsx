@@ -3,7 +3,7 @@ import { apiFetch } from "../api";
 import {
   Clock, Plus, Trash2, Loader2, Play, Pause, RotateCcw, History,
   Globe, Repeat, Timer, AlertTriangle, CheckCircle2, XCircle, RefreshCw,
-  Send, Users, ChevronDown, ChevronRight, Check
+  Send, Users, ChevronDown, ChevronRight, Check, Pencil
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -121,6 +121,9 @@ export function Cron() {
   const [selectedPresetId, setSelectedPresetId] = useState("");
   const [presetForm, setPresetForm] = useState({ name: "", description: "" });
   const [isPresetOpen, setIsPresetOpen] = useState(false);
+  // Edit job
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingJobId, setEditingJobId] = useState<string | null>(null);
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -271,6 +274,105 @@ export function Cron() {
       }
     } catch {
       toast.error("Failed to trigger job");
+    }
+  };
+
+  const handleEdit = (job: CronJob) => {
+    setEditingJobId(job.id);
+    const everyMs = job.schedule.everyMs;
+    let everyInterval = "";
+    if (everyMs) {
+      if (everyMs >= 86400000) everyInterval = `${Math.round(everyMs / 86400000)}d`;
+      else if (everyMs >= 3600000) everyInterval = `${Math.round(everyMs / 3600000)}h`;
+      else if (everyMs >= 60000) everyInterval = `${Math.round(everyMs / 60000)}m`;
+      else everyInterval = `${Math.round(everyMs / 1000)}s`;
+    }
+    setForm({
+      name: job.name || "",
+      scheduleKind: job.schedule.kind,
+      cronExpr: job.schedule.expr || "",
+      timezone: job.schedule.tz || "",
+      everyInterval,
+      atTime: job.schedule.at ? new Date(job.schedule.at).toISOString().slice(0, 16) : "",
+      taskInput: job.taskInput || "",
+      model: job.model || "",
+      maxRetries: String(job.maxRetries || 0),
+      timeoutSeconds: String(job.timeoutSeconds || 7200),
+      deliveryMode: job.delivery?.mode || "none",
+    });
+    if (job.delivery?.mode === "preset" && (job.delivery as any).presetId) {
+      setSelectedPresetId((job.delivery as any).presetId);
+    }
+    fetchDeliveryTargets();
+    setIsEditOpen(true);
+  };
+
+  const handleUpdate = async () => {
+    if (!editingJobId || !form.taskInput) return toast.error("Task input is required");
+
+    const body: Record<string, unknown> = {
+      name: form.name || undefined,
+      taskInput: form.taskInput,
+      model: form.model || null,
+      maxRetries: parseInt(form.maxRetries) || 0,
+      timeoutSeconds: parseInt(form.timeoutSeconds) || 7200,
+    };
+
+    if (form.scheduleKind === "cron") {
+      if (!form.cronExpr) return toast.error("Cron expression is required");
+      body.schedule = { kind: "cron", expr: form.cronExpr, tz: form.timezone || null };
+    } else if (form.scheduleKind === "every") {
+      if (!form.everyInterval) return toast.error("Interval is required");
+      // Parse interval to ms for direct schedule object
+      const match = form.everyInterval.match(/^(\d+)\s*(s|m|h|d)$/i);
+      if (!match) return toast.error('Invalid interval format (e.g. "30s", "5m", "2h", "1d")');
+      const n = parseInt(match[1]);
+      const mult: Record<string, number> = { s: 1000, m: 60000, h: 3600000, d: 86400000 };
+      body.schedule = { kind: "every", everyMs: n * mult[match[2].toLowerCase()] };
+    } else if (form.scheduleKind === "at") {
+      if (!form.atTime) return toast.error("Date/time is required");
+      body.schedule = { kind: "at", at: new Date(form.atTime).toISOString() };
+    }
+
+    if (form.deliveryMode === "preset" && selectedPresetId) {
+      body.delivery = { mode: "preset", presetId: selectedPresetId };
+    } else if (form.deliveryMode === "multi" && selectedTargets.size > 0) {
+      const targets: DeliveryTarget[] = [];
+      for (const key of selectedTargets) {
+        const [tid, ch, uid] = key.split("||");
+        if (tid === "__global__") {
+          targets.push({ tenantId: null, channel: ch, userId: null, channelMeta: null });
+        } else {
+          const tenant = deliveryTenants.find(t => t.id === tid);
+          const chData = tenant?.channels.find(c => c.channel === ch && c.userId === uid);
+          targets.push({ tenantId: tid, channel: ch, userId: uid || null, channelMeta: chData?.meta || null });
+        }
+      }
+      body.delivery = { mode: "multi", targets };
+    } else if (form.deliveryMode === "webhook") {
+      body.delivery = { mode: "webhook" };
+    } else if (form.deliveryMode === "none") {
+      body.delivery = { mode: "none" };
+    }
+
+    try {
+      const res = await apiFetch(`/api/cron/jobs/${editingJobId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        toast.success("Job updated");
+        setIsEditOpen(false);
+        setEditingJobId(null);
+        setForm(EMPTY_FORM);
+        fetchJobs();
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Failed to update job");
+      }
+    } catch {
+      toast.error("API connection error");
     }
   };
 
@@ -511,6 +613,185 @@ export function Cron() {
         </div>
       </div>
 
+      {/* Edit Job Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={(v) => { setIsEditOpen(v); if (!v) { setEditingJobId(null); setForm(EMPTY_FORM); setSelectedTargets(new Set()); setExpandedTenants(new Set()); setSelectedPresetId(""); } }}>
+        <DialogContent className="bg-slate-950 border-slate-800 text-white max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="uppercase tracking-widest text-sm border-b border-slate-800 pb-4">Edit Cron Job</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4 max-h-[70vh] overflow-y-auto">
+            <div className="space-y-1">
+              <label className="text-xs text-gray-400">Name</label>
+              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Daily Report" className="bg-slate-900 border-slate-800 text-sm" />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs text-gray-400">Schedule Type</label>
+              <Select value={form.scheduleKind} onValueChange={(v) => setForm({ ...form, scheduleKind: v as typeof form.scheduleKind })}>
+                <SelectTrigger className="bg-slate-900 border-slate-800 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-slate-950 border-slate-800">
+                  <SelectItem value="cron">Cron Expression</SelectItem>
+                  <SelectItem value="every">Fixed Interval</SelectItem>
+                  <SelectItem value="at">One-Shot (At)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {form.scheduleKind === "cron" && (
+              <>
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-400">Cron Expression</label>
+                  <Input value={form.cronExpr} onChange={(e) => setForm({ ...form, cronExpr: e.target.value })} placeholder="0 9 * * *" className="bg-slate-900 border-slate-800 text-sm text-[#00ff88]" />
+                  <p className="text-xs text-gray-500">min hour day month weekday (e.g. "0 9 * * *" = daily 9am)</p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-400">Timezone (optional)</label>
+                  <Input value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} placeholder="America/New_York" className="bg-slate-900 border-slate-800 text-sm" />
+                </div>
+              </>
+            )}
+
+            {form.scheduleKind === "every" && (
+              <div className="space-y-1">
+                <label className="text-xs text-gray-400">Interval</label>
+                <Input value={form.everyInterval} onChange={(e) => setForm({ ...form, everyInterval: e.target.value })} placeholder="30m (30s, 5m, 2h, 1d)" className="bg-slate-900 border-slate-800 text-sm text-[#00ff88]" />
+              </div>
+            )}
+
+            {form.scheduleKind === "at" && (
+              <div className="space-y-1">
+                <label className="text-xs text-gray-400">Date & Time</label>
+                <Input type="datetime-local" value={form.atTime} onChange={(e) => setForm({ ...form, atTime: e.target.value })} className="bg-slate-900 border-slate-800 text-sm" />
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <label className="text-xs text-gray-400">Task Input (Agent Prompt)</label>
+              <textarea
+                value={form.taskInput}
+                onChange={(e) => setForm({ ...form, taskInput: e.target.value })}
+                placeholder="What should the agent do when this job runs?"
+                className="w-full bg-slate-900 border border-slate-800 rounded-md text-sm p-3 min-h-[80px] text-white resize-y"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs text-gray-400">Model (optional)</label>
+                <Input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} placeholder="openai:gpt-4.1-mini" className="bg-slate-900 border-slate-800 text-sm" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-gray-400">Max Retries</label>
+                <Input type="number" value={form.maxRetries} onChange={(e) => setForm({ ...form, maxRetries: e.target.value })} className="bg-slate-900 border-slate-800 text-sm" />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs text-gray-400">Timeout (seconds)</label>
+              <Input type="number" value={form.timeoutSeconds} onChange={(e) => setForm({ ...form, timeoutSeconds: e.target.value })} className="bg-slate-900 border-slate-800 text-sm" />
+            </div>
+
+            {/* Delivery */}
+            <div className="space-y-2 border-t border-slate-800 pt-4">
+              <label className="text-xs text-gray-400 flex items-center gap-1"><Send className="w-3 h-3" /> Delivery</label>
+              <Select value={form.deliveryMode} onValueChange={(v) => { setForm({ ...form, deliveryMode: v }); setSelectedTargets(new Set()); setSelectedPresetId(""); }}>
+                <SelectTrigger className="bg-slate-900 border-slate-800 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-slate-950 border-slate-800">
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="preset">Preset (saved group)</SelectItem>
+                  <SelectItem value="multi">Multi-Target (pick tenants)</SelectItem>
+                  <SelectItem value="webhook">Webhook URL</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {form.deliveryMode === "preset" && (
+                <Select value={selectedPresetId} onValueChange={setSelectedPresetId}>
+                  <SelectTrigger className="bg-slate-900 border-slate-800 text-sm"><SelectValue placeholder="Select preset..." /></SelectTrigger>
+                  <SelectContent className="bg-slate-950 border-slate-800">
+                    {presets.map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name} ({p.targets.length} targets)</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {form.deliveryMode === "multi" && (
+                <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-3 max-h-48 overflow-y-auto space-y-1">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-gray-400">{selectedTargets.size} selected</span>
+                    <button
+                      className="text-xs text-[#38bdf8] hover:underline"
+                      onClick={() => {
+                        const all = new Set<string>();
+                        deliveryTenants.forEach(t => t.channels.forEach(c => all.add(`${t.id}||${c.channel}||${c.userId}`)));
+                        deliveryGlobal.forEach(c => all.add(`__global__||${c.channel}||`));
+                        setSelectedTargets(selectedTargets.size === all.size ? new Set() : all);
+                      }}
+                    >{selectedTargets.size > 0 ? "Deselect All" : "Select All"}</button>
+                  </div>
+                  {deliveryGlobal.length > 0 && (
+                    <div className="mb-2">
+                      <span className="text-xs text-gray-400 block mb-1">Global Channels</span>
+                      {deliveryGlobal.map(c => {
+                        const key = `__global__||${c.channel}||`;
+                        return (
+                          <label key={key} className="flex items-center gap-2 py-0.5 px-1 hover:bg-slate-800/50 rounded cursor-pointer">
+                            <input type="checkbox" checked={selectedTargets.has(key)} onChange={() => {
+                              const s = new Set(selectedTargets);
+                              s.has(key) ? s.delete(key) : s.add(key);
+                              setSelectedTargets(s);
+                            }} className="accent-[#00d9ff]" />
+                            <span className="text-sm text-gray-400">{c.channel}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {deliveryTenants.map(t => (
+                    <div key={t.id} className="border-t border-slate-800/30 pt-1">
+                      <button
+                        className="flex items-center gap-1 w-full text-left py-1 hover:bg-slate-800/30 rounded px-1"
+                        onClick={() => {
+                          const s = new Set(expandedTenants);
+                          s.has(t.id) ? s.delete(t.id) : s.add(t.id);
+                          setExpandedTenants(s);
+                        }}
+                      >
+                        {expandedTenants.has(t.id) ? <ChevronDown className="w-3 h-3 text-gray-500" /> : <ChevronRight className="w-3 h-3 text-gray-500" />}
+                        <Users className="w-3 h-3 text-[#00d9ff]" />
+                        <span className="text-sm text-gray-300">{t.name?.includes(":") ? `${t.name.split(":")[0]}:${t.name.split(":").pop()?.slice(0,8)}` : t.name}</span>
+                        <span className="text-xs text-gray-500 ml-auto">{t.channels.length} ch</span>
+                      </button>
+                      {expandedTenants.has(t.id) && (
+                        <div className="pl-6 space-y-0.5">
+                          {t.channels.map(c => {
+                            const key = `${t.id}||${c.channel}||${c.userId}`;
+                            return (
+                              <label key={key} className="flex items-center gap-2 py-0.5 px-1 hover:bg-slate-800/50 rounded cursor-pointer">
+                                <input type="checkbox" checked={selectedTargets.has(key)} onChange={() => {
+                                  const s = new Set(selectedTargets);
+                                  s.has(key) ? s.delete(key) : s.add(key);
+                                  setSelectedTargets(s);
+                                }} className="accent-[#00d9ff]" />
+                                <span className="text-sm text-gray-400">{c.channel}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <Button onClick={handleUpdate} className="w-full bg-gradient-to-r from-amber-600 to-amber-500 text-white uppercase text-xs tracking-tighter">
+              Update Job
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Status Bar */}
       {status && (
         <div className="flex items-center gap-6 text-xs font-mono text-gray-500">
@@ -615,6 +896,9 @@ export function Cron() {
                         />
                         <Button variant="ghost" size="icon" onClick={() => handleForceRun(job.id)} className="text-gray-500 hover:text-[#00d9ff]" title="Run now">
                           <Play className="w-3 h-3" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(job)} className="text-gray-500 hover:text-amber-400" title="Edit">
+                          <Pencil className="w-3 h-3" />
                         </Button>
                         <Button variant="ghost" size="icon" onClick={() => { setSelectedJobId(job.id); setActiveTab("history"); }} className="text-gray-500 hover:text-purple-400" title="View history">
                           <History className="w-3 h-3" />

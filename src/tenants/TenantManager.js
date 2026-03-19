@@ -262,7 +262,7 @@ class TenantManager {
     const allowed = [
       "model", "allowedPaths", "blockedPaths", "maxCostPerTask",
       "maxDailyCost", "tools", "blockedTools", "suspended", "plan", "notes",
-      "modelRoutes", "mcpServers", "ownMcpServers", "plugins",
+      "modelRoutes", "mcpServers", "ownMcpServers", "plugins", "globalAdmin",
     ];
     for (const key of allowed) {
       if (updates[key] !== undefined) cfg[key] = updates[key];
@@ -314,6 +314,23 @@ class TenantManager {
    */
   unsuspend(tenantId) {
     return this.set(tenantId, { suspended: false, suspendReason: "" });
+  }
+
+  /**
+   * Find the global admin tenant (first tenant marked as globalAdmin).
+   * All global channel identities share this single tenant.
+   */
+  findGlobalTenant() {
+    const row = queryOne("SELECT * FROM tenants WHERE config LIKE '%\"globalAdmin\":true%'");
+    if (!row) return null;
+    return { id: row.id, ..._parseConfig(row) };
+  }
+
+  /**
+   * Mark a tenant as the global admin tenant.
+   */
+  markAsGlobal(tenantId) {
+    this.set(tenantId, { globalAdmin: true });
   }
 
   /**

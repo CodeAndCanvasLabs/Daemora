@@ -77,7 +77,7 @@ export function Channels() {
     }
     setSaving(true);
     try {
-      await apiJson("/api/settings", "PUT", updates);
+      await apiJson("/api/settings", "PUT", { updates });
       setSaved(ch.name);
       toast.success(`${ch.label} configuration saved`);
       setTimeout(() => setSaved(null), 3000);

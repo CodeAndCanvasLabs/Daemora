@@ -78,7 +78,7 @@ export function Tenants() {
   const [channelCredKeys, setChannelCredKeys] = useState<string[]>([]);
   const [newCredValues, setNewCredValues] = useState<Record<string, string>>({});
   const [showCredValue, setShowCredValue] = useState(false);
-  const [credSaving, setCredSaving] = useState(false);
+  const [credSaving, setCredSaving] = useState<string | false>(false);
 
   // Own MCP servers state
   const [ownMcpServers, setOwnMcpServers] = useState<OwnMcpServer[]>([]);

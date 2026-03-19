@@ -11,7 +11,6 @@ import eventBus from "../core/EventBus.js";
 import tenantContext from "../tenants/TenantContext.js";
 import tenantManager from "../tenants/TenantManager.js";
 import channelRegistry from "../channels/index.js";
-import { loadPreset } from "./DeliveryPresetStore.js";
 import { saveRun, pruneRuns, saveJob } from "./CronStore.js";
 
 /**
@@ -71,9 +70,8 @@ export async function executeJob(job, { isRetry = false, retryAttempt = 0, onCom
     const cronLines = [
       "[Scheduled Task] You are running autonomously as a cron job. No user present.",
       "Execute the task fully. If one approach fails, try another. Only return when genuinely blocked.",
-      "If delivering to teams/tenants, use cron('listPresets') to find delivery presets.",
       "Need previous run details? Use cron('history', {id: '" + job.id.slice(0, 8) + "'}) to check past executions.",
-      "Return your final output as plain text — delivery to channels is handled automatically.",
+      "Your response will be delivered to the configured channels automatically.",
     ];
 
     // Inject last execution result if exists
@@ -105,7 +103,7 @@ export async function executeJob(job, { isRetry = false, retryAttempt = 0, onCom
     const durationMs = new Date(completedAt).getTime() - new Date(startedAt).getTime();
 
     // ── Success ───────────────────────────────────────────────────────────
-    const resultText = typeof result === "string" ? result : (result?.text || JSON.stringify(result) || "");
+    const resultText = typeof result === "string" ? result : (result?.text || result?.result || "Task completed.");
     const preview = resultText.slice(0, 500);
 
     job.runningSince = null;
@@ -124,14 +122,9 @@ export async function executeJob(job, { isRetry = false, retryAttempt = 0, onCom
 
     saveJob(job);
 
-    // ── Delivery ──────────────────────────────────────────────────────────
-    const deliveryResult = await _deliver(job, resultText);
-
     saveRun({
       jobId: job.id, tenantId: job.tenantId, startedAt, completedAt,
       status: "ok", durationMs, resultPreview: preview, taskId,
-      deliveryStatus: deliveryResult.status,
-      deliveryError: deliveryResult.error,
       retryAttempt,
     });
 
@@ -188,129 +181,6 @@ export async function executeJob(job, { isRetry = false, retryAttempt = 0, onCom
 }
 
 /**
- * Deliver job result — supports single channel, multi-target fan-out, preset, and webhook.
- */
-async function _deliver(job, resultText) {
-  const mode = job.delivery?.mode;
-  if (!mode || mode === "none") return { status: "not-requested" };
-
-  const text = `📋 **Cron: ${job.name}**\n\n${resultText}`;
-
-  try {
-    // Legacy single-target announce (backward compat)
-    if (mode === "announce" && !job.delivery.targets && !job.delivery.presetId) {
-      const meta = _freshMeta(job.delivery.channel, job.delivery.channelMeta, null);
-      return await _deliverSingle(job.delivery.channel, meta, text);
-    }
-
-    // Multi-target fan-out (inline targets)
-    if (mode === "multi" && job.delivery.targets?.length) {
-      return await _fanOut(job.delivery.targets, text, job.name);
-    }
-
-    // Preset-based fan-out
-    if (mode === "preset" && job.delivery.presetId) {
-      const preset = loadPreset(job.delivery.presetId);
-      if (!preset || !preset.targets?.length) {
-        return { status: "not-delivered", error: `Preset "${job.delivery.presetId}" not found or empty` };
-      }
-      return await _fanOut(preset.targets, text, job.name);
-    }
-
-    // Webhook
-    if (mode === "webhook" && job.delivery.to) {
-      const resp = await fetch(job.delivery.to, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jobId: job.id, jobName: job.name, status: "ok",
-          result: resultText, timestamp: new Date().toISOString(),
-        }),
-        signal: AbortSignal.timeout(30000),
-      });
-      if (!resp.ok) throw new Error(`Webhook ${resp.status}: ${resp.statusText}`);
-      return { status: "delivered" };
-    }
-
-    return { status: "not-delivered", error: "Delivery config incomplete" };
-  } catch (e) {
-    console.log(`[CronExecutor] Delivery failed for "${job.name}": ${e.message}`);
-    return { status: "not-delivered", error: e.message };
-  }
-}
-
-/**
- * Fan-out delivery to multiple targets. Runs all in parallel, no short-circuit.
- */
-async function _fanOut(targets, text, jobName) {
-  const results = await Promise.allSettled(
-    targets.map(t => {
-      const meta = _freshMeta(t.channel, t.channelMeta, t.tenantId, t.userId);
-      return _deliverSingle(t.channel, meta, text);
-    })
-  );
-
-  const delivered = results.filter(r => r.status === "fulfilled" && r.value?.status === "delivered").length;
-  const failed = results.length - delivered;
-  const errors = results
-    .filter(r => r.status === "rejected" || r.value?.status === "not-delivered")
-    .map(r => r.reason?.message || r.value?.error)
-    .filter(Boolean);
-
-  const status = failed === 0 ? "delivered" : delivered > 0 ? "partial" : "not-delivered";
-  console.log(`[CronExecutor] Delivery "${jobName}": ${delivered}/${results.length} delivered${errors.length ? ` (errors: ${errors.join("; ")})` : ""}`);
-
-  return {
-    status,
-    delivered,
-    failed,
-    total: results.length,
-    error: errors.length ? errors.join("; ") : null,
-  };
-}
-
-/**
- * Deliver to a single channel via channelRegistry.sendReply().
- */
-async function _deliverSingle(channelType, channelMeta, text) {
-  if (!channelType || !channelMeta) {
-    return { status: "not-delivered", error: `Missing channel or meta for ${channelType}` };
-  }
-
-  // Find channel — try tenant instance first, then global
-  const instanceKey = channelMeta.instanceKey || null;
-  const channel = channelRegistry.get(channelType, instanceKey) || channelRegistry.get(channelType);
-
-  if (!channel || !channel.running) {
-    return { status: "not-delivered", error: `Channel "${channelType}" not running` };
-  }
-
-  try {
-    await channel.sendReply(channelMeta, text);
-    return { status: "delivered" };
-  } catch (e) {
-    return { status: "not-delivered", error: `${channelType}: ${e.message}` };
-  }
-}
-
-/**
- * Resolve fresh channelMeta from tenant_channels at delivery time.
- * Prevents stale routing metadata — always uses current data.
- */
-function _freshMeta(channelType, fallbackMeta, tenantId, userId) {
-  if (!tenantId) return fallbackMeta; // global channel — use stored meta
-  try {
-    const channels = tenantManager.getChannels(tenantId);
-    const match = channels.find(c =>
-      c.channel === channelType && (!userId || c.user_id === userId)
-    );
-    return match?.meta || fallbackMeta;
-  } catch {
-    return fallbackMeta;
-  }
-}
-
-/**
  * Send failure alert if cooldown elapsed.
  */
 async function _sendFailureAlert(job, errorMsg) {
@@ -331,9 +201,12 @@ async function _sendFailureAlert(job, errorMsg) {
 
   const alertText = `⚠️ **Cron Alert: ${job.name}**\n\nFailed ${job.consecutiveErrors} times in a row.\nLast error: ${errorMsg}`;
 
-  // Try direct channel delivery instead of dead event
+  // Send alert to configured channel
   if (alert.channel && alert.channelMeta) {
-    await _deliverSingle(alert.channel, alert.channelMeta, alertText);
+    try {
+      const ch = channelRegistry.get(alert.channel) || channelRegistry.get(alert.channel, alert.channelMeta.instanceKey);
+      if (ch?.running) await ch.sendReply(alert.channelMeta, alertText);
+    } catch {}
   }
 
   console.log(`[CronExecutor] Alert sent for "${job.name}" (${job.consecutiveErrors} consecutive failures)`);
