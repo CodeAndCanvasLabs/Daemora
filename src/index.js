@@ -6,7 +6,7 @@ import { randomBytes } from "crypto";
 import { toolFunctions } from "./tools/index.js";
 import { getSession, listSessions, createSession, clearSession } from "./services/sessions.js";
 import { config, reloadFromDb } from "./config/default.js";
-import { listAvailableModels, resolveDefaultModel } from "./models/ModelRouter.js";
+import { listAvailableModels, resolveDefaultModel, clearProviderCache } from "./models/ModelRouter.js";
 import { models as modelRegistry } from "./config/models.js";
 import taskQueue from "./core/TaskQueue.js";
 import taskRunner from "./core/TaskRunner.js";
@@ -1378,6 +1378,19 @@ app.put("/api/settings", async (req, res) => {
   // Reload config from DB so config object reflects new values
   try { await reloadFromDb(); } catch { /* non-fatal */ }
 
+  // Hot-reload: clear model provider cache so new API keys take effect
+  try { clearProviderCache(); } catch { /* non-fatal */ }
+
+  // Hot-reload: re-resolve default model with new keys
+  try { config.defaultModel = resolveDefaultModel(); } catch { /* non-fatal */ }
+
+  // Hot-reload: restart channels so new bot tokens take effect
+  try {
+    await channelRegistry.stopAll();
+    await channelRegistry.startAll();
+    await channelRegistry.loadTenantChannels();
+  } catch { /* non-fatal */ }
+
   const stored = vaultActive
     ? { db: Object.keys(dbUpdates), vault: Object.keys(vaultUpdates) }
     : { db: Object.keys(updates).filter(k => /^[A-Z][A-Z0-9_]*$/.test(k)) };
@@ -1697,6 +1710,22 @@ const httpServer = app.listen(config.port, async () => {
 
   // Auto-expose public URL for Twilio webhooks (localtunnel / ngrok / manual)
   ensurePublicUrl(config.port).catch(() => {});
+
+  // Daemon mode: auto-unlock vault from env var, then scrub it from memory
+  if (process.env.DAEMON_MODE === "true" && process.env.VAULT_PASSPHRASE) {
+    try {
+      secretVault.unlock(process.env.VAULT_PASSPHRASE);
+      const secrets = secretVault.getAsEnv();
+      for (const [key, value] of Object.entries(secrets)) {
+        process.env[key] = value;
+      }
+      console.log(`[Startup] Vault auto-unlocked — ${Object.keys(secrets).length} secret(s) loaded`);
+    } catch (e) {
+      console.error(`[Startup] Vault auto-unlock failed: ${e.message}`);
+    }
+    // Scrub passphrase from process.env so it's not exposed
+    delete process.env.VAULT_PASSPHRASE;
+  }
 
   console.log("\n--- Daemora Server ---");
   console.log(`Running on http://localhost:${config.port}`);

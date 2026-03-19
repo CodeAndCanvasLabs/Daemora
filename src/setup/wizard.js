@@ -900,13 +900,13 @@ export async function runSetupWizard() {
   }
   writeFileSync(envPath, bootstrapLines.join("\n"), "utf-8");
 
-  // Install daemon if requested
+  // Install daemon if requested — pass vault passphrase so daemon can auto-unlock
   if (daemonMode) {
     spin.message("Installing daemon service");
     try {
       const { DaemonManager } = await import("../daemon/DaemonManager.js");
       const dm = new DaemonManager();
-      dm.install();
+      dm.install(vaultPassphrase);
     } catch {
       // Non-fatal - user can install later
     }
