@@ -983,6 +983,55 @@ export function Settings() {
         </div>
       </Section>
 
+      {/* ── Web Search & Fetch ─────────────────────────────────────── */}
+      <Section
+        icon={Search}
+        title="Web Search & Fetch"
+        subtitle="API keys for web search and page extraction tools"
+        badge={(() => {
+          const webKeys = ["BRAVE_API_KEY", "TAVILY_API_KEY", "PERPLEXITY_API_KEY", "FIRECRAWL_API_KEY", "SEARXNG_URL"];
+          const set = webKeys.filter(k => data.vars[k]);
+          return set.length > 0 ? (
+            <span className="text-[9px] font-mono text-[#00ff88] bg-[#00ff88]/10 px-2 py-0.5 rounded-md border border-[#00ff88]/20">
+              {set.length}/{webKeys.length} set
+            </span>
+          ) : null;
+        })()}
+        actions={<SaveBtn dirty={dirty} saving={saving} saved={saved} onSave={handleSave} />}
+      >
+        <div className="space-y-3">
+          {[
+            { name: "Brave Search", key: "BRAVE_API_KEY", color: "#fb542b", icon: <Search className="w-3.5 h-3.5" />, isUrl: false },
+            { name: "Tavily", key: "TAVILY_API_KEY", color: "#6366f1", icon: <Search className="w-3.5 h-3.5" />, isUrl: false },
+            { name: "Perplexity", key: "PERPLEXITY_API_KEY", color: "#20b2aa", icon: <Search className="w-3.5 h-3.5" />, isUrl: false },
+            { name: "Firecrawl", key: "FIRECRAWL_API_KEY", color: "#ff6b35", icon: <Zap className="w-3.5 h-3.5" />, isUrl: false },
+            { name: "SearXNG URL", key: "SEARXNG_URL", color: "#4caf50", icon: <Search className="w-3.5 h-3.5" />, isUrl: true },
+          ].map(({ name, key, color, icon, isUrl }) => {
+            const isSet = !!data.vars[key];
+            const hasEdit = editValues[key] !== undefined;
+            return (
+              <div key={key} className="p-4 bg-slate-800/20 rounded-xl border border-slate-800/40">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <span style={{ color }}>{icon}</span>
+                  <span className="text-[12px] font-mono font-medium" style={{ color }}>{name}</span>
+                  {isSet && !hasEdit && <span className="text-[8px] font-mono text-[#00ff88] bg-[#00ff88]/8 px-1.5 py-0.5 rounded border border-[#00ff88]/15">CONFIGURED</span>}
+                  {data.vaultActive && isSet && !isUrl && <span className="text-[8px] font-mono text-[#00d9ff] bg-[#00d9ff]/8 px-1.5 py-0.5 rounded border border-[#00d9ff]/15 flex items-center gap-0.5"><Shield className="w-2.5 h-2.5" /> vault</span>}
+                  {hasEdit && <span className="text-[8px] font-mono text-amber-400 bg-amber-400/8 px-1.5 py-0.5 rounded border border-amber-400/15">modified</span>}
+                </div>
+                <div className="flex items-center gap-3">
+                  <input type={isUrl || visibleKeys.has(key) ? "text" : "password"} placeholder={isSet ? data.vars[key] : "Not set"} value={editValues[key] ?? ""} onChange={(e) => handleChange(key, e.target.value)} className={inputClass} />
+                  {!isUrl && (
+                    <button onClick={() => toggleVisible(key)} className="p-2.5 text-gray-500 hover:text-[#00d9ff] transition-colors rounded-xl hover:bg-slate-800/50">
+                      {visibleKeys.has(key) ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Section>
+
       {/* ── Global Channels ──────────────────────────────────────────── */}
       <Section
         icon={Zap}
