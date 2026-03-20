@@ -5,6 +5,7 @@ import { convert } from "html-to-text";
 import { URL } from "node:url";
 import { mergeLegacyOptions as _mergeLegacyOpts } from "../utils/mergeToolParams.js";
 import { resolveKey } from "./_env.js";
+import egressGuard from "../safety/EgressGuard.js";
 
 // ---------------------------------------------------------------------------
 // SSRF protection
@@ -445,6 +446,12 @@ export async function webFetch(params) {
     if (cached) {
       console.log(`      [webFetch] Cache hit for ${url}`);
       return cached;
+    }
+
+    // Egress guard — block if URL contains a known secret value
+    const egressCheck = egressGuard.check(url);
+    if (!egressCheck.safe) {
+      return `Error: URL contains a leaked secret (${egressCheck.leaked}). Request blocked.`;
     }
 
     const startTime = Date.now();
