@@ -77,6 +77,22 @@ auditLog.start();
 scheduler.start().catch(e => console.log(`[Scheduler] Start error: ${e.message}`));
 heartbeat.start();
 
+/**
+ * Hot-reload everything — call after any config/key/credential change.
+ * Non-blocking, non-fatal. Each component reloads independently.
+ */
+async function hotReloadAll() {
+  const start = Date.now();
+  try { await reloadFromDb(); } catch {}
+  try { secretScanner.refreshSecrets(); egressGuard.refresh(); } catch {}
+  try { clearProviderCache(); } catch {}
+  try { config.defaultModel = resolveDefaultModel(); } catch {}
+  try { await channelRegistry.stopAll(); await channelRegistry.startAll(); await channelRegistry.loadTenantChannels(); } catch {}
+  try { await mcpManager.init(); } catch {}
+  try { scheduler.stop(); await scheduler.start(); } catch {}
+  console.log(`[HotReload] Complete in ${Date.now() - start}ms`);
+}
+
 const app = express();
 app.use(express.json());
 
@@ -1018,6 +1034,8 @@ app.patch("/api/mcp/:name", async (req, res) => {
     }
     mcpConfig.mcpServers[name] = serverCfg;
     mcpManager.writeConfig(mcpConfig);
+    // Reload the updated MCP server
+    try { await mcpManager.reloadServer(name); } catch {}
     res.json({ message: `Credentials updated for "${name}"` });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -1084,7 +1102,7 @@ app.get("/api/vault/status", (req, res) => {
   });
 });
 
-app.post("/api/vault/unlock", (req, res) => {
+app.post("/api/vault/unlock", async (req, res) => {
   try {
     const { passphrase } = req.body;
     if (!passphrase) return res.status(400).json({ error: "passphrase is required" });
@@ -1094,8 +1112,8 @@ app.post("/api/vault/unlock", (req, res) => {
     for (const [key, value] of Object.entries(secrets)) {
       process.env[key] = value;
     }
-    secretScanner.refreshSecrets();
-    egressGuard.refresh();
+    // Hot-reload everything now that secrets are available
+    await hotReloadAll();
     res.json({ message: "Vault unlocked", secretCount: Object.keys(secrets).length });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -1193,6 +1211,8 @@ app.put("/api/tenants/:id/apikeys/:keyName", (req, res) => {
     return res.status(400).json({ error: "value is required (min 4 chars)" });
   }
   tenantManager.setApiKey(id, keyName, value);
+  // Track new secret value for redaction
+  try { secretScanner.addKnownSecrets([value]); egressGuard.addSecrets([value]); } catch {}
   res.json({ message: `API key ${keyName} saved` });
 });
 
@@ -1379,24 +1399,8 @@ app.put("/api/settings", async (req, res) => {
     }
   }
 
-  // Reload config from DB so config object reflects new values
-  try { await reloadFromDb(); } catch { /* non-fatal */ }
-
-  // Hot-reload: refresh secret scanner + egress guard so new keys are tracked
-  try { secretScanner.refreshSecrets(); egressGuard.refresh(); } catch { /* non-fatal */ }
-
-  // Hot-reload: clear model provider cache so new API keys take effect
-  try { clearProviderCache(); } catch { /* non-fatal */ }
-
-  // Hot-reload: re-resolve default model with new keys
-  try { config.defaultModel = resolveDefaultModel(); } catch { /* non-fatal */ }
-
-  // Hot-reload: restart channels so new bot tokens take effect
-  try {
-    await channelRegistry.stopAll();
-    await channelRegistry.startAll();
-    await channelRegistry.loadTenantChannels();
-  } catch { /* non-fatal */ }
+  // Hot-reload everything — config, secrets, models, channels, MCP, scheduler
+  await hotReloadAll();
 
   const stored = vaultActive
     ? { db: Object.keys(dbUpdates), vault: Object.keys(vaultUpdates) }
