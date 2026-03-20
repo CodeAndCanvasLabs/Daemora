@@ -102,7 +102,7 @@ export async function runAgentLoop({
         lastToolCall = currentCall;
 
         console.log(`[Step ${stepCount}] Tool: ${tool_name}`);
-        console.log(`[Step ${stepCount}] Params: ${JSON.stringify(params)}`);
+        console.log(`[Step ${stepCount}] Params: ${_redactKnownSecrets(JSON.stringify(params))}`);
 
         eventBus.emitEvent("tool:before", { tool_name, params, stepCount, taskId });
 
@@ -158,10 +158,10 @@ export async function runAgentLoop({
           const toolElapsed = Date.now() - toolStart;
 
           const outputStr = typeof toolOutput === "string" ? toolOutput : JSON.stringify(toolOutput);
-          const preview = outputStr.slice(0, 300) + (outputStr.length > 300 ? "..." : "");
+          const safePreview = _redactKnownSecrets(outputStr.slice(0, 300) + (outputStr.length > 300 ? "..." : ""));
 
           console.log(`[Step ${stepCount}] Done in ${toolElapsed}ms`);
-          console.log(`[Step ${stepCount}] Output: ${preview}`);
+          console.log(`[Step ${stepCount}] Output: ${safePreview}`);
 
           toolCallLog.push({
             tool: tool_name, params, duration: toolElapsed,
