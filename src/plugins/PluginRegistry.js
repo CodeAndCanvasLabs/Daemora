@@ -8,6 +8,7 @@
  */
 
 import eventBus from "../core/EventBus.js";
+import tenantContext from "../tenants/TenantContext.js";
 
 // ── Registry State ──────────────────────────────────────────────────────────
 
@@ -194,15 +195,29 @@ export function createPluginApi(record, manifest, pluginDir) {
     // ── Tenant-aware access (Daemora-specific, not in OpenClaw) ─────────
     getTenantConfig(tenantId) {
       try {
+        // Enforce tenant isolation — plugin can only access current request's tenant
+        const store = tenantContext.getStore();
+        const currentTenantId = store?.tenant?.id;
+        if (tenantId && currentTenantId && tenantId !== currentTenantId) {
+          console.log(`[Plugin:${record.id}] BLOCKED: cross-tenant config access (requested: ${tenantId}, current: ${currentTenantId})`);
+          return null;
+        }
         const tenantManager = _getTenantManager();
-        return tenantManager.get(tenantId) || null;
+        return tenantManager.get(tenantId || currentTenantId) || null;
       } catch { return null; }
     },
 
     getTenantKeys(tenantId) {
       try {
+        // Enforce tenant isolation — plugin can only access current request's tenant keys
+        const store = tenantContext.getStore();
+        const currentTenantId = store?.tenant?.id;
+        if (tenantId && currentTenantId && tenantId !== currentTenantId) {
+          console.log(`[Plugin:${record.id}] BLOCKED: cross-tenant key access (requested: ${tenantId}, current: ${currentTenantId})`);
+          return {};
+        }
         const tenantManager = _getTenantManager();
-        return tenantManager.getDecryptedApiKeys(tenantId) || {};
+        return tenantManager.getDecryptedApiKeys(tenantId || currentTenantId) || {};
       } catch { return {}; }
     },
 
@@ -233,6 +248,7 @@ async function _getTenantManager() {
   }
   return _tenantManager;
 }
+
 
 let _configStore = null;
 export async function initConfigStore() {
