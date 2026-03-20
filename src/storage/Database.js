@@ -295,6 +295,20 @@ function _runMigrations(db) {
     );
   `);
 
+  // Secret access audit log
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS secret_access_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+      caller TEXT NOT NULL,
+      key_name TEXT NOT NULL,
+      tenant_id TEXT,
+      action TEXT NOT NULL DEFAULT 'read',
+      source TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_secret_access_ts ON secret_access_log(timestamp);
+  `);
+
   // Backfill tenant_channels from existing "channel:userId" tenant IDs (idempotent)
   const tenants = db.prepare("SELECT id FROM tenants").all();
   for (const { id } of tenants) {
