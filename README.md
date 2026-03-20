@@ -42,10 +42,10 @@ Unlike cloud AI assistants, nothing leaves your infrastructure except the tokens
   <img src="https://raw.githubusercontent.com/CodeAndCanvasLabs/Daemora/main/public/architecture.svg" alt="Daemora Architecture" width="100%" />
 </p>
 
-### Security Architecture (12 Layers)
+### Security Architecture (16 Layers)
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/CodeAndCanvasLabs/Daemora/main/public/security.svg" alt="12-Layer Security Architecture" width="100%" />
+  <img src="https://raw.githubusercontent.com/CodeAndCanvasLabs/Daemora/main/public/security.svg" alt="16-Layer Security Architecture" width="100%" />
 </p>
 
 ### Task Lifecycle — Message to Response
@@ -424,23 +424,24 @@ All isolation runs via `AsyncLocalStorage` — concurrent tasks from different u
 daemora doctor
 ```
 
-| Feature | Description |
-|---|---|
-| **Permission tiers** | `minimal` / `standard` / `full` — controls which tools the agent can call |
-| **Filesystem sandbox** | Directory scoping via `ALLOWED_PATHS`, hardcoded blocks for `.ssh`, `.env`, `.aws`. All 18 file-touching tools enforce FilesystemGuard |
-| **Tenant workspace isolation** | `TENANT_ISOLATE_FILESYSTEM=true` → each tenant's temp files go to `data/tenants/{id}/workspace/` |
-| **Command guard** | Blocks env dumps, `.env` reads, credential exfiltration, CLI privilege escalation (daemora/aegis commands) |
-| **Secret vault** | AES-256-GCM encrypted secrets, passphrase required on start |
-| **Channel allowlists** | Per-channel user ID whitelist — blocks unknown senders |
-| **Secret scanning** | Redacts API keys and tokens from tool output before the model sees them |
-| **Dynamic redaction** | Per-tenant API keys are also redacted from all tool outputs |
-| **Supervisor agent** | Detects runaway loops, cost overruns, `rm -rf`, `curl | bash` patterns |
-| **Audit log** | Every tool call logged to `data/audit/` — append-only JSONL, secrets stripped |
-| **Input sanitisation** | User messages wrapped in `<untrusted-input>` tags; prompt injection patterns flagged |
-| **A2A security** | Agent-to-agent protocol: bearer token, agent allowlist, rate limiting |
-| **Tenant isolation** | AsyncLocalStorage — no cross-tenant data leakage in concurrent requests |
-| **Per-tenant API key isolation** | Keys never touch `process.env` — passed through call stack only |
-| **Git rollback** | Snapshot before write operations — undo with `git stash pop` |
+| Layer | Feature | Description |
+|---|---|---|
+| 1 | **Permission tiers** | `minimal` / `standard` / `full` — controls which tools the agent can call |
+| 2 | **Filesystem sandbox** | Directory scoping via `ALLOWED_PATHS`, hardcoded blocks for `.ssh`, `.env`, `.aws`. All 19 file-touching tools enforce FilesystemGuard |
+| 3 | **Secret vault** | AES-256-GCM encrypted secrets in SQLite, scrypt key derivation, passphrase required on start |
+| 4 | **Channel allowlists** | Per-channel user ID whitelist — blocks unknown senders |
+| 5 | **Subprocess env isolation** | Secrets stripped from `executeCommand` child processes and MCP stdio subprocesses. Agent cannot dump env. |
+| 6 | **Command guard** | Blocks env dumps, `.env` reads, credential exfiltration, CLI privilege escalation |
+| 7 | **Comprehensive secret redaction** | ALL env secrets tracked (not just 3). Pattern + blind redaction. Live refresh on vault unlock. |
+| 8 | **Log sanitisation** | Tool params and output redacted before `console.log` — secrets never written to logs |
+| 9 | **Network egress guard** | Outbound HTTP requests and emails scanned for secret values — blocks exfiltration attempts |
+| 10 | **Plugin tenant isolation** | Plugins can only access current request's tenant keys — cross-tenant access blocked and logged |
+| 11 | **A2A security** | Agent-to-agent protocol: bearer token, agent allowlist, rate limiting |
+| 12 | **Supervisor agent** | Detects runaway loops, cost overruns, `rm -rf`, `curl | bash` patterns |
+| 13 | **Input sanitisation** | User messages wrapped in `<untrusted-input>` tags; prompt injection patterns flagged |
+| 14 | **Multi-tenant isolation** | AsyncLocalStorage — no cross-tenant data leakage in concurrent requests |
+| 15 | **Secret access audit trail** | Every `resolveKey()` call logged to SQLite — caller, key name, tenant, timestamp |
+| 16 | **Tool filesystem guard** | All 19 file-touching tools enforce `checkRead`/`checkWrite` per-tenant scoping |
 
 ---
 
