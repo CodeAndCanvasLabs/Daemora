@@ -61,6 +61,7 @@ export const permissionTiers = {
     allowedTools: [
       // File operations
       "readFile", "writeFile", "editFile", "listDirectory",
+      "glob", "grep", "applyPatch",
       // System
       "executeCommand",
       // Web & browser
