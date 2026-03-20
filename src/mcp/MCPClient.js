@@ -12,6 +12,8 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
  *   "url": "https://api.example.com/${TENANT_ID}/mcp"
  * without storing the actual secret in mcp.json.
  */
+const SENSITIVE_ENV_PATTERN = /(_KEY|_TOKEN|_SECRET|_PASSWORD|_CREDENTIAL|_AUTH|_SID|_PRIVATE|_PASSPHRASE|VAULT_)$/i;
+
 function expandEnvVars(value) {
   if (typeof value === "string") {
     return value.replace(/\$\{([^}]+)\}/g, (_, name) => process.env[name] ?? "");
@@ -24,6 +26,17 @@ function expandEnvVars(value) {
     return out;
   }
   return value;
+}
+
+// Build safe env for MCP subprocess — strip secrets, keep only infra + explicitly declared vars
+function _buildMcpEnv(declaredEnv) {
+  const safe = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (!SENSITIVE_ENV_PATTERN.test(k)) safe[k] = v;
+  }
+  // Merge user-declared env vars (already expanded from ${VAR}) — these are intentional
+  if (declaredEnv) Object.assign(safe, declaredEnv);
+  return safe;
 }
 
 /**
@@ -97,9 +110,8 @@ export class MCPClient {
       return new StdioClientTransport({
         command: cfg.command,
         args: cfg.args || [],
-        // Env vars are merged into the child process environment.
-        // Values support ${VAR} expansion so users can reference existing env vars.
-        env: { ...process.env, ...expandEnvVars(cfg.env || {}) },
+        // Safe env: secrets stripped, only user-declared env vars merged (expanded from ${VAR}).
+        env: _buildMcpEnv(expandEnvVars(cfg.env || {})),
       });
     }
 
