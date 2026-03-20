@@ -61,6 +61,7 @@ export const permissionTiers = {
     allowedTools: [
       // File operations
       "readFile", "writeFile", "editFile", "listDirectory",
+      "glob", "grep", "applyPatch",
       // System
       "executeCommand",
       // Web & browser
@@ -78,7 +79,7 @@ export const permissionTiers = {
       "searchMemory", "pruneMemory", "listMemoryCategories",
       // Agents & teams
       "spawnAgent", "parallelAgents", "delegateToAgent", "manageAgents",
-      "teamTask",
+      "teamTask", "discoverProfiles",
       // MCP
       "manageMCP", "useMCP",
       // Project & task tracking

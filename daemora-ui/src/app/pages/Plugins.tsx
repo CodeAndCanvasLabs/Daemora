@@ -19,7 +19,7 @@ interface PluginRecord {
   version: string | null;
   description: string | null;
   enabled: boolean;
-  status: "loaded" | "disabled" | "error";
+  status: "loaded" | "disabled" | "error" | "needs-config";
   error: string | null;
   toolNames: string[];
   channelIds: string[];
@@ -256,6 +256,7 @@ export function Plugins() {
                       }`}>
                         {plugin.status === "error" ? "error" :
                          plugin.status === "disabled" ? "disabled" :
+                         plugin.status === "needs-config" ? "needs config" :
                          pluginConfigStatus[plugin.id] && !pluginConfigStatus[plugin.id].configured ? "needs config" :
                          "active"}
                       </Badge>

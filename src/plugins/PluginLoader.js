@@ -187,6 +187,25 @@ async function _loadPlugin(pluginDir) {
     return;
   }
 
+  // Check required config — don't register tools if missing
+  const configSchema = manifest.config || {};
+  const missingKeys = [];
+  let _cs = null;
+  try { _cs = (await import("../config/ConfigStore.js")).configStore; } catch {}
+  for (const [key, schema] of Object.entries(configSchema)) {
+    if (!schema.required) continue;
+    const val = process.env[key] || _cs?.get(`plugin:${manifest.id}:${key}`) || null;
+    if (!val) missingKeys.push(schema.label || key);
+  }
+  if (missingKeys.length > 0) {
+    record.status = "needs-config";
+    record.error = `Missing: ${missingKeys.join(", ")}`;
+    record.enabled = false;
+    getRegistry().plugins.push(record);
+    console.log(`[PluginLoader] Skipped (needs config): ${manifest.id} — ${record.error}`);
+    return;
+  }
+
   // Create plugin API
   const api = createPluginApi(record, manifest, pluginDir);
 
