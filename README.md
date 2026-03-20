@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>A fully autonomous, self-hosted AI agent — production-secure, multi-tenant, multi-channel.</strong>
+  <strong>Self-hosted AI agent platform for teams — autonomous, multi-channel, multi-tenant.</strong>
 </p>
 
 <p align="center">
@@ -15,9 +15,9 @@
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-black" alt="platform" />
 </p>
 
-Daemora runs on your own machine. It connects to your messaging apps, accepts tasks in plain language, executes them autonomously with 56 built-in tools across 20 channels, and reports back — without you watching over it.
+Deploy once on your machine. Connect your channels. Your team messages the bot — it writes code, does research, sends emails, runs cron jobs, and reports back. Each user gets isolated memory, encrypted keys, and cost caps. You own everything.
 
-Unlike cloud AI assistants, nothing leaves your infrastructure except the tokens you intentionally send to model APIs. You own the data, the keys, and the security boundary.
+57 built-in tools. 20 channels. 16 security layers. 7 AI providers. Multi-agent teams. Production-grade scheduling. Plugin system. MCP integration. All self-hosted — nothing leaves your infrastructure except the tokens you send to model APIs.
 
 ---
 
@@ -260,7 +260,7 @@ daemora mcp remove github     # Remove permanently
 
 ## Built-in Tools
 
-56 tools the agent uses autonomously:
+57 tools the agent uses autonomously:
 
 | Category | Tools |
 |---|---|
@@ -274,7 +274,7 @@ daemora mcp remove github     # Remove permanently
 | **Memory** | readMemory, writeMemory, searchMemory, pruneMemory, readDailyLog, writeDailyLog, listMemoryCategories |
 | **Agents** | spawnAgent, parallelAgents, delegateToAgent, manageAgents, teamTask |
 | **MCP** | useMCP, manageMCP |
-| **Scheduling** | cron (add, list, run, update, delete) |
+| **Scheduling** | cron (add, list, run, update, delete), broadcast |
 | **Tracking** | projectTracker, taskManager |
 | **Dev Tools** | gitTool (status, diff, commit, branch, log, stash), sshTool, database |
 | **Media** | generateImage (DALL-E / Stable Diffusion) |
