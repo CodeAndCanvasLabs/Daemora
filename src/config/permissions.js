@@ -78,7 +78,7 @@ export const permissionTiers = {
       "searchMemory", "pruneMemory", "listMemoryCategories",
       // Agents & teams
       "spawnAgent", "parallelAgents", "delegateToAgent", "manageAgents",
-      "teamTask",
+      "teamTask", "discoverProfiles",
       // MCP
       "manageMCP", "useMCP",
       // Project & task tracking
