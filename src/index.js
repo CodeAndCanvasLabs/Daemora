@@ -31,6 +31,7 @@ import tenantManager from "./tenants/TenantManager.js";
 import { runCleanup, cleanCompletedTasks } from "./services/cleanup.js";
 import webhookHandler from "./webhooks/WebhookHandler.js";
 import execApproval from "./safety/ExecApproval.js";
+import secretScanner from "./safety/SecretScanner.js";
 import openaiCompat from "./api/openai-compat.js";
 import { msgText } from "./utils/msgText.js";
 import { configStore } from "./config/ConfigStore.js";
@@ -1092,6 +1093,7 @@ app.post("/api/vault/unlock", (req, res) => {
     for (const [key, value] of Object.entries(secrets)) {
       process.env[key] = value;
     }
+    secretScanner.refreshSecrets();
     res.json({ message: "Vault unlocked", secretCount: Object.keys(secrets).length });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -1377,6 +1379,9 @@ app.put("/api/settings", async (req, res) => {
 
   // Reload config from DB so config object reflects new values
   try { await reloadFromDb(); } catch { /* non-fatal */ }
+
+  // Hot-reload: refresh secret scanner so new keys are tracked for redaction
+  try { secretScanner.refreshSecrets(); } catch { /* non-fatal */ }
 
   // Hot-reload: clear model provider cache so new API keys take effect
   try { clearProviderCache(); } catch { /* non-fatal */ }
@@ -1720,6 +1725,7 @@ const httpServer = app.listen(config.port, async () => {
         process.env[key] = value;
       }
       console.log(`[Startup] Vault auto-unlocked — ${Object.keys(secrets).length} secret(s) loaded`);
+      secretScanner.refreshSecrets();
     } catch (e) {
       console.error(`[Startup] Vault auto-unlock failed: ${e.message}`);
     }

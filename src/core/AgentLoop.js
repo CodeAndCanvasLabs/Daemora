@@ -40,11 +40,13 @@ export async function runAgentLoop({
   const thinkingParams = thinkingConfig?.thinkingParams || {};
 
   // Build set of known secret values to redact from tool outputs
+  // Tracks: per-tenant API keys + ALL env vars with sensitive names
+  const SENSITIVE_NAME = /(_KEY|_TOKEN|_SECRET|_PASSWORD|_CREDENTIAL|_AUTH|_SID|_PRIVATE|_PASSPHRASE)$/i;
   const _knownSecrets = new Set([
     ...Object.values(apiKeys),
-    process.env.OPENAI_API_KEY,
-    process.env.ANTHROPIC_API_KEY,
-    process.env.GOOGLE_AI_API_KEY,
+    ...Object.entries(process.env)
+      .filter(([k, v]) => v && v.length >= 8 && SENSITIVE_NAME.test(k))
+      .map(([, v]) => v),
   ].filter((s) => s && s.length >= 8));
 
   function _redactKnownSecrets(text) {
