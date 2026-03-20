@@ -395,6 +395,10 @@ export async function runSetupWizard() {
     options: [
       { value: "openai_tools",  label: "OpenAI (images, TTS, transcription)", hint: "OPENAI_API_KEY — skip if already set as main provider" },
       { value: "elevenlabs",    label: "ElevenLabs TTS",                      hint: "Premium voice synthesis" },
+      { value: "brave_search",  label: "Brave Search",                        hint: "Web search API — BRAVE_API_KEY" },
+      { value: "tavily",        label: "Tavily",                              hint: "AI-powered web search — TAVILY_API_KEY" },
+      { value: "perplexity",    label: "Perplexity",                          hint: "Research search — PERPLEXITY_API_KEY" },
+      { value: "firecrawl",     label: "Firecrawl",                           hint: "JS page extraction — FIRECRAWL_API_KEY" },
       { value: "none",          label: "Skip for now",                        hint: "Configure plugins later in Settings → Plugins" },
     ],
   }));
@@ -407,6 +411,23 @@ export async function runSetupWizard() {
   if (toolKeys.includes("elevenlabs")) {
     const key = guard(await p.password({ message: "ElevenLabs API key" }));
     if (key) envConfig.ELEVENLABS_API_KEY = key;
+  }
+
+  if (toolKeys.includes("brave_search")) {
+    const key = guard(await p.password({ message: "Brave Search API key" }));
+    if (key) envConfig.BRAVE_API_KEY = key;
+  }
+  if (toolKeys.includes("tavily")) {
+    const key = guard(await p.password({ message: "Tavily API key" }));
+    if (key) envConfig.TAVILY_API_KEY = key;
+  }
+  if (toolKeys.includes("perplexity")) {
+    const key = guard(await p.password({ message: "Perplexity API key" }));
+    if (key) envConfig.PERPLEXITY_API_KEY = key;
+  }
+  if (toolKeys.includes("firecrawl")) {
+    const key = guard(await p.password({ message: "Firecrawl API key" }));
+    if (key) envConfig.FIRECRAWL_API_KEY = key;
   }
 
   // Plugin-specific keys (google, database, hue, sonos, ntfy, pushover)
@@ -818,6 +839,8 @@ export async function runSetupWizard() {
         "EMAIL_PASSWORD", "RESEND_API_KEY",
         // Tool API keys
         "ELEVENLABS_API_KEY", "GOOGLE_PLACES_API_KEY", "GOOGLE_CALENDAR_API_KEY",
+        // Web search/fetch
+        "BRAVE_API_KEY", "TAVILY_API_KEY", "PERPLEXITY_API_KEY", "FIRECRAWL_API_KEY",
         "DATABASE_URL", "MYSQL_URL",
         "NTFY_TOKEN", "PUSHOVER_API_TOKEN", "PUSHOVER_USER_KEY",
         "HUE_API_KEY",
@@ -900,13 +923,13 @@ export async function runSetupWizard() {
   }
   writeFileSync(envPath, bootstrapLines.join("\n"), "utf-8");
 
-  // Install daemon if requested
+  // Install daemon if requested — pass vault passphrase so daemon can auto-unlock
   if (daemonMode) {
     spin.message("Installing daemon service");
     try {
       const { DaemonManager } = await import("../daemon/DaemonManager.js");
       const dm = new DaemonManager();
-      dm.install();
+      dm.install(vaultPassphrase);
     } catch {
       // Non-fatal - user can install later
     }

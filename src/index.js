@@ -6,7 +6,7 @@ import { randomBytes } from "crypto";
 import { toolFunctions } from "./tools/index.js";
 import { getSession, listSessions, createSession, clearSession } from "./services/sessions.js";
 import { config, reloadFromDb } from "./config/default.js";
-import { listAvailableModels, resolveDefaultModel } from "./models/ModelRouter.js";
+import { listAvailableModels, resolveDefaultModel, clearProviderCache } from "./models/ModelRouter.js";
 import { models as modelRegistry } from "./config/models.js";
 import taskQueue from "./core/TaskQueue.js";
 import taskRunner from "./core/TaskRunner.js";
@@ -31,6 +31,8 @@ import tenantManager from "./tenants/TenantManager.js";
 import { runCleanup, cleanCompletedTasks } from "./services/cleanup.js";
 import webhookHandler from "./webhooks/WebhookHandler.js";
 import execApproval from "./safety/ExecApproval.js";
+import secretScanner from "./safety/SecretScanner.js";
+import egressGuard from "./safety/EgressGuard.js";
 import openaiCompat from "./api/openai-compat.js";
 import { msgText } from "./utils/msgText.js";
 import { configStore } from "./config/ConfigStore.js";
@@ -1092,6 +1094,8 @@ app.post("/api/vault/unlock", (req, res) => {
     for (const [key, value] of Object.entries(secrets)) {
       process.env[key] = value;
     }
+    secretScanner.refreshSecrets();
+    egressGuard.refresh();
     res.json({ message: "Vault unlocked", secretCount: Object.keys(secrets).length });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -1377,6 +1381,22 @@ app.put("/api/settings", async (req, res) => {
 
   // Reload config from DB so config object reflects new values
   try { await reloadFromDb(); } catch { /* non-fatal */ }
+
+  // Hot-reload: refresh secret scanner + egress guard so new keys are tracked
+  try { secretScanner.refreshSecrets(); egressGuard.refresh(); } catch { /* non-fatal */ }
+
+  // Hot-reload: clear model provider cache so new API keys take effect
+  try { clearProviderCache(); } catch { /* non-fatal */ }
+
+  // Hot-reload: re-resolve default model with new keys
+  try { config.defaultModel = resolveDefaultModel(); } catch { /* non-fatal */ }
+
+  // Hot-reload: restart channels so new bot tokens take effect
+  try {
+    await channelRegistry.stopAll();
+    await channelRegistry.startAll();
+    await channelRegistry.loadTenantChannels();
+  } catch { /* non-fatal */ }
 
   const stored = vaultActive
     ? { db: Object.keys(dbUpdates), vault: Object.keys(vaultUpdates) }
@@ -1697,6 +1717,24 @@ const httpServer = app.listen(config.port, async () => {
 
   // Auto-expose public URL for Twilio webhooks (localtunnel / ngrok / manual)
   ensurePublicUrl(config.port).catch(() => {});
+
+  // Daemon mode: auto-unlock vault from env var, then scrub it from memory
+  if (process.env.DAEMON_MODE === "true" && process.env.VAULT_PASSPHRASE) {
+    try {
+      secretVault.unlock(process.env.VAULT_PASSPHRASE);
+      const secrets = secretVault.getAsEnv();
+      for (const [key, value] of Object.entries(secrets)) {
+        process.env[key] = value;
+      }
+      console.log(`[Startup] Vault auto-unlocked — ${Object.keys(secrets).length} secret(s) loaded`);
+      secretScanner.refreshSecrets();
+      egressGuard.refresh();
+    } catch (e) {
+      console.error(`[Startup] Vault auto-unlock failed: ${e.message}`);
+    }
+    // Scrub passphrase from process.env so it's not exposed
+    delete process.env.VAULT_PASSPHRASE;
+  }
 
   console.log("\n--- Daemora Server ---");
   console.log(`Running on http://localhost:${config.port}`);

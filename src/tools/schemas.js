@@ -103,17 +103,19 @@ const toolSchemas = {
     schema: z.object({
       url: str("URL to fetch"),
       maxChars: optNum("Max chars to return (default: 50000)"),
+      selector: optStr("CSS selector to extract specific section"),
     }),
-    description: "Fetch web URL content as text (cached 15m)",
+    description: "Fetch web URL content as readable text. Cached 15m.",
   },
   webSearch: {
     schema: z.object({
       query: str("Search query"),
-      maxResults: optNum("Max results (default: 5)"),
+      maxResults: optNum("Max results (default: 5, max: 20)"),
       freshness: optStr("Recency filter: 'day' | 'week' | 'month' | 'year'"),
-      provider: optStr("Search provider: 'brave' | 'ddg'"),
+      provider: optStr("Search provider: 'tavily' | 'perplexity' | 'brave' | 'searxng' | 'ddg'"),
+      language: optStr("Language code (e.g. 'en', 'fr', 'de')"),
     }),
-    description: "Search the web",
+    description: "Search the web. Auto-selects best available provider.",
   },
   browserAction: {
     schema: z.object({

@@ -22,6 +22,32 @@ const DEFAULT_TIMEOUT_MS = 120_000;   // 2 minutes default
 const MAX_TIMEOUT_MS = 600_000;       // 10 minutes hard max
 const MAX_BUFFER = 10 * 1024 * 1024; // 10MB
 
+// Env vars safe to pass to child processes (everything else stripped if it matches sensitive pattern)
+const SAFE_ENV_PASSTHROUGH = new Set([
+  "PATH", "HOME", "USER", "SHELL", "LANG", "LC_ALL", "LC_CTYPE", "LANGUAGE",
+  "NODE_ENV", "TERM", "COLORTERM", "EDITOR", "VISUAL", "TMPDIR", "TMP", "TEMP",
+  "HOSTNAME", "LOGNAME", "PWD", "OLDPWD", "SHLVL", "DISPLAY", "SSH_AUTH_SOCK",
+  "XDG_RUNTIME_DIR", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME",
+  "HOMEBREW_PREFIX", "HOMEBREW_CELLAR", "HOMEBREW_REPOSITORY",
+  "NVM_DIR", "NVM_BIN", "FNM_DIR",
+  "GOPATH", "GOROOT", "CARGO_HOME", "RUSTUP_HOME",
+  "JAVA_HOME", "ANDROID_HOME", "FLUTTER_ROOT",
+  "VIRTUAL_ENV", "CONDA_DEFAULT_ENV", "CONDA_PREFIX",
+  "PYENV_ROOT", "RBENV_ROOT",
+]);
+const SENSITIVE_ENV_PATTERN = /(_KEY|_TOKEN|_SECRET|_PASSWORD|_CREDENTIAL|_AUTH|_SID|_PRIVATE|_PASSPHRASE|VAULT_)$/i;
+
+function _buildSafeEnv(extraEnv) {
+  const safe = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (SAFE_ENV_PASSTHROUGH.has(k) || !SENSITIVE_ENV_PATTERN.test(k)) {
+      safe[k] = v;
+    }
+  }
+  if (extraEnv) Object.assign(safe, extraEnv);
+  return safe;
+}
+
 export async function executeCommand(params) {
   const cmd = params?.command || params?.cmd;
   const opts = mergeLegacyOptions(params, ["command", "cmd"]);
@@ -98,8 +124,8 @@ export async function executeCommand(params) {
     ? Math.min(parseInt(timeoutRaw), MAX_TIMEOUT_MS)
     : DEFAULT_TIMEOUT_MS;
 
-  // Merge env
-  const env = extraEnv ? { ...process.env, ...extraEnv } : process.env;
+  // Build safe env — strip secrets from child process environment
+  const env = _buildSafeEnv(extraEnv);
 
   console.log(`      [executeCommand] Running: ${cmd}${cwdRaw ? ` (cwd: ${cwdRaw})` : ""}${background ? " [background]" : ""}`);
 

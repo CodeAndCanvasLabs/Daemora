@@ -11,6 +11,7 @@
 
 import tenantContext from "../tenants/TenantContext.js";
 import { mergeLegacyOptions as _mergeLegacyOpts } from "../utils/mergeToolParams.js";
+import egressGuard from "../safety/EgressGuard.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -152,6 +153,12 @@ export async function sendEmail(params) {
         filename: a.filename,
         path: a.path,
       }));
+    }
+
+    // Egress guard — scan email body for leaked secrets
+    const bodyCheck = egressGuard.check(mailOptions.text || mailOptions.html || "");
+    if (!bodyCheck.safe) {
+      return `Error: Email body contains a leaked secret (${bodyCheck.leaked}). Sending blocked.`;
     }
 
     const info = await smtp.sendMail(mailOptions);

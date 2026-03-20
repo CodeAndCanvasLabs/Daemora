@@ -156,7 +156,7 @@ async function main() {
     }
 
     case "daemon":
-      handleDaemon(subcommand);
+      await handleDaemon(subcommand);
       break;
 
     case "vault":
@@ -227,7 +227,7 @@ async function main() {
   }
 }
 
-function handleDaemon(action) {
+async function handleDaemon(action) {
   const header = `\n  ${t.h("Daemora Daemon")}\n`;
 
   switch (action) {
@@ -246,11 +246,33 @@ function handleDaemon(action) {
       console.log(`\n  ${S.check}  Daemon uninstalled.\n`);
       break;
 
-    case "start":
+    case "start": {
       console.log(header);
-      daemonManager.start();
+      // If vault exists, prompt for passphrase and pass to daemon process
+      if (secretVault.exists()) {
+        const { password } = await import("@clack/prompts");
+        const passphrase = await password({
+          message: "Vault detected. Enter passphrase to unlock in daemon",
+        });
+        if (passphrase && typeof passphrase === "string") {
+          try {
+            secretVault.unlock(passphrase);
+            secretVault.lock();
+          } catch {
+            console.log(`\n  ${S.cross}  ${t.error("Wrong passphrase.")}\n`);
+            process.exit(1);
+          }
+          daemonManager.start(passphrase);
+        } else {
+          console.log(`\n  ${S.cross}  ${t.error("Vault passphrase required.")}\n`);
+          process.exit(1);
+        }
+      } else {
+        daemonManager.start();
+      }
       console.log(`  ${S.check}  Daemon started.\n`);
       break;
+    }
 
     case "stop":
       console.log(header);

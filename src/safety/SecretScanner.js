@@ -53,6 +53,22 @@ class SecretScanner {
   }
 
   /**
+   * Re-scan process.env for sensitive values. Call after vault unlock,
+   * config reload, or any operation that injects new secrets into process.env.
+   */
+  refreshSecrets() {
+    let added = 0;
+    for (const [envKey, val] of Object.entries(process.env)) {
+      if (val && val.length >= 8 && SENSITIVE_NAME_PATTERN.test(envKey) && !_sensitiveEnvValues.has(val)) {
+        _sensitiveEnvValues.add(val);
+        added++;
+      }
+    }
+    if (added > 0) console.log(`[SecretScanner] Refreshed — ${added} new secret(s) tracked (total: ${_sensitiveEnvValues.size})`);
+    return added;
+  }
+
+  /**
    * Add new secret values to the blind redaction set at runtime.
    * Called by AgentLoop when tenant API keys are resolved.
    * @param {string[]} values
