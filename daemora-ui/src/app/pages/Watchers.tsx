@@ -65,6 +65,7 @@ export function Watchers() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [publicUrl, setPublicUrl] = useState<string | null>(null);
+  const [webhookToken, setWebhookToken] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Watcher | null>(null);
 
   const fetchWatchers = useCallback(async () => {
@@ -93,6 +94,7 @@ export function Watchers() {
       const res = await apiFetch("/api/health");
       const data = await res.json();
       if (data.publicUrl) setPublicUrl(data.publicUrl);
+      if (data.webhookToken) setWebhookToken(data.webhookToken);
     } catch { /* non-fatal */ }
   }, []);
 
@@ -435,14 +437,27 @@ export function Watchers() {
                       </div>
                     </div>
 
+                    {/* Auth header */}
+                    {webhookToken && (
+                      <div>
+                        <label className="text-[10px] text-gray-500 uppercase tracking-wider">Auth Header (required)</label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <code className="flex-1 text-xs text-gray-300 bg-slate-800/50 rounded p-2 font-mono truncate">Authorization: Bearer {webhookToken}</code>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-gray-400 hover:text-white" onClick={() => copyToClipboard(`Bearer ${webhookToken}`, watcher.id + "-token")}>
+                            {copied === watcher.id + "-token" ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Quick test */}
                     <div>
                       <label className="text-[10px] text-gray-500 uppercase tracking-wider">Test with cURL</label>
                       <div className="flex items-center gap-2 mt-1">
                         <code className="flex-1 text-[10px] text-gray-400 bg-slate-800/50 rounded p-2 font-mono overflow-x-auto whitespace-nowrap">
-                          curl -X POST {webhookUrl} -H "Content-Type: application/json" -d '{"{}"}'
+                          curl -X POST {webhookUrl} -H "Content-Type: application/json" {webhookToken ? `-H "Authorization: Bearer ${webhookToken}" ` : ""}-d '{"{}"}'
                         </code>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-gray-400 hover:text-white" onClick={() => copyToClipboard(`curl -X POST ${webhookUrl} -H "Content-Type: application/json" -d '{}'`, watcher.id + "-curl")}>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-gray-400 hover:text-white" onClick={() => copyToClipboard(`curl -X POST ${webhookUrl} -H "Content-Type: application/json" ${webhookToken ? `-H "Authorization: Bearer ${webhookToken}" ` : ""}-d '{}'`, watcher.id + "-curl")}>
                           {copied === watcher.id + "-curl" ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                         </Button>
                       </div>

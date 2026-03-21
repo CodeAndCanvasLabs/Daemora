@@ -223,6 +223,7 @@ app.get("/api/health", (req, res) => {
     model: config.defaultModel,
     permissionTier: config.permissionTier,
     publicUrl: process.env.DAEMORA_PUBLIC_URL || process.env.SERVER_URL || null,
+    webhookToken: process.env.WEBHOOK_TOKEN || null,
     queue: taskQueue.stats(),
     todayCost: getTodayCost(),
   });

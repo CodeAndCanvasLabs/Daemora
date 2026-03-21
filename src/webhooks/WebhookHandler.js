@@ -9,6 +9,7 @@
  */
 
 import { Router } from "express";
+import { randomBytes } from "node:crypto";
 import taskQueue from "../core/TaskQueue.js";
 
 const router = Router();
@@ -18,12 +19,30 @@ const _rateLimits = new Map(); // token → { count, resetAt }
 const RATE_LIMIT = 30;
 const RATE_WINDOW = 60_000; // 1 minute
 
+/**
+ * Get or auto-generate WEBHOOK_TOKEN.
+ * Persists to SQLite config_entries so it survives restarts.
+ */
+function _getOrCreateWebhookToken() {
+  if (process.env.WEBHOOK_TOKEN) return process.env.WEBHOOK_TOKEN;
+  // Auto-generate and persist
+  const token = randomBytes(24).toString("hex");
+  process.env.WEBHOOK_TOKEN = token;
+  // Persist to config store (async, non-blocking)
+  import("../config/ConfigStore.js").then(({ configStore }) => {
+    configStore.set("WEBHOOK_TOKEN", token);
+  }).catch(() => {});
+  console.log(`[Webhooks] Auto-generated WEBHOOK_TOKEN (persisted to config)`);
+  return token;
+}
+
+/** Exported so the UI can show the token. */
+export function getWebhookToken() {
+  return _getOrCreateWebhookToken();
+}
+
 function checkAuth(req, res) {
-  const token = process.env.WEBHOOK_TOKEN;
-  if (!token) {
-    res.status(503).json({ error: "Webhooks not configured. Set WEBHOOK_TOKEN env var." });
-    return false;
-  }
+  const token = _getOrCreateWebhookToken();
 
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ") || authHeader.slice(7) !== token) {
