@@ -295,6 +295,31 @@ function _runMigrations(db) {
     );
   `);
 
+  // Goals table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS goals (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT,
+      title TEXT NOT NULL,
+      description TEXT,
+      strategy TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      priority INTEGER DEFAULT 5,
+      check_cron TEXT DEFAULT '0 */4 * * *',
+      check_tz TEXT,
+      last_check_at TEXT,
+      last_result TEXT,
+      next_check_at TEXT,
+      consecutive_failures INTEGER DEFAULT 0,
+      max_failures INTEGER DEFAULT 3,
+      delivery TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_goals_tenant ON goals(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_goals_status ON goals(status, next_check_at);
+  `);
+
   // Secret access audit log
   db.exec(`
     CREATE TABLE IF NOT EXISTS secret_access_log (

@@ -22,6 +22,7 @@ import mcpManager from "./mcp/MCPManager.js";
 import auditLog from "./safety/AuditLog.js";
 import scheduler from "./scheduler/Scheduler.js";
 import heartbeat from "./scheduler/Heartbeat.js";
+import goalPulse from "./scheduler/GoalPulse.js";
 import { mountAgentCard } from "./a2a/AgentCard.js";
 import { mountA2AServer } from "./a2a/A2AServer.js";
 import voiceWebhook from "./voice/VoiceWebhook.js";
@@ -76,6 +77,7 @@ supervisor.start();
 auditLog.start();
 scheduler.start().catch(e => console.log(`[Scheduler] Start error: ${e.message}`));
 heartbeat.start();
+goalPulse.start();
 
 /**
  * Hot-reload everything — call after any config/key/credential change.
@@ -814,6 +816,87 @@ app.delete("/api/cron/presets/:id", async (req, res) => {
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
+});
+
+// --- Goals API ---
+app.get("/api/goals", async (req, res) => {
+  try {
+    const { loadGoalsByTenant, loadActiveGoals } = await import("./storage/GoalStore.js");
+    const tenantId = req.query.tenantId || null;
+    const goals = tenantId ? loadGoalsByTenant(tenantId) : loadActiveGoals();
+    res.json({ goals });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get("/api/goals/:id", async (req, res) => {
+  try {
+    const { loadGoal } = await import("./storage/GoalStore.js");
+    const goal = loadGoal(req.params.id);
+    if (!goal) return res.status(404).json({ error: "Goal not found" });
+    res.json(goal);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/goals", async (req, res) => {
+  try {
+    const { saveGoal } = await import("./storage/GoalStore.js");
+    const { v4: uuidv4 } = await import("uuid");
+    const { Cron } = await import("croner");
+    const id = uuidv4().slice(0, 8);
+    const checkCron = req.body.checkCron || "0 */4 * * *";
+    const cronInstance = new Cron(checkCron, { timezone: req.body.checkTz || undefined });
+    const nextRun = cronInstance.nextRun();
+    const goal = {
+      id,
+      tenantId: req.body.tenantId || null,
+      title: req.body.title,
+      description: req.body.description || null,
+      strategy: req.body.strategy || null,
+      status: "active",
+      priority: req.body.priority || 5,
+      checkCron,
+      checkTz: req.body.checkTz || null,
+      nextCheckAt: nextRun ? nextRun.toISOString() : null,
+      consecutiveFailures: 0,
+      maxFailures: req.body.maxFailures || 3,
+      delivery: req.body.delivery || null,
+    };
+    saveGoal(goal);
+    res.status(201).json(goal);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.patch("/api/goals/:id", async (req, res) => {
+  try {
+    const { loadGoal, saveGoal } = await import("./storage/GoalStore.js");
+    const goal = loadGoal(req.params.id);
+    if (!goal) return res.status(404).json({ error: "Goal not found" });
+    const allowed = ["title", "description", "strategy", "status", "priority", "checkCron", "checkTz", "maxFailures", "delivery"];
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) goal[key] = req.body[key];
+    }
+    goal.updatedAt = new Date().toISOString();
+    saveGoal(goal);
+    res.json(goal);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.delete("/api/goals/:id", async (req, res) => {
+  try {
+    const { deleteGoal } = await import("./storage/GoalStore.js");
+    deleteGoal(req.params.id);
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post("/api/goals/:id/check", async (req, res) => {
+  try {
+    const { loadGoal } = await import("./storage/GoalStore.js");
+    const goal = loadGoal(req.params.id);
+    if (!goal) return res.status(404).json({ error: "Goal not found" });
+    await goalPulse._executeGoal(goal);
+    res.json({ message: `Goal "${goal.title}" check triggered` });
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
 // --- Plugin Management API ---
@@ -1832,6 +1915,7 @@ process.on("SIGTERM", async () => {
   console.log("\n[Shutdown] SIGTERM received. Stopping...");
   scheduler.stop();
   heartbeat.stop();
+  goalPulse.stop();
   taskRunner.stop();
   supervisor.stop();
   try { const { stopPlugins } = await import("./plugins/PluginLoader.js"); await stopPlugins(); } catch {}
@@ -1846,6 +1930,7 @@ process.on("SIGINT", () => {
   console.log("\n[Shutdown] SIGINT received. Stopping...");
   scheduler.stop();
   heartbeat.stop();
+  goalPulse.stop();
   taskRunner.stop();
   supervisor.stop();
   mcpManager.shutdown().then(() =>

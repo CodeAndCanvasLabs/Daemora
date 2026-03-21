@@ -418,6 +418,22 @@ const toolSchemas = {
     description: "Schedule and manage cron jobs. Delivery auto-routes to calling channel. Admin can use deliveryPreset to deliver to named tenant groups. Schedule types: cronExpression (recurring), every (interval), at (one-shot timestamp).",
   },
 
+  // ── Goals ────────────────────────────────────────────────────────────
+  goal: {
+    schema: z.object({
+      action: str("create | list | update | delete | pause | resume | check | complete"),
+      title: optStr("Goal title"),
+      description: optStr("Goal description"),
+      strategy: optStr("Strategy for achieving the goal"),
+      id: optStr("Goal ID (for update/delete/pause/resume/check/complete)"),
+      checkCron: optStr("Check schedule cron expression (default: every 4 hours)"),
+      checkTz: optStr("Timezone (IANA, e.g. America/New_York)"),
+      priority: optNum("Priority 1-10 (10 = highest)"),
+      maxFailures: optNum("Auto-pause after N consecutive failures (default: 3)"),
+    }),
+    description: "Manage persistent goals. Agent works toward them autonomously on schedule.",
+  },
+
   // ── System Reload ──────────────────────────────────────────────────────
   reload: {
     schema: z.object({

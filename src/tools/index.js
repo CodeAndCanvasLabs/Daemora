@@ -47,6 +47,7 @@ import { clipboard } from "./clipboard.js";
 import { reload } from "./reloadTool.js";
 import { discoverProfiles } from "./discoverProfiles.js";
 import { broadcast } from "./broadcast.js";
+import { goal } from "./goalTool.js";
 
 // ─── Agent wrappers (params object → SubAgentManager) ────────────────────────
 
@@ -101,6 +102,7 @@ export const toolFunctions = {
   gitTool, clipboard,
   discoverProfiles,
   broadcast,
+  goal,
   reload,
 };
 
