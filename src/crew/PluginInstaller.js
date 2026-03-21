@@ -13,7 +13,7 @@ import { existsSync, rmSync, readdirSync, readFileSync, writeFileSync, cpSync, m
 import { join, basename } from "node:path";
 import { config } from "../config/default.js";
 
-const PLUGINS_DIR = join(config.rootDir, "plugins");
+const PLUGINS_DIR = join(config.rootDir, "crew");
 
 /**
  * Install a plugin from npm.

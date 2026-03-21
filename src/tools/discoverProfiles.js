@@ -13,7 +13,7 @@
 
 import { listProfiles } from "../config/ProfileLoader.js";
 import tenantContext from "../tenants/TenantContext.js";
-import { getRegistry } from "../plugins/PluginRegistry.js";
+import { getRegistry } from "../crew/PluginRegistry.js";
 
 // ── Profile embeddings cache ────────────────────────────────────────────────
 

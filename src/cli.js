@@ -1568,7 +1568,7 @@ async function handleTenant(action, args) {
 // ── Security Doctor ────────────────────────────────────────────────────────────
 
 async function handlePlugin(action, args) {
-  const { loadPlugins, reloadPlugins, reloadPlugin } = await import("./plugins/PluginLoader.js");
+  const { loadPlugins, reloadPlugins, reloadPlugin } = await import("./crew/PluginLoader.js");
 
   switch (action) {
     case "list":
@@ -1620,7 +1620,7 @@ async function handlePlugin(action, args) {
         console.error("  Example: daemora plugin install daemora-plugin-weather");
         return;
       }
-      const { installPlugin } = await import("./plugins/PluginInstaller.js");
+      const { installPlugin } = await import("./crew/PluginInstaller.js");
       await installPlugin(pkg);
       break;
     }
@@ -1632,7 +1632,7 @@ async function handlePlugin(action, args) {
         console.error("  Usage: daemora plugin remove <plugin-id>");
         return;
       }
-      const { removePlugin } = await import("./plugins/PluginInstaller.js");
+      const { removePlugin } = await import("./crew/PluginInstaller.js");
       await removePlugin(pluginId);
       break;
     }

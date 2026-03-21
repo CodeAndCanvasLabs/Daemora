@@ -968,7 +968,7 @@ app.delete("/api/watchers/:id", async (req, res) => {
 // --- Plugin Management API ---
 app.get("/api/plugins", async (req, res) => {
   try {
-    const { getPlugins } = await import("./plugins/PluginRegistry.js");
+    const { getPlugins } = await import("./crew/PluginRegistry.js");
     res.json({ plugins: getPlugins() });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -977,7 +977,7 @@ app.post("/api/plugins/:id/enable", async (req, res) => {
   try {
     const { configStore } = await import("./config/ConfigStore.js");
     configStore.set(`plugin:${req.params.id}:enabled`, "true");
-    const { reloadPlugin } = await import("./plugins/PluginLoader.js");
+    const { reloadPlugin } = await import("./crew/PluginLoader.js");
     await reloadPlugin(req.params.id);
     res.json({ ok: true });
   } catch (e) { res.status(400).json({ error: e.message }); }
@@ -993,7 +993,7 @@ app.post("/api/plugins/:id/disable", async (req, res) => {
 
 app.post("/api/plugins/:id/reload", async (req, res) => {
   try {
-    const { reloadPlugin } = await import("./plugins/PluginLoader.js");
+    const { reloadPlugin } = await import("./crew/PluginLoader.js");
     await reloadPlugin(req.params.id);
     res.json({ ok: true });
   } catch (e) { res.status(400).json({ error: e.message }); }
@@ -1003,25 +1003,21 @@ app.post("/api/plugins/install", async (req, res) => {
   try {
     const { pkg } = req.body;
     if (!pkg) return res.status(400).json({ error: "pkg is required" });
-    const { installPlugin } = await import("./plugins/PluginInstaller.js");
+    const { installPlugin } = await import("./crew/PluginInstaller.js");
     await installPlugin(pkg);
-    // Reload plugins after install
-    const { reloadPlugins } = await import("./plugins/PluginLoader.js");
-    const { mergePluginTools } = await import("./tools/index.js");
+    // Reload crew after install
+    const { reloadPlugins } = await import("./crew/PluginLoader.js");
     const reg = await reloadPlugins();
-    await mergePluginTools();
     res.json({ ok: true, plugins: reg.plugins.filter(p => p.status === "loaded").length });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
 app.delete("/api/plugins/:id/uninstall", async (req, res) => {
   try {
-    const { removePlugin } = await import("./plugins/PluginInstaller.js");
+    const { removePlugin } = await import("./crew/PluginInstaller.js");
     await removePlugin(req.params.id);
-    const { reloadPlugins } = await import("./plugins/PluginLoader.js");
-    const { mergePluginTools } = await import("./tools/index.js");
+    const { reloadPlugins } = await import("./crew/PluginLoader.js");
     await reloadPlugins();
-    await mergePluginTools();
     res.json({ ok: true });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
@@ -1040,7 +1036,7 @@ app.put("/api/plugins/:id/config", async (req, res) => {
 
 app.get("/api/plugins/:id/config", async (req, res) => {
   try {
-    const { getPlugin } = await import("./plugins/PluginRegistry.js");
+    const { getPlugin } = await import("./crew/PluginRegistry.js");
     const plugin = getPlugin(req.params.id);
     if (!plugin) return res.status(404).json({ error: "Plugin not found" });
     const schema = plugin.configSchema || {};
@@ -1926,16 +1922,14 @@ const httpServer = app.listen(config.port, async () => {
   // ── Phase 1.5: Load plugins ──
   console.log("[Startup] Loading plugins...");
   try {
-    const { loadPlugins } = await import("./plugins/PluginLoader.js");
+    const { loadPlugins } = await import("./crew/PluginLoader.js");
     const pluginRegistry = await loadPlugins();
-    // Merge plugin tools into core tool map
-    const { mergePluginTools } = await import("./tools/index.js");
-    mergePluginTools();
-    // Mount plugin HTTP routes
+    // Crew tools stay in registry — accessed via useCrew(crewId, task)
+    // Mount crew HTTP routes
     for (const route of pluginRegistry.httpRoutes) {
       app[route.method.toLowerCase()](route.path, route.handler);
     }
-    console.log(`[Startup] Plugins: ${pluginRegistry.plugins.filter(p => p.status === "loaded").length} loaded`);
+    console.log(`[Startup] Crew: ${pluginRegistry.plugins.filter(p => p.status === "loaded").length} members loaded`);
   } catch (e) {
     console.log(`[Startup] Plugin loading (non-fatal): ${e.message}`);
   }
@@ -1984,7 +1978,7 @@ process.on("SIGTERM", async () => {
   goalPulse.stop();
   taskRunner.stop();
   supervisor.stop();
-  try { const { stopPlugins } = await import("./plugins/PluginLoader.js"); await stopPlugins(); } catch {}
+  try { const { stopPlugins } = await import("./crew/PluginLoader.js"); await stopPlugins(); } catch {}
   closeTunnel().then(() =>
     mcpManager.shutdown().then(() =>
       channelRegistry.stopAll().then(() => process.exit(0))

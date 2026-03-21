@@ -389,6 +389,13 @@ const toolSchemas = {
     }),
     description: "Delegate task to MCP specialist agent",
   },
+  useCrew: {
+    schema: z.object({
+      crewId: str("Crew member ID (e.g. 'google-services', 'database-connector', 'smart-home')"),
+      taskDescription: str("Complete task description — the crew member has no other context"),
+    }),
+    description: "Delegate task to a specialist crew member",
+  },
 
   // ── Automation ───────────────────────────────────────────────────────────
   cron: {

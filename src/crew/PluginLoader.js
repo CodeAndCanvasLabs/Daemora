@@ -34,9 +34,9 @@ let _loaded = false;
 export async function loadPlugins() {
   if (_loaded) return getRegistry();
 
-  const pluginsDir = join(config.rootDir, "plugins");
+  const pluginsDir = join(config.rootDir, "crew");
   if (!existsSync(pluginsDir)) {
-    console.log("[PluginLoader] No plugins/ directory — skipping");
+    console.log("[CrewLoader] No crew/ directory — skipping");
     _loaded = true;
     return getRegistry();
   }
@@ -236,23 +236,8 @@ async function _loadPlugin(pluginDir) {
   // 2. Declarative auto-discovery (from provides in manifest)
   await _loadDeclarativeProvides(api, record, manifest, pluginDir);
 
-  // 3. Auto-append plugin tools to existing profiles (from manifest.profiles)
-  if (manifest.profiles && Array.isArray(manifest.profiles) && record.toolNames.length > 0) {
-    try {
-      const { getProfile } = await import("../config/ProfileLoader.js");
-      for (const profileId of manifest.profiles) {
-        const profile = getProfile(profileId);
-        if (profile) {
-          for (const toolName of record.toolNames) {
-            if (!profile.tools.includes(toolName)) {
-              profile.tools.push(toolName);
-            }
-          }
-        }
-      }
-      console.log(`[PluginLoader] Tools appended to profiles: ${manifest.profiles.join(", ")}`);
-    } catch {}
-  }
+  // 3. Profile auto-append removed — crew members are self-contained sub-agents.
+  // Main agent delegates via useCrew(crewId, task). Crew tools stay in registry.
 
   // 4. Store agentScope for filtering
   if (manifest.agentScope) {

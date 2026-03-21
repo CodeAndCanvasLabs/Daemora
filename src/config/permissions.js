@@ -49,8 +49,8 @@ export const permissionTiers = {
       // Agents & teams
       "spawnAgent", "parallelAgents", "manageAgents",
       "teamTask",
-      // MCP
-      "manageMCP", "useMCP",
+      // MCP + Crew
+      "manageMCP", "useMCP", "useCrew",
       // Project & task tracking
       "projectTracker", "taskManager",
     ],
@@ -80,8 +80,8 @@ export const permissionTiers = {
       // Agents & teams
       "spawnAgent", "parallelAgents", "delegateToAgent", "manageAgents",
       "teamTask", "discoverProfiles",
-      // MCP
-      "manageMCP", "useMCP",
+      // MCP + Crew
+      "manageMCP", "useMCP", "useCrew",
       // Project & task tracking
       "projectTracker", "taskManager",
       // Automation
@@ -90,9 +90,6 @@ export const permissionTiers = {
       "makeVoiceCall", "meetingAction",
       // Phase 24
       "generateImage", "readPDF", "gitTool", "clipboard",
-      "notification", "iMessageTool", "calendar", "contacts",
-      "sshTool", "database",
-      "googlePlaces", "philipsHue", "sonos",
     ],
   },
 };

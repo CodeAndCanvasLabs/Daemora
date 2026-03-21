@@ -172,15 +172,14 @@ export async function reload(toolParams) {
         return "Web fetch + search caches cleared.";
       }
 
+      case "crew":
       case "plugins": {
-        const { reloadPlugins } = await import("../plugins/PluginLoader.js");
-        const { mergePluginTools } = await import("./index.js");
+        const { reloadPlugins } = await import("../crew/PluginLoader.js");
         const reg = await reloadPlugins();
-        await mergePluginTools();
         const count = reg.plugins.filter(p => p.status === "loaded").length;
         const toolCount = reg.tools.length;
-        eventBus.emit("system:reload", { component: "plugins" });
-        return `Plugins reloaded: ${count} loaded, ${toolCount} tools`;
+        eventBus.emit("system:reload", { component: "crew" });
+        return `Crew reloaded: ${count} members loaded, ${toolCount} tools`;
       }
 
       case "all": {
@@ -193,13 +192,11 @@ export async function reload(toolParams) {
         results.scheduler = await _reloadScheduler();
         results.channels = await _reloadChannels();
         results.caches = _clearCaches();
-        // Reload plugins
+        // Reload crew
         let pluginCount = 0;
         try {
-          const { reloadPlugins } = await import("../plugins/PluginLoader.js");
-          const { mergePluginTools } = await import("./index.js");
+          const { reloadPlugins } = await import("../crew/PluginLoader.js");
           const reg = await reloadPlugins();
-          await mergePluginTools();
           pluginCount = reg.plugins.filter(p => p.status === "loaded").length;
         } catch {}
         eventBus.emit("system:reload", { component: "all" });
