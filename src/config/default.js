@@ -271,7 +271,9 @@ export async function reloadFromDb() {
     let loaded = 0;
     const leaked = [];
     for (const { key, value } of rows) {
-      if (vaultActive && SENSITIVE_PATTERN.test(key)) {
+      // Skip sensitive keys when vault is active — vault is source of truth.
+      // Exception: WEBHOOK_TOKEN is auto-generated config, not a vault secret.
+      if (vaultActive && SENSITIVE_PATTERN.test(key) && key !== "WEBHOOK_TOKEN") {
         leaked.push(key);
         continue; // skip — vault has the real decrypted value
       }
