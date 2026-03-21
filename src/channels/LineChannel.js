@@ -93,7 +93,7 @@ export class LineChannel extends BaseChannel {
       const task = taskQueue.enqueue({
         input: text,
         channel: "line",
-        channelMeta: { userId, replyToken, channel: "line", tenantId: this.getTenantId(), instanceKey: this.getInstanceKey() },
+        channelMeta: { userId, replyToken, userName: userId, channel: "line", tenantId: this.getTenantId(), instanceKey: this.getInstanceKey() },
         sessionId: this.getSessionId(userId),
         model: this.getModel(),
       });

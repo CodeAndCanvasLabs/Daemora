@@ -112,7 +112,7 @@ export class SignalChannel extends BaseChannel {
     const task = taskQueue.enqueue({
       input: text,
       channel: "signal",
-      channelMeta: { sender, channel: "signal" },
+      channelMeta: { sender, userName: sender, channel: "signal" },
       sessionId: this.getSessionId(sender),
       model: this.getModel(),
     });
