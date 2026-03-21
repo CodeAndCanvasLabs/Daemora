@@ -1,15 +1,15 @@
 /**
- * PluginLoader — discovers and loads plugins from plugins/ directory.
+ * CrewLoader — discovers and loads crew members from crew/ directory.
  *
  * Same pattern as OpenClaw's src/plugins/loader.ts + discovery.ts:
- *   1. Scan plugins/ dir for subdirectories with plugin.json
+ *   1. Scan crew/ dir for subdirectories with plugin.json
  *   2. Validate manifest (id, name, provides)
  *   3. Dynamic import entry point (index.js or register function)
- *   4. Call register(api) — plugin registers tools, channels, hooks, etc.
+ *   4. Call register(api) — crew member registers tools, channels, hooks, etc.
  *   5. Auto-load declarative provides (tools/*.js, skills/*.md, profiles/*.yaml)
- *   6. Store in global PluginRegistry
+ *   6. Store in global CrewRegistry
  *
- * Discovery order: plugins/ dir → npm installed packages (future)
+ * Discovery order: crew/ dir → npm installed packages (future)
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -18,60 +18,60 @@ import { pathToFileURL } from "node:url";
 import { config } from "../config/default.js";
 import {
   getRegistry,
-  createPluginApi,
+  createCrewApi,
   clearRegistry,
-  getPluginTools,
-  getPluginServices,
+  getCrewTools,
+  getCrewServices,
   initConfigStore,
 } from "./PluginRegistry.js";
 
 let _loaded = false;
 
 /**
- * Load all plugins from the plugins/ directory.
+ * Load all crew members from the crew/ directory.
  * Called once at startup, after core systems init.
  */
-export async function loadPlugins() {
+export async function loadCrew() {
   if (_loaded) return getRegistry();
 
-  const pluginsDir = join(config.rootDir, "crew");
-  if (!existsSync(pluginsDir)) {
+  const crewDir = join(config.rootDir, "crew");
+  if (!existsSync(crewDir)) {
     console.log("[CrewLoader] No crew/ directory — skipping");
     _loaded = true;
     return getRegistry();
   }
 
-  const entries = readdirSync(pluginsDir, { withFileTypes: true })
+  const entries = readdirSync(crewDir, { withFileTypes: true })
     .filter(e => e.isDirectory())
     .map(e => e.name);
 
   if (entries.length === 0) {
-    console.log("[PluginLoader] No plugins found");
+    console.log("[CrewLoader] No crew members found");
     _loaded = true;
     return getRegistry();
   }
 
-  // Init configStore for plugin config access
+  // Init configStore for crew config access
   await initConfigStore();
 
-  console.log(`[PluginLoader] Discovering ${entries.length} plugin(s)...`);
+  console.log(`[CrewLoader] Discovering ${entries.length} crew member(s)...`);
 
   for (const dir of entries) {
-    const pluginDir = join(pluginsDir, dir);
+    const memberDir = join(crewDir, dir);
     try {
-      await _loadPlugin(pluginDir);
+      await _loadCrewMember(memberDir);
     } catch (e) {
-      console.error(`[PluginLoader] Failed to load plugin "${dir}": ${e.message}`);
+      console.error(`[CrewLoader] Failed to load crew member "${dir}": ${e.message}`);
     }
   }
 
-  // Start plugin services
-  for (const svc of getPluginServices()) {
+  // Start crew services
+  for (const svc of getCrewServices()) {
     try {
       if (typeof svc.start === "function") await svc.start();
-      console.log(`[PluginLoader] Service started: ${svc.id}`);
+      console.log(`[CrewLoader] Service started: ${svc.id}`);
     } catch (e) {
-      console.error(`[PluginLoader] Service "${svc.id}" failed to start: ${e.message}`);
+      console.error(`[CrewLoader] Service "${svc.id}" failed to start: ${e.message}`);
     }
   }
 
@@ -79,20 +79,20 @@ export async function loadPlugins() {
   const toolCount = registry.tools.length;
   const channelCount = registry.channels.length;
   const hookCount = registry.hooks.length;
-  const pluginCount = registry.plugins.filter(p => p.status === "loaded").length;
+  const crewCount = registry.crew.filter(p => p.status === "loaded").length;
 
-  console.log(`[PluginLoader] Loaded ${pluginCount} plugin(s): ${toolCount} tools, ${channelCount} channels, ${hookCount} hooks`);
+  console.log(`[CrewLoader] Loaded ${crewCount} crew member(s): ${toolCount} tools, ${channelCount} channels, ${hookCount} hooks`);
 
   _loaded = true;
   return registry;
 }
 
 /**
- * Reload all plugins (hot-reload).
+ * Reload all crew members (hot-reload).
  */
-export async function reloadPlugins() {
+export async function reloadCrew() {
   // Stop services first
-  for (const svc of getPluginServices()) {
+  for (const svc of getCrewServices()) {
     try {
       if (typeof svc.stop === "function") await svc.stop();
     } catch {}
@@ -100,44 +100,44 @@ export async function reloadPlugins() {
 
   clearRegistry();
   _loaded = false;
-  return loadPlugins();
+  return loadCrew();
 }
 
 /**
- * Reload a single plugin by ID.
+ * Reload a single crew member by ID.
  */
-export async function reloadPlugin(pluginId) {
+export async function reloadCrewMember(crewId) {
   const registry = getRegistry();
-  const existing = registry.plugins.find(p => p.id === pluginId);
-  if (!existing) throw new Error(`Plugin not found: ${pluginId}`);
+  const existing = registry.crew.find(p => p.id === crewId);
+  if (!existing) throw new Error(`Crew member not found: ${crewId}`);
 
   // Stop its services
-  for (const svc of registry.services.filter(s => s.pluginId === pluginId)) {
+  for (const svc of registry.services.filter(s => s.crewId === crewId)) {
     try { if (typeof svc.stop === "function") await svc.stop(); } catch {}
   }
 
-  // Remove all registrations for this plugin
-  _unregisterPlugin(pluginId);
+  // Remove all registrations for this crew member
+  _unregisterCrewMember(crewId);
 
   // Re-load
   try {
-    await _loadPlugin(existing.source);
+    await _loadCrewMember(existing.source);
     // Re-start services
-    for (const svc of registry.services.filter(s => s.pluginId === pluginId)) {
+    for (const svc of registry.services.filter(s => s.crewId === crewId)) {
       try { if (typeof svc.start === "function") await svc.start(); } catch {}
     }
-    console.log(`[PluginLoader] Reloaded: ${pluginId}`);
+    console.log(`[CrewLoader] Reloaded: ${crewId}`);
   } catch (e) {
-    console.error(`[PluginLoader] Reload failed for "${pluginId}": ${e.message}`);
+    console.error(`[CrewLoader] Reload failed for "${crewId}": ${e.message}`);
     throw e;
   }
 }
 
 /**
- * Stop all plugin services (shutdown).
+ * Stop all crew services (shutdown).
  */
-export async function stopPlugins() {
-  for (const svc of getPluginServices()) {
+export async function stopCrew() {
+  for (const svc of getCrewServices()) {
     try {
       if (typeof svc.stop === "function") await svc.stop();
     } catch {}
@@ -146,27 +146,27 @@ export async function stopPlugins() {
 
 // ── Internal ────────────────────────────────────────────────────────────────
 
-async function _loadPlugin(pluginDir) {
-  const manifestPath = join(pluginDir, "plugin.json");
+async function _loadCrewMember(memberDir) {
+  const manifestPath = join(memberDir, "plugin.json");
   if (!existsSync(manifestPath)) {
-    throw new Error(`Missing plugin.json in ${pluginDir}`);
+    throw new Error(`Missing plugin.json in ${memberDir}`);
   }
 
   const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
   if (!manifest.id || !manifest.name) {
-    throw new Error(`plugin.json missing required fields (id, name) in ${pluginDir}`);
+    throw new Error(`plugin.json missing required fields (id, name) in ${memberDir}`);
   }
 
   // Check if disabled via config
-  const enabled = _isPluginEnabled(manifest.id);
+  const enabled = _isCrewEnabled(manifest.id);
 
-  // Build plugin record
+  // Build crew record
   const record = {
     id: manifest.id,
     name: manifest.name,
     version: manifest.version || null,
     description: manifest.description || null,
-    source: pluginDir,
+    source: memberDir,
     enabled,
     status: enabled ? "loaded" : "disabled",
     error: null,
@@ -182,8 +182,8 @@ async function _loadPlugin(pluginDir) {
   };
 
   if (!enabled) {
-    getRegistry().plugins.push(record);
-    console.log(`[PluginLoader] Skipped (disabled): ${manifest.id}`);
+    getRegistry().crew.push(record);
+    console.log(`[CrewLoader] Skipped (disabled): ${manifest.id}`);
     return;
   }
 
@@ -194,47 +194,47 @@ async function _loadPlugin(pluginDir) {
   try { _cs = (await import("../config/ConfigStore.js")).configStore; } catch {}
   for (const [key, schema] of Object.entries(configSchema)) {
     if (!schema.required) continue;
-    const val = process.env[key] || _cs?.get(`plugin:${manifest.id}:${key}`) || null;
+    const val = process.env[key] || _cs?.get(`crew:${manifest.id}:${key}`) || null;
     if (!val) missingKeys.push(schema.label || key);
   }
   if (missingKeys.length > 0) {
     record.status = "needs-config";
     record.error = `Missing: ${missingKeys.join(", ")}`;
     record.enabled = false;
-    getRegistry().plugins.push(record);
-    console.log(`[PluginLoader] Skipped (needs config): ${manifest.id} — ${record.error}`);
+    getRegistry().crew.push(record);
+    console.log(`[CrewLoader] Skipped (needs config): ${manifest.id} — ${record.error}`);
     return;
   }
 
-  // Create plugin API
-  const api = createPluginApi(record, manifest, pluginDir);
+  // Create crew API
+  const api = createCrewApi(record, manifest, memberDir);
 
   // 1. Programmatic registration (index.js)
-  const entryPath = join(pluginDir, "index.js");
+  const entryPath = join(memberDir, "index.js");
   if (existsSync(entryPath)) {
     try {
       // Cache-bust: append timestamp to force Node to re-import on reload
       const importUrl = `${pathToFileURL(entryPath).href}?t=${Date.now()}`;
       const mod = await import(importUrl);
-      const plugin = mod.default || mod;
+      const member = mod.default || mod;
 
-      if (typeof plugin === "function") {
+      if (typeof member === "function") {
         // Function export: export default function(api) { ... }
-        await plugin(api);
-      } else if (plugin && typeof plugin.register === "function") {
+        await member(api);
+      } else if (member && typeof member.register === "function") {
         // Object export: export default { id, name, register(api) { ... } }
-        await plugin.register(api);
+        await member.register(api);
       }
     } catch (e) {
       record.status = "error";
       record.error = e.message;
-      getRegistry().plugins.push(record);
+      getRegistry().crew.push(record);
       throw e;
     }
   }
 
   // 2. Declarative auto-discovery (from provides in manifest)
-  await _loadDeclarativeProvides(api, record, manifest, pluginDir);
+  await _loadDeclarativeProvides(api, record, manifest, memberDir);
 
   // 3. Profile auto-append removed — crew members are self-contained sub-agents.
   // Main agent delegates via useCrew(crewId, task). Crew tools stay in registry.
@@ -244,19 +244,19 @@ async function _loadPlugin(pluginDir) {
     record.agentScope = manifest.agentScope;
   }
 
-  getRegistry().plugins.push(record);
-  console.log(`[PluginLoader] Loaded: ${manifest.id} v${manifest.version || "0.0.0"} (${record.toolNames.length} tools, ${record.channelIds.length} channels)`);
+  getRegistry().crew.push(record);
+  console.log(`[CrewLoader] Loaded: ${manifest.id} v${manifest.version || "0.0.0"} (${record.toolNames.length} tools, ${record.channelIds.length} channels)`);
 }
 
 /**
  * Auto-load tools, skills, profiles from manifest.provides globs.
  */
-async function _loadDeclarativeProvides(api, record, manifest, pluginDir) {
+async function _loadDeclarativeProvides(api, record, manifest, memberDir) {
   const provides = manifest.provides || {};
 
   // Auto-load tools/*.js
   if (provides.tools) {
-    const toolsDir = join(pluginDir, "tools");
+    const toolsDir = join(memberDir, "tools");
     if (existsSync(toolsDir)) {
       const files = readdirSync(toolsDir).filter(f => f.endsWith(".js"));
       for (const file of files) {
@@ -277,7 +277,7 @@ async function _loadDeclarativeProvides(api, record, manifest, pluginDir) {
 
   // Auto-load skills/*.md
   if (provides.skills) {
-    const skillsDir = join(pluginDir, "skills");
+    const skillsDir = join(memberDir, "skills");
     if (existsSync(skillsDir)) {
       try {
         const skillLoader = (await import("../skills/SkillLoader.js")).default;
@@ -290,7 +290,7 @@ async function _loadDeclarativeProvides(api, record, manifest, pluginDir) {
 
   // Auto-load profiles/*.yaml
   if (provides.profiles) {
-    const profilesDir = join(pluginDir, "profiles");
+    const profilesDir = join(memberDir, "profiles");
     if (existsSync(profilesDir)) {
       try {
         const { loadProfilesFromDir } = await import("../config/agentProfiles.js");
@@ -304,21 +304,21 @@ async function _loadDeclarativeProvides(api, record, manifest, pluginDir) {
   }
 }
 
-function _unregisterPlugin(pluginId) {
+function _unregisterCrewMember(crewId) {
   const registry = getRegistry();
-  registry.tools = registry.tools.filter(t => t.pluginId !== pluginId);
-  registry.channels = registry.channels.filter(c => c.pluginId !== pluginId);
-  registry.hooks = registry.hooks.filter(h => h.pluginId !== pluginId);
-  registry.services = registry.services.filter(s => s.pluginId !== pluginId);
-  registry.cliCommands = registry.cliCommands.filter(c => c.pluginId !== pluginId);
-  registry.httpRoutes = registry.httpRoutes.filter(r => r.pluginId !== pluginId);
-  registry.plugins = registry.plugins.filter(p => p.id !== pluginId);
+  registry.tools = registry.tools.filter(t => t.crewId !== crewId);
+  registry.channels = registry.channels.filter(c => c.crewId !== crewId);
+  registry.hooks = registry.hooks.filter(h => h.crewId !== crewId);
+  registry.services = registry.services.filter(s => s.crewId !== crewId);
+  registry.cliCommands = registry.cliCommands.filter(c => c.crewId !== crewId);
+  registry.httpRoutes = registry.httpRoutes.filter(r => r.crewId !== crewId);
+  registry.crew = registry.crew.filter(p => p.id !== crewId);
 }
 
-function _isPluginEnabled(pluginId) {
-  // Check config_entries for plugin:<id>:enabled
+function _isCrewEnabled(crewId) {
+  // Check config_entries for crew:<id>:enabled
   try {
-    const env = process.env[`PLUGIN_${pluginId.toUpperCase().replace(/-/g, "_")}_ENABLED`];
+    const env = process.env[`CREW_${crewId.toUpperCase().replace(/-/g, "_")}_ENABLED`];
     if (env === "false") return false;
     if (env === "true") return true;
   } catch {}

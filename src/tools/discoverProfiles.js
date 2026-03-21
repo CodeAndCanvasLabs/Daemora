@@ -2,8 +2,8 @@
  * discoverProfiles — main agent tool for finding the right sub-agent profile.
  *
  * Uses embeddings to match task description against profile descriptions.
- * Filters by tenant's enabled plugins.
- * Returns matches + disabled plugins with "not enabled" message.
+ * Filters by tenant's enabled crew members.
+ * Returns matches + disabled crew members with "not enabled" message.
  *
  * Three-tier fallback:
  *   1. discoverProfiles(query) → top 5
@@ -17,7 +17,7 @@ import { getRegistry } from "../crew/PluginRegistry.js";
 
 // ── Profile embeddings cache ────────────────────────────────────────────────
 
-let _profileEmbeddings = null; // [{id, name, description, embedding, plugin}]
+let _profileEmbeddings = null; // [{id, name, description, embedding, crew}]
 let _embedFn = null;
 
 async function _ensureEmbeddings() {
@@ -40,7 +40,7 @@ async function _ensureEmbeddings() {
           name: p.name,
           description: p.description || "",
           embedding,
-          plugin: _getProfilePlugin(p.id),
+          crew: _getProfileCrew(p.id),
         });
       } catch {
         // Embedding failed — store without embedding (keyword fallback)
@@ -49,7 +49,7 @@ async function _ensureEmbeddings() {
           name: p.name,
           description: p.description || "",
           embedding: null,
-          plugin: _getProfilePlugin(p.id),
+          crew: _getProfileCrew(p.id),
         });
       }
     }
@@ -61,18 +61,18 @@ async function _ensureEmbeddings() {
         name: p.name,
         description: p.description || "",
         embedding: null,
-        plugin: _getProfilePlugin(p.id),
+        crew: _getProfileCrew(p.id),
       });
     }
   }
 }
 
-function _getProfilePlugin(profileId) {
-  // Check if this profile was loaded by a plugin
+function _getProfileCrew(profileId) {
+  // Check if this profile was loaded by a crew member
   const registry = getRegistry();
-  for (const p of registry.plugins) {
+  for (const p of registry.crew) {
     if (p.status === "loaded") {
-      // Check if plugin's manifest.profiles includes this profile
+      // Check if crew member's manifest.profiles includes this profile
       const manifest = p.manifest;
       if (manifest?.profiles?.includes(profileId)) {
         return { id: p.id, name: p.name };
@@ -82,15 +82,15 @@ function _getProfilePlugin(profileId) {
   return null; // built-in profile
 }
 
-function _isPluginEnabledForTenant(pluginId) {
+function _isCrewEnabledForTenant(crewId) {
   const store = tenantContext.getStore();
   const tenant = store?.tenant;
   if (!tenant) return true; // admin/global — all enabled
 
-  // Check tenant's plugins array
-  const tenantPlugins = tenant.plugins;
-  if (!tenantPlugins || !Array.isArray(tenantPlugins)) return true; // no restriction
-  return tenantPlugins.includes(pluginId);
+  // Check tenant's crew array
+  const tenantCrew = tenant.crew;
+  if (!tenantCrew || !Array.isArray(tenantCrew)) return true; // no restriction
+  return tenantCrew.includes(crewId);
 }
 
 function _cosineSimilarity(a, b) {
@@ -161,15 +161,15 @@ export async function discoverProfiles(params) {
       id: p.id,
       name: p.name,
       description: p.description,
-      plugin: p.plugin?.id || null,
+      crew: p.crew?.id || null,
       score: Math.round(p.score * 100) / 100,
     };
 
-    if (p.plugin && !_isPluginEnabledForTenant(p.plugin.id)) {
+    if (p.crew && !_isCrewEnabledForTenant(p.crew.id)) {
       disabled.push({
         ...entry,
         enabled: false,
-        message: `Plugin '${p.plugin.name}' exists but not enabled for your account`,
+        message: `Crew member '${p.crew.name}' exists but not enabled for your account`,
       });
     } else {
       matches.push({ ...entry, enabled: true });
@@ -184,7 +184,7 @@ export async function discoverProfiles(params) {
 }
 
 export const discoverProfilesDescription =
-  `discoverProfiles(query, {limit?, offset?, all?}) — Find the right sub-agent profile for a task. Returns matching profiles sorted by relevance. Use before spawnAgent when unsure which profile to use. Disabled plugins returned with "not enabled" message.`;
+  `discoverProfiles(query, {limit?, offset?, all?}) — Find the right sub-agent profile for a task. Returns matching profiles sorted by relevance. Use before spawnAgent when unsure which profile to use. Disabled crew members returned with "not enabled" message.`;
 
 export function clearProfileEmbeddingsCache() {
   _profileEmbeddings = null;

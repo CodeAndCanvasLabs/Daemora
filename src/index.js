@@ -965,86 +965,86 @@ app.delete("/api/watchers/:id", async (req, res) => {
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-// --- Plugin Management API ---
-app.get("/api/plugins", async (req, res) => {
+// --- Crew Management API ---
+app.get("/api/crew", async (req, res) => {
   try {
-    const { getPlugins } = await import("./crew/PluginRegistry.js");
-    res.json({ plugins: getPlugins() });
+    const { getCrew } = await import("./crew/PluginRegistry.js");
+    res.json({ crew: getCrew() });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post("/api/plugins/:id/enable", async (req, res) => {
+app.post("/api/crew/:id/enable", async (req, res) => {
   try {
     const { configStore } = await import("./config/ConfigStore.js");
-    configStore.set(`plugin:${req.params.id}:enabled`, "true");
-    const { reloadPlugin } = await import("./crew/PluginLoader.js");
-    await reloadPlugin(req.params.id);
+    configStore.set(`crew:${req.params.id}:enabled`, "true");
+    const { reloadCrewMember } = await import("./crew/PluginLoader.js");
+    await reloadCrewMember(req.params.id);
     res.json({ ok: true });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-app.post("/api/plugins/:id/disable", async (req, res) => {
+app.post("/api/crew/:id/disable", async (req, res) => {
   try {
     const { configStore } = await import("./config/ConfigStore.js");
-    configStore.set(`plugin:${req.params.id}:enabled`, "false");
+    configStore.set(`crew:${req.params.id}:enabled`, "false");
     res.json({ ok: true });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-app.post("/api/plugins/:id/reload", async (req, res) => {
+app.post("/api/crew/:id/reload", async (req, res) => {
   try {
-    const { reloadPlugin } = await import("./crew/PluginLoader.js");
-    await reloadPlugin(req.params.id);
+    const { reloadCrewMember } = await import("./crew/PluginLoader.js");
+    await reloadCrewMember(req.params.id);
     res.json({ ok: true });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-app.post("/api/plugins/install", async (req, res) => {
+app.post("/api/crew/install", async (req, res) => {
   try {
     const { pkg } = req.body;
     if (!pkg) return res.status(400).json({ error: "pkg is required" });
-    const { installPlugin } = await import("./crew/PluginInstaller.js");
-    await installPlugin(pkg);
+    const { installCrewMember } = await import("./crew/PluginInstaller.js");
+    await installCrewMember(pkg);
     // Reload crew after install
-    const { reloadPlugins } = await import("./crew/PluginLoader.js");
-    const reg = await reloadPlugins();
-    res.json({ ok: true, plugins: reg.plugins.filter(p => p.status === "loaded").length });
+    const { reloadCrew } = await import("./crew/PluginLoader.js");
+    const reg = await reloadCrew();
+    res.json({ ok: true, crew: reg.crew.filter(p => p.status === "loaded").length });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-app.delete("/api/plugins/:id/uninstall", async (req, res) => {
+app.delete("/api/crew/:id/uninstall", async (req, res) => {
   try {
-    const { removePlugin } = await import("./crew/PluginInstaller.js");
-    await removePlugin(req.params.id);
-    const { reloadPlugins } = await import("./crew/PluginLoader.js");
-    await reloadPlugins();
+    const { removeCrewMember } = await import("./crew/PluginInstaller.js");
+    await removeCrewMember(req.params.id);
+    const { reloadCrew } = await import("./crew/PluginLoader.js");
+    await reloadCrew();
     res.json({ ok: true });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-app.put("/api/plugins/:id/config", async (req, res) => {
+app.put("/api/crew/:id/config", async (req, res) => {
   try {
     const { configStore } = await import("./config/ConfigStore.js");
     const { updates } = req.body;
     if (!updates || typeof updates !== "object") return res.status(400).json({ error: "updates object required" });
     for (const [key, value] of Object.entries(updates)) {
-      configStore.set(`plugin:${req.params.id}:${key}`, String(value));
+      configStore.set(`crew:${req.params.id}:${key}`, String(value));
     }
     res.json({ ok: true });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-app.get("/api/plugins/:id/config", async (req, res) => {
+app.get("/api/crew/:id/config", async (req, res) => {
   try {
-    const { getPlugin } = await import("./crew/PluginRegistry.js");
-    const plugin = getPlugin(req.params.id);
-    if (!plugin) return res.status(404).json({ error: "Plugin not found" });
-    const schema = plugin.configSchema || {};
+    const { getCrewMember } = await import("./crew/PluginRegistry.js");
+    const member = getCrewMember(req.params.id);
+    if (!member) return res.status(404).json({ error: "Crew member not found" });
+    const schema = member.configSchema || {};
     // Read current values
     const { configStore } = await import("./config/ConfigStore.js");
     const values = {};
     for (const key of Object.keys(schema)) {
-      values[key] = configStore.get(`plugin:${req.params.id}:${key}`) || schema[key]?.default || "";
+      values[key] = configStore.get(`crew:${req.params.id}:${key}`) || schema[key]?.default || "";
     }
     res.json({ schema, values });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -1919,19 +1919,19 @@ const httpServer = app.listen(config.port, async () => {
     console.log("[Startup] Skill embeddings ready");
   } catch { /* non-fatal — TF-IDF fallback always works */ }
 
-  // ── Phase 1.5: Load plugins ──
-  console.log("[Startup] Loading plugins...");
+  // ── Phase 1.5: Load crew ──
+  console.log("[Startup] Loading crew...");
   try {
-    const { loadPlugins } = await import("./crew/PluginLoader.js");
-    const pluginRegistry = await loadPlugins();
+    const { loadCrew } = await import("./crew/PluginLoader.js");
+    const crewRegistry = await loadCrew();
     // Crew tools stay in registry — accessed via useCrew(crewId, task)
     // Mount crew HTTP routes
-    for (const route of pluginRegistry.httpRoutes) {
+    for (const route of crewRegistry.httpRoutes) {
       app[route.method.toLowerCase()](route.path, route.handler);
     }
-    console.log(`[Startup] Crew: ${pluginRegistry.plugins.filter(p => p.status === "loaded").length} members loaded`);
+    console.log(`[Startup] Crew: ${crewRegistry.crew.filter(p => p.status === "loaded").length} members loaded`);
   } catch (e) {
-    console.log(`[Startup] Plugin loading (non-fatal): ${e.message}`);
+    console.log(`[Startup] Crew loading (non-fatal): ${e.message}`);
   }
 
   // ── Phase 2: Connect MCP servers ──
@@ -1978,7 +1978,7 @@ process.on("SIGTERM", async () => {
   goalPulse.stop();
   taskRunner.stop();
   supervisor.stop();
-  try { const { stopPlugins } = await import("./crew/PluginLoader.js"); await stopPlugins(); } catch {}
+  try { const { stopCrew } = await import("./crew/PluginLoader.js"); await stopCrew(); } catch {}
   closeTunnel().then(() =>
     mcpManager.shutdown().then(() =>
       channelRegistry.stopAll().then(() => process.exit(0))

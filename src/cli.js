@@ -203,9 +203,8 @@ async function main() {
       handleAuth(subcommand);
       break;
 
-    case "plugin":
-    case "plugins":
-      await handlePlugin(subcommand, rest);
+    case "crew":
+      await handleCrew(subcommand, rest);
       break;
 
     case "setup":
@@ -1567,19 +1566,19 @@ async function handleTenant(action, args) {
 
 // ── Security Doctor ────────────────────────────────────────────────────────────
 
-async function handlePlugin(action, args) {
-  const { loadPlugins, reloadPlugins, reloadPlugin } = await import("./crew/PluginLoader.js");
+async function handleCrew(action, args) {
+  const { loadCrew, reloadCrew, reloadCrewMember } = await import("./crew/PluginLoader.js");
 
   switch (action) {
     case "list":
     case undefined: {
-      const registry = await loadPlugins();
-      if (registry.plugins.length === 0) {
-        console.log("\n  No plugins installed. Drop plugin folders in plugins/ directory.\n");
+      const registry = await loadCrew();
+      if (registry.crew.length === 0) {
+        console.log("\n  No crew members installed. Drop crew member folders in crew/ directory.\n");
         return;
       }
-      console.log(`\n  ${chalk.bold("Installed Plugins")} (${registry.plugins.length})\n`);
-      for (const p of registry.plugins) {
+      console.log(`\n  ${chalk.bold("Installed Crew")} (${registry.crew.length})\n`);
+      for (const p of registry.crew) {
         const status = p.status === "loaded"
           ? chalk.green("✓ loaded")
           : p.status === "disabled"
@@ -1597,49 +1596,49 @@ async function handlePlugin(action, args) {
     }
 
     case "reload": {
-      const pluginId = args[0];
-      if (!pluginId) {
-        console.error("  Usage: daemora plugin reload <plugin-id>");
+      const crewId = args[0];
+      if (!crewId) {
+        console.error("  Usage: daemora crew reload <crew-id>");
         return;
       }
-      await reloadPlugin(pluginId);
-      console.log(`  Reloaded: ${pluginId}`);
+      await reloadCrewMember(crewId);
+      console.log(`  Reloaded: ${crewId}`);
       break;
     }
 
     case "reload-all": {
-      await reloadPlugins();
-      console.log("  All plugins reloaded.");
+      await reloadCrew();
+      console.log("  All crew members reloaded.");
       break;
     }
 
     case "install": {
       const pkg = args[0];
       if (!pkg) {
-        console.error("  Usage: daemora plugin install <npm-package>");
-        console.error("  Example: daemora plugin install daemora-plugin-weather");
+        console.error("  Usage: daemora crew install <npm-package>");
+        console.error("  Example: daemora crew install daemora-crew-weather");
         return;
       }
-      const { installPlugin } = await import("./crew/PluginInstaller.js");
-      await installPlugin(pkg);
+      const { installCrewMember } = await import("./crew/PluginInstaller.js");
+      await installCrewMember(pkg);
       break;
     }
 
     case "remove":
     case "uninstall": {
-      const pluginId = args[0];
-      if (!pluginId) {
-        console.error("  Usage: daemora plugin remove <plugin-id>");
+      const crewId = args[0];
+      if (!crewId) {
+        console.error("  Usage: daemora crew remove <crew-id>");
         return;
       }
-      const { removePlugin } = await import("./crew/PluginInstaller.js");
-      await removePlugin(pluginId);
+      const { removeCrewMember } = await import("./crew/PluginInstaller.js");
+      await removeCrewMember(crewId);
       break;
     }
 
     default:
-      console.error(`  Unknown plugin command: ${action}`);
-      console.error("  Usage: daemora plugin list|install|remove|reload|reload-all");
+      console.error(`  Unknown crew command: ${action}`);
+      console.error("  Usage: daemora crew list|install|remove|reload|reload-all");
   }
 }
 
@@ -2383,11 +2382,11 @@ ${line}
   ${t.cmd("models")}                            List all model providers + task-type routing
   ${t.cmd("tools")} ${t.dim("[filter]")}                    List all 50 built-in tools (filter by name/category)
 
-  ${t.cmd("plugin list")}                       List installed plugins + status
-  ${t.cmd("plugin install")} ${t.dim("<npm-package>")}     Install plugin from npm
-  ${t.cmd("plugin remove")} ${t.dim("<id>")}              Remove installed plugin
-  ${t.cmd("plugin reload")} ${t.dim("<id>")}               Hot-reload a plugin
-  ${t.cmd("plugin reload-all")}                 Reload all plugins
+  ${t.cmd("crew list")}                         List installed crew members + status
+  ${t.cmd("crew install")} ${t.dim("<npm-package>")}       Install crew member from npm
+  ${t.cmd("crew remove")} ${t.dim("<id>")}                Remove installed crew member
+  ${t.cmd("crew reload")} ${t.dim("<id>")}                 Hot-reload a crew member
+  ${t.cmd("crew reload-all")}                   Reload all crew members
 
   ${t.cmd("doctor")}                           Security audit - check for misconfigurations
   ${t.cmd("cleanup")}                          Delete old tasks, logs, and sessions

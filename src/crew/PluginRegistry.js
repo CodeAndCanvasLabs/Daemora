@@ -1,9 +1,9 @@
 /**
- * PluginRegistry — global registry of loaded plugins and their registrations.
+ * CrewRegistry — global registry of loaded crew members and their registrations.
  *
  * Same pattern as OpenClaw's src/plugins/registry.ts:
- *   - Tracks all plugins + what they registered (tools, channels, hooks, services, CLI, routes)
- *   - PluginApi created per-plugin for isolated registration
+ *   - Tracks all crew members + what they registered (tools, channels, hooks, services, CLI, routes)
+ *   - CrewApi created per-member for isolated registration
  *   - Multi-tenant aware: tenantPlans filtering, per-tenant config/keys access
  */
 
@@ -13,58 +13,58 @@ import tenantContext from "../tenants/TenantContext.js";
 // ── Registry State ──────────────────────────────────────────────────────────
 
 const _registry = {
-  plugins: [],        // PluginRecord[]
-  tools: [],          // { pluginId, name, fn, schema, description }[]
-  channels: [],       // { pluginId, name, impl }[]
-  hooks: [],          // { pluginId, event, handler }[]
-  services: [],       // { pluginId, id, start, stop }[]
-  cliCommands: [],    // { pluginId, name, handler }[]
-  httpRoutes: [],     // { pluginId, method, path, handler }[]
-  diagnostics: [],    // { level, pluginId, message }[]
+  crew: [],             // CrewRecord[]
+  tools: [],            // { crewId, name, fn, schema, description }[]
+  channels: [],         // { crewId, name, impl }[]
+  hooks: [],            // { crewId, event, handler }[]
+  services: [],         // { crewId, id, start, stop }[]
+  cliCommands: [],      // { crewId, name, handler }[]
+  httpRoutes: [],       // { crewId, method, path, handler }[]
+  diagnostics: [],      // { level, crewId, message }[]
 };
 
 export function getRegistry() { return _registry; }
 
-export function getPlugins() { return _registry.plugins; }
-export function getPluginTools() { return _registry.tools; }
-export function getPluginChannels() { return _registry.channels; }
-export function getPluginServices() { return _registry.services; }
-export function getPluginHooks() { return _registry.hooks; }
-export function getPluginCliCommands() { return _registry.cliCommands; }
-export function getPluginHttpRoutes() { return _registry.httpRoutes; }
+export function getCrew() { return _registry.crew; }
+export function getCrewTools() { return _registry.tools; }
+export function getCrewChannels() { return _registry.channels; }
+export function getCrewServices() { return _registry.services; }
+export function getCrewHooks() { return _registry.hooks; }
+export function getCrewCliCommands() { return _registry.cliCommands; }
+export function getCrewHttpRoutes() { return _registry.httpRoutes; }
 export function getDiagnostics() { return _registry.diagnostics; }
 
-export function getPlugin(id) {
-  return _registry.plugins.find(p => p.id === id) || null;
+export function getCrewMember(id) {
+  return _registry.crew.find(p => p.id === id) || null;
 }
 
 /**
- * Get plugin tools filtered by tenant plan.
+ * Get crew tools filtered by tenant plan.
  * @param {string} [tenantPlan] — "free" | "pro" | "admin" | null (admin/global)
  */
-export function getPluginToolsForPlan(tenantPlan) {
+export function getCrewToolsForPlan(tenantPlan) {
   if (!tenantPlan) return _registry.tools;
   return _registry.tools.filter(t => {
-    const plugin = _registry.plugins.find(p => p.id === t.pluginId);
-    if (!plugin?.tenantPlans) return true;
-    return plugin.tenantPlans.includes(tenantPlan);
+    const member = _registry.crew.find(p => p.id === t.crewId);
+    if (!member?.tenantPlans) return true;
+    return member.tenantPlans.includes(tenantPlan);
   });
 }
 
 /**
- * Get plugin tools filtered by agent scope.
+ * Get crew tools filtered by agent scope.
  * @param {string} scope — "main" | "sub-agent" | "team"
  */
-export function getPluginToolsForScope(scope) {
+export function getCrewToolsForScope(scope) {
   return _registry.tools.filter(t => {
-    const plugin = _registry.plugins.find(p => p.id === t.pluginId);
-    if (!plugin?.agentScope) return true; // no restriction — available everywhere
-    return plugin.agentScope.includes(scope);
+    const member = _registry.crew.find(p => p.id === t.crewId);
+    if (!member?.agentScope) return true; // no restriction — available everywhere
+    return member.agentScope.includes(scope);
   });
 }
 
 export function clearRegistry() {
-  _registry.plugins.length = 0;
+  _registry.crew.length = 0;
   _registry.tools.length = 0;
   _registry.channels.length = 0;
   _registry.hooks.length = 0;
@@ -74,15 +74,15 @@ export function clearRegistry() {
   _registry.diagnostics.length = 0;
 }
 
-// ── Plugin Record ───────────────────────────────────────────────────────────
+// ── Crew Record ─────────────────────────────────────────────────────────────
 
 /**
- * @typedef {Object} PluginRecord
+ * @typedef {Object} CrewRecord
  * @property {string} id
  * @property {string} name
  * @property {string} [version]
  * @property {string} [description]
- * @property {string} source — path to plugin dir
+ * @property {string} source — path to crew member dir
  * @property {boolean} enabled
  * @property {"loaded"|"disabled"|"error"} status
  * @property {string} [error]
@@ -94,16 +94,16 @@ export function clearRegistry() {
  * @property {number} httpRouteCount
  * @property {object} [manifest] — raw plugin.json
  * @property {string[]} [tenantPlans] — restrict to plans (free/pro/admin)
- * @property {object} [configSchema] — plugin config fields
+ * @property {object} [configSchema] — crew config fields
  */
 
-// ── Plugin API (passed to register()) ───────────────────────────────────────
+// ── Crew API (passed to register()) ─────────────────────────────────────────
 
 /**
- * Create the API object passed to a plugin's register() function.
+ * Create the API object passed to a crew member's register() function.
  * Same surface as OpenClaw's OpenClawPluginApi.
  */
-export function createPluginApi(record, manifest, pluginDir) {
+export function createCrewApi(record, manifest, memberDir) {
   const api = {
     id: record.id,
     name: record.name,
@@ -117,7 +117,7 @@ export function createPluginApi(record, manifest, pluginDir) {
         return;
       }
       record.toolNames.push(name);
-      _registry.tools.push({ pluginId: record.id, name, fn, schema: schema || null, description: description || "" });
+      _registry.tools.push({ crewId: record.id, name, fn, schema: schema || null, description: description || "" });
     },
 
     // ── Channel registration ────────────────────────────────────────────
@@ -127,11 +127,11 @@ export function createPluginApi(record, manifest, pluginDir) {
         return;
       }
       record.channelIds.push(name);
-      _registry.channels.push({ pluginId: record.id, name, impl });
+      _registry.channels.push({ crewId: record.id, name, impl });
       // Wire into channelRegistry so it can instantiate this channel type
       try {
         import("../channels/index.js").then(mod => {
-          mod.default.registerPluginChannel(name, impl);
+          mod.default.registerCrewChannel(name, impl);
         });
       } catch {}
     },
@@ -142,7 +142,7 @@ export function createPluginApi(record, manifest, pluginDir) {
       const events = Array.isArray(event) ? event : [event];
       for (const e of events) {
         record.hookEvents.push(e);
-        _registry.hooks.push({ pluginId: record.id, event: e, handler });
+        _registry.hooks.push({ crewId: record.id, event: e, handler });
         // Wire into EventBus
         eventBus.on(e, handler);
       }
@@ -152,42 +152,42 @@ export function createPluginApi(record, manifest, pluginDir) {
     registerService(service) {
       if (!service?.id) return;
       record.serviceIds.push(service.id);
-      _registry.services.push({ pluginId: record.id, ...service });
+      _registry.services.push({ crewId: record.id, ...service });
     },
 
     // ── CLI commands ────────────────────────────────────────────────────
     registerCli(name, handler) {
       if (!name || typeof handler !== "function") return;
       record.cliCommands.push(name);
-      _registry.cliCommands.push({ pluginId: record.id, name, handler });
+      _registry.cliCommands.push({ crewId: record.id, name, handler });
     },
 
-    // ── HTTP routes (prefixed /api/plugins/<pluginId>/...) ──────────────
+    // ── HTTP routes (prefixed /api/crew/<crewId>/...) ───────────────────
     registerRoute(method, path, handler) {
       if (!method || !path || typeof handler !== "function") return;
-      const fullPath = `/api/plugins/${record.id}${path.startsWith("/") ? path : "/" + path}`;
+      const fullPath = `/api/crew/${record.id}${path.startsWith("/") ? path : "/" + path}`;
       record.httpRouteCount++;
-      _registry.httpRoutes.push({ pluginId: record.id, method: method.toUpperCase(), path: fullPath, handler });
+      _registry.httpRoutes.push({ crewId: record.id, method: method.toUpperCase(), path: fullPath, handler });
     },
 
-    // ── Config access (plugin's own config) ─────────────────────────────
+    // ── Config access (crew member's own config) ────────────────────────
     config(key) {
       // Priority: process.env > SQLite config_entries > manifest defaults
-      const envKey = `PLUGIN_${record.id.toUpperCase().replace(/-/g, "_")}_${key}`;
+      const envKey = `CREW_${record.id.toUpperCase().replace(/-/g, "_")}_${key}`;
       if (process.env[envKey]) return process.env[envKey];
-      // Check SQLite config_entries with plugin prefix (sync — configStore is already loaded)
+      // Check SQLite config_entries with crew prefix (sync — configStore is already loaded)
       if (_configStore) {
-        const val = _configStore.get(`plugin:${record.id}:${key}`);
+        const val = _configStore.get(`crew:${record.id}:${key}`);
         if (val) return val;
       }
       return manifest?.config?.[key]?.default || null;
     },
 
-    // ── Set plugin config ───────────────────────────────────────────────
+    // ── Set crew config ─────────────────────────────────────────────────
     setConfig(key, value) {
       try {
         import("../config/ConfigStore.js").then(mod => {
-          mod.configStore.set(`plugin:${record.id}:${key}`, value);
+          mod.configStore.set(`crew:${record.id}:${key}`, value);
         });
       } catch {}
     },
@@ -195,11 +195,11 @@ export function createPluginApi(record, manifest, pluginDir) {
     // ── Tenant-aware access (Daemora-specific, not in OpenClaw) ─────────
     getTenantConfig(tenantId) {
       try {
-        // Enforce tenant isolation — plugin can only access current request's tenant
+        // Enforce tenant isolation — crew member can only access current request's tenant
         const store = tenantContext.getStore();
         const currentTenantId = store?.tenant?.id;
         if (tenantId && currentTenantId && tenantId !== currentTenantId) {
-          console.log(`[Plugin:${record.id}] BLOCKED: cross-tenant config access (requested: ${tenantId}, current: ${currentTenantId})`);
+          console.log(`[Crew:${record.id}] BLOCKED: cross-tenant config access (requested: ${tenantId}, current: ${currentTenantId})`);
           return null;
         }
         const tenantManager = _getTenantManager();
@@ -209,11 +209,11 @@ export function createPluginApi(record, manifest, pluginDir) {
 
     getTenantKeys(tenantId) {
       try {
-        // Enforce tenant isolation — plugin can only access current request's tenant keys
+        // Enforce tenant isolation — crew member can only access current request's tenant keys
         const store = tenantContext.getStore();
         const currentTenantId = store?.tenant?.id;
         if (tenantId && currentTenantId && tenantId !== currentTenantId) {
-          console.log(`[Plugin:${record.id}] BLOCKED: cross-tenant key access (requested: ${tenantId}, current: ${currentTenantId})`);
+          console.log(`[Crew:${record.id}] BLOCKED: cross-tenant key access (requested: ${tenantId}, current: ${currentTenantId})`);
           return {};
         }
         const tenantManager = _getTenantManager();
@@ -223,9 +223,9 @@ export function createPluginApi(record, manifest, pluginDir) {
 
     // ── Logger ──────────────────────────────────────────────────────────
     log: {
-      info: (msg) => console.log(`[Plugin:${record.id}] ${msg}`),
-      warn: (msg) => console.log(`[Plugin:${record.id}] WARN: ${msg}`),
-      error: (msg) => console.error(`[Plugin:${record.id}] ERROR: ${msg}`),
+      info: (msg) => console.log(`[Crew:${record.id}] ${msg}`),
+      warn: (msg) => console.log(`[Crew:${record.id}] WARN: ${msg}`),
+      error: (msg) => console.error(`[Crew:${record.id}] ERROR: ${msg}`),
     },
   };
 
@@ -234,10 +234,10 @@ export function createPluginApi(record, manifest, pluginDir) {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function _diag(level, pluginId, message) {
-  _registry.diagnostics.push({ level, pluginId, message });
-  if (level === "error") console.error(`[PluginRegistry] ${pluginId}: ${message}`);
-  else console.log(`[PluginRegistry] ${pluginId}: ${message}`);
+function _diag(level, crewId, message) {
+  _registry.diagnostics.push({ level, crewId, message });
+  if (level === "error") console.error(`[CrewRegistry] ${crewId}: ${message}`);
+  else console.log(`[CrewRegistry] ${crewId}: ${message}`);
 }
 
 let _tenantManager = null;

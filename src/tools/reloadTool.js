@@ -172,11 +172,10 @@ export async function reload(toolParams) {
         return "Web fetch + search caches cleared.";
       }
 
-      case "crew":
-      case "plugins": {
-        const { reloadPlugins } = await import("../crew/PluginLoader.js");
-        const reg = await reloadPlugins();
-        const count = reg.plugins.filter(p => p.status === "loaded").length;
+      case "crew": {
+        const { reloadCrew } = await import("../crew/PluginLoader.js");
+        const reg = await reloadCrew();
+        const count = reg.crew.filter(p => p.status === "loaded").length;
         const toolCount = reg.tools.length;
         eventBus.emit("system:reload", { component: "crew" });
         return `Crew reloaded: ${count} members loaded, ${toolCount} tools`;
@@ -193,11 +192,11 @@ export async function reload(toolParams) {
         results.channels = await _reloadChannels();
         results.caches = _clearCaches();
         // Reload crew
-        let pluginCount = 0;
+        let crewCount = 0;
         try {
-          const { reloadPlugins } = await import("../crew/PluginLoader.js");
-          const reg = await reloadPlugins();
-          pluginCount = reg.plugins.filter(p => p.status === "loaded").length;
+          const { reloadCrew } = await import("../crew/PluginLoader.js");
+          const reg = await reloadCrew();
+          crewCount = reg.crew.filter(p => p.status === "loaded").length;
         } catch {}
         eventBus.emit("system:reload", { component: "all" });
 
@@ -206,7 +205,7 @@ export async function reload(toolParams) {
           `Config: reloaded (model: ${results.models.current})`,
           `Models: provider cache cleared`,
           `Skills: ${results.skills.skills} loaded`,
-          `Plugins: ${pluginCount} loaded`,
+          `Crew: ${crewCount} loaded`,
           `MCP: ${results.mcp.mcpServers} servers reconnected`,
           `Scheduler: ${results.scheduler.jobs} jobs`,
           `Channels: ${results.channels.channels} active`,

@@ -68,18 +68,18 @@ class ChannelRegistry {
     // Map<instanceKey, channelInstance>
     // Global: "discord" | Per-tenant: "discord::telegram:123456"
     this.channels = new Map();
-    // Map<channelType, channelClass/factory> — plugin-registered channels
-    this.pluginChannels = new Map();
+    // Map<channelType, channelClass/factory> — crew-registered channels
+    this.crewChannels = new Map();
   }
 
   /**
-   * Register a plugin-provided channel implementation.
+   * Register a crew-provided channel implementation.
    * @param {string} name — channel type name
    * @param {Function|object} impl — channel class or factory { create(config) → instance }
    */
-  registerPluginChannel(name, impl) {
-    this.pluginChannels.set(name, impl);
-    console.log(`[ChannelRegistry] Plugin channel registered: ${name}`);
+  registerCrewChannel(name, impl) {
+    this.crewChannels.set(name, impl);
+    console.log(`[ChannelRegistry] Crew channel registered: ${name}`);
   }
 
   _instanceKey(channelType, tenantId) {
@@ -94,15 +94,15 @@ class ChannelRegistry {
       case "whatsapp": return new WhatsAppChannel({ ...channelConfig, enabled: true });
       case "line":     return new LineChannel({ ...channelConfig });
       default: {
-        // Check plugin-registered channels
-        const pluginImpl = this.pluginChannels.get(channelType);
-        if (pluginImpl) {
-          if (typeof pluginImpl === "function") {
-            // Class constructor: new PluginChannel(config)
-            return new pluginImpl(channelConfig);
-          } else if (pluginImpl.create) {
+        // Check crew-registered channels
+        const crewImpl = this.crewChannels.get(channelType);
+        if (crewImpl) {
+          if (typeof crewImpl === "function") {
+            // Class constructor: new CrewChannel(config)
+            return new crewImpl(channelConfig);
+          } else if (crewImpl.create) {
             // Factory: { create(config) → instance }
-            return pluginImpl.create(channelConfig);
+            return crewImpl.create(channelConfig);
           }
         }
         return null;
