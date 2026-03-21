@@ -10,6 +10,7 @@ import { resolveDefaultModel } from "../models/ModelRouter.js";
 import tenantManager from "../tenants/TenantManager.js";
 import tenantContext from "../tenants/TenantContext.js";
 import inputSanitizer from "../safety/InputSanitizer.js";
+import channelRegistry from "../channels/index.js";
 import eventBus from "./EventBus.js";
 import { msgText, compactForSession } from "../utils/msgText.js";
 import { generateEmbedding, cosineSim } from "../utils/Embeddings.js";
@@ -435,6 +436,18 @@ class TaskRunner {
         const store = tenantContext.getStore();
         if (store?.directReplySent) {
           task.directReplySent = true;
+        }
+
+        // Forward result to extra destinations (watcher multi-delivery)
+        if (task.extraDestinations?.length > 0 && result.text) {
+          for (const dest of task.extraDestinations) {
+            try {
+              const channel = channelRegistry.get(dest.channel);
+              if (channel?.running) {
+                await channel.sendReply(dest.channelMeta, result.text);
+              }
+            } catch {}
+          }
         }
 
         // Complete the task

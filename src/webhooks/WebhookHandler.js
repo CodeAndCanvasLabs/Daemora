@@ -194,7 +194,7 @@ router.post("/watch/:name", async (req, res) => {
         type: "watcher",
         tenantId: watcher.tenantId,
         priority: 4,
-        _extraDestinations: destinations.slice(1), // forwarded after completion
+        extraDestinations: destinations.slice(1), // forwarded after completion
       });
       taskIds.push(task.id);
     }
@@ -257,7 +257,7 @@ router.post("/event", async (req, res) => {
         type: "watcher",
         tenantId: watcher.tenantId,
         priority: 4,
-        _extraDestinations: dests.slice(1),
+        extraDestinations: dests.slice(1),
       });
 
       watcher.lastTriggeredAt = new Date().toISOString();
