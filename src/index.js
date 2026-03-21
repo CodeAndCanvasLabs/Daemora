@@ -1497,11 +1497,12 @@ app.get("/api/settings", (req, res) => {
     }
   }
 
-  // Uniform masking — never leak any characters
+  // Mask only secret-looking keys — non-secrets sent as-is for UI state
+  const SECRET_KEY_PATTERN = /(_KEY|_TOKEN|_SECRET|_PASSWORD|_CREDENTIAL|_AUTH|_PASSPHRASE|_API_KEY|_ACCESS_TOKEN)$/i;
   const masked = {};
   for (const [key, val] of Object.entries(dbConfig)) {
     if (!val) { masked[key] = ""; continue; }
-    masked[key] = "••••••••";
+    masked[key] = SECRET_KEY_PATTERN.test(key) ? "••••••••" : val;
   }
 
   res.json({ vars: masked, vaultActive });
@@ -1522,6 +1523,8 @@ app.put("/api/settings", async (req, res) => {
 
   for (const [key, value] of Object.entries(updates)) {
     if (!/^[A-Z][A-Z0-9_]*$/.test(key)) continue;
+    // Skip masked values — UI sent back the placeholder, user didn't change this field
+    if (value === "••••••••") continue;
     if (vaultActive && sensitivePattern.test(key)) {
       vaultUpdates[key] = value;
     } else {
