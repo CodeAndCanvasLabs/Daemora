@@ -81,6 +81,7 @@ eventBus.on("supervisor:kill", ({ taskId }) => {
  * @param {string[]} [options.extraTools]          Additional tools on top of profile or default
  * @param {string[]} [options.tools]               Explicit tool list (overrides profile)
  * @param {object}   [options.toolOverride]        Exact tool functions (specialist agents, bypasses all)
+ * @param {object}   [options.aiToolOverrides]     Pre-built AI SDK tools (e.g. from @ai-sdk/mcp) — merged into aiTools in AgentLoop
  * @param {object}   [options.systemPromptOverride] Replace system prompt entirely (specialist agents)
  * @param {number}   [options.maxCost]             Cost budget
  * @param {number}   [options.timeout]             Timeout in ms
@@ -100,6 +101,7 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     extraTools           = null,        // additional tools on top of profile or default
     tools: allowedTools  = null,        // explicit list - overrides profile
     toolOverride         = null,        // exact tool functions - specialist agents only (e.g. MCP)
+    aiToolOverrides      = null,        // pre-built AI SDK tools (e.g. from @ai-sdk/mcp)
     systemPromptOverride = null,        // replace system prompt - specialist agents only
     maxCost              = 0.10,
     timeout              = 1_800_000,
@@ -294,6 +296,7 @@ export async function spawnSubAgent(taskDescription, options = {}) {
           profileDef: options._profileDef || null,
         }),
         tools:        agentTools,
+        aiToolOverrides,                         // pre-built AI SDK tools (e.g. @ai-sdk/mcp)
         modelId:      resolvedModel,
         taskId,
         approvalMode,

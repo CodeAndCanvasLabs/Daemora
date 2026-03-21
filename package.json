@@ -67,6 +67,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.50",
     "@ai-sdk/google": "^3.0.34",
+    "@ai-sdk/mcp": "^1.0.30",
     "@ai-sdk/openai": "^3.0.37",
     "@clack/prompts": "^1.0.1",
     "@huggingface/transformers": "^3.8.1",

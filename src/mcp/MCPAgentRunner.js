@@ -1,6 +1,9 @@
+import { createMCPClient } from "@ai-sdk/mcp";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { spawnSubAgent } from "../agents/SubAgentManager.js";
 import mcpManager from "./MCPManager.js";
-import { MCPClient } from "./MCPClient.js";
 import { toolFunctions } from "../tools/index.js";
 import { createSession, getSession, setMessages } from "../services/sessions.js";
 import { compactForSession } from "../utils/msgText.js";
@@ -12,6 +15,7 @@ import tenantContext from "../tenants/TenantContext.js";
  */
 const MCP_BASE_TOOLS = [
   "readFile", "writeFile", "editFile", "listDirectory",
+  "glob", "grep",
   "executeCommand",
   "webFetch", "webSearch",
   "createDocument",
@@ -21,68 +25,90 @@ const MCP_BASE_TOOLS = [
 /**
  * MCP Agent Runner - spawns specialist sub-agents for individual MCP servers.
  *
+ * Uses @ai-sdk/mcp to create proper AI SDK tools from MCP servers.
  * Each specialist gets:
- *   - ONLY the tools from its assigned MCP server (no built-in tools)
- *   - A minimal system prompt focused solely on its server's capabilities
- *   - No SOUL.md, no memory, no unrelated tool docs
- *
- * This keeps context lean: a GitHub specialist sees only GitHub tools.
- * A Notion specialist sees only Notion tools. No confusion, no wasted tokens.
+ *   - MCP tools with proper Zod schemas (via @ai-sdk/mcp)
+ *   - Base tools for file I/O, web, etc.
+ *   - A focused system prompt — no manual tool docs needed
  */
+
+// ── Env var expansion (reused from MCPClient) ─────────────────────────────────
+
+const SENSITIVE_ENV_PATTERN = /(_KEY|_TOKEN|_SECRET|_PASSWORD|_CREDENTIAL|_AUTH|_SID|_PRIVATE|_PASSPHRASE|VAULT_)$/i;
+
+function expandEnvVars(value) {
+  if (typeof value === "string") {
+    return value.replace(/\$\{([^}]+)\}/g, (_, name) => process.env[name] ?? "");
+  }
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = expandEnvVars(v);
+    }
+    return out;
+  }
+  return value;
+}
+
+function _buildMcpEnv(declaredEnv) {
+  const safe = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (!SENSITIVE_ENV_PATTERN.test(k)) safe[k] = v;
+  }
+  if (declaredEnv) Object.assign(safe, declaredEnv);
+  return safe;
+}
+
+// ── Transport builder ─────────────────────────────────────────────────────────
+
+/**
+ * Build an MCP transport from server config.
+ * Maps our config format to @modelcontextprotocol/sdk transports.
+ */
+function _buildTransport(serverConfig) {
+  const cfg = serverConfig;
+
+  // stdio — local subprocess
+  if (cfg.command) {
+    return new StdioClientTransport({
+      command: cfg.command,
+      args: cfg.args || [],
+      env: _buildMcpEnv(expandEnvVars(cfg.env || {})),
+    });
+  }
+
+  if (!cfg.url) {
+    throw new Error(`Invalid MCP config: need 'command' (stdio) or 'url' (http/sse)`);
+  }
+
+  const url = new URL(expandEnvVars(cfg.url));
+  const headers = expandEnvVars(cfg.headers || {});
+  const hasHeaders = Object.keys(headers).length > 0;
+
+  // SSE
+  if (cfg.transport === "sse") {
+    return new SSEClientTransport(url, {
+      requestInit: hasHeaders ? { headers } : undefined,
+      eventSourceInit: hasHeaders ? { headers } : undefined,
+    });
+  }
+
+  // Streamable HTTP (default)
+  return new StreamableHTTPClientTransport(url, {
+    requestInit: hasHeaders ? { headers } : undefined,
+  });
+}
+
+// ── System prompt ─────────────────────────────────────────────────────────────
 
 /**
  * Build a focused system prompt for an MCP specialist agent.
- * @param {string} serverName - The MCP server name
- * @param {string} toolDocs   - Formatted tool documentation for this server's tools
- * @returns {{ role: "system", content: string }}
+ * No tool docs needed — tools are self-describing via Zod schemas from @ai-sdk/mcp.
  */
-function buildMCPAgentSystemPrompt(serverName, toolDocs) {
+function buildMCPAgentSystemPrompt(serverName) {
   return {
     role: "system",
-    content: `You are a specialist agent for the "${serverName}" MCP server. You have been delegated a specific task by the main agent. Complete it fully and autonomously using the tools below.
-
-# Response Format
-
-Respond with a JSON object on every turn:
-\`\`\`
-{
-  "type": "tool_call" | "text",
-  "tool_call": { "tool_name": "string", "params": ["string", ...] } | null,
-  "text_content": "string" | null,
-  "finalResponse": boolean
-}
-\`\`\`
-
-- type "tool_call": set tool_call, set text_content to null, finalResponse to false
-- type "text": set text_content with a clear summary of what you did, set tool_call to null, finalResponse to true
-
-# Available Tools
-
-## MCP Tools (${serverName})
-
-${toolDocs}
-
-## Base Tools
-You also have standard tools for research, file operations, and output:
-- readFile(filePath, offset?, limit?) — Read file contents
-- writeFile(filePath, content) — Create or overwrite file
-- editFile(filePath, oldString, newString) — Find-and-replace in file
-- listDirectory(dirPath) — List files and folders
-- glob(pattern, directory?) — Find files by glob pattern
-- grep(pattern, optionsJson?) — Content search
-- executeCommand(command, optionsJson?) — Run shell command
-- webFetch(url, optionsJson?) — Fetch URL content as text
-- webSearch(query, optionsJson?) — Search the web
-- createDocument(filePath, content, format?) — Create markdown, pdf, or docx
-- replyToUser(message) — Send progress update to user mid-task
-
-# How to Call MCP Tools
-
-All MCP tool params must be passed as a single JSON string (the first and only argument):
-  tool_name: "mcp__${serverName}__someToolName"
-  params: ['{"param1":"value1","param2":"value2"}']
-
-Base tools use regular string params (array of strings), not JSON.
+    content: `You are a specialist agent for the "${serverName}" MCP server. You have been delegated a specific task by the main agent. Complete it fully and autonomously using the tools available to you.
 
 # Rules - You Own This Task
 
@@ -97,70 +123,48 @@ Base tools use regular string params (array of strings), not JSON.
   };
 }
 
+// ── Server config resolution ──────────────────────────────────────────────────
+
+/**
+ * Resolve server config from global MCPManager or tenant's private servers.
+ * @returns {{ config: object, source: "global"|"tenant" } | null}
+ */
+function _getServerConfig(serverName) {
+  // Check global MCPManager config
+  const mcpConfig = mcpManager.readConfig();
+  if (mcpConfig.mcpServers?.[serverName]) {
+    return { config: mcpConfig.mcpServers[serverName], source: "global" };
+  }
+
+  // Check tenant's own private MCP server definitions
+  const store = tenantContext.getStore();
+  const ownMcpServers = store?.resolvedConfig?.ownMcpServers ?? {};
+  if (ownMcpServers[serverName]) {
+    return { config: ownMcpServers[serverName], source: "tenant" };
+  }
+
+  return null;
+}
+
+// ── Main runner ───────────────────────────────────────────────────────────────
+
 /**
  * Run a specialist MCP agent for the given server.
  *
+ * Uses @ai-sdk/mcp to create proper AI SDK tools with Zod schemas.
+ * The sub-agent gets native tool calling — no string-based JSON parsing.
+ *
  * @param {string} serverName       - MCP server name (e.g. "github", "notion")
- * @param {string} taskDescription  - Full task description (no other context available)
- * @param {object} options          - Forwarded to spawnSubAgent (parentTaskId, channelMeta, approvalMode, timeout, model)
+ * @param {string} taskDescription  - Full task description
+ * @param {object} options          - Forwarded to spawnSubAgent
  * @returns {Promise<string>}       - Agent's final response
  */
 export async function runMCPAgent(serverName, taskDescription, options = {}) {
   const { mainSessionId, ...restOptions } = options;
 
-  // Get only this server's tool functions.
-  // First check global connected servers; if not found, try tenant's private server config.
-  let serverTools = mcpManager.getServerTools(serverName);
-  let tempClient = null;
-  let tempToolMeta = {}; // fullName → { description, inputSchema } for tenant-owned server tools
-
-  if (Object.keys(serverTools).length === 0) {
-    // Try tenant's own private MCP server definitions
-    const store = tenantContext.getStore();
-    const ownMcpServers = store?.resolvedConfig?.ownMcpServers ?? {};
-    const ownServerConfig = ownMcpServers[serverName];
-
-    if (ownServerConfig) {
-      try {
-        console.log(`[MCPAgentRunner] Connecting tenant-owned MCP server "${serverName}"`);
-        tempClient = new MCPClient(serverName, ownServerConfig);
-        const tools = await tempClient.connect();
-        // Build serverTools map with same arg-parsing signature as MCPManager.getServerTools()
-        serverTools = {};
-        for (const tool of tools) {
-          const fullName = `mcp__${serverName}__${tool.name}`;
-          tempToolMeta[fullName] = { description: tool.description, inputSchema: tool.inputSchema };
-          const schema = tool.inputSchema;
-          const toolName = tool.name;
-          const client = tempClient;
-          serverTools[fullName] = async (...args) => {
-            let toolArgs = {};
-            if (args[0]) {
-              try {
-                toolArgs = typeof args[0] === "string" ? JSON.parse(args[0]) : args[0];
-              } catch {
-                const props = schema?.properties || {};
-                const keys = Object.keys(props);
-                for (let i = 0; i < keys.length && i < args.length; i++) {
-                  toolArgs[keys[i]] = args[i];
-                }
-              }
-            }
-            console.log(`      [MCP:${fullName}] Calling with: ${JSON.stringify(toolArgs).slice(0, 200)}`);
-            try {
-              return await client.callTool(toolName, toolArgs);
-            } catch (err) {
-              return `MCP tool error: ${err.message}`;
-            }
-          };
-        }
-      } catch (err) {
-        return `Failed to connect tenant MCP server "${serverName}": ${err.message}`;
-      }
-    }
-  }
-
-  if (Object.keys(serverTools).length === 0) {
+  // Resolve server config
+  const resolved = _getServerConfig(serverName);
+  if (!resolved) {
     const available = mcpManager.list().map((s) => s.name);
     if (available.length === 0) {
       return `No MCP servers are connected. Check config/mcp.json to enable servers.`;
@@ -168,80 +172,76 @@ export async function runMCPAgent(serverName, taskDescription, options = {}) {
     return `MCP server "${serverName}" not found or has no tools. Available servers: ${available.join(", ")}`;
   }
 
-  // Build tool docs for this server's system prompt (include nested schemas).
-  // For global servers, look up mcpManager.toolMap; for tenant-owned, use tempToolMeta.
-  const toolDocs = Object.keys(serverTools)
-    .map((fullName) => {
-      const entry = mcpManager.toolMap.get(fullName) || tempToolMeta[fullName];
-      if (!entry) return `### ${fullName}(argsJson: string)`;
-      const desc = entry.description || entry.toolName;
-      const schema = entry.inputSchema;
-      // Show full JSON schema so the sub-agent knows exact field names
-      let schemaDoc = "";
-      if (schema) {
-        try {
-          schemaDoc = "\n- Schema:\n```json\n" + JSON.stringify(schema, null, 2) + "\n```";
-        } catch {
-          const props = schema.properties || {};
-          const required = schema.required || [];
-          const params = Object.entries(props)
-            .map(([k, v]) => `${k}${required.includes(k) ? "" : "?"}: ${v.type || "any"}`)
-            .join(", ");
-          schemaDoc = params ? `\n- argsJson: \`{${params}}\`` : "";
-        }
-      }
-      return `### ${fullName}(argsJson: string)\n${desc}${schemaDoc}`;
-    })
-    .join("\n\n");
+  // Create @ai-sdk/mcp client with proper transport
+  let mcpClient;
+  try {
+    console.log(`[MCPAgentRunner] Creating @ai-sdk/mcp client for "${serverName}" (${resolved.source})`);
+    const transport = _buildTransport(resolved.config);
+    mcpClient = await createMCPClient({ transport });
+  } catch (err) {
+    return `Failed to connect MCP server "${serverName}": ${err.message}`;
+  }
 
-  const systemPromptOverride = buildMCPAgentSystemPrompt(serverName, toolDocs);
+  try {
+    // Get proper AI SDK tools with Zod schemas — automatic schema discovery
+    const mcpTools = await mcpClient.tools();
+    const mcpToolCount = Object.keys(mcpTools).length;
 
-  // Load sub-agent session history (persistent across calls)
-  const subSessionId = mainSessionId ? `${mainSessionId}--${serverName}` : null;
-  let historyMessages = [];
-  if (subSessionId) {
-    const subSession = getSession(subSessionId);
-    if (subSession && subSession.messages.length > 0) {
-      historyMessages = subSession.messages.map(m => ({ role: m.role, content: m.content }));
-      console.log(`[MCPAgentRunner] Loaded ${historyMessages.length} history messages for "${serverName}"`);
+    if (mcpToolCount === 0) {
+      return `MCP server "${serverName}" connected but has no tools.`;
     }
+
+    // Rename MCP tools to namespaced format: toolName → mcp__serverName__toolName
+    const namespacedMcpTools = {};
+    for (const [name, toolDef] of Object.entries(mcpTools)) {
+      namespacedMcpTools[`mcp__${serverName}__${name}`] = toolDef;
+    }
+
+    // Build system prompt (simplified — tools are self-describing via schemas)
+    const systemPromptOverride = buildMCPAgentSystemPrompt(serverName);
+
+    // Load sub-agent session history (persistent across calls)
+    const subSessionId = mainSessionId ? `${mainSessionId}--${serverName}` : null;
+    let historyMessages = [];
+    if (subSessionId) {
+      const subSession = getSession(subSessionId);
+      if (subSession && subSession.messages.length > 0) {
+        historyMessages = subSession.messages.map(m => ({ role: m.role, content: m.content }));
+        console.log(`[MCPAgentRunner] Loaded ${historyMessages.length} history messages for "${serverName}"`);
+      }
+    }
+
+    console.log(
+      `[MCPAgentRunner] Spawning specialist for "${serverName}" (${mcpToolCount} MCP tools + ${MCP_BASE_TOOLS.length} base tools)`
+    );
+
+    // Spawn sub-agent:
+    //   - tools: base tools (resolved from toolFunctions via name list)
+    //   - aiToolOverrides: MCP tools (pre-built AI SDK tools from @ai-sdk/mcp)
+    const fullResult = await spawnSubAgent(taskDescription, {
+      ...restOptions,
+      tools: MCP_BASE_TOOLS,
+      aiToolOverrides: namespacedMcpTools,
+      systemPromptOverride,
+      depth: 1,
+      historyMessages,
+      returnFullResult: true,
+    });
+
+    // Save sub-agent session (cap at 100 messages)
+    if (subSessionId && fullResult.messages) {
+      let subSession = getSession(subSessionId);
+      if (!subSession) subSession = createSession(subSessionId);
+      const capped = fullResult.messages.length > 100
+        ? fullResult.messages.slice(-100)
+        : fullResult.messages;
+      setMessages(subSessionId, compactForSession(capped));
+      console.log(`[MCPAgentRunner] Saved ${capped.length} messages to sub-session "${subSessionId}"`);
+    }
+
+    return typeof fullResult === "string" ? fullResult : fullResult.text;
+  } finally {
+    // Always close the MCP client (disconnects transport)
+    try { await mcpClient.close(); } catch {}
   }
-
-  console.log(
-    `[MCPAgentRunner] Spawning specialist for "${serverName}" (${Object.keys(serverTools).length} tools)`
-  );
-
-  // Merge base tools with MCP server tools so the agent can research, read files, etc.
-  const baseTools = {};
-  for (const name of MCP_BASE_TOOLS) {
-    if (toolFunctions[name]) baseTools[name] = toolFunctions[name];
-  }
-  const mergedTools = { ...baseTools, ...serverTools };
-
-  const fullResult = await spawnSubAgent(taskDescription, {
-    ...restOptions,
-    toolOverride: mergedTools,
-    systemPromptOverride,
-    depth: 1,
-    historyMessages,
-    returnFullResult: true,
-  });
-
-  // Save sub-agent session (cap at 100 messages)
-  if (subSessionId && fullResult.messages) {
-    let subSession = getSession(subSessionId);
-    if (!subSession) subSession = createSession(subSessionId);
-    const capped = fullResult.messages.length > 100
-      ? fullResult.messages.slice(-100)
-      : fullResult.messages;
-    setMessages(subSessionId, compactForSession(capped));
-    console.log(`[MCPAgentRunner] Saved ${capped.length} messages to sub-session "${subSessionId}"`);
-  }
-
-  // Disconnect temp client for tenant-owned server (not registered in global MCPManager)
-  if (tempClient) {
-    try { await tempClient.disconnect(); } catch {}
-  }
-
-  return typeof fullResult === "string" ? fullResult : fullResult.text;
 }
