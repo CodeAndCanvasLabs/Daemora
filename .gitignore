@@ -30,6 +30,7 @@ GIT_RULES.md         # local dev notes
 .PHASES.md           # internal phase planning
 .FEATURES.md         # internal feature planning
 FEATURES.md          # internal feature inventory
+ROADMAP.md           # internal development roadmap
 
 # ── Claude Code project context ───────────────────────────────────────────────
 .claude/
