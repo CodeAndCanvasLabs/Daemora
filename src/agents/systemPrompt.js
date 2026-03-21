@@ -5,6 +5,7 @@ import skillLoader from "../skills/SkillLoader.js";
 import mcpManager from "../mcp/MCPManager.js";
 import tenantContext from "../tenants/TenantContext.js";
 import { queryAll } from "../storage/Database.js";
+import { getRegistry } from "../crew/PluginRegistry.js";
 
 // ── Tool → required env keys mapping ──────────────────────────────────────────
 const TOOL_REQUIRED_KEYS = {
@@ -15,7 +16,7 @@ const TOOL_REQUIRED_KEYS = {
   generateImage:   ["OPENAI_API_KEY"],
   meetingAction:   ["TWILIO_ACCOUNT_SID"],
   // googlePlaces, calendar, contacts, philipsHue, sonos, database, sshTool
-  // → moved to plugins. Available when plugin is enabled + loaded.
+  // → moved to crew members. Accessed via useCrew(crewId, task).
 };
 
 function _getConfiguredKeys() {
@@ -53,6 +54,7 @@ export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeM
         renderResponseFormat(),
         renderToolList(false),
         renderMCPTools(),
+        renderCrewMembers(),
         renderToolUsageRules(),
         renderSkills(taskInput),
         renderMemory(),
@@ -174,6 +176,26 @@ Use useMCP(serverName, taskDescription) to delegate. Prefer MCP over built-in to
 ${serverList}`;
 }
 
+function renderCrewMembers() {
+  try {
+    const registry = getRegistry();
+    const loaded = registry.crew.filter(p => p.status === "loaded" && p.toolNames.length > 0);
+    if (loaded.length === 0) return "";
+
+    const memberList = loaded
+      .map(p => `- **${p.id}** — ${p.description || p.name}. Tools: ${p.toolNames.join(", ")}`)
+      .join("\n");
+
+    return `# Crew Members
+
+Use useCrew(crewId, taskDescription) to delegate. Each crew member is a specialist with its own tools and context.
+
+${memberList}`;
+  } catch {
+    return "";
+  }
+}
+
 function renderToolUsageRules() {
   return `# Tool Rules
 
@@ -184,7 +206,7 @@ function renderToolUsageRules() {
 - \`<conversation-summary>\` = compacted history — treat as ground truth, don't redo.
 - Task needs deep focus (research, writing, coding, analysis) → use spawnAgent, not yourself.
 - Multiple independent tasks → parallelAgents. Tasks with handoffs → teamTask.
-- Every spawnAgent / parallelAgents / teamTask / useMCP instruction must include full contract: TASK · CONTEXT · FILES · SPEC · CONSTRAINTS · OUTPUT.`;
+- Every spawnAgent / parallelAgents / teamTask / useMCP / useCrew instruction must include full contract: TASK · CONTEXT · FILES · SPEC · CONSTRAINTS · OUTPUT.`;
 }
 
 async function renderSkills(taskInput, limit = 20, isSubAgent = false, skillScope = null) {

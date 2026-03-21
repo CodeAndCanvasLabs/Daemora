@@ -61,6 +61,7 @@ Pick the right profile — each has specialized tools, instructions, and scoped 
 - Multiple independent tasks → `parallelAgents(tasks: [{description, profile}, ...], sharedContext)`.
 - Tasks with handoffs (A → B → C) → `teamTask` workflow.
 - MCP server task → `useMCP(serverName, taskDescription)`.
+- Crew member task (calendar, database, smart home, etc.) → `useCrew(crewId, taskDescription)`.
 
 ### Scheduling
 - User asks to schedule anything (reminders, reports, recurring tasks) → use `cron` tool directly. Don't delegate.
