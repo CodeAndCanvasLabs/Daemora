@@ -624,26 +624,30 @@ app.get("/api/channels", (req, res) => {
 app.get("/api/channels/destinations", async (req, res) => {
   try {
     const { queryAll } = await import("./storage/Database.js");
-    const rows = queryAll(
-      `SELECT tc.channel, tc.user_id, tc.tenant_id, tc.meta, t.config
-       FROM tenant_channels tc
-       LEFT JOIN tenants t ON t.id = tc.tenant_id
-       WHERE tc.meta IS NOT NULL
-       ORDER BY tc.linked_at DESC`
+    // Read from channel_routing (global) + tenant_channels (per-tenant)
+    const globalRows = queryAll(
+      `SELECT channel, user_id, meta, tenant_id FROM channel_routing ORDER BY updated_at DESC`
+    );
+    const tenantRows = queryAll(
+      `SELECT channel, user_id, meta, tenant_id FROM tenant_channels WHERE meta IS NOT NULL ORDER BY linked_at DESC`
     );
 
-    // Also include global channels that are running (even without stored meta)
     const running = channelRegistry.list().filter(c => c.running);
     const destinations = [];
+    const seen = new Set();
 
-    // Stored destinations from tenant_channels
-    for (const row of rows) {
+    // Global + tenant stored destinations
+    for (const row of [...globalRows, ...tenantRows]) {
+      const key = `${row.channel}:${row.user_id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
       try {
         const meta = JSON.parse(row.meta);
         const label = meta.userName || meta.userId || meta.chatId || row.user_id;
+        const scope = row.tenant_id && row.tenant_id !== "__global__" ? ` (${row.tenant_id})` : "";
         destinations.push({
           channel: row.channel,
-          label: `${row.channel} → ${label}`,
+          label: `${row.channel} → ${label}${scope}`,
           tenantId: row.tenant_id,
           channelMeta: { ...meta, channel: row.channel },
         });

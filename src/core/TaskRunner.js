@@ -249,9 +249,11 @@ class TaskRunner {
     // ── Auto-link channel identity + routing metadata ───────────────────────
     // On every channel message (global or per-tenant), store the sender's
     // routing metadata (chatId, channelId, phone, sender, etc.) in tenant_channels.
-    // This enables cross-channel sends (e.g. "send to telegram" from discord).
+    // This enables cross-channel sends and watcher delivery.
     // Works for all channel types — Telegram, Discord, Slack, WhatsApp, LINE, etc.
-    if (tenant && task.channel && task.channelMeta) {
+    // For global (no-tenant) setup: stores with tenant_id = "__global__"
+    if (task.channel && task.channelMeta) {
+      const linkTenantId = tenant?.id || "__global__";
       const cm = task.channelMeta;
       const senderId = cm.chatId || cm.userId || cm.phone || cm.sender || cm.chatGuid || cm.senderPubkey;
       if (senderId) {
@@ -262,7 +264,19 @@ class TaskRunner {
                            "userName", "guildId", "threadTs", "replyToken"]) {
           if (cm[key] !== undefined) routingMeta[key] = cm[key];
         }
-        try { tenantManager.linkChannel(tenant.id, task.channel, senderId, routingMeta); } catch {}
+        try {
+          if (tenant) {
+            tenantManager.linkChannel(tenant.id, task.channel, senderId, routingMeta);
+          }
+          // Always cache routing meta for watcher delivery (works without tenants)
+          const { run: dbRun } = await import("../storage/Database.js");
+          const metaJson = JSON.stringify(routingMeta);
+          dbRun(
+            `INSERT OR REPLACE INTO channel_routing (channel, user_id, meta, updated_at)
+             VALUES ($ch, $uid, $meta, datetime('now'))`,
+            { $ch: task.channel, $uid: senderId, $meta: metaJson }
+          );
+        } catch {}
       }
     }
 

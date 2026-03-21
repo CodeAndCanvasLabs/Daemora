@@ -343,6 +343,19 @@ function _runMigrations(db) {
     CREATE INDEX IF NOT EXISTS idx_watchers_enabled ON watchers(enabled);
   `);
 
+  // Channel routing cache — stores channelMeta for watcher/cron delivery
+  // Works without tenants (global setup) and with tenants
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS channel_routing (
+      channel TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      meta TEXT NOT NULL,
+      tenant_id TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (channel, user_id)
+    );
+  `);
+
   // Secret access audit log
   db.exec(`
     CREATE TABLE IF NOT EXISTS secret_access_log (
