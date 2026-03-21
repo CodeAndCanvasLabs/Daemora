@@ -28,6 +28,8 @@ ANALYSIS.md
 GIT_RULES.md         # local dev notes
 .vscode/            # local VSCode settings
 .PHASES.md           # internal phase planning
+.FEATURES.md         # internal feature planning
+FEATURES.md          # internal feature inventory
 
 # ── Claude Code project context ───────────────────────────────────────────────
 .claude/
