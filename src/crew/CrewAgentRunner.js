@@ -1,3 +1,5 @@
+import { tool } from "ai";
+import { z } from "zod";
 import { spawnSubAgent } from "../agents/SubAgentManager.js";
 import { getRegistry } from "./PluginRegistry.js";
 import { toolFunctions } from "../tools/index.js";
@@ -97,13 +99,21 @@ export async function runCrewAgent(crewId, taskDescription, options = {}) {
     return `Crew member "${member.name}" has no tools registered.`;
   }
 
-  // Build tool override: crew tools + base tools
-  const agentTools = {};
-  for (const name of CREW_BASE_TOOLS) {
-    if (toolFunctions[name]) agentTools[name] = toolFunctions[name];
-  }
-  for (const { name, fn } of crewTools) {
-    agentTools[name] = fn;
+  // Build AI SDK tools from crew tool schemas (proper Zod validation)
+  const crewAITools = {};
+  for (const { name, fn, schema, description } of crewTools) {
+    crewAITools[name] = tool({
+      description: description || `${name} — crew tool`,
+      inputSchema: schema || z.object({}).passthrough(),
+      execute: async (params) => {
+        console.log(`[CrewAgent:${crewId}] Tool: ${name}`);
+        try {
+          return await Promise.resolve(fn(params));
+        } catch (err) {
+          return `Error: ${err.message}`;
+        }
+      },
+    });
   }
 
   const manifest = member.manifest || {};
@@ -126,9 +136,13 @@ export async function runCrewAgent(crewId, taskDescription, options = {}) {
     `[CrewAgent] Spawning crew member "${member.name}" (${crewTools.length} specialist tools + ${CREW_BASE_TOOLS.length} base tools)`
   );
 
+  // Spawn sub-agent:
+  //   - tools: base tools (resolved from toolFunctions via name list)
+  //   - aiToolOverrides: crew tools (pre-built AI SDK tools with Zod schemas)
   const fullResult = await spawnSubAgent(taskDescription, {
     ...restOptions,
-    toolOverride: agentTools,
+    tools: CREW_BASE_TOOLS,
+    aiToolOverrides: crewAITools,
     systemPromptOverride,
     skills,
     model,
