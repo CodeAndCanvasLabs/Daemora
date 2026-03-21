@@ -899,6 +899,16 @@ app.post("/api/goals/:id/check", async (req, res) => {
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
+// --- Morning Pulse ---
+app.post("/api/morning-pulse", async (req, res) => {
+  try {
+    const { createMorningPulse } = await import("./scheduler/MorningPulse.js");
+    const { tenantId, timezone, delivery } = req.body || {};
+    const result = createMorningPulse(tenantId || null, timezone, delivery);
+    res.status(result.created ? 201 : 200).json(result);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
 // --- Watchers API ---
 app.get("/api/watchers", async (req, res) => {
   try {
