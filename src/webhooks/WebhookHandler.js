@@ -158,21 +158,46 @@ router.post("/watch/:name", async (req, res) => {
       }
     }
 
-    // Resolve channelMeta — if watcher has a channel but no meta, resolve from running channel instance
-    let channelMeta = watcher.channelMeta;
-    if (!channelMeta && watcher.channel && watcher.channel !== "webhook" && watcher.channel !== "http") {
-      channelMeta = await _resolveDefaultChannelMeta(watcher.channel);
+    // Resolve destinations — use new destinations[] array, fallback to legacy channel/channelMeta
+    let destinations = watcher.destinations || [];
+    if (destinations.length === 0 && watcher.channel) {
+      let meta = watcher.channelMeta;
+      if (!meta && watcher.channel !== "webhook" && watcher.channel !== "http") {
+        meta = await _resolveDefaultChannelMeta(watcher.channel);
+      }
+      destinations = [{ channel: watcher.channel, channelMeta: meta }];
     }
 
-    const task = taskQueue.enqueue({
-      input: `[Watcher: ${watcher.name}] ${watcher.action}\n\nPayload:\n${JSON.stringify(req.body, null, 2)}`,
-      channel: watcher.channel || "webhook",
-      channelMeta,
-      sessionId: `watcher:${watcher.id}`,
-      type: "watcher",
-      tenantId: watcher.tenantId,
-      priority: 4,
-    });
+    // Enqueue one task per destination (each gets delivered independently)
+    const taskIds = [];
+    const input = `[Watcher: ${watcher.name}] ${watcher.action}\n\nPayload:\n${JSON.stringify(req.body, null, 2)}`;
+
+    if (destinations.length === 0) {
+      // No destinations — still run the agent, results stored only
+      const task = taskQueue.enqueue({
+        input,
+        channel: "webhook",
+        sessionId: `watcher:${watcher.id}`,
+        type: "watcher",
+        tenantId: watcher.tenantId,
+        priority: 4,
+      });
+      taskIds.push(task.id);
+    } else {
+      // First destination runs the agent, others get the result forwarded
+      const primary = destinations[0];
+      const task = taskQueue.enqueue({
+        input,
+        channel: primary.channel || "webhook",
+        channelMeta: primary.channelMeta || null,
+        sessionId: `watcher:${watcher.id}`,
+        type: "watcher",
+        tenantId: watcher.tenantId,
+        priority: 4,
+        _extraDestinations: destinations.slice(1), // forwarded after completion
+      });
+      taskIds.push(task.id);
+    }
 
     // Update trigger stats
     watcher.lastTriggeredAt = new Date().toISOString();
@@ -180,7 +205,7 @@ router.post("/watch/:name", async (req, res) => {
     watcher.updatedAt = new Date().toISOString();
     saveWatcher(watcher);
 
-    res.status(202).json({ triggered: true, taskId: task.id });
+    res.status(202).json({ triggered: true, taskIds, destinations: destinations.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -213,20 +238,26 @@ router.post("/event", async (req, res) => {
         if (elapsed < watcher.cooldownSeconds) continue;
       }
 
-      // Resolve channelMeta fallback
-      let meta = watcher.channelMeta;
-      if (!meta && watcher.channel && watcher.channel !== "webhook" && watcher.channel !== "http") {
-        meta = await _resolveDefaultChannelMeta(watcher.channel);
+      // Resolve destinations
+      let dests = watcher.destinations || [];
+      if (dests.length === 0 && watcher.channel) {
+        let meta = watcher.channelMeta;
+        if (!meta && watcher.channel !== "webhook" && watcher.channel !== "http") {
+          meta = await _resolveDefaultChannelMeta(watcher.channel);
+        }
+        dests = [{ channel: watcher.channel, channelMeta: meta }];
       }
+      const primary = dests[0] || { channel: "webhook", channelMeta: null };
 
       taskQueue.enqueue({
         input: `[Watcher: ${watcher.name}] ${watcher.action}\n\nPayload:\n${JSON.stringify(payload, null, 2)}`,
-        channel: watcher.channel || "webhook",
-        channelMeta: meta,
+        channel: primary.channel || "webhook",
+        channelMeta: primary.channelMeta || null,
         sessionId: `watcher:${watcher.id}`,
         type: "watcher",
         tenantId: watcher.tenantId,
         priority: 4,
+        _extraDestinations: dests.slice(1),
       });
 
       watcher.lastTriggeredAt = new Date().toISOString();

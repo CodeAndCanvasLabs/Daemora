@@ -272,6 +272,13 @@ function _runMigrations(db) {
     console.log("[Database] Migration: added tenant_channels.meta");
   }
 
+  // Watchers: add destinations column (JSON array of {channel, channelMeta})
+  const _watcherCols = () => db.prepare("PRAGMA table_info(watchers)").all().map(r => r.name);
+  if (!_watcherCols().includes("destinations")) {
+    db.exec("ALTER TABLE watchers ADD COLUMN destinations TEXT");
+    console.log("[Database] Migration: added watchers.destinations");
+  }
+
   // Cron: add delivery_targets + delivery_preset_id columns
   const _cronCols = () => db.prepare("PRAGMA table_info(cron_jobs)").all().map(r => r.name);
   if (!_cronCols().includes("delivery_targets")) {

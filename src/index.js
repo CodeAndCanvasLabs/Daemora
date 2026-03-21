@@ -985,6 +985,7 @@ app.post("/api/watchers", async (req, res) => {
       action: req.body.action,
       channel: req.body.channel || null,
       channelMeta: req.body.channelMeta || null,
+      destinations: req.body.destinations || [],
       enabled: true,
       triggerCount: 0,
       cooldownSeconds: req.body.cooldownSeconds || 0,
@@ -999,7 +1000,7 @@ app.patch("/api/watchers/:id", async (req, res) => {
     const { loadWatcher, saveWatcher } = await import("./storage/WatcherStore.js");
     const watcher = loadWatcher(req.params.id);
     if (!watcher) return res.status(404).json({ error: "Watcher not found" });
-    const allowed = ["name", "description", "triggerType", "pattern", "action", "channel", "channelMeta", "enabled", "cooldownSeconds"];
+    const allowed = ["name", "description", "triggerType", "pattern", "action", "channel", "channelMeta", "destinations", "enabled", "cooldownSeconds"];
     for (const key of allowed) {
       if (req.body[key] !== undefined) watcher[key] = req.body[key];
     }
