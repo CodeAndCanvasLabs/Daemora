@@ -620,6 +620,52 @@ app.get("/api/channels", (req, res) => {
   res.json({ channels: channelRegistry.list() });
 });
 
+// List known delivery destinations — channels with stored routing info
+app.get("/api/channels/destinations", (req, res) => {
+  try {
+    const { queryAll } = await import("./storage/Database.js");
+    const rows = queryAll(
+      `SELECT tc.channel, tc.user_id, tc.tenant_id, tc.meta, t.config
+       FROM tenant_channels tc
+       LEFT JOIN tenants t ON t.id = tc.tenant_id
+       WHERE tc.meta IS NOT NULL
+       ORDER BY tc.linked_at DESC`
+    );
+
+    // Also include global channels that are running (even without stored meta)
+    const running = channelRegistry.list().filter(c => c.running);
+    const destinations = [];
+
+    // Stored destinations from tenant_channels
+    for (const row of rows) {
+      try {
+        const meta = JSON.parse(row.meta);
+        const label = meta.userName || meta.userId || meta.chatId || row.user_id;
+        destinations.push({
+          channel: row.channel,
+          label: `${row.channel} → ${label}`,
+          tenantId: row.tenant_id,
+          channelMeta: { ...meta, channel: row.channel },
+        });
+      } catch {}
+    }
+
+    // Running channels without stored meta — show as available but need first interaction
+    for (const ch of running) {
+      if (!destinations.some(d => d.channel === ch.name)) {
+        destinations.push({
+          channel: ch.name,
+          label: `${ch.name} (no recent activity — send a message first)`,
+          tenantId: null,
+          channelMeta: null,
+        });
+      }
+    }
+
+    res.json({ destinations });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get("/api/channels/defs", (req, res) => {
   const running = channelRegistry.list();
   const runningMap = Object.fromEntries(running.map(ch => [ch.name, ch.running]));

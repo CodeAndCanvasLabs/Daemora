@@ -34,6 +34,13 @@ interface Channel {
   running: boolean;
 }
 
+interface Destination {
+  channel: string;
+  label: string;
+  tenantId: string | null;
+  channelMeta: Record<string, unknown> | null;
+}
+
 const EMPTY_FORM = {
   name: "",
   description: "",
@@ -41,6 +48,7 @@ const EMPTY_FORM = {
   triggerType: "webhook" as "webhook" | "event",
   pattern: "",
   channel: "",
+  channelMeta: null as Record<string, unknown> | null,
   cooldownSeconds: "60",
 };
 
@@ -57,6 +65,7 @@ const PATTERN_PRESETS = [
 export function Watchers() {
   const [watchers, setWatchers] = useState<Watcher[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [destinations, setDestinations] = useState<Destination[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -87,6 +96,11 @@ export function Watchers() {
       const data = await res.json();
       setChannels(data.channels || []);
     } catch { /* non-fatal */ }
+    try {
+      const res = await apiFetch("/api/channels/destinations");
+      const data = await res.json();
+      setDestinations(data.destinations || []);
+    } catch { /* non-fatal */ }
   }, []);
 
   const fetchPublicUrl = useCallback(async () => {
@@ -116,6 +130,7 @@ export function Watchers() {
         triggerType: form.triggerType,
         pattern: parsedPattern,
         channel: form.channel.trim() || null,
+        channelMeta: form.channelMeta || null,
         cooldownSeconds: parseInt(form.cooldownSeconds) || 60,
       };
       if (editingId) {
@@ -167,6 +182,7 @@ export function Watchers() {
       triggerType: w.triggerType,
       pattern: w.pattern ? JSON.stringify(w.pattern, null, 2) : "",
       channel: w.channel || "",
+      channelMeta: (w as any).channelMeta || null,
       cooldownSeconds: String(w.cooldownSeconds || 60),
     });
     setDialogOpen(true);
@@ -242,25 +258,49 @@ export function Watchers() {
                   <p className="text-[10px] text-gray-500 mt-1">The full prompt given to the agent when this watcher fires. Be specific.</p>
                 </div>
 
-                {/* Channel — dropdown of active channels */}
+                {/* Deliver To — destination picker with channelMeta */}
                 <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Notify On</label>
-                  {activeChannels.length > 0 ? (
-                    <Select value={form.channel || "__none__"} onValueChange={v => setForm({ ...form, channel: v === "__none__" ? "" : v })}>
+                  <label className="text-xs text-gray-400 mb-1 block">Deliver Results To</label>
+                  {destinations.length > 0 ? (
+                    <Select
+                      value={form.channel ? `${form.channel}::${JSON.stringify(form.channelMeta || {})}` : "__none__"}
+                      onValueChange={v => {
+                        if (v === "__none__") {
+                          setForm({ ...form, channel: "", channelMeta: null });
+                        } else {
+                          const dest = destinations.find(d => `${d.channel}::${JSON.stringify(d.channelMeta || {})}` === v);
+                          if (dest) {
+                            setForm({ ...form, channel: dest.channel, channelMeta: dest.channelMeta });
+                          }
+                        }
+                      }}
+                    >
                       <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
                         <SelectValue placeholder="Where should results be sent?" />
                       </SelectTrigger>
                       <SelectContent className="bg-slate-800 border-slate-700">
                         <SelectItem value="__none__">No notification (results stored only)</SelectItem>
-                        {activeChannels.map(ch => (
-                          <SelectItem key={ch.name} value={ch.name}>{ch.name}</SelectItem>
+                        {destinations.filter(d => d.channelMeta).map((d, i) => (
+                          <SelectItem key={`${d.channel}-${i}`} value={`${d.channel}::${JSON.stringify(d.channelMeta || {})}`}>
+                            {d.label}
+                          </SelectItem>
+                        ))}
+                        {destinations.filter(d => !d.channelMeta).map((d, i) => (
+                          <SelectItem key={`${d.channel}-no-${i}`} value={`${d.channel}::${JSON.stringify({})}`} disabled>
+                            {d.label}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                  ) : activeChannels.length > 0 ? (
+                    <div className="flex items-center gap-2 p-2.5 bg-slate-800/50 border border-slate-700 rounded-md">
+                      <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                      <p className="text-xs text-gray-400">Channels are running but no conversations yet. Send a message on Discord/Telegram first so the system knows where to deliver.</p>
+                    </div>
                   ) : (
                     <div className="flex items-center gap-2 p-2.5 bg-slate-800/50 border border-slate-700 rounded-md">
                       <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
-                      <p className="text-xs text-gray-400">No channels active. Results will be stored but not sent anywhere. Enable a channel (Telegram, Discord, etc.) in the Channels page first.</p>
+                      <p className="text-xs text-gray-400">No channels active. Enable a channel (Telegram, Discord, etc.) in the Channels page first.</p>
                     </div>
                   )}
                 </div>
