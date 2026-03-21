@@ -36,7 +36,7 @@ export function saveWatcher(watcher) {
       $action: watcher.action,
       $channel: watcher.channel || null,
       $channelMeta: watcher.channelMeta ? JSON.stringify(watcher.channelMeta) : null,
-      $enabled: watcher.enabled ?? 1,
+      $enabled: watcher.enabled === false || watcher.enabled === 0 ? 0 : 1,
       $lastTriggeredAt: watcher.lastTriggeredAt || null,
       $triggerCount: watcher.triggerCount ?? 0,
       $cooldownSeconds: watcher.cooldownSeconds ?? 0,
@@ -69,6 +69,12 @@ export function loadWatchersByTenant(tenantId) {
 export function loadEnabledWatchers() {
   return queryAll(
     "SELECT * FROM watchers WHERE enabled = 1 ORDER BY name ASC"
+  ).map(_rowToWatcher);
+}
+
+export function loadAllWatchers() {
+  return queryAll(
+    "SELECT * FROM watchers ORDER BY created_at DESC"
   ).map(_rowToWatcher);
 }
 

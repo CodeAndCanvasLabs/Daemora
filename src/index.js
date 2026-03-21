@@ -912,9 +912,9 @@ app.post("/api/morning-pulse", async (req, res) => {
 // --- Watchers API ---
 app.get("/api/watchers", async (req, res) => {
   try {
-    const { loadWatchersByTenant, loadEnabledWatchers } = await import("./storage/WatcherStore.js");
+    const { loadWatchersByTenant, loadAllWatchers } = await import("./storage/WatcherStore.js");
     const tenantId = req.query.tenantId || null;
-    const watchers = tenantId ? loadWatchersByTenant(tenantId) : loadEnabledWatchers();
+    const watchers = tenantId ? loadWatchersByTenant(tenantId) : loadAllWatchers();
     res.json({ watchers });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
