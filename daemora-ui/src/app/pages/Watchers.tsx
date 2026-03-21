@@ -65,6 +65,7 @@ export function Watchers() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [publicUrl, setPublicUrl] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Watcher | null>(null);
 
   const fetchWatchers = useCallback(async () => {
     try {
@@ -143,11 +144,12 @@ export function Watchers() {
     }
   };
 
-  const deleteWatcher = async (id: string) => {
-    if (!confirm("Delete this watcher? This cannot be undone.")) return;
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      await apiFetch(`/api/watchers/${id}`, { method: "DELETE" });
-      toast.success("Watcher deleted");
+      await apiFetch(`/api/watchers/${deleteTarget.id}`, { method: "DELETE" });
+      toast.success(`"${deleteTarget.name}" deleted`);
+      setDeleteTarget(null);
       fetchWatchers();
     } catch (e: any) {
       toast.error(e.message);
@@ -394,7 +396,7 @@ export function Watchers() {
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-white" onClick={() => openEdit(watcher)}>
                       <Pencil className="w-3.5 h-3.5" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-red-400" onClick={() => deleteWatcher(watcher.id)}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-red-400" onClick={() => setDeleteTarget(watcher)}>
                       <Trash2 className="w-3.5 h-3.5" />
                     </Button>
                   </div>
@@ -447,6 +449,31 @@ export function Watchers() {
           );})}
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
+        <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-400">
+              <Trash2 className="w-5 h-5" />
+              Delete Watcher
+            </DialogTitle>
+          </DialogHeader>
+          <div className="mt-2 space-y-4">
+            <p className="text-sm text-gray-300">
+              Are you sure you want to delete <span className="font-semibold text-white">"{deleteTarget?.name}"</span>? External services sending webhooks to this endpoint will get 404 errors.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button variant="outline" size="sm" className="border-slate-700 text-gray-400 hover:text-white" onClick={() => setDeleteTarget(null)}>
+                Cancel
+              </Button>
+              <Button size="sm" className="bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30" onClick={confirmDelete}>
+                Delete
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
