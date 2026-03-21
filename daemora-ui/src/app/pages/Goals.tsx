@@ -10,7 +10,31 @@ import { Button } from "../components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
 import { Input } from "../components/ui/input";
 import { Switch } from "../components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { toast } from "sonner";
+
+const SCHEDULE_PRESETS = [
+  { label: "Every 15 minutes", cron: "*/15 * * * *" },
+  { label: "Every 30 minutes", cron: "*/30 * * * *" },
+  { label: "Every hour", cron: "0 * * * *" },
+  { label: "Every 2 hours", cron: "0 */2 * * *" },
+  { label: "Every 4 hours", cron: "0 */4 * * *" },
+  { label: "Every 6 hours", cron: "0 */6 * * *" },
+  { label: "Every 12 hours", cron: "0 */12 * * *" },
+  { label: "Daily at midnight", cron: "0 0 * * *" },
+  { label: "Daily at 9am", cron: "0 9 * * *" },
+  { label: "Every Monday at 9am", cron: "0 9 * * 1" },
+] as const;
+
+function cronToLabel(cron: string): string {
+  const preset = SCHEDULE_PRESETS.find(p => p.cron === cron);
+  return preset?.label || `Custom: ${cron}`;
+}
+
+function getPresetValue(cron: string): string {
+  const preset = SCHEDULE_PRESETS.find(p => p.cron === cron);
+  return preset ? preset.cron : "custom";
+}
 
 interface Goal {
   id: string;
@@ -53,6 +77,7 @@ export function Goals() {
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
   const [checkingId, setCheckingId] = useState<string | null>(null);
+  const [schedulePreset, setSchedulePreset] = useState(() => getPresetValue(EMPTY_FORM.checkSchedule));
 
   const fetchGoals = useCallback(async () => {
     try {
@@ -146,12 +171,14 @@ export function Goals() {
       priority: String(goal.priority || 5),
       maxFailures: String(goal.maxFailures || 5),
     });
+    setSchedulePreset(getPresetValue(goal.checkSchedule || "0 */4 * * *"));
     setDialogOpen(true);
   };
 
   const openCreate = () => {
     setEditingId(null);
     setForm({ ...EMPTY_FORM });
+    setSchedulePreset(getPresetValue(EMPTY_FORM.checkSchedule));
     setDialogOpen(true);
   };
 
@@ -174,7 +201,7 @@ export function Goals() {
           <Button variant="outline" size="sm" onClick={fetchGoals} className="border-slate-700 text-gray-400 hover:text-white hover:border-slate-500">
             <RefreshCw className="w-4 h-4" />
           </Button>
-          <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditingId(null); setForm({ ...EMPTY_FORM }); } }}>
+          <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) { setEditingId(null); setForm({ ...EMPTY_FORM }); setSchedulePreset(getPresetValue(EMPTY_FORM.checkSchedule)); } }}>
             <DialogTrigger asChild>
               <Button size="sm" onClick={openCreate} className="bg-[#00d9ff]/20 text-[#00d9ff] border border-[#00d9ff]/30 hover:bg-[#00d9ff]/30">
                 <Plus className="w-4 h-4 mr-1" /> New Goal
@@ -197,15 +224,48 @@ export function Goals() {
                   <label className="text-xs text-gray-400 mb-1 block">Strategy</label>
                   <textarea className="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-white resize-none h-16" value={form.strategy} onChange={e => setForm({ ...form, strategy: e.target.value })} placeholder="How should the agent approach this?" />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-gray-400 mb-1 block">Check Schedule (cron)</label>
-                    <Input className="bg-slate-800 border-slate-700 text-white font-mono text-xs" value={form.checkSchedule} onChange={e => setForm({ ...form, checkSchedule: e.target.value })} />
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">Check Schedule</label>
+                      <Select value={schedulePreset} onValueChange={(val) => {
+                        setSchedulePreset(val);
+                        if (val !== "custom") {
+                          setForm({ ...form, checkSchedule: val });
+                        }
+                      }}>
+                        <SelectTrigger className="bg-slate-800 border-slate-700 text-white text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-800 border-slate-700">
+                          {SCHEDULE_PRESETS.map(p => (
+                            <SelectItem key={p.cron} value={p.cron} className="text-white text-xs hover:bg-slate-700 focus:bg-slate-700 focus:text-white">
+                              {p.label}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="custom" className="text-white text-xs hover:bg-slate-700 focus:bg-slate-700 focus:text-white">
+                            Custom (cron expression)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">Timezone</label>
+                      <Input className="bg-slate-800 border-slate-700 text-white" value={form.timezone} onChange={e => setForm({ ...form, timezone: e.target.value })} placeholder="e.g. America/New_York" />
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-xs text-gray-400 mb-1 block">Timezone</label>
-                    <Input className="bg-slate-800 border-slate-700 text-white" value={form.timezone} onChange={e => setForm({ ...form, timezone: e.target.value })} placeholder="e.g. America/New_York" />
-                  </div>
+                  {schedulePreset === "custom" && (
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">Cron Expression</label>
+                      <Input className="bg-slate-800 border-slate-700 text-white font-mono text-xs" value={form.checkSchedule} onChange={e => setForm({ ...form, checkSchedule: e.target.value })} placeholder="e.g. 0 */4 * * *" />
+                    </div>
+                  )}
+                  <p className="text-[10px] text-gray-500">
+                    {schedulePreset === "custom"
+                      ? `Schedule: ${form.checkSchedule}`
+                      : cronToLabel(form.checkSchedule)
+                    }
+                  </p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -274,7 +334,7 @@ export function Goals() {
                     <div className="flex items-center gap-4 text-[10px] text-gray-500 font-mono">
                       <span className="flex items-center gap-1">
                         <Clock className="w-3 h-3" />
-                        {goal.checkSchedule}
+                        {cronToLabel(goal.checkSchedule)}
                       </span>
                       {goal.lastCheckAt && (
                         <span>Last: {new Date(goal.lastCheckAt).toLocaleString()}</span>
