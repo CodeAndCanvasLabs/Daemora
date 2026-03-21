@@ -238,7 +238,7 @@ class TaskRunner {
             tenant = existingGlobal;
           } else {
             tenant = tenantManager.getOrCreate(task.channel, userId);
-            tenantManager.markAsGlobal(tenant.id);
+            if (tenant) tenantManager.markAsGlobal(tenant.id);
           }
         } else {
           tenant = tenantManager.getOrCreate(task.channel, userId);
