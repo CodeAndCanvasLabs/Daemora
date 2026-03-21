@@ -10,6 +10,7 @@
 
 import { Router } from "express";
 import { randomBytes } from "node:crypto";
+import { queryOne, run } from "../storage/Database.js";
 import taskQueue from "../core/TaskQueue.js";
 
 const router = Router();
@@ -25,13 +26,20 @@ const RATE_WINDOW = 60_000; // 1 minute
  */
 function _getOrCreateWebhookToken() {
   if (process.env.WEBHOOK_TOKEN) return process.env.WEBHOOK_TOKEN;
+  // Check SQLite config_entries (persisted from previous run)
+  try {
+    const row = queryOne("SELECT value FROM config_entries WHERE key = 'WEBHOOK_TOKEN'");
+    if (row?.value) {
+      process.env.WEBHOOK_TOKEN = row.value;
+      return row.value;
+    }
+  } catch {}
   // Auto-generate and persist
   const token = randomBytes(24).toString("hex");
   process.env.WEBHOOK_TOKEN = token;
-  // Persist to config store (async, non-blocking)
-  import("../config/ConfigStore.js").then(({ configStore }) => {
-    configStore.set("WEBHOOK_TOKEN", token);
-  }).catch(() => {});
+  try {
+    run("INSERT OR REPLACE INTO config_entries (key, value) VALUES ('WEBHOOK_TOKEN', $val)", { $val: token });
+  } catch {}
   console.log(`[Webhooks] Auto-generated WEBHOOK_TOKEN (persisted to config)`);
   return token;
 }
