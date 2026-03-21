@@ -158,10 +158,17 @@ router.post("/watch/:name", async (req, res) => {
       }
     }
 
+    // Resolve channelMeta — if watcher has a channel but no meta, resolve from running channel instance
+    let channelMeta = watcher.channelMeta;
+    if (!channelMeta && watcher.channel && watcher.channel !== "webhook" && watcher.channel !== "http") {
+      channelMeta = await _resolveDefaultChannelMeta(watcher.channel);
+    }
+
     const task = taskQueue.enqueue({
       input: `[Watcher: ${watcher.name}] ${watcher.action}\n\nPayload:\n${JSON.stringify(req.body, null, 2)}`,
       channel: watcher.channel || "webhook",
-      channelMeta: watcher.channelMeta,
+      channelMeta,
+      sessionId: `watcher:${watcher.id}`,
       type: "watcher",
       tenantId: watcher.tenantId,
       priority: 4,
@@ -206,10 +213,17 @@ router.post("/event", async (req, res) => {
         if (elapsed < watcher.cooldownSeconds) continue;
       }
 
+      // Resolve channelMeta fallback
+      let meta = watcher.channelMeta;
+      if (!meta && watcher.channel && watcher.channel !== "webhook" && watcher.channel !== "http") {
+        meta = await _resolveDefaultChannelMeta(watcher.channel);
+      }
+
       taskQueue.enqueue({
         input: `[Watcher: ${watcher.name}] ${watcher.action}\n\nPayload:\n${JSON.stringify(payload, null, 2)}`,
         channel: watcher.channel || "webhook",
-        channelMeta: watcher.channelMeta,
+        channelMeta: meta,
+        sessionId: `watcher:${watcher.id}`,
         type: "watcher",
         tenantId: watcher.tenantId,
         priority: 4,
@@ -253,6 +267,46 @@ function _matchesPattern(payload, pattern) {
     }
   }
   return true;
+}
+
+/**
+ * Resolve default channelMeta for a running channel.
+ * Used when a watcher specifies a channel but has no stored channelMeta.
+ * Looks up the most recent message's routing info from the channel.
+ */
+async function _resolveDefaultChannelMeta(channelName) {
+  try {
+    const channelRegistry = (await import("../channels/index.js")).default;
+    const instance = channelRegistry.get(channelName);
+    if (!instance || !instance.running) return null;
+
+    // Check for a default/fallback channel ID from config or recent activity
+    // Discord: look for DISCORD_DEFAULT_CHANNEL_ID or first guild text channel
+    // Telegram: look for the admin chat ID from tenant_channels
+    const { queryOne } = await import("../storage/Database.js");
+
+    // Find most recent channelMeta for this channel from tenant_channels
+    const row = queryOne(
+      "SELECT meta FROM tenant_channels WHERE channel = $ch ORDER BY rowid DESC LIMIT 1",
+      { $ch: channelName }
+    );
+    if (row?.meta) {
+      try {
+        const meta = JSON.parse(row.meta);
+        if (meta.channelId || meta.chatId) return { ...meta, channel: channelName };
+      } catch {}
+    }
+
+    // Fallback: check env vars for default channel IDs
+    const envKey = `${channelName.toUpperCase()}_DEFAULT_CHANNEL_ID`;
+    if (process.env[envKey]) {
+      return { channelId: process.env[envKey], channel: channelName };
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export default router;
