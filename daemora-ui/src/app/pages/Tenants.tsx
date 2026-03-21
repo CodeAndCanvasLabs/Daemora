@@ -86,10 +86,10 @@ export function Tenants() {
   const [newMcpConfig, setNewMcpConfig] = useState('{\n  "command": "npx",\n  "args": ["-y", "@scope/server-name"],\n  "env": {}\n}');
   const [mcpSaving, setMcpSaving] = useState(false);
 
-  // Plugin state for tenant
-  const [allPlugins, setAllPlugins] = useState<{ id: string; name: string; enabled: boolean; configSchema: Record<string, any> | null }[]>([]);
-  const [tenantPlugins, setTenantPlugins] = useState<Set<string>>(new Set());
-  const [tenantPluginConfig, setTenantPluginConfig] = useState<Record<string, Record<string, string>>>({});
+  // Crew state for tenant
+  const [allCrew, setAllCrew] = useState<{ id: string; name: string; enabled: boolean; configSchema: Record<string, any> | null }[]>([]);
+  const [tenantCrew, setTenantCrew] = useState<Set<string>>(new Set());
+  const [tenantCrewConfig, setTenantCrewConfig] = useState<Record<string, Record<string, string>>>({});
 
   // Create tenant dialog
   const [showCreate, setShowCreate] = useState(false);
@@ -350,15 +350,15 @@ export function Tenants() {
     fetchApiKeys(tenant.id);
     fetchChannelCredKeys(tenant.id);
     fetchOwnMcpServers(tenant.id);
-    // Fetch plugins
-    apiFetch("/api/plugins").then(r => r.json()).then(d => {
-      setAllPlugins((d.plugins || []).map((p: any) => ({
+    // Fetch crew
+    apiFetch("/api/crew").then(r => r.json()).then(d => {
+      setAllCrew((d.crew || []).map((p: any) => ({
         id: p.id, name: p.name, enabled: p.status === "loaded",
         configSchema: p.configSchema || null,
       })));
-      // Load tenant's saved plugin config
-      const tenantCfg = (tenant as any).plugins || [];
-      setTenantPlugins(new Set(tenantCfg));
+      // Load tenant's saved crew config
+      const tenantCfg = (tenant as any).crew || [];
+      setTenantCrew(new Set(tenantCfg));
     }).catch(() => {});
   };
 
@@ -394,10 +394,10 @@ export function Tenants() {
       };
       if (editForm.maxCostPerTask !== "") body.maxCostPerTask = parseFloat(editForm.maxCostPerTask);
       if (editForm.maxDailyCost !== "") body.maxDailyCost = parseFloat(editForm.maxDailyCost);
-      body.plugins = [...tenantPlugins];
-      // Save plugin config as tenant API keys (per-plugin prefixed)
-      for (const [pluginId, config] of Object.entries(tenantPluginConfig)) {
-        if (!tenantPlugins.has(pluginId)) continue;
+      body.crew = [...tenantCrew];
+      // Save crew config as tenant API keys (per-crew prefixed)
+      for (const [crewId, config] of Object.entries(tenantCrewConfig)) {
+        if (!tenantCrew.has(crewId)) continue;
         for (const [key, value] of Object.entries(config)) {
           if (value) {
             try {
@@ -976,17 +976,17 @@ export function Tenants() {
               </div>
             </div>
 
-            {/* Plugins */}
-            {allPlugins.length > 0 && (
+            {/* Crew */}
+            {allCrew.length > 0 && (
               <div className="space-y-3 border-t border-slate-800 pt-4">
                 <div className="flex items-center gap-2">
                   <Puzzle className="w-4 h-4 text-[#38bdf8]" />
-                  <span className="text-sm text-gray-300 font-medium">Plugins</span>
-                  <span className="text-xs text-gray-600">{tenantPlugins.size} enabled</span>
+                  <span className="text-sm text-gray-300 font-medium">Crew</span>
+                  <span className="text-xs text-gray-600">{tenantCrew.size} enabled</span>
                 </div>
                 <div className="space-y-2">
-                  {allPlugins.map(p => {
-                    const isEnabled = tenantPlugins.has(p.id);
+                  {allCrew.map(p => {
+                    const isEnabled = tenantCrew.has(p.id);
                     const hasConfig = p.configSchema && Object.keys(p.configSchema).length > 0;
                     return (
                       <div key={p.id} className={`p-3 bg-slate-900/50 rounded-lg border transition-colors ${isEnabled ? "border-emerald-500/30" : "border-slate-800/50 hover:border-slate-700"}`}>
@@ -995,9 +995,9 @@ export function Tenants() {
                           <Switch
                             checked={isEnabled}
                             onCheckedChange={(v) => {
-                              const s = new Set(tenantPlugins);
+                              const s = new Set(tenantCrew);
                               v ? s.add(p.id) : s.delete(p.id);
-                              setTenantPlugins(s);
+                              setTenantCrew(s);
                             }}
                             className="data-[state=checked]:bg-emerald-500"
                           />
@@ -1010,9 +1010,9 @@ export function Tenants() {
                                 <Input
                                   type={field.type === "secret" || field.type === "password" ? "password" : "text"}
                                   placeholder={field.default || `Enter ${field.label || key}`}
-                                  value={tenantPluginConfig[p.id]?.[key] || ""}
+                                  value={tenantCrewConfig[p.id]?.[key] || ""}
                                   onChange={(e) => {
-                                    setTenantPluginConfig(prev => ({
+                                    setTenantCrewConfig(prev => ({
                                       ...prev,
                                       [p.id]: { ...prev[p.id], [key]: e.target.value }
                                     }));

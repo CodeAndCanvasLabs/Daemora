@@ -17,7 +17,7 @@
 
 Deploy once on your machine. Connect your channels. Your team messages the bot — it writes code, does research, sends emails, runs cron jobs, and reports back. Each user gets isolated memory, encrypted keys, and cost caps. You own everything.
 
-59 built-in tools. 20 channels. 16 security layers. 7 AI providers. Multi-agent teams. Production-grade scheduling. Plugin system. MCP integration. All self-hosted — nothing leaves your infrastructure except the tokens you send to model APIs.
+59 built-in tools. 20 channels. 16 security layers. 7 AI providers. Multi-agent teams. Production-grade scheduling. Crew system. MCP integration. All self-hosted — nothing leaves your infrastructure except the tokens you send to model APIs.
 
 ---
 
@@ -438,7 +438,7 @@ daemora doctor
 | 7 | **Comprehensive secret redaction** | ALL env secrets tracked (not just 3). Pattern + blind redaction. Live refresh on vault unlock. |
 | 8 | **Log sanitisation** | Tool params and output redacted before `console.log` — secrets never written to logs |
 | 9 | **Network egress guard** | Outbound HTTP requests and emails scanned for secret values — blocks exfiltration attempts |
-| 10 | **Plugin tenant isolation** | Plugins can only access current request's tenant keys — cross-tenant access blocked and logged |
+| 10 | **Crew tenant isolation** | Crew members can only access current request's tenant keys — cross-tenant access blocked and logged |
 | 11 | **A2A security** | Agent-to-agent protocol: bearer token, agent allowlist, rate limiting |
 | 12 | **Supervisor agent** | Detects runaway loops, cost overruns, `rm -rf`, `curl | bash` patterns |
 | 13 | **Input sanitisation** | User messages wrapped in `<untrusted-input>` tags; prompt injection patterns flagged |

@@ -24,7 +24,7 @@ Daemora is the AI that actually does things. For your whole team. On your own ha
 
 **Security is not optional.** 16 layers. Encrypted vault. Subprocess isolation. Egress monitoring. Secret redaction. Audit trails. Tenant isolation. If you're running an AI agent that can execute shell commands and send emails, you better have real security — not a checkbox.
 
-**Tools should be first-class.** 57 built-in tools. Browser automation. MCP integration. Plugin system. The agent doesn't just think — it acts. It reads files, writes code, sends emails, generates images, searches the web, manages git repos, schedules tasks, and coordinates with other agents.
+**Tools should be first-class.** 57 built-in tools. Browser automation. MCP integration. Crew system. The agent doesn't just think — it acts. It reads files, writes code, sends emails, generates images, searches the web, manages git repos, schedules tasks, and coordinates with other agents.
 
 ## Where We're Going
 
@@ -38,7 +38,7 @@ Daemora is the AI that actually does things. For your whole team. On your own ha
 - Fleet Command — admin broadcast to all tenants simultaneously
 - Structured agent contracts for sub-agents and teams
 - 16-layer security architecture
-- Plugin system with bundled plugins
+- Crew system with bundled crew members
 - Agent teams with shared tasks and messaging
 - A2A protocol for inter-agent communication
 - Web dashboard for admin management (Goals, Watchers, Scheduler, Tenants, etc.)
@@ -47,7 +47,7 @@ Daemora is the AI that actually does things. For your whole team. On your own ha
 - Mobile app — direct WebSocket connection, QR pairing, push notifications
 - Desktop app — macOS, Windows, Linux
 - Streaming responses — real-time output as the agent works
-- Plugin marketplace — community-built tools and integrations
+- Crew marketplace — community-built tools and integrations
 - Voice-first interface — wake word, continuous conversation
 - Advanced observability — metrics, tracing, performance dashboards
 

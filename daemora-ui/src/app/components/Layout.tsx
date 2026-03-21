@@ -32,7 +32,7 @@ const navItems = [
   { path: "/security", label: "Security", icon: ShieldAlert },
   { path: "/costs", label: "Costs", icon: Fingerprint },
   { path: "/tenants", label: "Tenants", icon: Users },
-  { path: "/plugins", label: "Plugins", icon: Puzzle },
+  { path: "/crew", label: "Crew", icon: Puzzle },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
 
