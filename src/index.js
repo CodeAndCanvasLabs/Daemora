@@ -191,7 +191,7 @@ const API_TOKEN = getOrCreateAuthToken();
 
 const tokenAuth = (req, res, next) => {
   // Health endpoint is public (monitoring/readiness probes)
-  if (req.path === "/api/health") return next();
+  if (req.path === "/health" || req.path === "/api/health") return next();
 
   // Check Authorization: Bearer <token> header
   const authHeader = req.headers.authorization;
