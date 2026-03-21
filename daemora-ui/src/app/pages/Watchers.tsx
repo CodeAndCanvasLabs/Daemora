@@ -184,11 +184,10 @@ export function Watchers() {
   };
 
   const getWebhookUrl = (name: string) => {
-    if (publicUrl) return `${publicUrl}/hooks/watch/${encodeURIComponent(name)}`;
-    // Fallback: derive server URL from UI origin (replace UI port with server port)
-    const base = window.location.origin.replace(/:\d+$/, ':8081');
+    const base = publicUrl || window.location.origin;
     return `${base}/hooks/watch/${encodeURIComponent(name)}`;
   };
+  const isLocalUrl = !publicUrl || publicUrl.includes("localhost") || publicUrl.includes("127.0.0.1");
 
   const enabledCount = watchers.filter(w => w.enabled).length;
   const activeChannels = channels.filter(c => c.running);
@@ -422,6 +421,12 @@ export function Watchers() {
                     {/* Webhook URL */}
                     <div>
                       <label className="text-[10px] text-gray-500 uppercase tracking-wider">Webhook URL</label>
+                      {isLocalUrl && (
+                        <div className="flex items-center gap-2 mt-1 mb-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded">
+                          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                          <p className="text-[10px] text-amber-300">This is a local URL. External services (GitHub, Stripe) can't reach it. Enable a tunnel in Settings or set DAEMORA_PUBLIC_URL to get a public URL.</p>
+                        </div>
+                      )}
                       <div className="flex items-center gap-2 mt-1">
                         <code className="flex-1 text-xs text-[#00d9ff] bg-slate-800/50 rounded p-2 font-mono truncate">{webhookUrl}</code>
                         <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-gray-400 hover:text-white" onClick={() => copyToClipboard(webhookUrl, watcher.id + "-url")}>
