@@ -17,7 +17,7 @@
 
 Deploy once on your machine. Connect your channels. Your team messages the bot — it writes code, does research, sends emails, runs cron jobs, and reports back. Each user gets isolated memory, encrypted keys, and cost caps. You own everything.
 
-57 built-in tools. 20 channels. 16 security layers. 7 AI providers. Multi-agent teams. Production-grade scheduling. Plugin system. MCP integration. All self-hosted — nothing leaves your infrastructure except the tokens you send to model APIs.
+59 built-in tools. 20 channels. 16 security layers. 7 AI providers. Multi-agent teams. Production-grade scheduling. Plugin system. MCP integration. All self-hosted — nothing leaves your infrastructure except the tokens you send to model APIs.
 
 ---
 
@@ -27,7 +27,10 @@ Deploy once on your machine. Connect your channels. Your team messages the bot �
 |---|---|
 | **Code** | Write, edit, run, test, and debug code across multiple files. Takes screenshots of UIs to verify output. Fixes failing tests. Ships working software. |
 | **Research** | Search the web, read pages, analyse images, cross-reference sources, write reports. Spawns parallel sub-agents for speed. |
-| **Automation** | Production-grade cron scheduling (one-shot, interval, cron expressions) with overlap prevention, retry with backoff, channel delivery, failure alerts, and run history. Runs while you sleep. |
+| **Goals** | Set persistent goals — the agent works toward them autonomously on schedule. No prompting needed. Runs 24/7 with isolated sessions, auto-pauses on repeated failures. |
+| **Watchers** | Named event triggers — "when GitHub issue opens, triage and notify Telegram." Webhook-driven with pattern matching, cooldown, and per-tenant scoping. |
+| **Scheduler** | Production-grade scheduling (one-shot, interval, cron expressions) with overlap prevention, retry with backoff, channel delivery, failure alerts, Morning Pulse daily briefing, and run history. |
+| **Fleet Command** | One admin command → every tenant's agent executes simultaneously. Each uses their own context, memory, tools. Each reports back individually. |
 | **Communicate** | Send emails, Telegram messages, Slack posts, Discord messages — autonomously. Screenshots, files, and media sent directly back to you via `replyWithFile`. |
 | **Tools** | Connect to any MCP server — create Notion pages, open GitHub issues, update Linear tasks, manage Shopify products, query databases. |
 | **Voice & Meetings** | Join any meeting (Google Meet, Zoom, Teams) via phone dial-in. OpenAI Realtime STT + ElevenLabs/OpenAI TTS. Voice cloning. Outbound voice calls. Auto-transcription + meeting summaries. |
@@ -274,7 +277,7 @@ daemora mcp remove github     # Remove permanently
 | **Memory** | readMemory, writeMemory, searchMemory, pruneMemory, readDailyLog, writeDailyLog, listMemoryCategories |
 | **Agents** | spawnAgent, parallelAgents, delegateToAgent, manageAgents, teamTask |
 | **MCP** | useMCP, manageMCP |
-| **Scheduling** | cron (add, list, run, update, delete), broadcast |
+| **Scheduling** | cron, goal, watcher, broadcast (Fleet Command) |
 | **Tracking** | projectTracker, taskManager |
 | **Dev Tools** | gitTool (status, diff, commit, branch, log, stash), sshTool, database |
 | **Media** | generateImage (DALL-E / Stable Diffusion) |

@@ -15,6 +15,8 @@ import {
   Radio,
   Timer,
   Puzzle,
+  Target,
+  Eye,
 } from "lucide-react";
 
 const navItems = [
@@ -24,7 +26,9 @@ const navItems = [
   { path: "/channels", label: "Channels", icon: Radio },
   { path: "/mcp", label: "MCP", icon: Network },
   { path: "/skills", label: "Skills", icon: Flame },
-  { path: "/cron", label: "Cron", icon: Timer },
+  { path: "/cron", label: "Scheduler", icon: Timer },
+  { path: "/goals", label: "Goals", icon: Target },
+  { path: "/watchers", label: "Watchers", icon: Eye },
   { path: "/security", label: "Security", icon: ShieldAlert },
   { path: "/costs", label: "Costs", icon: Fingerprint },
   { path: "/tenants", label: "Tenants", icon: Users },

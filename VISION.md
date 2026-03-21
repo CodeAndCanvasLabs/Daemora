@@ -32,12 +32,16 @@ Daemora is the AI that actually does things. For your whole team. On your own ha
 - Core agent loop with multi-provider support (7 providers, 59+ models)
 - Multi-tenant platform with full isolation
 - 20 communication channels
-- Production-grade scheduling with delivery
+- Production-grade scheduler with delivery + Morning Pulse
+- Persistent Goals — autonomous objective execution 24/7
+- Watchers — named event triggers with pattern matching
+- Fleet Command — admin broadcast to all tenants simultaneously
+- Structured agent contracts for sub-agents and teams
 - 16-layer security architecture
 - Plugin system with bundled plugins
 - Agent teams with shared tasks and messaging
 - A2A protocol for inter-agent communication
-- Web dashboard for admin management
+- Web dashboard for admin management (Goals, Watchers, Scheduler, Tenants, etc.)
 
 **Phase: Expansion**
 - Mobile app — direct WebSocket connection, QR pairing, push notifications
