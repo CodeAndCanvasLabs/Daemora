@@ -104,4 +104,125 @@ router.post("/wake", (req, res) => {
   });
 });
 
+/**
+ * POST /hooks/watch/:name — trigger a watcher by name.
+ * Body: arbitrary JSON payload passed to the watcher's action.
+ * Returns: { triggered: true, taskId }
+ */
+router.post("/watch/:name", async (req, res) => {
+  if (!checkAuth(req, res)) return;
+
+  try {
+    const { loadWatcherByName, saveWatcher } = await import("../storage/WatcherStore.js");
+
+    const watcher = loadWatcherByName(req.params.name);
+    if (!watcher || !watcher.enabled) {
+      return res.status(404).json({ error: `Watcher "${req.params.name}" not found or disabled.` });
+    }
+
+    // Cooldown check
+    if (watcher.cooldownSeconds > 0 && watcher.lastTriggeredAt) {
+      const elapsed = (Date.now() - new Date(watcher.lastTriggeredAt).getTime()) / 1000;
+      if (elapsed < watcher.cooldownSeconds) {
+        return res.status(429).json({ error: "Cooldown active", retryAfter: Math.ceil(watcher.cooldownSeconds - elapsed) });
+      }
+    }
+
+    const task = taskQueue.enqueue({
+      input: `[Watcher: ${watcher.name}] ${watcher.action}\n\nPayload:\n${JSON.stringify(req.body, null, 2)}`,
+      channel: watcher.channel || "webhook",
+      channelMeta: watcher.channelMeta,
+      type: "watcher",
+      tenantId: watcher.tenantId,
+      priority: 4,
+    });
+
+    // Update trigger stats
+    watcher.lastTriggeredAt = new Date().toISOString();
+    watcher.triggerCount = (watcher.triggerCount || 0) + 1;
+    watcher.updatedAt = new Date().toISOString();
+    saveWatcher(watcher);
+
+    res.status(202).json({ triggered: true, taskId: task.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /hooks/event — generic event ingress, match against watcher patterns.
+ * Body: arbitrary JSON event payload.
+ * Returns: { matched: N, triggered: N }
+ */
+router.post("/event", async (req, res) => {
+  if (!checkAuth(req, res)) return;
+
+  try {
+    const { loadEnabledWatchers, saveWatcher } = await import("../storage/WatcherStore.js");
+
+    const watchers = loadEnabledWatchers();
+    const payload = req.body || {};
+    let matched = 0;
+    let triggered = 0;
+
+    for (const watcher of watchers) {
+      if (!watcher.pattern) continue;
+      if (!_matchesPattern(payload, watcher.pattern)) continue;
+      matched++;
+
+      // Cooldown check
+      if (watcher.cooldownSeconds > 0 && watcher.lastTriggeredAt) {
+        const elapsed = (Date.now() - new Date(watcher.lastTriggeredAt).getTime()) / 1000;
+        if (elapsed < watcher.cooldownSeconds) continue;
+      }
+
+      taskQueue.enqueue({
+        input: `[Watcher: ${watcher.name}] ${watcher.action}\n\nPayload:\n${JSON.stringify(payload, null, 2)}`,
+        channel: watcher.channel || "webhook",
+        channelMeta: watcher.channelMeta,
+        type: "watcher",
+        tenantId: watcher.tenantId,
+        priority: 4,
+      });
+
+      watcher.lastTriggeredAt = new Date().toISOString();
+      watcher.triggerCount = (watcher.triggerCount || 0) + 1;
+      watcher.updatedAt = new Date().toISOString();
+      saveWatcher(watcher);
+      triggered++;
+    }
+
+    res.status(200).json({ matched, triggered });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Match payload against a watcher pattern (AND logic).
+ * Pattern values: string equality, or regex if starts with "/".
+ */
+function _matchesPattern(payload, pattern) {
+  for (const [key, expected] of Object.entries(pattern)) {
+    const actual = payload[key];
+    if (actual === undefined) return false;
+
+    if (typeof expected === "string" && expected.startsWith("/")) {
+      // Regex match: "/pattern/flags"
+      const lastSlash = expected.lastIndexOf("/");
+      const regexBody = lastSlash > 0 ? expected.slice(1, lastSlash) : expected.slice(1);
+      const flags = lastSlash > 0 ? expected.slice(lastSlash + 1) : "";
+      try {
+        const re = new RegExp(regexBody, flags);
+        if (!re.test(String(actual))) return false;
+      } catch {
+        if (String(actual) !== expected) return false;
+      }
+    } else {
+      if (String(actual) !== String(expected)) return false;
+    }
+  }
+  return true;
+}
+
 export default router;

@@ -48,6 +48,7 @@ import { reload } from "./reloadTool.js";
 import { discoverProfiles } from "./discoverProfiles.js";
 import { broadcast } from "./broadcast.js";
 import { goal } from "./goalTool.js";
+import { watcher } from "./watcherTool.js";
 
 // ─── Agent wrappers (params object → SubAgentManager) ────────────────────────
 
@@ -103,6 +104,7 @@ export const toolFunctions = {
   discoverProfiles,
   broadcast,
   goal,
+  watcher,
   reload,
 };
 

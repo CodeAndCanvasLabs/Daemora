@@ -434,6 +434,22 @@ const toolSchemas = {
     description: "Manage persistent goals. Agent works toward them autonomously on schedule.",
   },
 
+  // ── Watchers ─────────────────────────────────────────────────────────
+  watcher: {
+    schema: z.object({
+      action: str("add | list | update | delete | enable | disable"),
+      name: optStr("Watcher name"),
+      taskAction: optStr("Task input to execute when triggered"),
+      id: optStr("Watcher ID (for update/delete/enable/disable)"),
+      triggerType: optStr("Trigger type: webhook | event"),
+      pattern: optStr("JSON pattern to match incoming events"),
+      channel: optStr("Delivery channel for results"),
+      cooldownSeconds: optNum("Min seconds between triggers (default: 0)"),
+      description: optStr("Watcher description"),
+    }),
+    description: "Manage named watchers — event-driven triggers that execute tasks when webhooks fire.",
+  },
+
   // ── System Reload ──────────────────────────────────────────────────────
   reload: {
     schema: z.object({

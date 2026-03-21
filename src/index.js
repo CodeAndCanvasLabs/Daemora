@@ -899,6 +899,62 @@ app.post("/api/goals/:id/check", async (req, res) => {
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
+// --- Watchers API ---
+app.get("/api/watchers", async (req, res) => {
+  try {
+    const { loadWatchersByTenant, loadEnabledWatchers } = await import("./storage/WatcherStore.js");
+    const tenantId = req.query.tenantId || null;
+    const watchers = tenantId ? loadWatchersByTenant(tenantId) : loadEnabledWatchers();
+    res.json({ watchers });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/watchers", async (req, res) => {
+  try {
+    const { saveWatcher } = await import("./storage/WatcherStore.js");
+    const { v4: uuidv4 } = await import("uuid");
+    const watcher = {
+      id: uuidv4().slice(0, 8),
+      tenantId: req.body.tenantId || null,
+      name: req.body.name,
+      description: req.body.description || null,
+      triggerType: req.body.triggerType || "webhook",
+      pattern: req.body.pattern || null,
+      action: req.body.action,
+      channel: req.body.channel || null,
+      channelMeta: req.body.channelMeta || null,
+      enabled: true,
+      triggerCount: 0,
+      cooldownSeconds: req.body.cooldownSeconds || 0,
+    };
+    saveWatcher(watcher);
+    res.status(201).json(watcher);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.patch("/api/watchers/:id", async (req, res) => {
+  try {
+    const { loadWatcher, saveWatcher } = await import("./storage/WatcherStore.js");
+    const watcher = loadWatcher(req.params.id);
+    if (!watcher) return res.status(404).json({ error: "Watcher not found" });
+    const allowed = ["name", "description", "triggerType", "pattern", "action", "channel", "channelMeta", "enabled", "cooldownSeconds"];
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) watcher[key] = req.body[key];
+    }
+    watcher.updatedAt = new Date().toISOString();
+    saveWatcher(watcher);
+    res.json(watcher);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.delete("/api/watchers/:id", async (req, res) => {
+  try {
+    const { deleteWatcher } = await import("./storage/WatcherStore.js");
+    deleteWatcher(req.params.id);
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
 // --- Plugin Management API ---
 app.get("/api/plugins", async (req, res) => {
   try {

@@ -320,6 +320,29 @@ function _runMigrations(db) {
     CREATE INDEX IF NOT EXISTS idx_goals_status ON goals(status, next_check_at);
   `);
 
+  // Watchers table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS watchers (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT,
+      name TEXT NOT NULL,
+      description TEXT,
+      trigger_type TEXT NOT NULL DEFAULT 'webhook',
+      pattern TEXT,
+      action TEXT NOT NULL,
+      channel TEXT,
+      channel_meta TEXT,
+      enabled INTEGER DEFAULT 1,
+      last_triggered_at TEXT,
+      trigger_count INTEGER DEFAULT 0,
+      cooldown_seconds INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_watchers_tenant ON watchers(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_watchers_enabled ON watchers(enabled);
+  `);
+
   // Secret access audit log
   db.exec(`
     CREATE TABLE IF NOT EXISTS secret_access_log (

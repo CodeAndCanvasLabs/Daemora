@@ -125,7 +125,7 @@ export const CORE_TOOLS = [
   "replyToUser",
   "sendFile",
   // Tasks
-  "taskManager", "cron", "goal",
+  "taskManager", "cron", "goal", "watcher",
   // MCP
   "useMCP",
 ];
