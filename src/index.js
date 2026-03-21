@@ -621,7 +621,7 @@ app.get("/api/channels", (req, res) => {
 });
 
 // List known delivery destinations — channels with stored routing info
-app.get("/api/channels/destinations", (req, res) => {
+app.get("/api/channels/destinations", async (req, res) => {
   try {
     const { queryAll } = await import("./storage/Database.js");
     const rows = queryAll(
