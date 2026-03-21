@@ -41,6 +41,9 @@ export function getWebhookToken() {
   return _getOrCreateWebhookToken();
 }
 
+// Auto-generate at import time so it's ready before any health check
+_getOrCreateWebhookToken();
+
 function checkAuth(req, res) {
   const token = _getOrCreateWebhookToken();
 
