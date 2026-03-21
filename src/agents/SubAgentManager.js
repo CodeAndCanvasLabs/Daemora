@@ -8,6 +8,7 @@ import eventBus from "../core/EventBus.js";
 import { v4 as uuidv4 } from "uuid";
 import tenantContext from "../tenants/TenantContext.js";
 import { resolveSubAgentModel } from "../models/ModelRouter.js";
+import { buildContract } from "./ContractBuilder.js";
 import { createSession, getSession, setMessages } from "../services/sessions.js";
 import { compactForSession } from "../utils/msgText.js";
 import skillLoader from "../skills/SkillLoader.js";
@@ -267,21 +268,16 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     console.log(`[SubAgent:${agentId}] Skill injection failed (non-blocking): ${e.message}`);
   }
 
-  // ── Build initial messages (include history + parent context + skills) ──
+  // ── Build initial messages (include history + structured contract) ──
   const initialMessages = [...historyMessages];
 
-  const contextParts = [];
-  if (parentContext) contextParts.push(`[Context from parent agent]:\n${parentContext}`);
-  if (skillContext) contextParts.push(`[Matched Skills — follow these instructions precisely]:\n${skillContext}`);
+  const contract = buildContract({
+    task: taskDescription,
+    context: parentContext || null,
+    skills: skillContext || null,
+  });
 
-  if (contextParts.length > 0) {
-    initialMessages.push({
-      role: "user",
-      content: `${contextParts.join("\n\n")}\n\n[Your task]:\n${taskDescription}`,
-    });
-  } else {
-    initialMessages.push({ role: "user", content: taskDescription });
-  }
+  initialMessages.push({ role: "user", content: contract });
 
   // ── Run with timeout and abort signal ─────────────────────────────────────
   const startedAt = activeSubAgents.get(agentId).startedAt;
