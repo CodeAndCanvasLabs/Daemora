@@ -64,6 +64,7 @@ export function Watchers() {
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [publicUrl, setPublicUrl] = useState<string | null>(null);
 
   const fetchWatchers = useCallback(async () => {
     try {
@@ -86,7 +87,15 @@ export function Watchers() {
     } catch { /* non-fatal */ }
   }, []);
 
-  useEffect(() => { fetchWatchers(); fetchChannels(); }, [fetchWatchers, fetchChannels]);
+  const fetchPublicUrl = useCallback(async () => {
+    try {
+      const res = await apiFetch("/api/health");
+      const data = await res.json();
+      if (data.publicUrl) setPublicUrl(data.publicUrl);
+    } catch { /* non-fatal */ }
+  }, []);
+
+  useEffect(() => { fetchWatchers(); fetchChannels(); fetchPublicUrl(); }, [fetchWatchers, fetchChannels, fetchPublicUrl]);
 
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error("Give your watcher a name"); return; }
@@ -173,7 +182,9 @@ export function Watchers() {
   };
 
   const getWebhookUrl = (name: string) => {
-    const base = window.location.origin.replace(/:\d+$/, ':3000');
+    if (publicUrl) return `${publicUrl}/hooks/watch/${encodeURIComponent(name)}`;
+    // Fallback: derive server URL from UI origin (replace UI port with server port)
+    const base = window.location.origin.replace(/:\d+$/, ':8081');
     return `${base}/hooks/watch/${encodeURIComponent(name)}`;
   };
 

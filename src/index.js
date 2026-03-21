@@ -222,6 +222,7 @@ app.get("/api/health", (req, res) => {
     tools: Object.keys(toolFunctions).length,
     model: config.defaultModel,
     permissionTier: config.permissionTier,
+    publicUrl: process.env.DAEMORA_PUBLIC_URL || process.env.SERVER_URL || null,
     queue: taskQueue.stats(),
     todayCost: getTodayCost(),
   });
