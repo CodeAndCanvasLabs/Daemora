@@ -6,5 +6,9 @@
   "config": {
     "SSH_DEFAULT_HOST": { "type": "string", "required": true, "label": "Default SSH Host" }
   },
-  "profiles": ["sysadmin", "devops", "coder"]
+  "profile": {
+    "systemPrompt": "You are an SSH specialist. You execute commands and transfer files on remote servers. Always verify host connectivity before operations. Use non-destructive checks first. Handle timeouts gracefully. Never store credentials in files.",
+    "temperature": 0.2
+  },
+  "skills": ["coding", "devops"]
 }

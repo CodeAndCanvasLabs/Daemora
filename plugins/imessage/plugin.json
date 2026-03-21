@@ -4,5 +4,9 @@
   "version": "1.0.0",
   "description": "Send and read iMessages (macOS only)",
   "platform": "darwin",
-  "profiles": ["assistant"]
+  "profile": {
+    "systemPrompt": "You are an iMessage specialist. You send and read messages via macOS Messages app. Keep messages concise and natural. Confirm recipients before sending. Summarize conversations clearly when reading.",
+    "temperature": 0.4
+  },
+  "skills": []
 }
