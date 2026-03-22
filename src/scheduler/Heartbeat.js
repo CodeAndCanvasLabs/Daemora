@@ -37,9 +37,10 @@ class Heartbeat {
     this._lastContentAt = 0;
     this._lastProactiveAt = 0;
 
-    // Active hours config
-    this.activeHourStart = parseInt(process.env.HEARTBEAT_ACTIVE_START || "8", 10);
-    this.activeHourEnd = parseInt(process.env.HEARTBEAT_ACTIVE_END || "22", 10);
+    // Active hours config (supports HH:MM format + timezone)
+    this.activeHourStart = process.env.HEARTBEAT_ACTIVE_START || "08:00";
+    this.activeHourEnd = process.env.HEARTBEAT_ACTIVE_END || "22:00";
+    this.activeTimezone = process.env.HEARTBEAT_TIMEZONE || null; // IANA timezone, null = host
 
     // Proactive check interval (minimum gap between proactive checks)
     this.proactiveIntervalMs = (parseInt(process.env.HEARTBEAT_PROACTIVE_INTERVAL_MIN || "240", 10)) * 60 * 1000; // default 4 hours
@@ -52,8 +53,9 @@ class Heartbeat {
     const tickMs = Math.min(this.intervalMinutes * 60 * 1000, 5 * 60 * 1000); // check every 5min or heartbeat interval, whichever is smaller
     this.timer = setInterval(() => this._tick(), tickMs);
 
+    const tzLabel = this.activeTimezone || "host";
     console.log(
-      `[Heartbeat] Started (every ${this.intervalMinutes}min, proactive every ${this.proactiveIntervalMs / 60000}min, active ${this.activeHourStart}:00-${this.activeHourEnd}:00)`
+      `[Heartbeat] Started (every ${this.intervalMinutes}min, proactive every ${this.proactiveIntervalMs / 60000}min, active ${this.activeHourStart}-${this.activeHourEnd} ${tzLabel})`
     );
 
     // First proactive check after 2 minutes
@@ -129,6 +131,8 @@ For each finding:
 - If you can fix it, fix it (retry failed task, resume paused goal, etc.)
 - If you can't fix it, notify the user via replyToUser() with a clear summary
 - If it's informational only, note it and move on
+
+If nothing actually needs action after review, respond with just "HEARTBEAT_OK".
 
 Current time: ${new Date().toISOString()}`;
 
@@ -303,7 +307,7 @@ Current time: ${new Date().toISOString()}`;
       console.log(`[Heartbeat] User heartbeat check #${this.checkCount}`);
 
       taskQueue.enqueue({
-        input: `[Heartbeat check #${this.checkCount}] Follow the instructions in HEARTBEAT.md. If everything looks fine, respond "All clear." If something needs attention, describe what you found and take action.\n\nInstructions from HEARTBEAT.md:\n${instructions}\n\nCurrent time: ${new Date().toISOString()}`,
+        input: `[Heartbeat check #${this.checkCount}] Follow the instructions in HEARTBEAT.md strictly. Do not infer or repeat old tasks from prior chats. If nothing needs attention, reply HEARTBEAT_OK.\n\nInstructions from HEARTBEAT.md:\n${instructions}\n\nCurrent time: ${new Date().toISOString()}`,
         channel: "heartbeat",
         sessionId: "heartbeat",
         priority: 2,
@@ -319,8 +323,42 @@ Current time: ${new Date().toISOString()}`;
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   _isActiveHour() {
-    const hour = new Date().getHours();
-    return hour >= this.activeHourStart && hour < this.activeHourEnd;
+    const now = new Date();
+    let hour, minute;
+
+    if (this.activeTimezone) {
+      // Get current time in configured timezone
+      try {
+        const formatted = now.toLocaleTimeString("en-US", { timeZone: this.activeTimezone, hour12: false, hour: "2-digit", minute: "2-digit" });
+        const [h, m] = formatted.split(":").map(Number);
+        hour = h;
+        minute = m;
+      } catch {
+        // Invalid timezone — fall back to host time
+        hour = now.getHours();
+        minute = now.getMinutes();
+      }
+    } else {
+      hour = now.getHours();
+      minute = now.getMinutes();
+    }
+
+    const currentMinutes = hour * 60 + minute;
+
+    // Parse start/end (supports "8", "08:00", "22:30" formats)
+    const parseTime = (val) => {
+      const str = String(val);
+      if (str.includes(":")) {
+        const [h, m] = str.split(":").map(Number);
+        return h * 60 + (m || 0);
+      }
+      return parseInt(str, 10) * 60;
+    };
+
+    const start = parseTime(this.activeHourStart);
+    const end = parseTime(this.activeHourEnd);
+
+    return currentMinutes >= start && currentMinutes < end;
   }
 
   _simpleHash(str) {
@@ -336,7 +374,8 @@ Current time: ${new Date().toISOString()}`;
       running: this.running,
       intervalMinutes: this.intervalMinutes,
       proactiveIntervalMinutes: this.proactiveIntervalMs / 60000,
-      activeHours: `${this.activeHourStart}:00-${this.activeHourEnd}:00`,
+      activeHours: `${this.activeHourStart}-${this.activeHourEnd}`,
+      timezone: this.activeTimezone || "host",
       lastCheck: this.lastCheck,
       lastProactiveCheck: this._lastProactiveAt ? new Date(this._lastProactiveAt).toISOString() : null,
       checkCount: this.checkCount,

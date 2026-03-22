@@ -468,8 +468,21 @@ class TaskRunner {
           }
         }
 
+        // HEARTBEAT_OK suppression (OpenClaw pattern):
+        // If heartbeat task responds with HEARTBEAT_OK at start/end, strip it.
+        // If remaining content is ≤ 300 chars, suppress delivery (nothing worth sending).
+        let finalText = result.text || "";
+        if (task.type === "heartbeat" && finalText) {
+          const stripped = finalText.replace(/^\s*HEARTBEAT_OK\s*/i, "").replace(/\s*HEARTBEAT_OK\s*$/i, "").trim();
+          if (stripped.length <= 300) {
+            task.directReplySent = true; // suppress channel delivery
+            console.log(`[TaskRunner] Heartbeat OK — suppressed delivery`);
+          }
+          finalText = stripped || finalText;
+        }
+
         // Complete the task
-        taskQueue.complete(task.id, result.text);
+        taskQueue.complete(task.id, finalText);
         const costStr = estimatedCost ? ` cost: $${estimatedCost.toFixed(4)}` : "";
         const tenantStr = tenant ? ` tenant: ${tenant.id}` : "";
         console.log(`[TaskRunner] Task ${task.id} completed (${costStr}${tenantStr})`);
