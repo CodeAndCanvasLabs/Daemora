@@ -350,22 +350,6 @@ function _runMigrations(db) {
     CREATE INDEX IF NOT EXISTS idx_watchers_enabled ON watchers(enabled);
   `);
 
-  // Learning entries — trajectory learnings extracted post-task
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS learning_entries (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      tenant_id TEXT,
-      task_id TEXT,
-      category TEXT NOT NULL DEFAULT 'strategy',
-      content TEXT NOT NULL,
-      tool_names TEXT,
-      embedding TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-    CREATE INDEX IF NOT EXISTS idx_learnings_tenant ON learning_entries(tenant_id);
-    CREATE INDEX IF NOT EXISTS idx_learnings_category ON learning_entries(category);
-  `);
-
   // Channel routing cache — stores channelMeta for watcher/cron delivery
   // Works without tenants (global setup) and with tenants
   db.exec(`

@@ -119,21 +119,8 @@ async function _autoCapture(task, result, resolvedConfig) {
  */
 async function _postTaskLearning(task, result, apiKeys) {
   try {
-    const [
-      { extractLearnings },
-      { maybeRunReview },
-    ] = await Promise.all([
-      import("../learning/TrajectoryExtractor.js"),
-      import("../learning/BackgroundReviewer.js"),
-    ]);
-
-    // Run both in parallel (independent, non-blocking)
-    // - extractLearnings: structured tips for system prompt injection
-    // - maybeRunReview: agent-in-the-loop review for memory + skills (Hermes pattern)
-    await Promise.allSettled([
-      extractLearnings(task, result, apiKeys),
-      maybeRunReview(task, result, { apiKeys }),
-    ]);
+    const { maybeRunReview } = await import("../learning/BackgroundReviewer.js");
+    await maybeRunReview(task, result, { apiKeys });
   } catch {
     // Silent — learning is best-effort
   }
