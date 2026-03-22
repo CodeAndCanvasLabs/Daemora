@@ -42,7 +42,7 @@ export async function loadCrew() {
   }
 
   const entries = readdirSync(crewDir, { withFileTypes: true })
-    .filter(e => e.isDirectory())
+    .filter(e => e.isDirectory() && !e.name.startsWith("_") && !e.name.startsWith("."))
     .map(e => e.name);
 
   if (entries.length === 0) {
@@ -155,6 +155,11 @@ async function _loadCrewMember(memberDir) {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
   if (!manifest.id || !manifest.name) {
     throw new Error(`plugin.json missing required fields (id, name) in ${memberDir}`);
+  }
+
+  // Skip templates — they're starter files for contributors, not real crew members
+  if (manifest.template === true) {
+    return;
   }
 
   // Check if disabled via config
