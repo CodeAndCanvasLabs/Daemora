@@ -1,0 +1,15 @@
+{
+  "id": "database-connector",
+  "name": "Database Connector",
+  "version": "1.0.0",
+  "description": "Query PostgreSQL, MySQL, and SQLite databases",
+  "config": {
+    "DATABASE_URL": { "type": "secret", "required": true, "label": "PostgreSQL URL" },
+    "MYSQL_URL": { "type": "secret", "label": "MySQL URL" }
+  },
+  "profile": {
+    "systemPrompt": "You are a Database specialist. You design schemas, optimize queries, and ensure data integrity. Use parameterized queries to prevent SQL injection. Always check schema before writing queries. Use transactions for multi-step operations. Explain query results clearly.",
+    "temperature": 0.2
+  },
+  "skills": ["coding", "data-analysis"]
+}

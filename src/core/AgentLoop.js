@@ -24,6 +24,7 @@ export async function runAgentLoop({
   messages: msgs,
   systemPrompt,
   tools,
+  aiToolOverrides = null,
   modelId = null,
   taskId = null,
   approvalMode = "auto",
@@ -193,6 +194,14 @@ export async function runAgentLoop({
         }
       },
     });
+  }
+
+  // ── Merge pre-built AI SDK tools (e.g. from @ai-sdk/mcp) ──
+  if (aiToolOverrides) {
+    for (const [name, toolDef] of Object.entries(aiToolOverrides)) {
+      aiTools[name] = toolDef;
+    }
+    console.log(`[AgentLoop] Merged ${Object.keys(aiToolOverrides).length} AI tool override(s)`);
   }
 
   console.log(`\n--- AGENT LOOP STARTED ---`);

@@ -172,15 +172,13 @@ export async function reload(toolParams) {
         return "Web fetch + search caches cleared.";
       }
 
-      case "plugins": {
-        const { reloadPlugins } = await import("../plugins/PluginLoader.js");
-        const { mergePluginTools } = await import("./index.js");
-        const reg = await reloadPlugins();
-        await mergePluginTools();
-        const count = reg.plugins.filter(p => p.status === "loaded").length;
+      case "crew": {
+        const { reloadCrew } = await import("../crew/PluginLoader.js");
+        const reg = await reloadCrew();
+        const count = reg.crew.filter(p => p.status === "loaded").length;
         const toolCount = reg.tools.length;
-        eventBus.emit("system:reload", { component: "plugins" });
-        return `Plugins reloaded: ${count} loaded, ${toolCount} tools`;
+        eventBus.emit("system:reload", { component: "crew" });
+        return `Crew reloaded: ${count} members loaded, ${toolCount} tools`;
       }
 
       case "all": {
@@ -193,14 +191,12 @@ export async function reload(toolParams) {
         results.scheduler = await _reloadScheduler();
         results.channels = await _reloadChannels();
         results.caches = _clearCaches();
-        // Reload plugins
-        let pluginCount = 0;
+        // Reload crew
+        let crewCount = 0;
         try {
-          const { reloadPlugins } = await import("../plugins/PluginLoader.js");
-          const { mergePluginTools } = await import("./index.js");
-          const reg = await reloadPlugins();
-          await mergePluginTools();
-          pluginCount = reg.plugins.filter(p => p.status === "loaded").length;
+          const { reloadCrew } = await import("../crew/PluginLoader.js");
+          const reg = await reloadCrew();
+          crewCount = reg.crew.filter(p => p.status === "loaded").length;
         } catch {}
         eventBus.emit("system:reload", { component: "all" });
 
@@ -209,7 +205,7 @@ export async function reload(toolParams) {
           `Config: reloaded (model: ${results.models.current})`,
           `Models: provider cache cleared`,
           `Skills: ${results.skills.skills} loaded`,
-          `Plugins: ${pluginCount} loaded`,
+          `Crew: ${crewCount} loaded`,
           `MCP: ${results.mcp.mcpServers} servers reconnected`,
           `Scheduler: ${results.scheduler.jobs} jobs`,
           `Channels: ${results.channels.channels} active`,

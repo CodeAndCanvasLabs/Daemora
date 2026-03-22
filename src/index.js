@@ -22,6 +22,7 @@ import mcpManager from "./mcp/MCPManager.js";
 import auditLog from "./safety/AuditLog.js";
 import scheduler from "./scheduler/Scheduler.js";
 import heartbeat from "./scheduler/Heartbeat.js";
+import goalPulse from "./scheduler/GoalPulse.js";
 import { mountAgentCard } from "./a2a/AgentCard.js";
 import { mountA2AServer } from "./a2a/A2AServer.js";
 import voiceWebhook from "./voice/VoiceWebhook.js";
@@ -76,6 +77,7 @@ supervisor.start();
 auditLog.start();
 scheduler.start().catch(e => console.log(`[Scheduler] Start error: ${e.message}`));
 heartbeat.start();
+goalPulse.start();
 
 /**
  * Hot-reload everything — call after any config/key/credential change.
@@ -189,7 +191,7 @@ const API_TOKEN = getOrCreateAuthToken();
 
 const tokenAuth = (req, res, next) => {
   // Health endpoint is public (monitoring/readiness probes)
-  if (req.path === "/api/health") return next();
+  if (req.path === "/health" || req.path === "/api/health") return next();
 
   // Check Authorization: Bearer <token> header
   const authHeader = req.headers.authorization;
@@ -220,6 +222,8 @@ app.get("/api/health", (req, res) => {
     tools: Object.keys(toolFunctions).length,
     model: config.defaultModel,
     permissionTier: config.permissionTier,
+    publicUrl: process.env.DAEMORA_PUBLIC_URL || process.env.SERVER_URL || null,
+    webhookToken: process.env.WEBHOOK_TOKEN || null,
     queue: taskQueue.stats(),
     todayCost: getTodayCost(),
   });
@@ -616,6 +620,56 @@ app.get("/api/channels", (req, res) => {
   res.json({ channels: channelRegistry.list() });
 });
 
+// List known delivery destinations — channels with stored routing info
+app.get("/api/channels/destinations", async (req, res) => {
+  try {
+    const { queryAll } = await import("./storage/Database.js");
+    // Read from channel_routing (global) + tenant_channels (per-tenant)
+    const globalRows = queryAll(
+      `SELECT channel, user_id, meta, tenant_id FROM channel_routing ORDER BY updated_at DESC`
+    );
+    const tenantRows = queryAll(
+      `SELECT channel, user_id, meta, tenant_id FROM tenant_channels WHERE meta IS NOT NULL ORDER BY linked_at DESC`
+    );
+
+    const running = channelRegistry.list().filter(c => c.running);
+    const destinations = [];
+    const seen = new Set();
+
+    // Global + tenant stored destinations
+    for (const row of [...globalRows, ...tenantRows]) {
+      const key = `${row.channel}:${row.user_id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      try {
+        const meta = JSON.parse(row.meta);
+        const label = meta.userName || meta.userId || meta.chatId || row.user_id;
+        const scope = row.tenant_id && row.tenant_id !== "__global__" ? ` (${row.tenant_id})` : "";
+        destinations.push({
+          channel: row.channel,
+          label: `${row.channel} → ${label}${scope}`,
+          tenantId: row.tenant_id,
+          channelMeta: { ...meta, channel: row.channel },
+        });
+      } catch {}
+    }
+
+    // Running channels without stored meta — show as available but need first interaction
+    for (const ch of running) {
+      if (!destinations.some(d => d.channel === ch.name)) {
+        destinations.push({
+          channel: ch.name,
+          label: `${ch.name} (no recent activity — send a message first)`,
+          tenantId: null,
+          channelMeta: null,
+        });
+      }
+    }
+
+    res.json({ destinations });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get("/api/channels/defs", (req, res) => {
   const running = channelRegistry.list();
   const runningMap = Object.fromEntries(running.map(ch => [ch.name, ch.running]));
@@ -816,90 +870,242 @@ app.delete("/api/cron/presets/:id", async (req, res) => {
   }
 });
 
-// --- Plugin Management API ---
-app.get("/api/plugins", async (req, res) => {
+// --- Goals API ---
+app.get("/api/goals", async (req, res) => {
   try {
-    const { getPlugins } = await import("./plugins/PluginRegistry.js");
-    res.json({ plugins: getPlugins() });
+    const { loadGoalsByTenant, loadActiveGoals } = await import("./storage/GoalStore.js");
+    const tenantId = req.query.tenantId || null;
+    const goals = tenantId ? loadGoalsByTenant(tenantId) : loadActiveGoals();
+    res.json({ goals });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post("/api/plugins/:id/enable", async (req, res) => {
+app.get("/api/goals/:id", async (req, res) => {
+  try {
+    const { loadGoal } = await import("./storage/GoalStore.js");
+    const goal = loadGoal(req.params.id);
+    if (!goal) return res.status(404).json({ error: "Goal not found" });
+    res.json(goal);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/goals", async (req, res) => {
+  try {
+    const { saveGoal } = await import("./storage/GoalStore.js");
+    const { v4: uuidv4 } = await import("uuid");
+    const { Cron } = await import("croner");
+    const id = uuidv4().slice(0, 8);
+    const checkCron = req.body.checkCron || "0 */4 * * *";
+    const cronInstance = new Cron(checkCron, { timezone: req.body.checkTz || undefined });
+    const nextRun = cronInstance.nextRun();
+    const goal = {
+      id,
+      tenantId: req.body.tenantId || null,
+      title: req.body.title,
+      description: req.body.description || null,
+      strategy: req.body.strategy || null,
+      status: "active",
+      priority: req.body.priority || 5,
+      checkCron,
+      checkTz: req.body.checkTz || null,
+      nextCheckAt: nextRun ? nextRun.toISOString() : null,
+      consecutiveFailures: 0,
+      maxFailures: req.body.maxFailures || 3,
+      delivery: req.body.delivery || null,
+    };
+    saveGoal(goal);
+    res.status(201).json(goal);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.patch("/api/goals/:id", async (req, res) => {
+  try {
+    const { loadGoal, saveGoal } = await import("./storage/GoalStore.js");
+    const goal = loadGoal(req.params.id);
+    if (!goal) return res.status(404).json({ error: "Goal not found" });
+    const allowed = ["title", "description", "strategy", "status", "priority", "checkCron", "checkTz", "maxFailures", "delivery"];
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) goal[key] = req.body[key];
+    }
+    goal.updatedAt = new Date().toISOString();
+    saveGoal(goal);
+    res.json(goal);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.delete("/api/goals/:id", async (req, res) => {
+  try {
+    const { deleteGoal } = await import("./storage/GoalStore.js");
+    deleteGoal(req.params.id);
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post("/api/goals/:id/check", async (req, res) => {
+  try {
+    const { loadGoal } = await import("./storage/GoalStore.js");
+    const goal = loadGoal(req.params.id);
+    if (!goal) return res.status(404).json({ error: "Goal not found" });
+    await goalPulse._executeGoal(goal);
+    res.json({ message: `Goal "${goal.title}" check triggered` });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// --- Morning Pulse ---
+app.post("/api/morning-pulse", async (req, res) => {
+  try {
+    const { createMorningPulse } = await import("./scheduler/MorningPulse.js");
+    const { tenantId, timezone, delivery } = req.body || {};
+    const result = createMorningPulse(tenantId || null, timezone, delivery);
+    res.status(result.created ? 201 : 200).json(result);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// --- Watchers API ---
+app.get("/api/watchers/templates", async (req, res) => {
+  try {
+    const { WATCHER_TEMPLATES } = await import("./webhooks/watcherTemplates.js");
+    res.json({ templates: WATCHER_TEMPLATES });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get("/api/watchers", async (req, res) => {
+  try {
+    const { loadWatchersByTenant, loadAllWatchers } = await import("./storage/WatcherStore.js");
+    const tenantId = req.query.tenantId || null;
+    const watchers = tenantId ? loadWatchersByTenant(tenantId) : loadAllWatchers();
+    res.json({ watchers });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/watchers", async (req, res) => {
+  try {
+    const { saveWatcher } = await import("./storage/WatcherStore.js");
+    const { v4: uuidv4 } = await import("uuid");
+    const watcher = {
+      id: uuidv4().slice(0, 8),
+      tenantId: req.body.tenantId || null,
+      name: req.body.name,
+      description: req.body.description || null,
+      triggerType: req.body.triggerType || "webhook",
+      pattern: req.body.pattern || null,
+      action: req.body.action,
+      channel: req.body.channel || null,
+      channelMeta: req.body.channelMeta || null,
+      destinations: req.body.destinations || [],
+      context: req.body.context || null,
+      enabled: true,
+      triggerCount: 0,
+      cooldownSeconds: req.body.cooldownSeconds || 0,
+    };
+    saveWatcher(watcher);
+    res.status(201).json(watcher);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.patch("/api/watchers/:id", async (req, res) => {
+  try {
+    const { loadWatcher, saveWatcher } = await import("./storage/WatcherStore.js");
+    const watcher = loadWatcher(req.params.id);
+    if (!watcher) return res.status(404).json({ error: "Watcher not found" });
+    const allowed = ["name", "description", "triggerType", "pattern", "action", "channel", "channelMeta", "destinations", "context", "enabled", "cooldownSeconds"];
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) watcher[key] = req.body[key];
+    }
+    watcher.updatedAt = new Date().toISOString();
+    saveWatcher(watcher);
+    res.json(watcher);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.delete("/api/watchers/:id", async (req, res) => {
+  try {
+    const { deleteWatcher } = await import("./storage/WatcherStore.js");
+    deleteWatcher(req.params.id);
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// --- Crew Management API ---
+app.get("/api/crew", async (req, res) => {
+  try {
+    const { getCrew } = await import("./crew/PluginRegistry.js");
+    res.json({ crew: getCrew() });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/crew/:id/enable", async (req, res) => {
   try {
     const { configStore } = await import("./config/ConfigStore.js");
-    configStore.set(`plugin:${req.params.id}:enabled`, "true");
-    const { reloadPlugin } = await import("./plugins/PluginLoader.js");
-    await reloadPlugin(req.params.id);
+    configStore.set(`crew:${req.params.id}:enabled`, "true");
+    const { reloadCrewMember } = await import("./crew/PluginLoader.js");
+    await reloadCrewMember(req.params.id);
     res.json({ ok: true });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-app.post("/api/plugins/:id/disable", async (req, res) => {
+app.post("/api/crew/:id/disable", async (req, res) => {
   try {
     const { configStore } = await import("./config/ConfigStore.js");
-    configStore.set(`plugin:${req.params.id}:enabled`, "false");
+    configStore.set(`crew:${req.params.id}:enabled`, "false");
     res.json({ ok: true });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-app.post("/api/plugins/:id/reload", async (req, res) => {
+app.post("/api/crew/:id/reload", async (req, res) => {
   try {
-    const { reloadPlugin } = await import("./plugins/PluginLoader.js");
-    await reloadPlugin(req.params.id);
+    const { reloadCrewMember } = await import("./crew/PluginLoader.js");
+    await reloadCrewMember(req.params.id);
     res.json({ ok: true });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-app.post("/api/plugins/install", async (req, res) => {
+app.post("/api/crew/install", async (req, res) => {
   try {
     const { pkg } = req.body;
     if (!pkg) return res.status(400).json({ error: "pkg is required" });
-    const { installPlugin } = await import("./plugins/PluginInstaller.js");
-    await installPlugin(pkg);
-    // Reload plugins after install
-    const { reloadPlugins } = await import("./plugins/PluginLoader.js");
-    const { mergePluginTools } = await import("./tools/index.js");
-    const reg = await reloadPlugins();
-    await mergePluginTools();
-    res.json({ ok: true, plugins: reg.plugins.filter(p => p.status === "loaded").length });
+    const { installCrewMember } = await import("./crew/PluginInstaller.js");
+    await installCrewMember(pkg);
+    // Reload crew after install
+    const { reloadCrew } = await import("./crew/PluginLoader.js");
+    const reg = await reloadCrew();
+    res.json({ ok: true, crew: reg.crew.filter(p => p.status === "loaded").length });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-app.delete("/api/plugins/:id/uninstall", async (req, res) => {
+app.delete("/api/crew/:id/uninstall", async (req, res) => {
   try {
-    const { removePlugin } = await import("./plugins/PluginInstaller.js");
-    await removePlugin(req.params.id);
-    const { reloadPlugins } = await import("./plugins/PluginLoader.js");
-    const { mergePluginTools } = await import("./tools/index.js");
-    await reloadPlugins();
-    await mergePluginTools();
+    const { removeCrewMember } = await import("./crew/PluginInstaller.js");
+    await removeCrewMember(req.params.id);
+    const { reloadCrew } = await import("./crew/PluginLoader.js");
+    await reloadCrew();
     res.json({ ok: true });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-app.put("/api/plugins/:id/config", async (req, res) => {
+app.put("/api/crew/:id/config", async (req, res) => {
   try {
     const { configStore } = await import("./config/ConfigStore.js");
     const { updates } = req.body;
     if (!updates || typeof updates !== "object") return res.status(400).json({ error: "updates object required" });
     for (const [key, value] of Object.entries(updates)) {
-      configStore.set(`plugin:${req.params.id}:${key}`, String(value));
+      configStore.set(`crew:${req.params.id}:${key}`, String(value));
     }
     res.json({ ok: true });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-app.get("/api/plugins/:id/config", async (req, res) => {
+app.get("/api/crew/:id/config", async (req, res) => {
   try {
-    const { getPlugin } = await import("./plugins/PluginRegistry.js");
-    const plugin = getPlugin(req.params.id);
-    if (!plugin) return res.status(404).json({ error: "Plugin not found" });
-    const schema = plugin.configSchema || {};
+    const { getCrewMember } = await import("./crew/PluginRegistry.js");
+    const member = getCrewMember(req.params.id);
+    if (!member) return res.status(404).json({ error: "Crew member not found" });
+    const schema = member.configSchema || {};
     // Read current values
     const { configStore } = await import("./config/ConfigStore.js");
     const values = {};
     for (const key of Object.keys(schema)) {
-      values[key] = configStore.get(`plugin:${req.params.id}:${key}`) || schema[key]?.default || "";
+      values[key] = configStore.get(`crew:${req.params.id}:${key}`) || schema[key]?.default || "";
     }
     res.json({ schema, values });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -1352,11 +1558,12 @@ app.get("/api/settings", (req, res) => {
     }
   }
 
-  // Uniform masking — never leak any characters
+  // Mask only secret-looking keys — non-secrets sent as-is for UI state
+  const SECRET_KEY_PATTERN = /(_KEY|_TOKEN|_SECRET|_PASSWORD|_CREDENTIAL|_AUTH|_PASSPHRASE|_API_KEY|_ACCESS_TOKEN)$/i;
   const masked = {};
   for (const [key, val] of Object.entries(dbConfig)) {
     if (!val) { masked[key] = ""; continue; }
-    masked[key] = "••••••••";
+    masked[key] = SECRET_KEY_PATTERN.test(key) ? "••••••••" : val;
   }
 
   res.json({ vars: masked, vaultActive });
@@ -1377,6 +1584,8 @@ app.put("/api/settings", async (req, res) => {
 
   for (const [key, value] of Object.entries(updates)) {
     if (!/^[A-Z][A-Z0-9_]*$/.test(key)) continue;
+    // Skip masked values — UI sent back the placeholder, user didn't change this field
+    if (value === "••••••••") continue;
     if (vaultActive && sensitivePattern.test(key)) {
       vaultUpdates[key] = value;
     } else {
@@ -1774,21 +1983,19 @@ const httpServer = app.listen(config.port, async () => {
     console.log("[Startup] Skill embeddings ready");
   } catch { /* non-fatal — TF-IDF fallback always works */ }
 
-  // ── Phase 1.5: Load plugins ──
-  console.log("[Startup] Loading plugins...");
+  // ── Phase 1.5: Load crew ──
+  console.log("[Startup] Loading crew...");
   try {
-    const { loadPlugins } = await import("./plugins/PluginLoader.js");
-    const pluginRegistry = await loadPlugins();
-    // Merge plugin tools into core tool map
-    const { mergePluginTools } = await import("./tools/index.js");
-    mergePluginTools();
-    // Mount plugin HTTP routes
-    for (const route of pluginRegistry.httpRoutes) {
+    const { loadCrew } = await import("./crew/PluginLoader.js");
+    const crewRegistry = await loadCrew();
+    // Crew tools stay in registry — accessed via useCrew(crewId, task)
+    // Mount crew HTTP routes
+    for (const route of crewRegistry.httpRoutes) {
       app[route.method.toLowerCase()](route.path, route.handler);
     }
-    console.log(`[Startup] Plugins: ${pluginRegistry.plugins.filter(p => p.status === "loaded").length} loaded`);
+    console.log(`[Startup] Crew: ${crewRegistry.crew.filter(p => p.status === "loaded").length} members loaded`);
   } catch (e) {
-    console.log(`[Startup] Plugin loading (non-fatal): ${e.message}`);
+    console.log(`[Startup] Crew loading (non-fatal): ${e.message}`);
   }
 
   // ── Phase 2: Connect MCP servers ──
@@ -1832,9 +2039,10 @@ process.on("SIGTERM", async () => {
   console.log("\n[Shutdown] SIGTERM received. Stopping...");
   scheduler.stop();
   heartbeat.stop();
+  goalPulse.stop();
   taskRunner.stop();
   supervisor.stop();
-  try { const { stopPlugins } = await import("./plugins/PluginLoader.js"); await stopPlugins(); } catch {}
+  try { const { stopCrew } = await import("./crew/PluginLoader.js"); await stopCrew(); } catch {}
   closeTunnel().then(() =>
     mcpManager.shutdown().then(() =>
       channelRegistry.stopAll().then(() => process.exit(0))
@@ -1846,6 +2054,7 @@ process.on("SIGINT", () => {
   console.log("\n[Shutdown] SIGINT received. Stopping...");
   scheduler.stop();
   heartbeat.stop();
+  goalPulse.stop();
   taskRunner.stop();
   supervisor.stop();
   mcpManager.shutdown().then(() =>

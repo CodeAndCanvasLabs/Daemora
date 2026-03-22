@@ -23,6 +23,7 @@ export function createTask({
   parentTaskId = null,      // ID of parent task (for hierarchy)
   agentId = null,           // which agent/sub-agent is executing
   agentCreated = false,     // whether the agent created this task vs system
+  extraDestinations = null, // additional channel destinations for watcher multi-delivery
 }) {
   return {
     id: uuidv4(),
@@ -41,6 +42,7 @@ export function createTask({
     parentTaskId,         // parent task ID (for hierarchy)
     agentId,              // executing agent/sub-agent ID
     agentCreated,         // true if created by agent via taskManager tool
+    extraDestinations,    // watcher multi-delivery: [{channel, channelMeta}]
     result: null,         // final response text
     error: null,          // error message if failed
     cost: {

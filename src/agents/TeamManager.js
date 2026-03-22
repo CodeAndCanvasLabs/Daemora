@@ -20,6 +20,7 @@ import TeamTaskList from "./TeamTaskList.js";
 import { spawnSubAgent } from "./SubAgentManager.js";
 import tenantContext from "../tenants/TenantContext.js";
 import eventBus from "../core/EventBus.js";
+import { buildContract } from "./ContractBuilder.js";
 
 const MAX_TEAMS = 5;
 const MAX_TEAMMATES = 10;
@@ -190,7 +191,13 @@ export function spawnTeammate(teamId, teammateId, { context } = {}) {
   console.log(`[Team:${team.name}] Spawning teammate "${teammateId}" (profile: ${teammate.profile || "default"})`);
 
   const prompt = _buildTeammatePrompt(team, teammate);
-  const parentContext = context ? `${prompt}\n\n## Additional Context\n${context}` : prompt;
+  const contract = buildContract({
+    task: teammate.instructions || "Complete team tasks.",
+    context: context || null,
+    constraints: "Follow team work loop. Claim before working. Complete every claimed task. Never mark done until actually done.",
+    outputFormat: "Brief summary in text. Verbose output saved to files.",
+  });
+  const parentContext = `${prompt}\n\n${contract}`;
 
   // Fire-and-forget — track completion via promise
   teammate.promise = spawnSubAgent(

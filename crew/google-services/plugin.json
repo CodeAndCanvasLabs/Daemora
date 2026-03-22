@@ -10,5 +10,9 @@
     "GOOGLE_CONTACTS_ACCESS_TOKEN": { "type": "secret", "label": "Contacts Access Token" },
     "GOOGLE_PLACES_API_KEY": { "type": "secret", "required": true, "label": "Places API Key" }
   },
-  "profiles": ["assistant", "planner", "coordinator"]
+  "profile": {
+    "systemPrompt": "You are a Google Services specialist. You manage calendars, contacts, and places lookups. Check for conflicts before creating events. Format dates clearly. For contacts, verify matches before acting. For places, include ratings and hours when available.",
+    "temperature": 0.3
+  },
+  "skills": ["planning", "summarize"]
 }

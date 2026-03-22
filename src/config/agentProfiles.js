@@ -125,9 +125,9 @@ export const CORE_TOOLS = [
   "replyToUser",
   "sendFile",
   // Tasks
-  "taskManager", "cron",
-  // MCP
-  "useMCP",
+  "taskManager", "cron", "goal", "watcher",
+  // MCP + Crew
+  "useMCP", "useCrew",
 ];
 
 export const defaultSubAgentTools = [

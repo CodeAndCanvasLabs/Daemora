@@ -8,6 +8,7 @@ import eventBus from "../core/EventBus.js";
 import { v4 as uuidv4 } from "uuid";
 import tenantContext from "../tenants/TenantContext.js";
 import { resolveSubAgentModel } from "../models/ModelRouter.js";
+import { buildContract } from "./ContractBuilder.js";
 import { createSession, getSession, setMessages } from "../services/sessions.js";
 import { compactForSession } from "../utils/msgText.js";
 import skillLoader from "../skills/SkillLoader.js";
@@ -80,6 +81,7 @@ eventBus.on("supervisor:kill", ({ taskId }) => {
  * @param {string[]} [options.extraTools]          Additional tools on top of profile or default
  * @param {string[]} [options.tools]               Explicit tool list (overrides profile)
  * @param {object}   [options.toolOverride]        Exact tool functions (specialist agents, bypasses all)
+ * @param {object}   [options.aiToolOverrides]     Pre-built AI SDK tools (e.g. from @ai-sdk/mcp) — merged into aiTools in AgentLoop
  * @param {object}   [options.systemPromptOverride] Replace system prompt entirely (specialist agents)
  * @param {number}   [options.maxCost]             Cost budget
  * @param {number}   [options.timeout]             Timeout in ms
@@ -99,6 +101,7 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     extraTools           = null,        // additional tools on top of profile or default
     tools: allowedTools  = null,        // explicit list - overrides profile
     toolOverride         = null,        // exact tool functions - specialist agents only (e.g. MCP)
+    aiToolOverrides      = null,        // pre-built AI SDK tools (e.g. from @ai-sdk/mcp)
     systemPromptOverride = null,        // replace system prompt - specialist agents only
     maxCost              = 0.10,
     timeout              = 1_800_000,
@@ -267,21 +270,16 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     console.log(`[SubAgent:${agentId}] Skill injection failed (non-blocking): ${e.message}`);
   }
 
-  // ── Build initial messages (include history + parent context + skills) ──
+  // ── Build initial messages (include history + structured contract) ──
   const initialMessages = [...historyMessages];
 
-  const contextParts = [];
-  if (parentContext) contextParts.push(`[Context from parent agent]:\n${parentContext}`);
-  if (skillContext) contextParts.push(`[Matched Skills — follow these instructions precisely]:\n${skillContext}`);
+  const contract = buildContract({
+    task: taskDescription,
+    context: parentContext || null,
+    skills: skillContext || null,
+  });
 
-  if (contextParts.length > 0) {
-    initialMessages.push({
-      role: "user",
-      content: `${contextParts.join("\n\n")}\n\n[Your task]:\n${taskDescription}`,
-    });
-  } else {
-    initialMessages.push({ role: "user", content: taskDescription });
-  }
+  initialMessages.push({ role: "user", content: contract });
 
   // ── Run with timeout and abort signal ─────────────────────────────────────
   const startedAt = activeSubAgents.get(agentId).startedAt;
@@ -298,6 +296,7 @@ export async function spawnSubAgent(taskDescription, options = {}) {
           profileDef: options._profileDef || null,
         }),
         tools:        agentTools,
+        aiToolOverrides,                         // pre-built AI SDK tools (e.g. @ai-sdk/mcp)
         modelId:      resolvedModel,
         taskId,
         approvalMode,

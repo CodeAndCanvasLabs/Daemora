@@ -272,6 +272,18 @@ function _runMigrations(db) {
     console.log("[Database] Migration: added tenant_channels.meta");
   }
 
+  // Watchers: add destinations column (JSON array of {channel, channelMeta})
+  const _watcherCols = () => db.prepare("PRAGMA table_info(watchers)").all().map(r => r.name);
+  if (!_watcherCols().includes("destinations")) {
+    db.exec("ALTER TABLE watchers ADD COLUMN destinations TEXT");
+    console.log("[Database] Migration: added watchers.destinations");
+  }
+
+  if (!_watcherCols().includes("context")) {
+    db.exec("ALTER TABLE watchers ADD COLUMN context TEXT");
+    console.log("[Database] Migration: added watchers.context");
+  }
+
   // Cron: add delivery_targets + delivery_preset_id columns
   const _cronCols = () => db.prepare("PRAGMA table_info(cron_jobs)").all().map(r => r.name);
   if (!_cronCols().includes("delivery_targets")) {
@@ -292,6 +304,67 @@ function _runMigrations(db) {
       targets TEXT NOT NULL DEFAULT '[]',
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+
+  // Goals table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS goals (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT,
+      title TEXT NOT NULL,
+      description TEXT,
+      strategy TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      priority INTEGER DEFAULT 5,
+      check_cron TEXT DEFAULT '0 */4 * * *',
+      check_tz TEXT,
+      last_check_at TEXT,
+      last_result TEXT,
+      next_check_at TEXT,
+      consecutive_failures INTEGER DEFAULT 0,
+      max_failures INTEGER DEFAULT 3,
+      delivery TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_goals_tenant ON goals(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_goals_status ON goals(status, next_check_at);
+  `);
+
+  // Watchers table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS watchers (
+      id TEXT PRIMARY KEY,
+      tenant_id TEXT,
+      name TEXT NOT NULL,
+      description TEXT,
+      trigger_type TEXT NOT NULL DEFAULT 'webhook',
+      pattern TEXT,
+      action TEXT NOT NULL,
+      channel TEXT,
+      channel_meta TEXT,
+      enabled INTEGER DEFAULT 1,
+      last_triggered_at TEXT,
+      trigger_count INTEGER DEFAULT 0,
+      cooldown_seconds INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_watchers_tenant ON watchers(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_watchers_enabled ON watchers(enabled);
+  `);
+
+  // Channel routing cache — stores channelMeta for watcher/cron delivery
+  // Works without tenants (global setup) and with tenants
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS channel_routing (
+      channel TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      meta TEXT NOT NULL,
+      tenant_id TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (channel, user_id)
     );
   `);
 

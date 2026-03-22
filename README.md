@@ -17,7 +17,7 @@
 
 Deploy once on your machine. Connect your channels. Your team messages the bot — it writes code, does research, sends emails, runs cron jobs, and reports back. Each user gets isolated memory, encrypted keys, and cost caps. You own everything.
 
-57 built-in tools. 20 channels. 16 security layers. 7 AI providers. Multi-agent teams. Production-grade scheduling. Plugin system. MCP integration. All self-hosted — nothing leaves your infrastructure except the tokens you send to model APIs.
+59 built-in tools. 20 channels. 16 security layers. 7 AI providers. Multi-agent teams. Production-grade scheduling. Crew system with self-improving learning. MCP integration. All self-hosted — nothing leaves your infrastructure except the tokens you send to model APIs.
 
 ---
 
@@ -27,8 +27,13 @@ Deploy once on your machine. Connect your channels. Your team messages the bot �
 |---|---|
 | **Code** | Write, edit, run, test, and debug code across multiple files. Takes screenshots of UIs to verify output. Fixes failing tests. Ships working software. |
 | **Research** | Search the web, read pages, analyse images, cross-reference sources, write reports. Spawns parallel sub-agents for speed. |
-| **Automation** | Production-grade cron scheduling (one-shot, interval, cron expressions) with overlap prevention, retry with backoff, channel delivery, failure alerts, and run history. Runs while you sleep. |
+| **Goals** | Set persistent goals — the agent works toward them autonomously on schedule. No prompting needed. Runs 24/7 with isolated sessions, auto-pauses on repeated failures. |
+| **Watchers** | Named event triggers — "when GitHub issue opens, triage and notify Telegram." Webhook-driven with pattern matching, cooldown, and per-tenant scoping. |
+| **Scheduler** | Production-grade scheduling (one-shot, interval, cron expressions) with overlap prevention, retry with backoff, channel delivery, failure alerts, Morning Pulse daily briefing, and run history. |
+| **Fleet Command** | One admin command → every tenant's agent executes simultaneously. Each uses their own context, memory, tools. Each reports back individually. |
 | **Communicate** | Send emails, Telegram messages, Slack posts, Discord messages — autonomously. Screenshots, files, and media sent directly back to you via `replyWithFile`. |
+| **Crew** | Self-contained specialist sub-agents — database queries, smart home control, SSH, notifications, calendars. Build your own crew member in 3 files. Community crew marketplace coming soon. |
+| **Self-Improving** | After complex tasks, a background agent reviews the conversation and auto-creates reusable skills + saves user preferences. The more you use it, the better it gets. |
 | **Tools** | Connect to any MCP server — create Notion pages, open GitHub issues, update Linear tasks, manage Shopify products, query databases. |
 | **Voice & Meetings** | Join any meeting (Google Meet, Zoom, Teams) via phone dial-in. OpenAI Realtime STT + ElevenLabs/OpenAI TTS. Voice cloning. Outbound voice calls. Auto-transcription + meeting summaries. |
 | **Multi-Agent** | Spawn parallel sub-agents (researcher + coder + writer working simultaneously). Create agent teams with shared task lists, dependencies, and inter-agent messaging. |
@@ -258,6 +263,53 @@ daemora mcp remove github     # Remove permanently
 
 ---
 
+## Crew System
+
+Crew members are self-contained specialist sub-agents. Each has its own tools, profile, skills, and persistent session. The main agent delegates via `useCrew(crewId, task)`.
+
+### Built-in Crew Members
+
+| Crew Member | Tools | Description |
+|---|---|---|
+| **google-services** | calendar, contacts, googlePlaces | Google Calendar, Contacts, Places |
+| **database-connector** | database | PostgreSQL, MySQL, SQLite queries |
+| **smart-home** | philipsHue, sonos | Philips Hue lights, Sonos speakers |
+| **ssh-remote** | sshTool | SSH exec, SCP file transfer |
+| **notifications** | notification | Desktop, ntfy, Pushover push notifications |
+| **imessage** | iMessageTool | Send/read iMessages (macOS) |
+| **system-monitor** | systemInfo | CPU, memory, disk, processes, network |
+
+### Install from npm
+
+```bash
+daemora crew install daemora-crew-weather
+daemora crew list
+daemora crew remove weather
+```
+
+### Build Your Own
+
+See [`crew/README.md`](crew/README.md) for the full guide. Three files:
+
+```
+crew/my-crew/
+├── plugin.json       # manifest (id, name, description, profile, skills)
+├── index.js          # register tools via api.registerTool()
+└── tools/
+    └── myTool.js     # tool implementation
+```
+
+### CLI
+
+```bash
+daemora crew list         # Show all crew members + status
+daemora crew install <pkg> # Install from npm
+daemora crew remove <id>   # Remove a crew member
+daemora crew reload        # Hot-reload all crew members
+```
+
+---
+
 ## Built-in Tools
 
 57 tools the agent uses autonomously:
@@ -273,15 +325,12 @@ daemora mcp remove github     # Remove permanently
 | **Documents** | createDocument (Markdown, PDF, DOCX), readPDF |
 | **Memory** | readMemory, writeMemory, searchMemory, pruneMemory, readDailyLog, writeDailyLog, listMemoryCategories |
 | **Agents** | spawnAgent, parallelAgents, delegateToAgent, manageAgents, teamTask |
-| **MCP** | useMCP, manageMCP |
-| **Scheduling** | cron (add, list, run, update, delete), broadcast |
+| **MCP + Crew** | useMCP, manageMCP, useCrew |
+| **Scheduling** | cron, goal, watcher, broadcast (Fleet Command) |
 | **Tracking** | projectTracker, taskManager |
-| **Dev Tools** | gitTool (status, diff, commit, branch, log, stash), sshTool, database |
+| **Dev Tools** | gitTool (status, diff, commit, branch, log, stash) |
 | **Media** | generateImage (DALL-E / Stable Diffusion) |
-| **System** | clipboard, notification, calendar, contacts |
-| **IoT** | philipsHue, sonos |
-| **Apple** | iMessageTool (macOS only) |
-| **Location** | googlePlaces |
+| **System** | clipboard |
 | **Admin** | reload (config, models, vault, caches) |
 
 ---
@@ -435,7 +484,7 @@ daemora doctor
 | 7 | **Comprehensive secret redaction** | ALL env secrets tracked (not just 3). Pattern + blind redaction. Live refresh on vault unlock. |
 | 8 | **Log sanitisation** | Tool params and output redacted before `console.log` — secrets never written to logs |
 | 9 | **Network egress guard** | Outbound HTTP requests and emails scanned for secret values — blocks exfiltration attempts |
-| 10 | **Plugin tenant isolation** | Plugins can only access current request's tenant keys — cross-tenant access blocked and logged |
+| 10 | **Crew tenant isolation** | Crew members can only access current request's tenant keys — cross-tenant access blocked and logged |
 | 11 | **A2A security** | Agent-to-agent protocol: bearer token, agent allowlist, rate limiting |
 | 12 | **Supervisor agent** | Detects runaway loops, cost overruns, `rm -rf`, `curl | bash` patterns |
 | 13 | **Input sanitisation** | User messages wrapped in `<untrusted-input>` tags; prompt injection patterns flagged |

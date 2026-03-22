@@ -10,6 +10,7 @@ import { resolveDefaultModel } from "../models/ModelRouter.js";
 import tenantManager from "../tenants/TenantManager.js";
 import tenantContext from "../tenants/TenantContext.js";
 import inputSanitizer from "../safety/InputSanitizer.js";
+import channelRegistry from "../channels/index.js";
 import eventBus from "./EventBus.js";
 import { msgText, compactForSession } from "../utils/msgText.js";
 import { generateEmbedding, cosineSim } from "../utils/Embeddings.js";
@@ -105,6 +106,23 @@ async function _autoCapture(task, result, resolvedConfig) {
     console.log(`[TaskRunner] Auto-captured task summary to daily log`);
   } catch {
     // Silent — auto-capture is best-effort
+  }
+}
+
+/**
+ * Post-task learning — trajectory extraction + background review.
+ *
+ * TrajectoryExtractor: structured learning extraction (our innovation)
+ * BackgroundReviewer: agent-in-the-loop review for memory + skills (Hermes pattern)
+ *
+ * All non-blocking, fire-and-forget. Never crashes the main pipeline.
+ */
+async function _postTaskLearning(task, result, apiKeys) {
+  try {
+    const { maybeRunReview } = await import("../learning/BackgroundReviewer.js");
+    await maybeRunReview(task, result, { apiKeys });
+  } catch {
+    // Silent — learning is best-effort
   }
 }
 
@@ -238,7 +256,7 @@ class TaskRunner {
             tenant = existingGlobal;
           } else {
             tenant = tenantManager.getOrCreate(task.channel, userId);
-            tenantManager.markAsGlobal(tenant.id);
+            if (tenant) tenantManager.markAsGlobal(tenant.id);
           }
         } else {
           tenant = tenantManager.getOrCreate(task.channel, userId);
@@ -249,9 +267,11 @@ class TaskRunner {
     // ── Auto-link channel identity + routing metadata ───────────────────────
     // On every channel message (global or per-tenant), store the sender's
     // routing metadata (chatId, channelId, phone, sender, etc.) in tenant_channels.
-    // This enables cross-channel sends (e.g. "send to telegram" from discord).
+    // This enables cross-channel sends and watcher delivery.
     // Works for all channel types — Telegram, Discord, Slack, WhatsApp, LINE, etc.
-    if (tenant && task.channel && task.channelMeta) {
+    // For global (no-tenant) setup: stores with tenant_id = "__global__"
+    if (task.channel && task.channelMeta) {
+      const linkTenantId = tenant?.id || "__global__";
       const cm = task.channelMeta;
       const senderId = cm.chatId || cm.userId || cm.phone || cm.sender || cm.chatGuid || cm.senderPubkey;
       if (senderId) {
@@ -262,7 +282,19 @@ class TaskRunner {
                            "userName", "guildId", "threadTs", "replyToken"]) {
           if (cm[key] !== undefined) routingMeta[key] = cm[key];
         }
-        try { tenantManager.linkChannel(tenant.id, task.channel, senderId, routingMeta); } catch {}
+        try {
+          if (tenant) {
+            tenantManager.linkChannel(tenant.id, task.channel, senderId, routingMeta);
+          }
+          // Always cache routing meta for watcher delivery (works without tenants)
+          const { run: dbRun } = await import("../storage/Database.js");
+          const metaJson = JSON.stringify(routingMeta);
+          dbRun(
+            `INSERT OR REPLACE INTO channel_routing (channel, user_id, meta, updated_at)
+             VALUES ($ch, $uid, $meta, datetime('now'))`,
+            { $ch: task.channel, $uid: senderId, $meta: metaJson }
+          );
+        } catch {}
       }
     }
 
@@ -375,6 +407,7 @@ class TaskRunner {
         // Persist the user message immediately before the loop starts
         appendMessage(session.sessionId, "user", task.input);
 
+
         // Run agent loop with resolved model, cost limits, and per-tenant API keys.
         // steerQueue lets follow-up messages from the same user be injected live
         // between tool calls instead of spawning a competing agent loop.
@@ -423,14 +456,42 @@ class TaskRunner {
           task.directReplySent = true;
         }
 
+        // Forward result to extra destinations (watcher multi-delivery)
+        if (task.extraDestinations?.length > 0 && result.text) {
+          for (const dest of task.extraDestinations) {
+            try {
+              const channel = channelRegistry.get(dest.channel);
+              if (channel?.running) {
+                await channel.sendReply(dest.channelMeta, result.text);
+              }
+            } catch {}
+          }
+        }
+
+        // HEARTBEAT_OK suppression (OpenClaw pattern):
+        // If heartbeat task responds with HEARTBEAT_OK at start/end, strip it.
+        // If remaining content is ≤ 300 chars, suppress delivery (nothing worth sending).
+        let finalText = result.text || "";
+        if (task.type === "heartbeat" && finalText) {
+          const stripped = finalText.replace(/^\s*HEARTBEAT_OK\s*/i, "").replace(/\s*HEARTBEAT_OK\s*$/i, "").trim();
+          if (stripped.length <= 300) {
+            task.directReplySent = true; // suppress channel delivery
+            console.log(`[TaskRunner] Heartbeat OK — suppressed delivery`);
+          }
+          finalText = stripped || finalText;
+        }
+
         // Complete the task
-        taskQueue.complete(task.id, result.text);
+        taskQueue.complete(task.id, finalText);
         const costStr = estimatedCost ? ` cost: $${estimatedCost.toFixed(4)}` : "";
         const tenantStr = tenant ? ` tenant: ${tenant.id}` : "";
         console.log(`[TaskRunner] Task ${task.id} completed (${costStr}${tenantStr})`);
 
         // Auto-capture to daily log (non-blocking, fire-and-forget)
         _autoCapture(task, result, resolvedConfig).catch(() => {});
+
+        // Post-task learning (non-blocking, fire-and-forget)
+        _postTaskLearning(task, result, apiKeys).catch(() => {});
       });
     } catch (error) {
       console.error(`[TaskRunner] Task ${task.id} failed:`, error.message);

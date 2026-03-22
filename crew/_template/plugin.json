@@ -1,0 +1,15 @@
+{
+  "id": "my-crew-name",
+  "name": "My Crew Member",
+  "version": "1.0.0",
+  "description": "One sentence — what this crew member does. The main agent reads this to decide when to delegate.",
+  "template": true,
+  "config": {
+    "MY_API_KEY": { "type": "secret", "required": false, "label": "API Key (if needed)" }
+  },
+  "profile": {
+    "systemPrompt": "You are a specialist in [DOMAIN]. You [DO WHAT]. [HOW YOU BEHAVE]. [WHAT TO AVOID].",
+    "temperature": 0.3
+  },
+  "skills": []
+}

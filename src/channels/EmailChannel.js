@@ -168,7 +168,7 @@ export class EmailChannel extends BaseChannel {
       const task = taskQueue.enqueue({
         input: taskInput,
         channel: "email",
-        channelMeta: { senderEmail, subject },
+        channelMeta: { senderEmail, subject, userName: senderEmail, channel: "email" },
         sessionId: this.getSessionId(senderEmail),
       });
 

@@ -12,7 +12,9 @@ import { Costs } from "./pages/Costs";
 import { Tenants } from "./pages/Tenants";
 import { Settings } from "./pages/Settings";
 import { Cron } from "./pages/Cron";
-import { Plugins } from "./pages/Plugins";
+import { Goals } from "./pages/Goals";
+import { Watchers } from "./pages/Watchers";
+import { Crew } from "./pages/Crew";
 
 export const router = createBrowserRouter([
   {
@@ -31,10 +33,12 @@ export const router = createBrowserRouter([
       { path: "mcp", Component: MCP },
       { path: "skills", Component: Skills },
       { path: "cron", Component: Cron },
+      { path: "goals", Component: Goals },
+      { path: "watchers", Component: Watchers },
       { path: "security", Component: Security },
       { path: "costs", Component: Costs },
       { path: "tenants", Component: Tenants },
-      { path: "plugins", Component: Plugins },
+      { path: "crew", Component: Crew },
       { path: "settings", Component: Settings },
     ],
   },

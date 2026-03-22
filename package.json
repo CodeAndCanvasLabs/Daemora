@@ -1,6 +1,6 @@
 {
   "name": "daemora",
-  "version": "2026.1.0-beta.17",
+  "version": "2026.1.0-beta.18",
   "description": "A powerful open-source AI agent that runs on your machine. Connects to any AI model, any MCP server, any channel. Fully autonomous - plans, codes, tests, browses, emails, and manages your tools without asking permission.",
   "main": "src/index.js",
   "bin": {
@@ -67,6 +67,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.50",
     "@ai-sdk/google": "^3.0.34",
+    "@ai-sdk/mcp": "^1.0.30",
     "@ai-sdk/openai": "^3.0.37",
     "@clack/prompts": "^1.0.1",
     "@huggingface/transformers": "^3.8.1",

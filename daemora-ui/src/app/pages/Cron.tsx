@@ -415,8 +415,8 @@ export function Cron() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">Cron</h2>
-          <p className="text-gray-400 text-sm tracking-widest">SCHEDULED TASKS & RUN HISTORY</p>
+          <h2 className="text-3xl font-bold text-white mb-2 uppercase tracking-tighter">Scheduler</h2>
+          <p className="text-gray-400 text-sm tracking-widest">SCHEDULED JOBS & RUN HISTORY</p>
         </div>
         <div className="flex items-center gap-3">
           <Button onClick={fetchJobs} variant="ghost" size="sm" className="text-gray-400 hover:text-[#00d9ff] font-mono text-[10px] uppercase">
@@ -432,7 +432,7 @@ export function Cron() {
             </DialogTrigger>
             <DialogContent className="bg-slate-950 border-slate-800 text-white max-w-3xl">
               <DialogHeader>
-                <DialogTitle className="uppercase tracking-widest text-sm border-b border-slate-800 pb-4">Create Cron Job</DialogTitle>
+                <DialogTitle className="uppercase tracking-widest text-sm border-b border-slate-800 pb-4">Create Scheduled Job</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-4 max-h-[70vh] overflow-y-auto">
                 <div className="space-y-1">

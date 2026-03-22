@@ -130,7 +130,7 @@ function _resolveMeta(channelType, tenantId, userId, fallback) {
 }
 
 export const broadcastDescription =
-  "broadcast(preset, text?, filePath?, channels?) — Send text or file to delivery preset targets. " +
+  "broadcast(preset, text?, filePath?, channels?) — Fleet Command: send text or file to all targets in a delivery preset. " +
   "preset: preset name (required unless channels specified). " +
-  "channels: optional comma-separated filter (e.g. 'telegram,discord'). " +
-  "If no preset, channels sends to global channel instances.";
+  "channels: optional comma-separated filter. " +
+  "Admin-only.";

@@ -389,6 +389,13 @@ const toolSchemas = {
     }),
     description: "Delegate task to MCP specialist agent",
   },
+  useCrew: {
+    schema: z.object({
+      crewId: str("Crew member ID (e.g. 'google-services', 'database-connector', 'smart-home')"),
+      taskDescription: str("Complete task description — the crew member has no other context"),
+    }),
+    description: "Delegate task to a specialist crew member",
+  },
 
   // ── Automation ───────────────────────────────────────────────────────────
   cron: {
@@ -416,6 +423,38 @@ const toolSchemas = {
       }).optional().describe("Cross-channel delivery override. Auto-set to calling channel if omitted"),
     }),
     description: "Schedule and manage cron jobs. Delivery auto-routes to calling channel. Admin can use deliveryPreset to deliver to named tenant groups. Schedule types: cronExpression (recurring), every (interval), at (one-shot timestamp).",
+  },
+
+  // ── Goals ────────────────────────────────────────────────────────────
+  goal: {
+    schema: z.object({
+      action: str("create | list | update | delete | pause | resume | check | complete"),
+      title: optStr("Goal title"),
+      description: optStr("Goal description"),
+      strategy: optStr("Strategy for achieving the goal"),
+      id: optStr("Goal ID (for update/delete/pause/resume/check/complete)"),
+      checkCron: optStr("Check schedule cron expression (default: every 4 hours)"),
+      checkTz: optStr("Timezone (IANA, e.g. America/New_York)"),
+      priority: optNum("Priority 1-10 (10 = highest)"),
+      maxFailures: optNum("Auto-pause after N consecutive failures (default: 3)"),
+    }),
+    description: "Manage persistent goals. Agent works toward them autonomously on schedule.",
+  },
+
+  // ── Watchers ─────────────────────────────────────────────────────────
+  watcher: {
+    schema: z.object({
+      action: str("add | list | update | delete | enable | disable"),
+      name: optStr("Watcher name"),
+      taskAction: optStr("Task input to execute when triggered"),
+      id: optStr("Watcher ID (for update/delete/enable/disable)"),
+      triggerType: optStr("Trigger type: webhook | event"),
+      pattern: optStr("JSON pattern to match incoming events"),
+      channel: optStr("Delivery channel for results"),
+      cooldownSeconds: optNum("Min seconds between triggers (default: 0)"),
+      description: optStr("Watcher description"),
+    }),
+    description: "Manage named watchers — event-driven triggers that execute tasks when webhooks fire.",
   },
 
   // ── System Reload ──────────────────────────────────────────────────────

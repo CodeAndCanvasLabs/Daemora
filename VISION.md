@@ -11,8 +11,9 @@ We built Daemora because no one else solved the full problem:
 - n8n/Zapier — great at automation, can't reason or adapt
 - AutoGPT/CrewAI — great demos, not production-ready
 - OpenClaw — great personal assistant, can't serve a team
+- Hermes Agent — learns from experience, but single-user only
 
-Daemora is the AI that actually does things. For your whole team. On your own hardware.
+Daemora is the AI that actually does things. For your whole team. On your own hardware. And it gets smarter every time it works.
 
 ## What We Believe
 
@@ -22,30 +23,42 @@ Daemora is the AI that actually does things. For your whole team. On your own ha
 
 **Agents should be autonomous, not assistive.** Daemora doesn't wait for you to hit enter. Give it a cron job at midnight, a team of sub-agents working in parallel, a multi-step research task — it executes while you're not looking. No babysitting.
 
+**Agents should learn from experience.** After complex tasks, Daemora automatically reviews what happened, saves user preferences, and creates reusable skills. The more you use it, the better it gets — without being told to learn.
+
 **Security is not optional.** 16 layers. Encrypted vault. Subprocess isolation. Egress monitoring. Secret redaction. Audit trails. Tenant isolation. If you're running an AI agent that can execute shell commands and send emails, you better have real security — not a checkbox.
 
-**Tools should be first-class.** 57 built-in tools. Browser automation. MCP integration. Plugin system. The agent doesn't just think — it acts. It reads files, writes code, sends emails, generates images, searches the web, manages git repos, schedules tasks, and coordinates with other agents.
+**Tools should be first-class.** 59 built-in tools. Browser automation. MCP integration with proper Zod schemas via @ai-sdk/mcp. Crew system with self-contained specialist sub-agents. The agent doesn't just think — it acts.
 
 ## Where We're Going
 
-**Phase: Foundation** (current)
-- Core agent loop with multi-provider support (7 providers, 59+ models)
-- Multi-tenant platform with full isolation
+**Phase: Foundation** (done)
+- Core agent loop with Vercel AI SDK native tool calling (7 providers, 59+ models)
+- Multi-tenant platform with full AsyncLocalStorage isolation
 - 20 communication channels
-- Production-grade scheduling with delivery
+- Production-grade scheduler with delivery, retry, overlap prevention, Morning Pulse
+- Persistent Goals — autonomous objective execution 24/7 with auto-pause on failures
+- Watchers — event-driven webhook triggers with pattern matching, multi-destination delivery, 8 pre-built templates, project context injection
+- Fleet Command — admin broadcast to all tenants simultaneously
+- Structured agent contracts (ContractBuilder) for sub-agents and teams
 - 16-layer security architecture
-- Plugin system with bundled plugins
-- Agent teams with shared tasks and messaging
+- Agent teams with shared tasks, dependencies, and inter-agent messaging
 - A2A protocol for inter-agent communication
-- Web dashboard for admin management
+- Web dashboard (Goals, Watchers, Scheduler, Tenants, Crew, Security, Costs, Settings)
+
+**Phase: Intelligence** (current)
+- Crew system — self-contained specialist sub-agents with own tools, profiles, skills, persistent sessions
+- Self-improving agent — background review after complex tasks, auto-creates skills and learns user preferences
+- MCP integration via @ai-sdk/mcp — proper Zod schemas, native AI SDK tool calling
+- Proactive Heartbeat — system health checks (overdue goals, broken cron, silent watchers, failed tasks), HEARTBEAT_OK suppression, timezone-aware active hours
+- Watcher templates — 8 pre-built setups (GitHub, Stripe, Uptime, Deploy, Form) with context injection
 
 **Phase: Expansion**
-- Mobile app — direct WebSocket connection, QR pairing, push notifications
-- Desktop app — macOS, Windows, Linux
-- Streaming responses — real-time output as the agent works
-- Plugin marketplace — community-built tools and integrations
-- Voice-first interface — wake word, continuous conversation
-- Advanced observability — metrics, tracing, performance dashboards
+- War Room — live agent tree visualization (active sub-agents, tasks, sessions)
+- Smart model routing — per-turn cheap/strong auto-detection, per-profile model assignment
+- Shadow Mode — agent reasons but doesn't execute, daily "what I would have done" report
+- Audit report PDF export — compliance-ready action trail with date filtering
+- Brain export/import — shareable agent configs (memory + goals + watchers + cron + skills)
+- Crew marketplace — community-built specialist agents with security scanning
 
 **Phase: Platform**
 - Self-service tenant onboarding — users sign up, get their own isolated workspace

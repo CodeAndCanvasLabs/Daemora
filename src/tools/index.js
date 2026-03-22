@@ -41,12 +41,14 @@ import { generateImage } from "./generateImage.js";
 import { readPDF } from "./readPDF.js";
 import { gitTool } from "./gitTool.js";
 import { clipboard } from "./clipboard.js";
-// Moved to bundled plugins: calendar, contacts, googlePlaces, philipsHue, sonos,
-// notification, iMessageTool, sshTool, database
-// They register via plugins/ on startup — no longer hardcoded here.
+// Crew tools NOT imported here — crew members are self-contained sub-agents.
+// Main agent delegates via useCrew(crewId, task).
+import { useCrew } from "./useCrew.js";
 import { reload } from "./reloadTool.js";
 import { discoverProfiles } from "./discoverProfiles.js";
 import { broadcast } from "./broadcast.js";
+import { goal } from "./goalTool.js";
+import { watcher } from "./watcherTool.js";
 
 // ─── Agent wrappers (params object → SubAgentManager) ────────────────────────
 
@@ -93,7 +95,7 @@ export const toolFunctions = {
   projectTracker, taskManager,
   cron,
   imageAnalysis, screenCapture,
-  manageMCP, useMCP,
+  manageMCP, useMCP, useCrew,
   makeVoiceCall,
   teamTask,
   meetingAction,
@@ -101,28 +103,10 @@ export const toolFunctions = {
   gitTool, clipboard,
   discoverProfiles,
   broadcast,
+  goal,
+  watcher,
   reload,
 };
 
-/**
- * Merge plugin-registered tools into the core tool map.
- * Called after plugins load in startup sequence.
- */
-export async function mergePluginTools() {
-  try {
-    const { getPluginTools } = await import("../plugins/PluginRegistry.js");
-    const { registerPluginSchema } = await import("./schemas.js");
-    const pluginTools = getPluginTools();
-    for (const { name, fn, schema, description } of pluginTools) {
-      if (toolFunctions[name]) {
-        console.log(`[Tools] Plugin tool "${name}" skipped — name conflicts with built-in`);
-        continue;
-      }
-      toolFunctions[name] = fn;
-      registerPluginSchema(name, schema, description);
-    }
-    if (pluginTools.length > 0) {
-      console.log(`[Tools] Merged ${pluginTools.length} plugin tool(s) + schemas`);
-    }
-  } catch {}
-}
+// mergePluginTools() removed — crew members are self-contained sub-agents.
+// Crew tools stay in PluginRegistry, accessed via CrewAgentRunner.

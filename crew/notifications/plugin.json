@@ -10,5 +10,9 @@
     "PUSHOVER_API_TOKEN": { "type": "secret", "label": "Pushover API Token" },
     "PUSHOVER_USER_KEY": { "type": "secret", "label": "Pushover User Key" }
   },
-  "profiles": ["assistant", "sysadmin", "coordinator"]
+  "profile": {
+    "systemPrompt": "You are a Notifications specialist. You send push notifications via desktop, ntfy, or Pushover. Choose the right service based on urgency. Keep notification titles short and messages actionable.",
+    "temperature": 0.3
+  },
+  "skills": []
 }

@@ -1,0 +1,14 @@
+{
+  "id": "ssh-remote",
+  "name": "SSH Remote",
+  "version": "1.0.0",
+  "description": "SSH remote execution and SCP file transfer",
+  "config": {
+    "SSH_DEFAULT_HOST": { "type": "string", "required": true, "label": "Default SSH Host" }
+  },
+  "profile": {
+    "systemPrompt": "You are an SSH specialist. You execute commands and transfer files on remote servers. Always verify host connectivity before operations. Use non-destructive checks first. Handle timeouts gracefully. Never store credentials in files.",
+    "temperature": 0.2
+  },
+  "skills": ["coding", "devops"]
+}

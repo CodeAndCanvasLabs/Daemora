@@ -150,22 +150,22 @@ CompactionError     — context window management failures
 
 ---
 
-## 7. PLUGIN/EXTENSION SYSTEM — MINIMAL
+## 7. CREW/EXTENSION SYSTEM — MINIMAL
 
 ### Current State (Daemora)
 - HookRunner: 5 events, shell/JS hooks from JSON config (`src/hooks/HookRunner.js`)
 - SkillLoader: Static .md files with embedding match (`src/skills/SkillLoader.js`)
-- No plugin manifest, no versioning, no marketplace
+- No crew manifest, no versioning, no marketplace
 - No hot-reload of hooks
 - No error isolation — hook crash kills the task
 
 ### OpenClaw's Approach
-- Full plugin system with loader/registry (`openclaw/src/plugins/loader.ts`, `openclaw/src/plugins/types.ts`)
-- Plugin manifest with lifecycle hooks (`openclaw/src/plugins/hooks.ts`)
+- Full crew system with loader/registry (`openclaw/src/plugins/loader.ts`, `openclaw/src/plugins/types.ts`)
+- Crew manifest with lifecycle hooks (`openclaw/src/plugins/hooks.ts`)
 - pnpm workspaces for extension packages
-- Plugin SDK exports for third-party development
+- Crew SDK exports for third-party development
 - Hot-reload support
-- Error isolation per plugin
+- Error isolation per crew member
 
 ---
 
@@ -282,5 +282,5 @@ CompactionError     — context window management failures
 
 ### P3 — Future (Ecosystem)
 11. **Optional deps** — Move channel SDKs to optional. File: `package.json`
-12. **Plugin system** — Manifest, loader, registry. New files: `src/plugins/`
+12. **Crew system** — Manifest, loader, registry. New files: `src/crew/`
 13. **Structured logging** — Replace console.log with pino. All files.
