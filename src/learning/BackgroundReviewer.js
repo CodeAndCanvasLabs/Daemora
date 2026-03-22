@@ -1,133 +1,94 @@
 /**
- * BackgroundReviewer — post-task background agent that reviews conversations
- * for memory/profile updates and skill creation opportunities.
+ * BackgroundReviewer — post-task background agent for memory + skill learning.
  *
- * Pattern: Hermes Agent's proven approach.
+ * Pattern: Hermes Agent (exact approach, proven at scale).
  *
  * Flow:
- * 1. Track tool iterations during task (via AgentLoop stepCount)
- * 2. After task completes + response delivered, spawn background sub-agent
- * 3. Sub-agent gets full conversation history + review prompt
- * 4. Sub-agent calls memory/writeFile tools to save learnings + skills
- * 5. Never blocks user response — fire-and-forget
+ * 1. AgentLoop tracks tool iterations per-task (not per-tenant)
+ * 2. After task completes, check thresholds on THAT task's metrics
+ * 3. If threshold met, spawn background sub-agent with full conversation messages
+ * 4. Review agent has full context — decides what to save
+ * 5. Saves to memory (user preferences) or skills (reusable procedures)
+ * 6. Never blocks user response
  *
- * Combined review handles:
- * - Memory updates (user preferences, corrections, patterns)
- * - Skill creation (non-trivial approaches worth reusing)
+ * Purpose: improve the MAIN agent's future behavior by:
+ * - Remembering user preferences, corrections, patterns
+ * - Creating/updating reusable skill documents
  *
- * Thresholds (matching Hermes):
- * - Memory review: every 10 user turns
- * - Skill review: every 10 tool iterations
- * - Combined: if both trigger, one review handles both
+ * Prompts copied from Hermes Agent (run_agent.py lines 1319-1352).
  */
 
 import { spawnSubAgent } from "../agents/SubAgentManager.js";
-import tenantContext from "../tenants/TenantContext.js";
 
 // ── Thresholds ──────────────────────────────────────────────────────────────
 
-const SKILL_NUDGE_INTERVAL = 10;    // Tool iterations before skill review
-const MEMORY_NUDGE_INTERVAL = 10;   // User turns before memory review
-const MAX_REVIEW_ITERATIONS = 8;    // Max tool calls for the review agent
+const SKILL_NUDGE_INTERVAL = 10;    // Tool calls in ONE task before skill review triggers
+const MIN_TOOL_CALLS_FOR_REVIEW = 3; // Minimum tool calls to even consider review
 
-// Per-tenant counters (reset after review fires)
-const _skillIterCounts = new Map();  // tenantKey → count
-const _memoryTurnCounts = new Map(); // tenantKey → count
-
-// ── Review Prompts (from Hermes, adapted) ───────────────────────────────────
-
-const SKILL_REVIEW_PROMPT =
-  `Review the conversation above and consider saving or updating a skill if appropriate.
-
-Focus on: was a non-trivial approach used to complete a task that required trial and error, or changing course due to experiential findings, or did the user expect a different method or outcome?
-
-If the approach is reusable, create a skill file:
-1. Read skills/skill-creator/SKILL.md for the format (use readFile)
-2. Write the new skill to skills/<skill-name>/SKILL.md (use writeFile)
-
-The skill must have YAML frontmatter (name, description, triggers) + step-by-step instructions.
-
-If a relevant skill already exists (check with glob("skills/*/SKILL.md")), update it instead.
-If nothing is worth saving, respond with "Nothing to save." and stop.`;
+// ── Review Prompts (from Hermes run_agent.py lines 1319-1352) ───────────────
 
 const MEMORY_REVIEW_PROMPT =
   `Review the conversation above and consider saving to memory if appropriate.
 
 Focus on:
-1. Has the user revealed things about themselves — persona, preferences, personal details worth remembering?
+1. Has the user revealed things about themselves — their persona, desires, preferences, or personal details worth remembering?
 2. Has the user expressed expectations about how you should behave, their work style, or ways they want you to operate?
-3. Has the user corrected you on something you should remember?
 
 If something stands out, save it using writeMemory with category "profile".
-If nothing is worth saving, respond with "Nothing to save." and stop.`;
+If nothing is worth saving, just say "Nothing to save." and stop.`;
+
+const SKILL_REVIEW_PROMPT =
+  `Review the conversation above and consider saving or updating a skill if appropriate.
+
+Focus on: was a non-trivial approach used to complete a task that required trial and error, or changing course due to experiential findings along the way, or did the user expect or desire a different method or outcome?
+
+If a relevant skill already exists, update it with what you learned. Otherwise, create a new skill if the approach is reusable.
+
+To create a skill:
+1. Read skills/skill-creator/SKILL.md for the exact format (use readFile)
+2. Write the new skill to skills/<skill-name>/SKILL.md (use writeFile)
+
+If nothing is worth saving, just say "Nothing to save." and stop.`;
 
 const COMBINED_REVIEW_PROMPT =
   `Review the conversation above and consider two things:
 
-**Memory**: Has the user revealed things about themselves — persona, preferences, personal details? Has the user expressed expectations about how you should behave, their work style, or corrections? If so, save using writeMemory with category "profile".
+**Memory**: Has the user revealed things about themselves — their persona, desires, preferences, or personal details? Has the user expressed expectations about how you should behave, their work style, or ways they want you to operate? If so, save using writeMemory with category "profile".
 
-**Skills**: Was a non-trivial approach used that required trial and error, or changing course? If the approach is reusable:
-1. Read skills/skill-creator/SKILL.md for the format
-2. Write the new skill to skills/<skill-name>/SKILL.md
-If a relevant skill already exists, update it instead.
+**Skills**: Was a non-trivial approach used to complete a task that required trial and error, or changing course due to experiential findings along the way, or did the user expect or desire a different method or outcome? If a relevant skill already exists, update it. Otherwise, create a new one if the approach is reusable.
+
+To create a skill: read skills/skill-creator/SKILL.md for the format, then write to skills/<skill-name>/SKILL.md.
 
 Only act if there's something genuinely worth saving.
-If nothing stands out, respond with "Nothing to save." and stop.`;
+If nothing stands out, just say "Nothing to save." and stop.`;
 
 // ── Public API ──────────────────────────────────────────────────────────────
 
 /**
- * Record a tool iteration for skill review tracking.
- * Called from AgentLoop after each tool call.
- *
- * @param {string|null} tenantId
- */
-export function recordToolIteration(tenantId) {
-  const key = tenantId || "__global__";
-  _skillIterCounts.set(key, (_skillIterCounts.get(key) || 0) + 1);
-}
-
-/**
- * Record a user turn for memory review tracking.
- * Called from TaskRunner when processing a user message.
- *
- * @param {string|null} tenantId
- */
-export function recordUserTurn(tenantId) {
-  const key = tenantId || "__global__";
-  _memoryTurnCounts.set(key, (_memoryTurnCounts.get(key) || 0) + 1);
-}
-
-/**
- * Run background review if thresholds met.
+ * Run background review if thresholds met for THIS task.
  * Called post-task from TaskRunner (fire-and-forget).
  *
- * @param {object} task - Completed task
+ * @param {object} task - Completed task { id, input, tenantId, type }
  * @param {object} result - Agent result { text, toolCalls, messages }
- * @param {object} apiKeys - Per-tenant API keys
+ * @param {object} options - { apiKeys, turnCount }
  */
-export async function maybeRunReview(task, result, apiKeys = {}) {
+export async function maybeRunReview(task, result, options = {}) {
   try {
-    // Skip sub-agent tasks, watcher/cron (they follow instructions, not novel)
+    // Skip non-user tasks (sub-agents, watchers, cron create their own context)
     if (task.type === "watcher" || task.type === "cron") return;
     if (!result.text) return;
 
-    const key = task.tenantId || "__global__";
+    const toolCallCount = (result.toolCalls || []).length;
 
-    // Check thresholds
-    const skillIters = _skillIterCounts.get(key) || 0;
-    const memoryTurns = _memoryTurnCounts.get(key) || 0;
+    // Minimum bar: at least 3 tool calls to bother reviewing
+    if (toolCallCount < MIN_TOOL_CALLS_FOR_REVIEW) return;
 
-    const shouldReviewSkills = skillIters >= SKILL_NUDGE_INTERVAL;
-    const shouldReviewMemory = memoryTurns >= MEMORY_NUDGE_INTERVAL;
+    // Decide what to review based on THIS task's metrics
+    const shouldReviewSkills = toolCallCount >= SKILL_NUDGE_INTERVAL;
+    // Memory review: always when we hit the minimum bar (agent decides what's worth saving)
+    const shouldReviewMemory = true;
 
-    if (!shouldReviewSkills && !shouldReviewMemory) return;
-
-    // Reset counters
-    if (shouldReviewSkills) _skillIterCounts.set(key, 0);
-    if (shouldReviewMemory) _memoryTurnCounts.set(key, 0);
-
-    // Pick prompt
+    // Pick the right prompt
     let reviewPrompt;
     if (shouldReviewSkills && shouldReviewMemory) {
       reviewPrompt = COMBINED_REVIEW_PROMPT;
@@ -137,31 +98,37 @@ export async function maybeRunReview(task, result, apiKeys = {}) {
       reviewPrompt = MEMORY_REVIEW_PROMPT;
     }
 
-    // Build conversation context for the review agent
-    const conversationContext = _buildConversationSummary(task, result);
+    // Build history messages from the completed conversation
+    // This is the KEY difference from our old approach — full messages, not a summary
+    const historyMessages = _buildHistoryMessages(result.messages);
+    if (historyMessages.length < 2) return; // Need at least user + assistant
 
-    console.log(`[BackgroundReviewer] Spawning review agent (skills: ${shouldReviewSkills}, memory: ${shouldReviewMemory}) for tenant ${key}`);
+    const reviewType = shouldReviewSkills ? "skills+memory" : "memory";
+    console.log(`[BackgroundReviewer] Spawning ${reviewType} review (${toolCallCount} tool calls in task ${task.id?.slice(0, 8)})`);
 
-    // Spawn background review agent — fire-and-forget
-    // Uses a minimal tool set: readFile, writeFile, glob, grep, memory tools
-    // No orchestration tools, no blast-radius tools
+    // Spawn background review agent with the FULL conversation
+    // Agent sees everything that happened, then decides what to save
     spawnSubAgent(reviewPrompt, {
-      parentContext: conversationContext,
+      historyMessages,
       tools: [
-        "readFile", "writeFile", "glob", "grep", "listDirectory",
+        "readFile", "writeFile", "editFile", "glob", "grep", "listDirectory",
         "readMemory", "writeMemory", "searchMemory",
       ],
       systemPromptOverride: {
         role: "system",
-        content: `You are a background review agent. You analyze completed conversations and save useful learnings — either as memory entries (user preferences, corrections) or as skill files (reusable procedures).
+        content: `You are a background review agent. Your job: analyze the completed conversation and save useful learnings.
+
+You have the full conversation history. Review it and:
+- Save user preferences/corrections to memory (writeMemory with category "profile")
+- Create reusable skills if the approach was non-trivial (read skills/skill-creator/SKILL.md for format, then writeFile)
 
 Rules:
-- Be selective. Only save genuinely useful insights.
-- For skills: follow the exact format in skills/skill-creator/SKILL.md.
-- For memory: use writeMemory with category "profile" for user preferences, "learning" for task insights.
+- Be selective. Only save genuinely useful, reusable insights.
+- For skills: only when the approach involved trial-and-error, non-obvious tool combinations, or recovery from errors.
+- For memory: only user preferences, corrections, or behavioral patterns — not task details.
 - If nothing is worth saving, say "Nothing to save." and stop immediately.
-- Never ask for clarification. Decide based on the conversation.
-- Maximum ${MAX_REVIEW_ITERATIONS} tool calls.`,
+- Never ask for clarification.
+- You have max 8 tool calls. Be efficient.`,
       },
       maxCost: 0.02,
       timeout: 120_000,
@@ -176,23 +143,41 @@ Rules:
 
 // ── Internal ────────────────────────────────────────────────────────────────
 
-function _buildConversationSummary(task, result) {
-  const toolCalls = result.toolCalls || [];
-  const toolNames = [...new Set(toolCalls.map(tc => tc.tool || tc.name).filter(Boolean))];
+/**
+ * Build clean history messages from the completed conversation.
+ * Strips tool-call/tool-result internals — review agent only needs
+ * the user messages and assistant text responses.
+ */
+function _buildHistoryMessages(messages) {
+  if (!messages || !Array.isArray(messages)) return [];
 
-  const toolSteps = toolCalls.slice(0, 20).map((tc, i) => {
-    const name = tc.tool || tc.name || "unknown";
-    const status = tc.status || "success";
-    const output = (tc.output_preview || "").slice(0, 150);
-    return `  ${i + 1}. ${name} [${status}]${output ? ` → ${output}` : ""}`;
-  }).join("\n");
+  const clean = [];
+  for (const msg of messages) {
+    if (!msg || !msg.role) continue;
 
-  return `CONVERSATION SUMMARY:
+    // Keep user messages (the requests)
+    if (msg.role === "user") {
+      const text = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+      if (!text) continue;
+      // Skip system injections
+      if (text.startsWith("[Supervisor instruction]:")) continue;
+      if (text.startsWith("[System:")) continue;
+      clean.push({ role: "user", content: text.slice(0, 2000) });
+    }
 
-User request: ${(task.input || "").slice(0, 500)}
+    // Keep assistant text responses (the actions/decisions)
+    if (msg.role === "assistant") {
+      const text = typeof msg.content === "string"
+        ? msg.content
+        : Array.isArray(msg.content)
+          ? msg.content.filter(p => p.type === "text").map(p => p.text).join("\n")
+          : "";
+      if (text) {
+        clean.push({ role: "assistant", content: text.slice(0, 2000) });
+      }
+    }
+  }
 
-Tools used (${toolCalls.length} calls, ${toolNames.length} unique): ${toolNames.join(", ")}
-${toolSteps ? `\nExecution:\n${toolSteps}` : ""}
-
-Agent response: ${(result.text || "").slice(0, 500)}`;
+  // Cap at 20 messages to keep review cost low
+  return clean.slice(-20);
 }

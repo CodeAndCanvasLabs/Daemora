@@ -128,9 +128,11 @@ async function _postTaskLearning(task, result, apiKeys) {
     ]);
 
     // Run both in parallel (independent, non-blocking)
+    // - extractLearnings: structured tips for system prompt injection
+    // - maybeRunReview: agent-in-the-loop review for memory + skills (Hermes pattern)
     await Promise.allSettled([
       extractLearnings(task, result, apiKeys),
-      maybeRunReview(task, result, apiKeys),
+      maybeRunReview(task, result, { apiKeys }),
     ]);
   } catch {
     // Silent — learning is best-effort
@@ -418,11 +420,6 @@ class TaskRunner {
         // Persist the user message immediately before the loop starts
         appendMessage(session.sessionId, "user", task.input);
 
-        // Track user turn for background memory review
-        try {
-          const { recordUserTurn } = await import("../learning/BackgroundReviewer.js");
-          recordUserTurn(task.tenantId || null);
-        } catch {}
 
         // Run agent loop with resolved model, cost limits, and per-tenant API keys.
         // steerQueue lets follow-up messages from the same user be injected live
