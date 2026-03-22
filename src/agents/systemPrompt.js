@@ -58,6 +58,7 @@ export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeM
         renderToolUsageRules(),
         renderSkills(taskInput),
         renderMemory(),
+        renderLearnings(taskInput),
         renderSemanticRecall(taskInput),
         renderDailyLog(),
       ]);
@@ -262,6 +263,16 @@ function renderMemory() {
     return `<!-- [${r.timestamp || r.created_at}]${catTag} ${r.content} -->`;
   }).join("\n");
   return `# Agent Memory\n\n${memory}`;
+}
+
+async function renderLearnings(taskInput) {
+  try {
+    const { getRelevantLearnings } = await import("../learning/TrajectoryExtractor.js");
+    const { tenantId } = _getContextMemoryPaths();
+    return await getRelevantLearnings(taskInput, tenantId, 5);
+  } catch {
+    return "";
+  }
 }
 
 function renderDailyLog() {

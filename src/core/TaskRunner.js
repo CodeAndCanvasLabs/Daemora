@@ -110,6 +110,33 @@ async function _autoCapture(task, result, resolvedConfig) {
 }
 
 /**
+ * Post-task learning — trajectory extraction + skill generation + user profiling.
+ * All non-blocking, fire-and-forget. Never crashes the main pipeline.
+ */
+async function _postTaskLearning(task, result, apiKeys) {
+  try {
+    const [
+      { extractLearnings },
+      { maybeGenerateSkill },
+      { maybeUpdateProfile },
+    ] = await Promise.all([
+      import("../learning/TrajectoryExtractor.js"),
+      import("../learning/SkillWriter.js"),
+      import("../learning/UserProfiler.js"),
+    ]);
+
+    // Run all three in parallel (independent, non-blocking)
+    await Promise.allSettled([
+      extractLearnings(task, result, apiKeys),
+      maybeGenerateSkill(task, result, apiKeys),
+      maybeUpdateProfile(task, result, apiKeys),
+    ]);
+  } catch {
+    // Silent — learning is best-effort
+  }
+}
+
+/**
  * Task runner - worker loop that picks tasks from the queue and executes them.
  *
  * Configurable concurrency (default: 2 parallel tasks).
@@ -458,6 +485,9 @@ class TaskRunner {
 
         // Auto-capture to daily log (non-blocking, fire-and-forget)
         _autoCapture(task, result, resolvedConfig).catch(() => {});
+
+        // Post-task learning (non-blocking, fire-and-forget)
+        _postTaskLearning(task, result, apiKeys).catch(() => {});
       });
     } catch (error) {
       console.error(`[TaskRunner] Task ${task.id} failed:`, error.message);
