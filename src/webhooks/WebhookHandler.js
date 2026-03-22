@@ -170,7 +170,8 @@ router.post("/watch/:name", async (req, res) => {
 
     // Enqueue one task per destination (each gets delivered independently)
     const taskIds = [];
-    const input = `[Watcher: ${watcher.name}] ${watcher.action}\n\nPayload:\n${JSON.stringify(req.body, null, 2)}`;
+    const contextBlock = watcher.context ? `\n\nContext:\n${watcher.context}` : "";
+    const input = `[Watcher: ${watcher.name}] ${watcher.action}${contextBlock}\n\nPayload:\n${JSON.stringify(req.body, null, 2)}`;
 
     if (destinations.length === 0) {
       // No destinations — still run the agent, results stored only
@@ -250,7 +251,7 @@ router.post("/event", async (req, res) => {
       const primary = dests[0] || { channel: "webhook", channelMeta: null };
 
       taskQueue.enqueue({
-        input: `[Watcher: ${watcher.name}] ${watcher.action}\n\nPayload:\n${JSON.stringify(payload, null, 2)}`,
+        input: `[Watcher: ${watcher.name}] ${watcher.action}${watcher.context ? "\n\nContext:\n" + watcher.context : ""}\n\nPayload:\n${JSON.stringify(payload, null, 2)}`,
         channel: primary.channel || "webhook",
         channelMeta: primary.channelMeta || null,
         sessionId: `watcher:${watcher.id}`,

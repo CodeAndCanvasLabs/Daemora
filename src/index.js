@@ -962,6 +962,13 @@ app.post("/api/morning-pulse", async (req, res) => {
 });
 
 // --- Watchers API ---
+app.get("/api/watchers/templates", async (req, res) => {
+  try {
+    const { WATCHER_TEMPLATES } = await import("./webhooks/watcherTemplates.js");
+    res.json({ templates: WATCHER_TEMPLATES });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get("/api/watchers", async (req, res) => {
   try {
     const { loadWatchersByTenant, loadAllWatchers } = await import("./storage/WatcherStore.js");
@@ -986,6 +993,7 @@ app.post("/api/watchers", async (req, res) => {
       channel: req.body.channel || null,
       channelMeta: req.body.channelMeta || null,
       destinations: req.body.destinations || [],
+      context: req.body.context || null,
       enabled: true,
       triggerCount: 0,
       cooldownSeconds: req.body.cooldownSeconds || 0,
@@ -1000,7 +1008,7 @@ app.patch("/api/watchers/:id", async (req, res) => {
     const { loadWatcher, saveWatcher } = await import("./storage/WatcherStore.js");
     const watcher = loadWatcher(req.params.id);
     if (!watcher) return res.status(404).json({ error: "Watcher not found" });
-    const allowed = ["name", "description", "triggerType", "pattern", "action", "channel", "channelMeta", "destinations", "enabled", "cooldownSeconds"];
+    const allowed = ["name", "description", "triggerType", "pattern", "action", "channel", "channelMeta", "destinations", "context", "enabled", "cooldownSeconds"];
     for (const key of allowed) {
       if (req.body[key] !== undefined) watcher[key] = req.body[key];
     }

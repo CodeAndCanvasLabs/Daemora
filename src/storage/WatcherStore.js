@@ -12,19 +12,19 @@ export function saveWatcher(watcher) {
   run(
     `INSERT INTO watchers (
       id, tenant_id, name, description, trigger_type,
-      pattern, action, channel, channel_meta, destinations,
+      pattern, action, channel, channel_meta, destinations, context,
       enabled, last_triggered_at, trigger_count,
       cooldown_seconds, created_at, updated_at
     ) VALUES (
       $id, $tenantId, $name, $desc, $triggerType,
-      $pattern, $action, $channel, $channelMeta, $destinations,
+      $pattern, $action, $channel, $channelMeta, $destinations, $context,
       $enabled, $lastTriggeredAt, $triggerCount,
       $cooldownSeconds, $createdAt, $updatedAt
     )
     ON CONFLICT(id) DO UPDATE SET
       tenant_id=$tenantId, name=$name, description=$desc, trigger_type=$triggerType,
       pattern=$pattern, action=$action, channel=$channel, channel_meta=$channelMeta,
-      destinations=$destinations,
+      destinations=$destinations, context=$context,
       enabled=$enabled, last_triggered_at=$lastTriggeredAt, trigger_count=$triggerCount,
       cooldown_seconds=$cooldownSeconds, updated_at=$updatedAt`,
     {
@@ -38,6 +38,7 @@ export function saveWatcher(watcher) {
       $channel: watcher.channel || null,
       $channelMeta: watcher.channelMeta ? JSON.stringify(watcher.channelMeta) : null,
       $destinations: watcher.destinations?.length ? JSON.stringify(watcher.destinations) : null,
+      $context: watcher.context || null,
       $enabled: watcher.enabled === false || watcher.enabled === 0 ? 0 : 1,
       $lastTriggeredAt: watcher.lastTriggeredAt || null,
       $triggerCount: watcher.triggerCount ?? 0,
@@ -108,6 +109,7 @@ function _rowToWatcher(row) {
     channel: row.channel,
     channelMeta: row.channel_meta ? JSON.parse(row.channel_meta) : null,
     destinations: destinations || [],
+    context: row.context || null,
     enabled: row.enabled ?? 1,
     lastTriggeredAt: row.last_triggered_at,
     triggerCount: row.trigger_count ?? 0,

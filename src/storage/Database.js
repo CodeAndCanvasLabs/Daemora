@@ -279,6 +279,11 @@ function _runMigrations(db) {
     console.log("[Database] Migration: added watchers.destinations");
   }
 
+  if (!_watcherCols().includes("context")) {
+    db.exec("ALTER TABLE watchers ADD COLUMN context TEXT");
+    console.log("[Database] Migration: added watchers.context");
+  }
+
   // Cron: add delivery_targets + delivery_preset_id columns
   const _cronCols = () => db.prepare("PRAGMA table_info(cron_jobs)").all().map(r => r.name);
   if (!_cronCols().includes("delivery_targets")) {

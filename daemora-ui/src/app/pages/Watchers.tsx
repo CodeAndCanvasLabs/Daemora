@@ -41,12 +41,25 @@ interface Destination {
   channelMeta: Record<string, unknown> | null;
 }
 
+interface WatcherTemplate {
+  id: string;
+  category: string;
+  name: string;
+  label: string;
+  description: string;
+  pattern: unknown;
+  cooldownSeconds: number;
+  action: string;
+  contextHint: string;
+}
+
 const EMPTY_FORM = {
   name: "",
   description: "",
   action: "",
   triggerType: "webhook" as "webhook" | "event",
   pattern: "",
+  context: "",
   destinations: [] as Destination[],
   cooldownSeconds: "60",
 };
@@ -65,6 +78,7 @@ export function Watchers() {
   const [watchers, setWatchers] = useState<Watcher[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [templates, setTemplates] = useState<WatcherTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -100,6 +114,11 @@ export function Watchers() {
       const data = await res.json();
       setDestinations(data.destinations || []);
     } catch { /* non-fatal */ }
+    try {
+      const res = await apiFetch("/api/watchers/templates");
+      const data = await res.json();
+      setTemplates(data.templates || []);
+    } catch { /* non-fatal */ }
   }, []);
 
   const fetchPublicUrl = useCallback(async () => {
@@ -131,6 +150,7 @@ export function Watchers() {
         destinations: form.destinations.filter(d => d.channelMeta),
         channel: form.destinations[0]?.channel || null,
         channelMeta: form.destinations[0]?.channelMeta || null,
+        context: form.context.trim() || null,
         cooldownSeconds: parseInt(form.cooldownSeconds) || 60,
       };
       if (editingId) {
@@ -182,6 +202,7 @@ export function Watchers() {
       triggerType: w.triggerType,
       pattern: w.pattern ? JSON.stringify(w.pattern, null, 2) : "",
       destinations: (w as any).destinations || [],
+      context: (w as any).context || "",
       cooldownSeconds: String(w.cooldownSeconds || 60),
     });
     setDialogOpen(true);
@@ -237,6 +258,46 @@ export function Watchers() {
                 <DialogTitle>{editingId ? "Edit Watcher" : "New Watcher"}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 mt-4">
+                {/* Template picker — only for new watchers */}
+                {!editingId && templates.length > 0 && (
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">Start from Template</label>
+                    <Select value="__blank__" onValueChange={v => {
+                      if (v === "__blank__") return;
+                      const t = templates.find(t => t.id === v);
+                      if (t) {
+                        setForm({
+                          ...form,
+                          name: t.name,
+                          description: t.description,
+                          action: t.action,
+                          pattern: t.pattern ? JSON.stringify(t.pattern, null, 2) : "",
+                          cooldownSeconds: String(t.cooldownSeconds),
+                          context: "",
+                        });
+                      }
+                    }}>
+                      <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
+                        <SelectValue placeholder="Blank (configure manually)" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-800 border-slate-700 max-h-64">
+                        <SelectItem value="__blank__">Blank — configure manually</SelectItem>
+                        {["DevOps", "Business", "General"].map(cat => {
+                          const catTemplates = templates.filter(t => t.category === cat);
+                          if (catTemplates.length === 0) return null;
+                          return catTemplates.map(t => (
+                            <SelectItem key={t.id} value={t.id}>
+                              <span className="font-medium">{t.label}</span>
+                              <span className="text-[10px] text-gray-500 ml-2">{t.description.slice(0, 50)}</span>
+                            </SelectItem>
+                          ));
+                        })}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-gray-500 mt-1">Pre-fills the form. You can edit everything before saving.</p>
+                  </div>
+                )}
+
                 {/* Name */}
                 <div>
                   <label className="text-xs text-gray-400 mb-1 block">Watcher Name</label>
@@ -351,6 +412,13 @@ export function Watchers() {
                     </SelectContent>
                   </Select>
                   <p className="text-[10px] text-gray-500 mt-1">Prevents duplicate triggers. If multiple events arrive within the cooldown window, only the first fires.</p>
+                </div>
+
+                {/* Context — project background knowledge */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">Project Context <span className="text-gray-600">(optional)</span></label>
+                  <textarea className="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-white resize-none h-16" value={form.context} onChange={e => setForm({ ...form, context: e.target.value })} placeholder="e.g. Repo: daemora/daemora, Stack: Node.js + SQLite, Main branch: main, Team: @umar @ali" />
+                  <p className="text-[10px] text-gray-500 mt-1">Background knowledge injected when this watcher fires. Helps the agent understand the project without reading docs every time.</p>
                 </div>
 
                 <Button onClick={handleSave} disabled={saving} className="w-full bg-[#00d9ff]/20 text-[#00d9ff] border border-[#00d9ff]/30 hover:bg-[#00d9ff]/30">
