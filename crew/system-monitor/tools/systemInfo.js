@@ -64,21 +64,21 @@ function getDiskUsage() {
 
 function getProcesses(sortBy = "cpu", limit = 10) {
   try {
-    const cmd = process.platform === "darwin"
-      ? `ps aux | head -1 && ps aux --sort=-%${sortBy === "memory" ? "mem" : "cpu"} | head -${limit + 1}`
-      : process.platform === "win32"
-      ? "tasklist /FO TABLE /NH"
-      : `ps aux --sort=-%${sortBy === "memory" ? "mem" : "cpu"} | head -${limit + 1}`;
+    let cmd;
+    if (process.platform === "darwin") {
+      // macOS: ps doesn't support --sort or -e, use -A with -r (sort by CPU desc)
+      const sortFlag = sortBy === "memory" ? "-m" : "-r";
+      cmd = `ps -Ao pid,%cpu,%mem,comm ${sortFlag} | head -${limit + 1}`;
+    } else if (process.platform === "win32") {
+      cmd = "tasklist /FO TABLE /NH";
+    } else {
+      // Linux: ps supports --sort
+      cmd = `ps aux --sort=-%${sortBy === "memory" ? "mem" : "cpu"} | head -${limit + 1}`;
+    }
     const output = execSync(cmd, { timeout: 5000, encoding: "utf-8" });
     return `## Top Processes (by ${sortBy})\n\n\`\`\`\n${output.trim()}\n\`\`\``;
-  } catch {
-    // macOS ps doesn't support --sort, use different approach
-    try {
-      const output = execSync(`ps -eo pid,pcpu,pmem,comm -r | head -${limit + 1}`, { timeout: 5000, encoding: "utf-8" });
-      return `## Top Processes (by ${sortBy})\n\n\`\`\`\n${output.trim()}\n\`\`\``;
-    } catch (err) {
-      return `## Top Processes\n\nFailed: ${err.message}`;
-    }
+  } catch (err) {
+    return `## Top Processes\n\nFailed: ${err.message}`;
   }
 }
 
