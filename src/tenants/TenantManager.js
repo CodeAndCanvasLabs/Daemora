@@ -589,7 +589,8 @@ class TenantManager {
     }
 
     // ── Workspace fallback: sandbox enabled + no allowed paths → lock to workspace ──
-    if (sandboxEnabled && effectiveAllowed.length === 0 && tenant?.id) {
+    // Global admin tenants are never sandboxed — they own the server
+    if (sandboxEnabled && effectiveAllowed.length === 0 && tenant?.id && !tenant.globalAdmin) {
       effectiveAllowed = [this.getWorkspace(tenant.id)];
     }
 
