@@ -95,16 +95,16 @@ export function clearSession(sessionId) {
   const session = queryOne("SELECT id FROM sessions WHERE id = $id", { $id: sessionId });
   if (!session) return false;
   transaction(() => {
-    // Delete cost entries for tasks in this session
+    // Delete cost entries for tasks in this session + sub-sessions
     run(`DELETE FROM cost_entries WHERE task_id IN (
-      SELECT id FROM tasks WHERE session_id = $sid
-    )`, { $sid: sessionId });
-    // Delete tasks
-    run("DELETE FROM tasks WHERE session_id = $sid", { $sid: sessionId });
-    // Delete messages
-    run("DELETE FROM messages WHERE session_id = $sid", { $sid: sessionId });
-    // Delete session
-    run("DELETE FROM sessions WHERE id = $id", { $id: sessionId });
+      SELECT id FROM tasks WHERE session_id = $sid OR session_id LIKE $pattern
+    )`, { $sid: sessionId, $pattern: `${sessionId}--%` });
+    // Delete tasks (main + sub-sessions)
+    run("DELETE FROM tasks WHERE session_id = $sid OR session_id LIKE $pattern", { $sid: sessionId, $pattern: `${sessionId}--%` });
+    // Delete messages (main + sub-sessions)
+    run("DELETE FROM messages WHERE session_id = $sid OR session_id LIKE $pattern", { $sid: sessionId, $pattern: `${sessionId}--%` });
+    // Delete sessions (main + sub-sessions: --coder, --crew:system-monitor, --serverName, etc.)
+    run("DELETE FROM sessions WHERE id = $id OR id LIKE $pattern", { $id: sessionId, $pattern: `${sessionId}--%` });
   });
   return true;
 }
