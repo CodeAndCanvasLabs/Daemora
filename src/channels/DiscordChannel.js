@@ -65,18 +65,9 @@ export class DiscordChannel extends BaseChannel {
       });
     });
 
-    // Dedup: track recent message IDs to skip duplicate events on reconnect
-    const _recentMsgIds = new Set();
-    const _DEDUP_WINDOW = 60_000; // 1 minute
-
     this.client.on("messageCreate", async (message) => {
       // Ignore messages from bots (including self)
       if (message.author.bot) return;
-
-      // Skip duplicate events (Discord can re-send on gateway reconnect)
-      if (_recentMsgIds.has(message.id)) return;
-      _recentMsgIds.add(message.id);
-      setTimeout(() => _recentMsgIds.delete(message.id), _DEDUP_WINDOW);
 
       const isDM = message.channel.type === 1; // DM_CHANNEL = 1
       const isMention = this.botUserId && message.mentions.has(this.botUserId);
