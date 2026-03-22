@@ -110,26 +110,27 @@ async function _autoCapture(task, result, resolvedConfig) {
 }
 
 /**
- * Post-task learning — trajectory extraction + skill generation + user profiling.
+ * Post-task learning — trajectory extraction + background review.
+ *
+ * TrajectoryExtractor: structured learning extraction (our innovation)
+ * BackgroundReviewer: agent-in-the-loop review for memory + skills (Hermes pattern)
+ *
  * All non-blocking, fire-and-forget. Never crashes the main pipeline.
  */
 async function _postTaskLearning(task, result, apiKeys) {
   try {
     const [
       { extractLearnings },
-      { maybeGenerateSkill },
-      { maybeUpdateProfile },
+      { maybeRunReview },
     ] = await Promise.all([
       import("../learning/TrajectoryExtractor.js"),
-      import("../learning/SkillWriter.js"),
-      import("../learning/UserProfiler.js"),
+      import("../learning/BackgroundReviewer.js"),
     ]);
 
-    // Run all three in parallel (independent, non-blocking)
+    // Run both in parallel (independent, non-blocking)
     await Promise.allSettled([
       extractLearnings(task, result, apiKeys),
-      maybeGenerateSkill(task, result, apiKeys),
-      maybeUpdateProfile(task, result, apiKeys),
+      maybeRunReview(task, result, apiKeys),
     ]);
   } catch {
     // Silent — learning is best-effort
@@ -416,6 +417,12 @@ class TaskRunner {
 
         // Persist the user message immediately before the loop starts
         appendMessage(session.sessionId, "user", task.input);
+
+        // Track user turn for background memory review
+        try {
+          const { recordUserTurn } = await import("../learning/BackgroundReviewer.js");
+          recordUserTurn(task.tenantId || null);
+        } catch {}
 
         // Run agent loop with resolved model, cost limits, and per-tenant API keys.
         // steerQueue lets follow-up messages from the same user be injected live

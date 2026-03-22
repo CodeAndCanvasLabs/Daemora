@@ -105,6 +105,13 @@ export async function runAgentLoop({
         console.log(`[Step ${stepCount}] Tool: ${tool_name}`);
         console.log(`[Step ${stepCount}] Params: ${_redactKnownSecrets(JSON.stringify(params))}`);
 
+        // Track tool iteration for background skill review
+        try {
+          const { recordToolIteration } = await import("../learning/BackgroundReviewer.js");
+          const _store = (await import("../tenants/TenantContext.js")).default.getStore?.();
+          recordToolIteration(_store?.tenant?.id || null);
+        } catch {}
+
         eventBus.emitEvent("tool:before", { tool_name, params, stepCount, taskId });
 
         // Permission guard
