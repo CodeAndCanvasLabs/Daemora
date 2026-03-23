@@ -85,6 +85,7 @@ export function SchedulePicker({ value, onChange, showOnce = true, defaultMode =
   const [mode, setMode] = useState<"once" | "recurring" | "advanced">(defaultMode);
   const [frequency, setFrequency] = useState<"hourly" | "daily" | "weekly" | "monthly">("daily");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [showCalendar, setShowCalendar] = useState(true);
   const [time, setTime] = useState("09:00");
   const [timezone, setTimezone] = useState(value.timezone || detectUserTimezone());
   const [selectedDays, setSelectedDays] = useState<number[]>([1]); // Monday
@@ -180,19 +181,19 @@ export function SchedulePicker({ value, onChange, showOnce = true, defaultMode =
           {/* Inline calendar */}
           <div>
             <label className="text-xs text-gray-400 mb-1 block">Date</label>
-            {selectedDate && (
-              <p className="text-sm text-white mb-2 flex items-center gap-2">
+            {selectedDate && !showCalendar && (
+              <button onClick={() => setShowCalendar(true)} className="w-full text-left text-sm text-white bg-slate-800 border border-slate-700 rounded-md px-3 py-2 flex items-center gap-2 hover:border-slate-600">
                 <CalendarIcon className="w-4 h-4 text-[#00d9ff]" />
                 {formatDate(selectedDate)}
-                <button onClick={() => setSelectedDate(undefined)} className="text-[10px] text-gray-500 hover:text-white ml-auto">change</button>
-              </p>
+                <span className="text-[10px] text-gray-500 ml-auto">click to change</span>
+              </button>
             )}
-            {!selectedDate && (
+            {showCalendar && (
               <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-1">
                 <Calendar
                   mode="single"
                   selected={selectedDate}
-                  onSelect={setSelectedDate}
+                  onSelect={(d) => { setSelectedDate(d); setShowCalendar(false); }}
                   disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                   className="!bg-transparent"
                 />
