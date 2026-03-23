@@ -975,6 +975,14 @@ app.get("/api/teams", async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Templates BEFORE :id (Express matches in order)
+app.get("/api/teams/templates", async (req, res) => {
+  try {
+    const { TEAM_TEMPLATES } = await import("./teams/templates.js");
+    res.json({ templates: TEAM_TEMPLATES });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get("/api/teams/:id", async (req, res) => {
   try {
     const { getTeam, listMembers, listTasks, messageHistory } = await import("./teams/TeamStore.js");
@@ -986,13 +994,6 @@ app.get("/api/teams/:id", async (req, res) => {
       tasks: listTasks(team.id),
       messages: messageHistory(team.id, { limit: 50 }),
     });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.get("/api/teams/templates", async (req, res) => {
-  try {
-    const { TEAM_TEMPLATES } = await import("./teams/templates.js");
-    res.json({ templates: TEAM_TEMPLATES });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
