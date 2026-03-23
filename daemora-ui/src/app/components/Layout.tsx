@@ -7,6 +7,7 @@ import {
   SlidersHorizontal,
   Network,
   Flame,
+  Boxes,
   ShieldAlert,
   CircuitBoard,
   Fingerprint,
@@ -33,6 +34,7 @@ const navItems = [
   { path: "/costs", label: "Costs", icon: Fingerprint },
   { path: "/tenants", label: "Tenants", icon: Users },
   { path: "/crew", label: "Crew", icon: Puzzle },
+  { path: "/teams", label: "Teams", icon: Boxes },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
 

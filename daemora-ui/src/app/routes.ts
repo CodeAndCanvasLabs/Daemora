@@ -15,6 +15,7 @@ import { Cron } from "./pages/Cron";
 import { Goals } from "./pages/Goals";
 import { Watchers } from "./pages/Watchers";
 import { Crew } from "./pages/Crew";
+import { Teams } from "./pages/Teams";
 
 export const router = createBrowserRouter([
   {
@@ -39,6 +40,7 @@ export const router = createBrowserRouter([
       { path: "costs", Component: Costs },
       { path: "tenants", Component: Tenants },
       { path: "crew", Component: Crew },
+      { path: "teams", Component: Teams },
       { path: "settings", Component: Settings },
     ],
   },

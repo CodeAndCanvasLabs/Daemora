@@ -961,6 +961,50 @@ app.post("/api/morning-pulse", async (req, res) => {
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
+// --- Teams API ---
+app.get("/api/teams", async (req, res) => {
+  try {
+    const { listTeams, listMembers, listTasks } = await import("./teams/TeamStore.js");
+    const teams = listTeams();
+    const result = teams.map(t => ({
+      ...t,
+      members: listMembers(t.id),
+      tasks: listTasks(t.id),
+    }));
+    res.json({ teams: result });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get("/api/teams/:id", async (req, res) => {
+  try {
+    const { getTeam, listMembers, listTasks, messageHistory } = await import("./teams/TeamStore.js");
+    const team = getTeam(req.params.id);
+    if (!team) return res.status(404).json({ error: "Team not found" });
+    res.json({
+      ...team,
+      members: listMembers(team.id),
+      tasks: listTasks(team.id),
+      messages: messageHistory(team.id, { limit: 50 }),
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get("/api/teams/templates", async (req, res) => {
+  try {
+    const { TEAM_TEMPLATES } = await import("./teams/templates.js");
+    res.json({ templates: TEAM_TEMPLATES });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/teams/:id/disband", async (req, res) => {
+  try {
+    const { updateTeamStatus, broadcastMessage } = await import("./teams/TeamStore.js");
+    updateTeamStatus(req.params.id, "disbanded");
+    broadcastMessage({ teamId: req.params.id, from: "system", msgType: "shutdown_request", content: "Team disbanded." });
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
 // --- Watchers API ---
 app.get("/api/watchers/templates", async (req, res) => {
   try {
