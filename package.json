@@ -58,6 +58,8 @@
     "src/",
     "config/",
     "skills/",
+    "crew/",
+    "public/",
     "daemora-ui/dist/",
     ".env.example",
     "SOUL.md",
