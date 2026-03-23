@@ -13,6 +13,7 @@
 
 import { runTeam } from "../teams/TeamLeadRunner.js";
 import * as store from "../teams/TeamStore.js";
+import { applyTemplate, TEAM_TEMPLATES } from "../teams/templates.js";
 import tenantContext from "../tenants/TenantContext.js";
 
 export async function teamTask(params) {
@@ -85,7 +86,41 @@ export async function teamTask(params) {
       return `Team "${teamId}" disbanded.`;
     }
 
+    case "listTemplates": {
+      return TEAM_TEMPLATES.map(t =>
+        `${t.id}: ${t.name} — ${t.description} (${t.workers.length} workers: ${t.workers.map(w => w.name).join(", ")})`
+      ).join("\n");
+    }
+
+    case "createFromTemplate": {
+      const templateId = params.templateId;
+      const goal = params.task || params.goal;
+      if (!templateId) return "Error: templateId is required. Use listTemplates to see options.";
+      if (!goal) return "Error: task/goal is required — what should this team accomplish?";
+
+      const teamConfig = applyTemplate(templateId, goal);
+      if (!teamConfig) return `Error: template "${templateId}" not found. Use listTemplates to see options.`;
+
+      // Check team limit
+      const tid = tenantContext.getStore()?.tenant?.id || null;
+      const existing = store.listTeams(tid);
+      if (existing.length >= 5) {
+        return `Error: maximum 5 active teams. Disband one first.`;
+      }
+
+      try {
+        const result = await runTeam({
+          name: teamConfig.name,
+          leadContract: { task: teamConfig.task, context: teamConfig.context + "\n\n" + (params.context || "") },
+          workers: teamConfig.workers,
+        });
+        return result;
+      } catch (err) {
+        return `Team failed: ${err.message}`;
+      }
+    }
+
     default:
-      return `Unknown action "${action}". Available: createTeam, status, listTeams, disbandTeam`;
+      return `Unknown action "${action}". Available: createTeam, createFromTemplate, listTemplates, status, listTeams, disbandTeam`;
   }
 }

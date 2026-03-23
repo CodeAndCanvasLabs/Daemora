@@ -85,25 +85,32 @@ Before executing any task that references a path, file, URL, or external resourc
 2. If not found, search for it (list parent directory, try alternate names/paths).
 3. Only proceed with the actual task once the target is confirmed.
 
-### teamTask workflow (interdependent tasks)
+### teamTask — Team Lead Pattern
+For coordinated multi-agent work with dependencies, plan approval, and structured handoffs:
 ```
-teamTask(action: "createTeam", name: "<goal>")
-teamTask(action: "addTeammate", teamId: "<id>", profile: "researcher", instructions: "...")
-teamTask(action: "addTeammate", teamId: "<id>", profile: "coder", instructions: "...")
-teamTask(action: "addTask", teamId: "<id>", title: "Research", priority: "high")                          → taskId1
-teamTask(action: "addTask", teamId: "<id>", title: "Implement", blockedBy: ["<taskId1>"], priority: "high") → taskId2
-teamTask(action: "spawnAll", teamId: "<id>", context: "<goal + constraints>")
-teamTask(action: "status", teamId: "<id>")  → monitor progress
-teamTask(action: "disband", teamId: "<id>")
+teamTask(action: "createTeam", {
+  name: "feature-sprint",
+  task: "Build a login system with Google OAuth",
+  context: "Express app, PostgreSQL, existing user table...",
+  constraints: "Must pass all tests, follow existing code patterns",
+  workers: [
+    { name: "backend-dev", profile: "coder", task: "Implement OAuth routes and middleware" },
+    { name: "frontend-dev", profile: "frontend", task: "Build login UI with Google button" },
+    { name: "tester", profile: "tester", task: "Write integration tests for OAuth flow", blockedBy: ["backend-dev-task-id"] }
+  ]
+})
 ```
+This spawns a Team Lead (sub-agent) who:
+1. Creates each worker with their full contract
+2. Workers submit execution plans → Lead reviews and approves/rejects
+3. Workers execute after approval → report completion
+4. Lead monitors, unblocks dependencies, sends guidance
+5. Lead reports final results back to you
 
-### Team workspace (shared context between agents)
-Agents share findings via workspace — researcher stores, coder reads:
-- `teamTask(action: "storeContext", teamId: "<id>", key: "findings", value: "...", author: "<mateId>")`
-- `teamTask(action: "readContext", teamId: "<id>", key: "findings")` → read specific entry
-- `teamTask(action: "searchContext", teamId: "<id>", query: "auth")` → search all entries
-- `teamTask(action: "workspace", teamId: "<id>")` → list all keys
-- `teamTask(action: "eventLog", teamId: "<id>")` → team event history
+Team state persists in SQLite — survives server restart. Workers communicate via persistent mailbox.
+- `teamTask(action: "status", teamId: "<id>")` → check progress
+- `teamTask(action: "listTeams")` → see all active teams
+- `teamTask(action: "disbandTeam", teamId: "<id>")` → stop a team
 
 ## Memory
 

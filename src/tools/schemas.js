@@ -468,7 +468,8 @@ const toolSchemas = {
   // ── Teams ────────────────────────────────────────────────────────────────
   teamTask: {
     schema: z.object({
-      action: str("createTeam|status|listTeams|disbandTeam"),
+      action: str("createTeam|createFromTemplate|listTemplates|status|listTeams|disbandTeam"),
+      templateId: z.string().optional().describe("Template ID for createFromTemplate (use listTemplates to see options)"),
       name: optStr("Team name (for createTeam)"),
       task: optStr("What the team should accomplish (for createTeam)"),
       context: optStr("Background context for the team lead (for createTeam)"),
