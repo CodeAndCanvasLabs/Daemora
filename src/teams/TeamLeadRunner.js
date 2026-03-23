@@ -34,6 +34,7 @@ const LEAD_TOOLS = [
   "readMemory", "writeMemory", "searchMemory",               // memory
   "webFetch", "webSearch",                                    // research
   "replyToUser",                                              // communication
+  "useMCP", "useCrew",                                        // delegate to MCP servers + crew members
 ];
 
 // ── Lead Crew Resolution ────────────────────────────────────────────────────
@@ -86,6 +87,28 @@ function _saveWorkerSession(teamId, workerName, messages) {
   if (!session) session = createSession(sessionId);
   const capped = messages.length > 100 ? messages.slice(-100) : messages;
   setMessages(sessionId, compactForSession(capped));
+}
+
+// ── MCP + Crew context for lead ──────────────────────────────────────────────
+
+async function _getMCPContext() {
+  try {
+    const { default: mcpManager } = await import("../mcp/MCPManager.js");
+    const servers = mcpManager?.getConnectedServersInfo?.() || [];
+    if (servers.length === 0) return "";
+    const list = servers.map(s => `- ${s.name} (${s.toolCount} tools)`).join("\n");
+    return `MCP Servers available (use useMCP to delegate):\n${list}`;
+  } catch { return ""; }
+}
+
+function _getCrewContext() {
+  try {
+    const registry = getRegistry();
+    const loaded = registry.crew?.filter(p => p.status === "loaded" && p.toolNames?.length > 0) || [];
+    if (loaded.length === 0) return "";
+    const list = loaded.map(p => `- ${p.id}: ${p.description || p.name} (${p.toolNames.join(", ")})`).join("\n");
+    return `Crew members available (use useCrew to delegate):\n${list}`;
+  } catch { return ""; }
 }
 
 // ── Team Lead Tools ─────────────────────────────────────────────────────────
@@ -432,11 +455,19 @@ export async function runTeam({ name, leadContract, workers, project = null, pro
     if (toolFunctions[name]) leadBaseTools[name] = toolFunctions[name];
   }
 
+  // Build MCP + crew context so lead knows what's available
+  const mcpContext = await _getMCPContext();
+  const crewContext = _getCrewContext();
+  const extraContext = [mcpContext, crewContext].filter(Boolean).join("\n\n");
+
   const result = await spawnSubAgent(leadPrompt, {
-    toolOverride: leadBaseTools,            // explicit curated tools (not profile)
-    aiToolOverrides: leadTools,             // management tools (AI SDK tool objects)
+    toolOverride: leadBaseTools,
+    aiToolOverrides: leadTools,
     skills: leadProfile.skills || null,
-    parentContext: leadProfile.systemPrompt || "You are the Team Lead. Delegate — never do the work yourself.",
+    parentContext: [
+      leadProfile.systemPrompt || "You are the Team Lead. Delegate — never do the work yourself.",
+      extraContext,
+    ].filter(Boolean).join("\n\n"),
     depth: 1,
   });
 
@@ -491,11 +522,18 @@ export async function relaunchTeam(teamId) {
 
   console.log(`[TeamLeadRunner] Re-launching "${team.name}" (${teamId}) — ${completed.length} done, ${pending.length} pending`);
 
+  const mcpCtx = await _getMCPContext();
+  const crewCtx = _getCrewContext();
+  const extraCtx = [mcpCtx, crewCtx].filter(Boolean).join("\n\n");
+
   const result = await spawnSubAgent(leadPrompt, {
     toolOverride: leadBaseTools,
     aiToolOverrides: leadTools,
     skills: leadProfile.skills || null,
-    parentContext: leadProfile.systemPrompt || "You are the Team Lead resuming a project.",
+    parentContext: [
+      leadProfile.systemPrompt || "You are the Team Lead resuming a project.",
+      extraCtx,
+    ].filter(Boolean).join("\n\n"),
     depth: 1,
   });
 
