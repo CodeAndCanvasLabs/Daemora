@@ -69,6 +69,8 @@ export function Teams() {
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [templates, setTemplates] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<string[]>([]);
+  const [crewMembers, setCrewMembers] = useState<{id: string; name: string}[]>([]);
   const [createForm, setCreateForm] = useState({
     name: "", task: "", context: "", projectType: "coding", projectRepo: "", projectStack: "",
     templateId: "", pollInterval: "30",
@@ -91,6 +93,15 @@ export function Teams() {
   useEffect(() => {
     fetchTeams();
     apiFetch("/api/teams/templates").then(r => r.json()).then(d => setTemplates(d.templates || [])).catch(() => {});
+    apiFetch("/api/tools").then(r => r.json()).then(d => {
+      // Extract profile names from spawnAgent description
+      const match = (d.descriptions?.spawnAgent || "").match(/Available profiles: (.+)/);
+      if (match) setProfiles(match[1].split(" · ").map((p: string) => p.replace(/\(.+\)/, "").trim()));
+    }).catch(() => {});
+    apiFetch("/api/crew").then(r => r.json()).then(d => {
+      const loaded = (d.crew || []).filter((c: any) => c.status === "loaded" && c.toolNames?.length > 0);
+      setCrewMembers(loaded.map((c: any) => ({ id: c.id, name: c.name })));
+    }).catch(() => {});
   }, [fetchTeams]);
 
   const handleCreate = async () => {
@@ -249,11 +260,19 @@ export function Teams() {
                     {createForm.workers.map((w, i) => (
                       <div key={i} className="grid grid-cols-12 gap-2 mb-2">
                         <Input className="col-span-3 bg-slate-800 border-slate-700 text-white text-xs" value={w.name} onChange={e => { const ws = [...createForm.workers]; ws[i].name = e.target.value; setCreateForm({ ...createForm, workers: ws }); }} placeholder="Name" />
-                        <Select value={w.profile} onValueChange={v => { const ws = [...createForm.workers]; ws[i].profile = v; setCreateForm({ ...createForm, workers: ws }); }}>
+                        <Select value={w.crew || w.profile} onValueChange={v => {
+                          const ws = [...createForm.workers];
+                          const isCrew = crewMembers.some(c => c.id === v);
+                          if (isCrew) { ws[i].crew = v; ws[i].profile = ""; } else { ws[i].profile = v; ws[i].crew = ""; }
+                          setCreateForm({ ...createForm, workers: ws });
+                        }}>
                           <SelectTrigger className="col-span-3 bg-slate-800 border-slate-700 text-white text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent className="bg-slate-800 border-slate-700">
-                            {["coder","frontend","tester","researcher","writer","analyst","devops","architect","designer","reviewer"].map(p => (
+                          <SelectContent className="bg-slate-800 border-slate-700 max-h-48">
+                            {(profiles.length > 0 ? profiles : ["coder","frontend","tester","researcher","writer","analyst","devops","architect"]).map(p => (
                               <SelectItem key={p} value={p}>{p}</SelectItem>
+                            ))}
+                            {crewMembers.length > 0 && crewMembers.map(c => (
+                              <SelectItem key={c.id} value={c.id}>🔧 {c.name} (crew)</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
