@@ -19,8 +19,38 @@ import { tool } from "ai";
 import { z } from "zod";
 import { spawnSubAgent } from "../agents/SubAgentManager.js";
 import { buildContract } from "../agents/ContractBuilder.js";
+import { getRegistry } from "../crew/PluginRegistry.js";
 import * as store from "./TeamStore.js";
 import tenantContext from "../tenants/TenantContext.js";
+
+// ── Lead Crew Resolution ────────────────────────────────────────────────────
+
+const LEAD_CREW_MAP = {
+  coding: "project-lead-coding",
+  software: "project-lead-coding",
+  research: "project-lead-research",
+  analysis: "project-lead-research",
+};
+
+function _resolveLeadCrew(projectType) {
+  if (!projectType) return "project-lead-coding"; // default
+  return LEAD_CREW_MAP[projectType.toLowerCase()] || "project-lead-coding";
+}
+
+function _getLeadProfile(crewId) {
+  try {
+    const registry = getRegistry();
+    const member = registry.crew.find(m => m.id === crewId && m.status === "loaded");
+    if (member?.manifest?.profile) {
+      return {
+        systemPrompt: member.manifest.profile.systemPrompt || null,
+        skills: member.manifest.skills || [],
+      };
+    }
+  } catch {}
+  // Fallback if crew not loaded
+  return { systemPrompt: null, skills: [] };
+}
 
 // ── Team Lead Tools (only the lead gets these) ──────────────────────────────
 
@@ -346,11 +376,15 @@ export async function runTeam({ name, leadContract, workers, project = null, pro
   });
   store.updateMemberStatus(lead.id, "working");
 
-  console.log(`[TeamLeadRunner] Created team "${name}" (${team.id}) with ${workers.length} planned workers`);
+  // Resolve lead crew based on project type
+  const leadCrewId = _resolveLeadCrew(projectType);
+  const leadProfile = _getLeadProfile(leadCrewId);
 
-  // Build lead's system prompt
+  console.log(`[TeamLeadRunner] Created team "${name}" (${team.id}) with ${workers.length} planned workers, lead: ${leadCrewId}`);
+
+  // Build lead's contract
   const workerBrief = workers.map((w, i) =>
-    `${i + 1}. ${w.name} (${w.profile}) — ${w.task.slice(0, 100)}`
+    `${i + 1}. ${w.name} (${w.crew || w.profile}) — ${w.task.slice(0, 100)}`
   ).join("\n");
 
   const leadPrompt = buildContract({
@@ -358,6 +392,8 @@ export async function runTeam({ name, leadContract, workers, project = null, pro
     context: [
       leadContract.context || "",
       `\nYou are the Team Lead for team "${name}" (${team.id}).`,
+      projectRepo ? `\nRepo: ${projectRepo}` : "",
+      projectStack ? `\nStack: ${projectStack}` : "",
       `\nPlanned workers:\n${workerBrief}`,
       `\nYour job:`,
       `1. Create each worker using createWorker (they get spawned immediately)`,
@@ -365,19 +401,19 @@ export async function runTeam({ name, leadContract, workers, project = null, pro
       `3. Monitor progress (use checkStatus)`,
       `4. When all tasks complete, call completeTeam with a summary`,
       `5. If workers are stuck, send them messages with guidance`,
-    ].join("\n"),
+      `6. If you find work outside scope, use suggestFeature`,
+    ].filter(Boolean).join("\n"),
     constraints: leadContract.constraints || "Ensure all workers complete their tasks. Report any blockers.",
   });
 
-  // Build lead's AI SDK tools
   const leadTools = buildLeadTools(team.id, "lead");
 
-  // Spawn team lead — gets normal system prompt (SOUL.md + memory + skills) + team context via parentContext
-  // No systemPromptOverride — lead benefits from full agent capabilities
+  // Spawn lead — uses lead crew's profile + skills, gets normal system prompt (SOUL.md + memory)
   const result = await spawnSubAgent(leadPrompt, {
     profile: "coordinator",
+    skills: leadProfile.skills || null,
     aiToolOverrides: leadTools,
-    parentContext: `You are the Team Lead. Delegate work — never do it yourself. Use your management tools: createWorker, assignTask, reviewPlan, approvePlan, checkStatus, sendMessage, suggestFeature, completeTeam.`,
+    parentContext: leadProfile.systemPrompt || "You are the Team Lead. Delegate work — never do it yourself.",
     depth: 1,
   });
 
