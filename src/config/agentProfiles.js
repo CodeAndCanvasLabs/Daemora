@@ -120,7 +120,7 @@ export const CORE_TOOLS = [
   // Memory
   "readMemory", "writeMemory", "searchMemory",
   // Orchestration
-  "spawnAgent", "parallelAgents", "manageAgents", "teamTask", "discoverProfiles",
+  "parallelCrew", "manageAgents", "teamTask", "discoverCrew",
   // Communication
   "replyToUser",
   "sendFile",

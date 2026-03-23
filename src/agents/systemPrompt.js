@@ -204,9 +204,9 @@ function renderToolUsageRules() {
 - editFile oldString not found → re-read, retry with exact content.
 - Same params fail twice → stop, diagnose, try different approach.
 - \`<conversation-summary>\` = compacted history — treat as ground truth, don't redo.
-- Task needs deep focus (research, writing, coding, analysis) → use spawnAgent, not yourself.
-- Multiple independent tasks → parallelAgents. Tasks with handoffs → teamTask.
-- Every spawnAgent / parallelAgents / teamTask / useMCP / useCrew instruction must include full contract: TASK · CONTEXT · FILES · SPEC · CONSTRAINTS · OUTPUT.`;
+- Task needs deep focus (research, writing, coding, analysis) → use useCrew, not yourself.
+- Multiple independent tasks → parallelCrew. Tasks with handoffs → teamTask.
+- Every useCrew / parallelCrew / teamTask / useMCP instruction must include full contract: TASK · CONTEXT · FILES · SPEC · CONSTRAINTS · OUTPUT.`;
 }
 
 async function renderSkills(taskInput, limit = 20, isSubAgent = false, skillScope = null) {

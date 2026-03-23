@@ -45,22 +45,12 @@ import { clipboard } from "./clipboard.js";
 // Main agent delegates via useCrew(crewId, task).
 import { useCrew } from "./useCrew.js";
 import { reload } from "./reloadTool.js";
-import { discoverProfiles } from "./discoverProfiles.js";
+import { discoverProfiles as discoverCrew } from "./discoverProfiles.js";
 import { broadcast } from "./broadcast.js";
 import { goal } from "./goalTool.js";
 import { watcher } from "./watcherTool.js";
 
-// ─── Agent wrappers (params object → SubAgentManager) ────────────────────────
-
-function spawnAgent(params) {
-  const taskDescription = params?.taskDescription;
-  // Merge flat fields with legacy options JSON
-  const optionsStr = params?.options;
-  const legacyOpts = optionsStr ? (typeof optionsStr === "string" ? JSON.parse(optionsStr) : optionsStr) : {};
-  const { taskDescription: _, options: _o, ...flatFields } = params || {};
-  const options = { ...legacyOpts, ...flatFields };
-  return spawnSubAgent(taskDescription, options);
-}
+// ─── Crew wrappers (params → SubAgentManager) ────────────────────────────────
 
 function parallelAgents(params) {
   // New schema: tasks is array of objects, sharedContext is flat string
@@ -91,7 +81,7 @@ export const toolFunctions = {
   createDocument,
   readMemory, writeMemory, readDailyLog, writeDailyLog,
   searchMemory, pruneMemory, listMemoryCategories,
-  spawnAgent, parallelAgents, delegateToAgent, manageAgents,
+  parallelCrew: parallelAgents, delegateToAgent, manageAgents,
   projectTracker, taskManager,
   cron,
   imageAnalysis, screenCapture,
@@ -101,7 +91,7 @@ export const toolFunctions = {
   meetingAction,
   generateImage, readPDF,
   gitTool, clipboard,
-  discoverProfiles,
+  discoverCrew,
   broadcast,
   goal,
   watcher,

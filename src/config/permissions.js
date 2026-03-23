@@ -47,7 +47,7 @@ export const permissionTiers = {
       "readMemory", "writeMemory", "readDailyLog", "writeDailyLog",
       "searchMemory", "pruneMemory", "listMemoryCategories",
       // Agents & teams
-      "spawnAgent", "parallelAgents", "manageAgents",
+      "parallelCrew", "manageAgents",
       "teamTask",
       // MCP + Crew
       "manageMCP", "useMCP", "useCrew",
@@ -79,7 +79,7 @@ export const permissionTiers = {
       "searchMemory", "pruneMemory", "listMemoryCategories",
       // Agents & teams
       "spawnAgent", "parallelAgents", "delegateToAgent", "manageAgents",
-      "teamTask", "discoverProfiles",
+      "teamTask", "discoverCrew",
       // MCP + Crew
       "manageMCP", "useMCP", "useCrew",
       // Project & task tracking

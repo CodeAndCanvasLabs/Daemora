@@ -195,10 +195,9 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     // Sub-agents NEVER get orchestration tools.
     // Only the main agent orchestrates. Sub-agents execute.
     // Allowing sub-agents to spawn/team creates unpredictable delegation chains.
-    delete agentTools.spawnAgent;
-    delete agentTools.parallelAgents;
+    delete agentTools.parallelCrew;
     delete agentTools.manageAgents;
-    delete agentTools.discoverProfiles;
+    delete agentTools.discoverCrew;
     delete agentTools.delegateToAgent;
     // teamTask kept ONLY if spawned by TeamManager (has externalSteerQueue).
     // Regular sub-agents don't get team tools — prevents creating teams from inside sub-agents.

@@ -290,36 +290,26 @@ const toolSchemas = {
   },
 
   // ── Profile Discovery ──────────────────────────────────────────────────
-  discoverProfiles: {
+  discoverCrew: {
     schema: z.object({
-      query: str("Task description to match against profiles — e.g. 'send email', 'query database', 'create jira tickets'"),
+      query: str("What you need done — e.g. 'send email', 'query database', 'build frontend'"),
       limit: optNum("Max results (default: 5)"),
       offset: optNum("Skip first N results for pagination (default: 0)"),
-      all: optBool("Return all profiles (ignore query matching)"),
+      all: optBool("Return all crew members"),
     }),
-    description: "Find the right sub-agent profile for a task. Returns matching profiles + disabled plugins. Use before spawnAgent when unsure which profile fits.",
+    description: "Find the right crew member for a task. Returns matching crew sorted by relevance. Use before useCrew when unsure which crew fits.",
   },
 
-  // ── Agents ───────────────────────────────────────────────────────────────
-  spawnAgent: {
-    schema: z.object({
-      taskDescription: str("Complete task brief — include what, constraints, files/APIs, expected output. Agent has zero other context."),
-      profile: str("Agent profile (REQUIRED) — Dev: coder|architect|reviewer|tester|devops|security|database|frontend|api. Research: researcher|analyst|investigator. Content: writer|editor|translator. Business: planner|strategist|assistant. Ops: sysadmin|designer|coordinator|meeting-attendant"),
-      parentContext: optStr("Extra context from parent task"),
-      extraTools: z.array(z.string()).optional().describe("Additional tool names to enable"),
-      skills: z.array(z.string()).optional().describe("Skill names to load"),
-    }),
-    description: "Spawn specialist sub-agent. Use discoverProfiles first to find the right profile. Profile sets identity, tools, and skill scope.",
-  },
-  parallelAgents: {
+  // ── Orchestration ──────────────────────────────────────────────────────
+  parallelCrew: {
     schema: z.object({
       tasks: z.array(z.object({
-        description: str("Task description — full brief, agent has zero context"),
-        profile: str("Agent profile (REQUIRED) — Dev: coder|architect|reviewer|tester|devops|security|database|frontend|api. Research: researcher|analyst|investigator. Content: writer|editor|translator. Business: planner|strategist|assistant. Ops: sysadmin|designer|coordinator|meeting-attendant"),
+        description: str("Task description — full brief, crew member has zero context"),
+        profile: str("Crew member ID — Dev: coder|architect|reviewer|tester|devops|security|database|frontend|api. Research: researcher|analyst|investigator. Content: writer|editor|translator. Business: planner|strategist|assistant. Ops: sysadmin|designer|coordinator"),
       })).describe("Array of tasks to run simultaneously"),
-      sharedContext: optStr("Context shared across all agents"),
+      sharedContext: optStr("Context shared across all crew members"),
     }),
-    description: "Spawn multiple sub-agents simultaneously for independent tasks. Each gets its own profile, tools, and skill scope.",
+    description: "Run multiple crew members simultaneously for independent tasks. Each gets its own tools and skill scope.",
   },
   delegateToAgent: {
     schema: z.object({
