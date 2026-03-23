@@ -204,7 +204,25 @@ export function SchedulePicker({ value, onChange, showOnce = true, defaultMode =
             {/* Time picker */}
             <div>
               <label className="text-xs text-gray-400 mb-1 block">Time</label>
-              <Input type="time" value={time} onChange={e => setTime(e.target.value)} className="bg-slate-800 border-slate-700 text-white" />
+              <div className="flex gap-1">
+                <Select value={time.split(":")[0]} onValueChange={h => setTime(`${h}:${time.split(":")[1] || "00"}`)}>
+                  <SelectTrigger className="bg-slate-800 border-slate-700 text-white w-20"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700 max-h-48">
+                    {Array.from({length:24},(_,i)=>String(i).padStart(2,"0")).map(h=>(
+                      <SelectItem key={h} value={h}>{h}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-gray-400 self-center">:</span>
+                <Select value={time.split(":")[1] || "00"} onValueChange={m => setTime(`${time.split(":")[0] || "09"}:${m}`)}>
+                  <SelectTrigger className="bg-slate-800 border-slate-700 text-white w-20"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700 max-h-48">
+                    {["00","15","30","45"].map(m=>(
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
@@ -266,7 +284,25 @@ export function SchedulePicker({ value, onChange, showOnce = true, defaultMode =
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-gray-400 mb-1 block">At</label>
-                <Input type="time" value={time} onChange={e => setTime(e.target.value)} className="bg-slate-800 border-slate-700 text-white" />
+                <div className="flex gap-1">
+                <Select value={time.split(":")[0]} onValueChange={h => setTime(`${h}:${time.split(":")[1] || "00"}`)}>
+                  <SelectTrigger className="bg-slate-800 border-slate-700 text-white w-20"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700 max-h-48">
+                    {Array.from({length:24},(_,i)=>String(i).padStart(2,"0")).map(h=>(
+                      <SelectItem key={h} value={h}>{h}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-gray-400 self-center">:</span>
+                <Select value={time.split(":")[1] || "00"} onValueChange={m => setTime(`${time.split(":")[0] || "09"}:${m}`)}>
+                  <SelectTrigger className="bg-slate-800 border-slate-700 text-white w-20"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700 max-h-48">
+                    {["00","15","30","45"].map(m=>(
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               </div>
               <div>
                 <label className="text-xs text-gray-400 mb-1 block">Timezone</label>
@@ -302,7 +338,25 @@ export function SchedulePicker({ value, onChange, showOnce = true, defaultMode =
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-gray-400 mb-1 block">At</label>
-                  <Input type="time" value={time} onChange={e => setTime(e.target.value)} className="bg-slate-800 border-slate-700 text-white" />
+                  <div className="flex gap-1">
+                <Select value={time.split(":")[0]} onValueChange={h => setTime(`${h}:${time.split(":")[1] || "00"}`)}>
+                  <SelectTrigger className="bg-slate-800 border-slate-700 text-white w-20"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700 max-h-48">
+                    {Array.from({length:24},(_,i)=>String(i).padStart(2,"0")).map(h=>(
+                      <SelectItem key={h} value={h}>{h}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-gray-400 self-center">:</span>
+                <Select value={time.split(":")[1] || "00"} onValueChange={m => setTime(`${time.split(":")[0] || "09"}:${m}`)}>
+                  <SelectTrigger className="bg-slate-800 border-slate-700 text-white w-20"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700 max-h-48">
+                    {["00","15","30","45"].map(m=>(
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
                 </div>
                 <div>
                   <label className="text-xs text-gray-400 mb-1 block">Timezone</label>
@@ -340,7 +394,25 @@ export function SchedulePicker({ value, onChange, showOnce = true, defaultMode =
                 </div>
                 <div>
                   <label className="text-xs text-gray-400 mb-1 block">At</label>
-                  <Input type="time" value={time} onChange={e => setTime(e.target.value)} className="bg-slate-800 border-slate-700 text-white" />
+                  <div className="flex gap-1">
+                <Select value={time.split(":")[0]} onValueChange={h => setTime(`${h}:${time.split(":")[1] || "00"}`)}>
+                  <SelectTrigger className="bg-slate-800 border-slate-700 text-white w-20"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700 max-h-48">
+                    {Array.from({length:24},(_,i)=>String(i).padStart(2,"0")).map(h=>(
+                      <SelectItem key={h} value={h}>{h}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-gray-400 self-center">:</span>
+                <Select value={time.split(":")[1] || "00"} onValueChange={m => setTime(`${time.split(":")[0] || "09"}:${m}`)}>
+                  <SelectTrigger className="bg-slate-800 border-slate-700 text-white w-20"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700 max-h-48">
+                    {["00","15","30","45"].map(m=>(
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
                 </div>
                 <div>
                   <label className="text-xs text-gray-400 mb-1 block">Timezone</label>
