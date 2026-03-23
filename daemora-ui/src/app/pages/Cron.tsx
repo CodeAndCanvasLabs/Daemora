@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Switch } from "../components/ui/switch";
 import { toast } from "sonner";
+import { SchedulePicker } from "../components/SchedulePicker";
 
 interface CronJob {
   id: string;
@@ -441,44 +442,27 @@ export function Cron() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs text-gray-400">Schedule Type</label>
-                  <Select value={form.scheduleKind} onValueChange={(v) => setForm({ ...form, scheduleKind: v as typeof form.scheduleKind })}>
-                    <SelectTrigger className="bg-slate-900 border-slate-800 text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent className="bg-slate-950 border-slate-800">
-                      <SelectItem value="cron">Cron Expression</SelectItem>
-                      <SelectItem value="every">Fixed Interval</SelectItem>
-                      <SelectItem value="at">One-Shot (At)</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <label className="text-xs text-gray-400">Schedule</label>
+                  <SchedulePicker
+                    showOnce={true}
+                    defaultMode={form.scheduleKind === "at" ? "once" : form.scheduleKind === "every" ? "recurring" : "recurring"}
+                    value={{
+                      cronExpression: form.scheduleKind === "cron" ? form.cronExpr : undefined,
+                      every: form.scheduleKind === "every" ? form.everyInterval : undefined,
+                      at: form.scheduleKind === "at" ? (form.atTime ? new Date(form.atTime).toISOString() : undefined) : undefined,
+                      timezone: form.timezone,
+                    }}
+                    onChange={(v) => {
+                      if (v.at) {
+                        setForm({ ...form, scheduleKind: "at", atTime: v.at.slice(0, 16), timezone: v.timezone || form.timezone });
+                      } else if (v.every) {
+                        setForm({ ...form, scheduleKind: "every", everyInterval: v.every, timezone: v.timezone || form.timezone });
+                      } else if (v.cronExpression) {
+                        setForm({ ...form, scheduleKind: "cron", cronExpr: v.cronExpression, timezone: v.timezone || form.timezone });
+                      }
+                    }}
+                  />
                 </div>
-
-                {form.scheduleKind === "cron" && (
-                  <>
-                    <div className="space-y-1">
-                      <label className="text-xs text-gray-400">Cron Expression</label>
-                      <Input value={form.cronExpr} onChange={(e) => setForm({ ...form, cronExpr: e.target.value })} placeholder="0 9 * * *" className="bg-slate-900 border-slate-800 text-sm text-[#00ff88]" />
-                      <p className="text-xs text-gray-500">min hour day month weekday (e.g. "0 9 * * *" = daily 9am)</p>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs text-gray-400">Timezone (optional)</label>
-                      <Input value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} placeholder="America/New_York" className="bg-slate-900 border-slate-800 text-sm" />
-                    </div>
-                  </>
-                )}
-
-                {form.scheduleKind === "every" && (
-                  <div className="space-y-1">
-                    <label className="text-xs text-gray-400">Interval</label>
-                    <Input value={form.everyInterval} onChange={(e) => setForm({ ...form, everyInterval: e.target.value })} placeholder="30m (30s, 5m, 2h, 1d)" className="bg-slate-900 border-slate-800 text-sm text-[#00ff88]" />
-                  </div>
-                )}
-
-                {form.scheduleKind === "at" && (
-                  <div className="space-y-1">
-                    <label className="text-xs text-gray-400">Date & Time</label>
-                    <Input type="datetime-local" value={form.atTime} onChange={(e) => setForm({ ...form, atTime: e.target.value })} className="bg-slate-900 border-slate-800 text-sm" />
-                  </div>
-                )}
 
                 <div className="space-y-1">
                   <label className="text-xs text-gray-400">Task Input (Agent Prompt)</label>
@@ -626,44 +610,27 @@ export function Cron() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs text-gray-400">Schedule Type</label>
-              <Select value={form.scheduleKind} onValueChange={(v) => setForm({ ...form, scheduleKind: v as typeof form.scheduleKind })}>
-                <SelectTrigger className="bg-slate-900 border-slate-800 text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent className="bg-slate-950 border-slate-800">
-                  <SelectItem value="cron">Cron Expression</SelectItem>
-                  <SelectItem value="every">Fixed Interval</SelectItem>
-                  <SelectItem value="at">One-Shot (At)</SelectItem>
-                </SelectContent>
-              </Select>
+              <label className="text-xs text-gray-400">Schedule</label>
+              <SchedulePicker
+                showOnce={true}
+                defaultMode={form.scheduleKind === "at" ? "once" : form.scheduleKind === "every" ? "recurring" : "recurring"}
+                value={{
+                  cronExpression: form.scheduleKind === "cron" ? form.cronExpr : undefined,
+                  every: form.scheduleKind === "every" ? form.everyInterval : undefined,
+                  at: form.scheduleKind === "at" ? (form.atTime ? new Date(form.atTime).toISOString() : undefined) : undefined,
+                  timezone: form.timezone,
+                }}
+                onChange={(v) => {
+                  if (v.at) {
+                    setForm({ ...form, scheduleKind: "at", atTime: v.at.slice(0, 16), timezone: v.timezone || form.timezone });
+                  } else if (v.every) {
+                    setForm({ ...form, scheduleKind: "every", everyInterval: v.every, timezone: v.timezone || form.timezone });
+                  } else if (v.cronExpression) {
+                    setForm({ ...form, scheduleKind: "cron", cronExpr: v.cronExpression, timezone: v.timezone || form.timezone });
+                  }
+                }}
+              />
             </div>
-
-            {form.scheduleKind === "cron" && (
-              <>
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-400">Cron Expression</label>
-                  <Input value={form.cronExpr} onChange={(e) => setForm({ ...form, cronExpr: e.target.value })} placeholder="0 9 * * *" className="bg-slate-900 border-slate-800 text-sm text-[#00ff88]" />
-                  <p className="text-xs text-gray-500">min hour day month weekday (e.g. "0 9 * * *" = daily 9am)</p>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-400">Timezone (optional)</label>
-                  <Input value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} placeholder="America/New_York" className="bg-slate-900 border-slate-800 text-sm" />
-                </div>
-              </>
-            )}
-
-            {form.scheduleKind === "every" && (
-              <div className="space-y-1">
-                <label className="text-xs text-gray-400">Interval</label>
-                <Input value={form.everyInterval} onChange={(e) => setForm({ ...form, everyInterval: e.target.value })} placeholder="30m (30s, 5m, 2h, 1d)" className="bg-slate-900 border-slate-800 text-sm text-[#00ff88]" />
-              </div>
-            )}
-
-            {form.scheduleKind === "at" && (
-              <div className="space-y-1">
-                <label className="text-xs text-gray-400">Date & Time</label>
-                <Input type="datetime-local" value={form.atTime} onChange={(e) => setForm({ ...form, atTime: e.target.value })} className="bg-slate-900 border-slate-800 text-sm" />
-              </div>
-            )}
 
             <div className="space-y-1">
               <label className="text-xs text-gray-400">Task Input (Agent Prompt)</label>
