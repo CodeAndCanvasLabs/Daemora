@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 680" font-family="'Segoe UI', system-ui, -apple-system, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 720" font-family="'Segoe UI', system-ui, -apple-system, sans-serif">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#0d1117"/>
@@ -8,88 +8,92 @@
       <feGaussianBlur stdDeviation="2" result="blur"/>
       <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
+    <marker id="arrowBlue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#2f81f7"/></marker>
+    <marker id="arrowPurple" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#8957e5"/></marker>
+    <marker id="arrowGreen" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#3fb950"/></marker>
+    <marker id="arrowCyan" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#58a6ff"/></marker>
+    <marker id="arrowOrange" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#f0883e"/></marker>
   </defs>
 
-  <rect width="900" height="680" fill="url(#bg)" rx="12"/>
+  <rect width="900" height="720" fill="url(#bg)" rx="12"/>
 
   <!-- Title -->
-  <text x="450" y="36" text-anchor="middle" fill="#e6edf3" font-size="18" font-weight="700">System Architecture</text>
+  <text x="450" y="36" text-anchor="middle" fill="#e6edf3" font-size="18" font-weight="700">Daemora — System Architecture</text>
 
   <!-- Input Channels -->
   <rect x="60" y="54" width="780" height="72" rx="8" fill="#1a2332" stroke="#2f81f7" stroke-width="1.5"/>
-  <text x="450" y="76" text-anchor="middle" fill="#2f81f7" font-size="13" font-weight="700">INPUT CHANNELS (19) — Per-Tenant Instances</text>
+  <text x="450" y="76" text-anchor="middle" fill="#2f81f7" font-size="13" font-weight="700">INPUT CHANNELS (20) — Per-Tenant Instances</text>
   <text x="450" y="96" text-anchor="middle" fill="#8b949e" font-size="11">Telegram · WhatsApp · Discord · Slack · Email · LINE · Signal · Teams · Google Chat · Matrix · iMessage</text>
-  <text x="450" y="112" text-anchor="middle" fill="#8b949e" font-size="11">Each tenant can have own bot tokens → dedicated channel instances spun up live (AES-256-GCM encrypted)</text>
+  <text x="450" y="112" text-anchor="middle" fill="#8b949e" font-size="11">Webhooks (Watchers) · HTTP API · Each tenant can have own bot tokens (AES-256-GCM encrypted)</text>
 
-  <!-- Arrow 1 -->
   <line x1="450" y1="126" x2="450" y2="146" stroke="#2f81f7" stroke-width="2" marker-end="url(#arrowBlue)"/>
-  <defs><marker id="arrowBlue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#2f81f7"/></marker></defs>
 
   <!-- Multi-Tenant Layer -->
   <rect x="60" y="148" width="780" height="68" rx="8" fill="#1a2332" stroke="#8957e5" stroke-width="1.5"/>
   <text x="450" y="172" text-anchor="middle" fill="#8957e5" font-size="13" font-weight="700">MULTI-TENANT LAYER</text>
-  <text x="450" y="192" text-anchor="middle" fill="#8b949e" font-size="10">TenantManager + TenantContext (AsyncLocalStorage) — per-tenant model, tools, MCP, channels, filesystem, cost caps, API keys</text>
+  <text x="450" y="192" text-anchor="middle" fill="#8b949e" font-size="10">TenantManager + TenantContext (AsyncLocalStorage) — per-tenant model, crews, MCP, channels, filesystem, cost caps, API keys</text>
 
-  <!-- Arrow 2 -->
   <line x1="450" y1="216" x2="450" y2="236" stroke="#8957e5" stroke-width="2" marker-end="url(#arrowPurple)"/>
-  <defs><marker id="arrowPurple" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#8957e5"/></marker></defs>
 
   <!-- Task Queue -->
   <rect x="60" y="238" width="780" height="68" rx="8" fill="#1a2332" stroke="#3fb950" stroke-width="1.5"/>
-  <text x="450" y="262" text-anchor="middle" fill="#3fb950" font-size="13" font-weight="700">TASK QUEUE</text>
-  <text x="450" y="282" text-anchor="middle" fill="#8b949e" font-size="11">Priority queue · Per-session serialisation · Steer/inject · Cost budget · Persistent sessions · Auto-cleanup</text>
+  <text x="450" y="262" text-anchor="middle" fill="#3fb950" font-size="13" font-weight="700">TASK QUEUE + SCHEDULER</text>
+  <text x="450" y="282" text-anchor="middle" fill="#8b949e" font-size="11">Priority queue · Steer/inject · Goals (GoalPulse) · Watchers (webhook triggers) · Cron · Morning Pulse · Heartbeat</text>
 
-  <!-- Arrow 3 -->
   <line x1="450" y1="306" x2="450" y2="326" stroke="#3fb950" stroke-width="2" marker-end="url(#arrowGreen)"/>
-  <defs><marker id="arrowGreen" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#3fb950"/></marker></defs>
 
   <!-- Agent Loop -->
   <rect x="60" y="328" width="780" height="68" rx="8" fill="#1a2332" stroke="#58a6ff" stroke-width="1.5"/>
-  <text x="450" y="352" text-anchor="middle" fill="#58a6ff" font-size="13" font-weight="700">AGENT LOOP</text>
-  <text x="450" y="372" text-anchor="middle" fill="#8b949e" font-size="10">Vercel AI SDK · System prompt (SOUL.md + memory + skills) · 9 providers: OpenAI / Anthropic / Google / xAI / DeepSeek / Mistral / Groq / OpenRouter / Ollama</text>
+  <text x="450" y="352" text-anchor="middle" fill="#58a6ff" font-size="13" font-weight="700">AGENT LOOP (Vercel AI SDK)</text>
+  <text x="450" y="372" text-anchor="middle" fill="#8b949e" font-size="10">generateText + native tool calling · SOUL.md + memory + skills · 9 providers · Thinking support · Self-improving (BackgroundReviewer)</text>
 
   <!-- Arrows to bottom row -->
-  <line x1="230" y1="396" x2="230" y2="430" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrowCyan)"/>
-  <line x1="450" y1="396" x2="450" y2="430" stroke="#f0883e" stroke-width="2" marker-end="url(#arrowOrange)"/>
-  <line x1="670" y1="396" x2="670" y2="430" stroke="#3fb950" stroke-width="2" marker-end="url(#arrowGreen2)"/>
-  <defs>
-    <marker id="arrowCyan" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#58a6ff"/></marker>
-    <marker id="arrowOrange" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#f0883e"/></marker>
-    <marker id="arrowGreen2" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#3fb950"/></marker>
-  </defs>
+  <line x1="170" y1="396" x2="170" y2="430" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrowCyan)"/>
+  <line x1="400" y1="396" x2="400" y2="430" stroke="#f0883e" stroke-width="2" marker-end="url(#arrowOrange)"/>
+  <line x1="620" y1="396" x2="620" y2="430" stroke="#3fb950" stroke-width="2" marker-end="url(#arrowGreen)"/>
+  <line x1="790" y1="396" x2="790" y2="430" stroke="#d2a8ff" stroke-width="2"/>
 
   <!-- Built-in Tools -->
-  <rect x="60" y="432" width="320" height="120" rx="8" fill="#1a2332" stroke="#58a6ff" stroke-width="1.5"/>
-  <text x="220" y="456" text-anchor="middle" fill="#58a6ff" font-size="13" font-weight="700">BUILT-IN TOOLS (56)</text>
-  <text x="220" y="476" text-anchor="middle" fill="#8b949e" font-size="10">File I/O · Shell · Web · Browser</text>
-  <text x="220" y="492" text-anchor="middle" fill="#8b949e" font-size="10">Email · Vision · TTS · PDF · Documents</text>
-  <text x="220" y="508" text-anchor="middle" fill="#8b949e" font-size="10">Voice Calls · Meetings · Voice Cloning</text>
-  <text x="220" y="524" text-anchor="middle" fill="#8b949e" font-size="10">Memory · Cron · Git · SSH · Database</text>
+  <rect x="60" y="432" width="210" height="120" rx="8" fill="#1a2332" stroke="#58a6ff" stroke-width="1.5"/>
+  <text x="165" y="456" text-anchor="middle" fill="#58a6ff" font-size="12" font-weight="700">CORE TOOLS (59)</text>
+  <text x="165" y="474" text-anchor="middle" fill="#8b949e" font-size="9">File I/O · Shell · Web · Browser</text>
+  <text x="165" y="490" text-anchor="middle" fill="#8b949e" font-size="9">Email · Vision · TTS · Documents</text>
+  <text x="165" y="506" text-anchor="middle" fill="#8b949e" font-size="9">Voice · Meetings · Git · Memory</text>
+  <text x="165" y="522" text-anchor="middle" fill="#8b949e" font-size="9">Cron · Goals · Watchers · Broadcast</text>
 
-  <!-- Sub-Agents + Teams -->
-  <rect x="400" y="432" width="230" height="120" rx="8" fill="#1a2332" stroke="#f0883e" stroke-width="1.5"/>
-  <text x="515" y="456" text-anchor="middle" fill="#f0883e" font-size="13" font-weight="700">SUB-AGENTS + TEAMS</text>
-  <text x="515" y="476" text-anchor="middle" fill="#8b949e" font-size="10">spawnAgent · parallelAgents</text>
-  <text x="515" y="492" text-anchor="middle" fill="#8b949e" font-size="10">delegateToAgent · teamTask</text>
-  <text x="515" y="508" text-anchor="middle" fill="#8b949e" font-size="10">Profiles: coder / researcher</text>
-  <text x="515" y="524" text-anchor="middle" fill="#8b949e" font-size="10">/ writer / analyst</text>
-  <text x="515" y="540" text-anchor="middle" fill="#8b949e" font-size="10">Persistent sessions · Model routing</text>
+  <!-- Crew System -->
+  <rect x="290" y="432" width="210" height="120" rx="8" fill="#1a2332" stroke="#f0883e" stroke-width="1.5"/>
+  <text x="395" y="456" text-anchor="middle" fill="#f0883e" font-size="12" font-weight="700">CREW SYSTEM (31)</text>
+  <text x="395" y="474" text-anchor="middle" fill="#8b949e" font-size="9">useCrew · parallelCrew · discoverCrew</text>
+  <text x="395" y="490" text-anchor="middle" fill="#8b949e" font-size="9">22 specialist profiles (coder, researcher...)</text>
+  <text x="395" y="506" text-anchor="middle" fill="#8b949e" font-size="9">7 specialist crews (DB, calendar, SSH...)</text>
+  <text x="395" y="522" text-anchor="middle" fill="#8b949e" font-size="9">Persistent sessions · Own tools/skills</text>
+  <text x="395" y="538" text-anchor="middle" fill="#8b949e" font-size="9">Community-extensible via npm</text>
 
   <!-- MCP Servers -->
-  <rect x="650" y="432" width="190" height="120" rx="8" fill="#1a2332" stroke="#3fb950" stroke-width="1.5"/>
-  <text x="745" y="456" text-anchor="middle" fill="#3fb950" font-size="13" font-weight="700">MCP SERVERS</text>
-  <text x="745" y="476" text-anchor="middle" fill="#8b949e" font-size="10">Global + per-tenant private</text>
-  <text x="745" y="492" text-anchor="middle" fill="#8b949e" font-size="10">GitHub · Notion · Linear</text>
-  <text x="745" y="508" text-anchor="middle" fill="#8b949e" font-size="10">Slack · Postgres · Puppeteer</text>
-  <text x="745" y="524" text-anchor="middle" fill="#8b949e" font-size="10">stdio / HTTP / SSE</text>
-  <text x="745" y="540" text-anchor="middle" fill="#8b949e" font-size="10">Tenant-scoped access control</text>
+  <rect x="520" y="432" width="190" height="120" rx="8" fill="#1a2332" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="615" y="456" text-anchor="middle" fill="#3fb950" font-size="12" font-weight="700">MCP (@ai-sdk/mcp)</text>
+  <text x="615" y="474" text-anchor="middle" fill="#8b949e" font-size="9">Proper Zod schemas</text>
+  <text x="615" y="490" text-anchor="middle" fill="#8b949e" font-size="9">GitHub · Notion · Linear</text>
+  <text x="615" y="506" text-anchor="middle" fill="#8b949e" font-size="9">stdio / HTTP / SSE</text>
+  <text x="615" y="522" text-anchor="middle" fill="#8b949e" font-size="9">Per-tenant access control</text>
+
+  <!-- Teams -->
+  <rect x="730" y="432" width="110" height="120" rx="8" fill="#1a2332" stroke="#d2a8ff" stroke-width="1.5"/>
+  <text x="785" y="456" text-anchor="middle" fill="#d2a8ff" font-size="12" font-weight="700">TEAMS</text>
+  <text x="785" y="474" text-anchor="middle" fill="#8b949e" font-size="9">Team Lead pattern</text>
+  <text x="785" y="490" text-anchor="middle" fill="#8b949e" font-size="9">Plan approval</text>
+  <text x="785" y="506" text-anchor="middle" fill="#8b949e" font-size="9">SQLite persistent</text>
+  <text x="785" y="522" text-anchor="middle" fill="#8b949e" font-size="9">Project re-launch</text>
+  <text x="785" y="538" text-anchor="middle" fill="#8b949e" font-size="9">5 templates</text>
 
   <!-- Skills bar -->
   <rect x="60" y="572" width="780" height="48" rx="8" fill="#1a2332" stroke="#d2a8ff" stroke-width="1.5"/>
-  <text x="450" y="596" text-anchor="middle" fill="#d2a8ff" font-size="13" font-weight="700">52 BUILT-IN SKILLS</text>
-  <text x="450" y="612" text-anchor="middle" fill="#8b949e" font-size="10">Coding · Research · Email · Weather · Spotify · Obsidian · PDF · DevOps · Data Analysis · Browser · Documents · Meetings · Planning · Image Gen</text>
+  <text x="450" y="596" text-anchor="middle" fill="#d2a8ff" font-size="13" font-weight="700">52 BUILT-IN SKILLS + SELF-IMPROVING (BackgroundReviewer)</text>
+  <text x="450" y="612" text-anchor="middle" fill="#8b949e" font-size="10">Coding · Research · Email · Weather · DevOps · Data Analysis · Browser · Documents · Meetings · Planning · Auto-generates new skills from experience</text>
 
   <!-- Security badge -->
-  <rect x="60" y="636" width="780" height="32" rx="8" fill="#1a2332" stroke="#f85149" stroke-width="1.5"/>
-  <text x="450" y="658" text-anchor="middle" fill="#f85149" font-size="11" font-weight="700">12-LAYER SECURITY — Sandbox · Vault · Audit · Supervisor · Tenant Isolation · Command Guard · A2A Auth</text>
+  <rect x="60" y="636" width="780" height="48" rx="8" fill="#1a2332" stroke="#f85149" stroke-width="1.5"/>
+  <text x="450" y="658" text-anchor="middle" fill="#f85149" font-size="12" font-weight="700">16-LAYER SECURITY</text>
+  <text x="450" y="676" text-anchor="middle" fill="#8b949e" font-size="10">Sandbox · Vault · Audit · Supervisor · Tenant Isolation · Command Guard · Secret Redaction · A2A Auth · Input Sanitisation</text>
 </svg>

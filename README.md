@@ -324,7 +324,7 @@ daemora crew reload        # Hot-reload all crew members
 | **Communication** | sendEmail, messageChannel, sendFile, replyWithFile, replyToUser, makeVoiceCall, meetingAction, transcribeAudio, textToSpeech |
 | **Documents** | createDocument (Markdown, PDF, DOCX), readPDF |
 | **Memory** | readMemory, writeMemory, searchMemory, pruneMemory, readDailyLog, writeDailyLog, listMemoryCategories |
-| **Agents** | spawnAgent, parallelAgents, delegateToAgent, manageAgents, teamTask |
+| **Delegation** | useCrew, parallelCrew, discoverCrew, teamTask, useMCP, manageAgents |
 | **MCP + Crew** | useMCP, manageMCP, useCrew |
 | **Scheduling** | cron, goal, watcher, broadcast (Fleet Command) |
 | **Tracking** | projectTracker, taskManager |
@@ -337,7 +337,7 @@ daemora crew reload        # Hot-reload all crew members
 
 ## Agent Teams
 
-Teams enable coordinated multi-agent collaboration with shared task lists, dependency tracking, and inter-agent messaging. Use teams when agents need to coordinate — use `parallelAgents` when they don't.
+Teams enable coordinated multi-agent collaboration with shared task lists, dependency tracking, and inter-agent messaging. Use teams when agents need to coordinate — use `parallelCrew` when they don't.
 
 ### Team Lifecycle
 
@@ -367,10 +367,10 @@ createTeam("feature-sprint")
 
 | Scenario | Use |
 |---|---|
-| 5 independent web searches | `parallelAgents` — no coordination needed |
+| 5 independent web searches | `parallelCrew` — no coordination needed |
 | Research → implement → document pipeline | **Team** — tasks depend on each other |
 | Coder + reviewer need to discuss approach | **Team** — inter-agent messaging |
-| Translate a doc into 3 languages | `parallelAgents` — independent, no coordination |
+| Translate a doc into 3 languages | `parallelCrew` — independent, no coordination |
 
 ### Limits
 
