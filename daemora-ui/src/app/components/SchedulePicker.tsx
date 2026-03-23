@@ -190,7 +190,7 @@ export function SchedulePicker({ value, onChange, showOnce = true, defaultMode =
                     {selectedDate ? formatDate(selectedDate) : "Pick a date"}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 bg-slate-900 border-slate-700" align="start">
+                <PopoverContent className="w-auto p-0 bg-slate-900 border-slate-700 !z-[9999]" align="start" sideOffset={4} style={{ zIndex: 9999 }}>
                   <Calendar
                     mode="single"
                     selected={selectedDate}
