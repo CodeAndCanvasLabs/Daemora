@@ -78,7 +78,7 @@ export const permissionTiers = {
       "readMemory", "writeMemory", "readDailyLog", "writeDailyLog",
       "searchMemory", "pruneMemory", "listMemoryCategories",
       // Agents & teams
-      "spawnAgent", "parallelAgents", "delegateToAgent", "manageAgents",
+      "parallelCrew", "delegateToAgent", "manageAgents",
       "teamTask", "discoverCrew",
       // MCP + Crew
       "manageMCP", "useMCP", "useCrew",
