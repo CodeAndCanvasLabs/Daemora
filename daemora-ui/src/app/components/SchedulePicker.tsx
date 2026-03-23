@@ -14,8 +14,6 @@ import { useState, useEffect } from "react";
 import { Calendar } from "./ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Input } from "./ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
-import { Button } from "./ui/button";
 import { CalendarIcon, Clock, Repeat, Terminal } from "lucide-react";
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -179,27 +177,30 @@ export function SchedulePicker({ value, onChange, showOnce = true, defaultMode =
       {/* ── Once mode ──────────────────────────────────────────────────── */}
       {mode === "once" && (
         <div className="space-y-3">
+          {/* Inline calendar */}
+          <div>
+            <label className="text-xs text-gray-400 mb-1 block">Date</label>
+            {selectedDate && (
+              <p className="text-sm text-white mb-2 flex items-center gap-2">
+                <CalendarIcon className="w-4 h-4 text-[#00d9ff]" />
+                {formatDate(selectedDate)}
+                <button onClick={() => setSelectedDate(undefined)} className="text-[10px] text-gray-500 hover:text-white ml-auto">change</button>
+              </p>
+            )}
+            {!selectedDate && (
+              <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-1">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={setSelectedDate}
+                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                  className="!bg-transparent"
+                />
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
-            {/* Date picker */}
-            <div>
-              <label className="text-xs text-gray-400 mb-1 block">Date</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal bg-slate-800 border-slate-700 text-white hover:bg-slate-700">
-                    <CalendarIcon className="mr-2 h-4 w-4 text-gray-400" />
-                    {selectedDate ? formatDate(selectedDate) : "Pick a date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 bg-slate-900 border-slate-700 !z-[9999]" align="start" sideOffset={4} style={{ zIndex: 9999 }}>
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={setSelectedDate}
-                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
 
             {/* Time picker */}
             <div>
