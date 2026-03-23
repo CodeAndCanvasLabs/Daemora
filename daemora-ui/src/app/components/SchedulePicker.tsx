@@ -120,6 +120,8 @@ export function SchedulePicker({ value, onChange, showOnce = true, defaultMode =
         if (parsed.time) setTime(parsed.time);
         if (parsed.days) setSelectedDays(parsed.days);
         if (parsed.monthDay) setMonthDay(parsed.monthDay);
+        if (parsed.intervalValue) setIntervalValue(parsed.intervalValue);
+        if (parsed.intervalUnit) setIntervalUnit(parsed.intervalUnit);
       } else {
         setMode("advanced");
         setCustomCron(value.cronExpression);
@@ -489,10 +491,20 @@ function describeSchedule(
   return "";
 }
 
-function parseCronToVisual(cron: string): { frequency: "hourly" | "daily" | "weekly" | "monthly"; time?: string; days?: number[]; monthDay?: string } | null {
+function parseCronToVisual(cron: string): { frequency: "hourly" | "daily" | "weekly" | "monthly"; time?: string; days?: number[]; monthDay?: string; intervalValue?: string; intervalUnit?: string } | null {
   const parts = cron.trim().split(/\s+/);
   if (parts.length !== 5) return null;
   const [min, hour, dom, , dow] = parts;
+
+  // Hourly intervals: "0 */4 * * *" or "*/15 * * * *"
+  if (dom === "*" && dow === "*") {
+    if (hour.startsWith("*/") && min === "0") {
+      return { frequency: "hourly", intervalValue: hour.slice(2), intervalUnit: "h" };
+    }
+    if (min.startsWith("*/") && hour === "*") {
+      return { frequency: "hourly", intervalValue: min.slice(2), intervalUnit: "m" };
+    }
+  }
 
   // Daily: "M H * * *"
   if (dom === "*" && dow === "*" && !min.includes("/") && !hour.includes("/")) {
