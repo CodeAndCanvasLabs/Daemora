@@ -12,6 +12,7 @@ import { join, basename } from "path";
 import { readdirSync, readFileSync, existsSync } from "fs";
 import { config } from "./default.js";
 import tenantContext from "../tenants/TenantContext.js";
+import { getRegistry } from "../crew/PluginRegistry.js";
 
 // ── YAML parser (no dependency — profiles are simple key-value) ──────────────
 // Handles: scalars, arrays, multi-line strings (|), nested objects (1 level)
@@ -137,6 +138,8 @@ function loadProfilesFromDir(dir, isBuiltin = false) {
         console.warn(`[ProfileLoader] Skipping ${file}: missing 'name' field`);
         continue;
       }
+      // Skip if already loaded from crew (crew takes priority)
+      if (profileCache.has(parsed.id)) continue;
       profileCache.set(parsed.id, {
         id: parsed.id,
         name: parsed.name || parsed.id,
@@ -160,14 +163,56 @@ function ensureLoaded() {
   if (cacheLoaded) return;
   cacheLoaded = true;
 
-  // 1. Built-in profiles (ship with repo)
+  // 1. Crew-based profiles (new source of truth — crew/*/plugin.json)
+  _loadFromCrewRegistry();
+
+  // 2. Legacy YAML profiles (fallback — src/config/profiles/*.yaml)
+  // Only loads profiles NOT already loaded from crew (crew takes priority)
   loadProfilesFromDir(BUILTIN_DIR, true);
 
-  // 2. User custom profiles (data dir)
+  // 3. User custom profiles (data dir — tenant overrides)
   const customDir = join(config.dataDir, "profiles");
   loadProfilesFromDir(customDir, false);
 
-  console.log(`[ProfileLoader] Loaded ${profileCache.size} profiles (${BUILTIN_DIR})`);
+  console.log(`[ProfileLoader] Loaded ${profileCache.size} profiles (crew + YAML)`);
+}
+
+/**
+ * Load profiles from crew registry (plugin.json manifests).
+ * Each crew member with a profile section becomes a profile.
+ * Format: plugin.json { id, name, description, profile: { systemPrompt, temperature, model }, tools, skills, capabilities }
+ */
+function _loadFromCrewRegistry() {
+  try {
+    const registry = getRegistry();
+    if (!registry?.crew) return;
+
+    for (const member of registry.crew) {
+      if (!member.manifest?.profile) continue;
+      if (profileCache.has(member.id)) continue; // don't override existing
+
+      const m = member.manifest;
+      const skills = {};
+      if (m.skills?.length) skills.include = m.skills;
+      if (m.skillsExclude?.length) skills.exclude = m.skillsExclude;
+
+      profileCache.set(member.id, {
+        id: member.id,
+        name: m.name || member.id,
+        description: m.description || "",
+        systemPrompt: m.profile.systemPrompt || "",
+        temperature: m.profile.temperature ?? null,
+        model: m.profile.model || null,
+        tools: Array.isArray(m.tools) ? m.tools : [],
+        skills: Object.keys(skills).length > 0 ? skills : null,
+        capabilities: Array.isArray(m.capabilities) ? m.capabilities : [],
+        isBuiltin: false,
+        source: `crew/${member.id}/plugin.json`,
+      });
+    }
+  } catch {
+    // Crew registry not loaded yet — will use YAML fallback
+  }
 }
 
 // ── Tenant overlay ──────────────────────────────────────────────────────────
