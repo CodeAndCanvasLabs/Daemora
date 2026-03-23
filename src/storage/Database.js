@@ -368,6 +368,18 @@ function _runMigrations(db) {
     );
   `);
 
+  // Teams: add project fields (migration)
+  const _teamCols = () => {
+    try { return db.prepare("PRAGMA table_info(teams)").all().map(r => r.name); } catch { return []; }
+  };
+  const tc = _teamCols();
+  if (tc.length > 0 && !tc.includes("project")) {
+    for (const col of ["project TEXT", "project_type TEXT", "project_repo TEXT", "project_stack TEXT", "requirements TEXT"]) {
+      try { db.exec(`ALTER TABLE teams ADD COLUMN ${col}`); } catch {}
+    }
+    console.log("[Database] Migration: added teams project fields");
+  }
+
   // ── Team System (persistent, ClawTeam pattern) ─────────────────────────────
 
   // Teams

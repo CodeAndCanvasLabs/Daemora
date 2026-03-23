@@ -30,19 +30,22 @@ function buildLeadTools(teamId, leadName) {
     description: "Create and spawn a worker sub-agent for this team",
     inputSchema: z.object({
       name: z.string().describe("Worker name (unique within team)"),
-      profile: z.string().describe("Agent profile: coder|researcher|writer|analyst|frontend|tester|devops|etc"),
+      profile: z.string().optional().describe("Agent profile: coder|researcher|writer|analyst|frontend|tester|devops|etc"),
+      crew: z.string().optional().describe("Crew member ID to use as worker (e.g. 'database-connector'). Use instead of profile for specialist crew."),
       task: z.string().describe("Full task description — the worker's assignment. Be specific."),
       skills: z.array(z.string()).optional().describe("Skill IDs to inject (e.g. ['coding', 'debugging'])"),
       blockedBy: z.array(z.string()).optional().describe("Task IDs this worker's task depends on"),
     }),
     execute: async (params) => {
       try {
+        if (!params.profile && !params.crew) return "Error: either profile or crew is required.";
+
         // Create member
         const member = store.addMember({
           teamId,
           name: params.name,
           role: "worker",
-          profile: params.profile,
+          profile: params.crew || params.profile,
           skills: params.skills,
           instructions: params.task,
         });
@@ -80,12 +83,20 @@ function buildLeadTools(teamId, leadName) {
         store.updateTask(task.id, { status: "assigned", started_at: new Date().toISOString() });
 
         // Spawn worker (fire-and-forget)
-        spawnSubAgent(workerContract, {
-          profile: params.profile,
-          skills: params.skills,
-          aiToolOverrides: workerTools,
-          depth: 2, // lead is depth 1, workers are depth 2
-        }).then(result => {
+        const spawnPromise = params.crew
+          ? // Crew-based worker: uses CrewAgentRunner (specialist tools from crew)
+            import("../crew/CrewAgentRunner.js").then(({ runCrewAgent }) =>
+              runCrewAgent(params.crew, workerContract, {})
+            )
+          : // Profile-based worker: uses SubAgentManager
+            spawnSubAgent(workerContract, {
+              profile: params.profile,
+              skills: params.skills,
+              aiToolOverrides: workerTools,
+              depth: 2,
+            });
+
+        spawnPromise.then(result => {
           store.updateMemberStatus(member.id, "done");
           console.log(`[Team:${teamId}] Worker "${params.name}" finished`);
         }).catch(err => {
@@ -93,7 +104,8 @@ function buildLeadTools(teamId, leadName) {
           console.log(`[Team:${teamId}] Worker "${params.name}" failed: ${err.message}`);
         });
 
-        return `Worker "${params.name}" (${params.profile}) created and spawned. Task: ${task.id}. ${params.blockedBy?.length ? "Blocked by: " + params.blockedBy.join(", ") : "Ready to work."}`;
+        const workerType = params.crew ? `crew:${params.crew}` : params.profile;
+        return `Worker "${params.name}" (${workerType}) created and spawned. Task: ${task.id}. ${params.blockedBy?.length ? "Blocked by: " + params.blockedBy.join(", ") : "Ready to work."}`;
       } catch (err) {
         return `Error creating worker: ${err.message}`;
       }
@@ -217,7 +229,24 @@ function buildLeadTools(teamId, leadName) {
     },
   });
 
-  return { createWorker, assignTask, reviewPlan, approvePlan, checkStatus, sendMessage: sendMsg, completeTeam };
+  const suggestFeature = tool({
+    description: "Suggest a feature or scope change to the main agent for user approval. Use when you discover work outside original requirements.",
+    inputSchema: z.object({
+      title: z.string().describe("Feature title"),
+      description: z.string().describe("What and why"),
+      impact: z.string().optional().describe("Impact on current work if any"),
+    }),
+    execute: async (params) => {
+      store.sendMessage({
+        teamId, from: leadName, to: "main-agent",
+        msgType: "feature_suggestion",
+        content: `Feature: ${params.title}\n${params.description}${params.impact ? "\nImpact: " + params.impact : ""}`,
+      });
+      return `Feature "${params.title}" suggested to main agent. Continue with current tasks — don't wait for approval.`;
+    },
+  });
+
+  return { createWorker, assignTask, reviewPlan, approvePlan, checkStatus, sendMessage: sendMsg, suggestFeature, completeTeam };
 }
 
 // ── Worker Tools (each worker gets these) ───────────────────────────────────
@@ -296,12 +325,16 @@ function buildWorkerTools(teamId, workerName, taskId) {
  * @param {object[]} params.workers - Worker definitions [{ name, profile, task, skills?, blockedBy? }]
  * @returns {Promise<string>} - Team lead's final report
  */
-export async function runTeam({ name, leadContract, workers }) {
+export async function runTeam({ name, leadContract, workers, project = null, projectType = null, projectRepo = null, projectStack = null }) {
   const ctx = tenantContext.getStore();
   const tenantId = ctx?.tenant?.id || null;
 
   // Create team in SQLite
-  const team = store.createTeam({ name, tenantId, config: { workers } });
+  const team = store.createTeam({
+    name, tenantId, config: { workers },
+    project, projectType, projectRepo, projectStack,
+    requirements: leadContract.task,
+  });
 
   // Add lead member
   const lead = store.addMember({
@@ -339,21 +372,75 @@ export async function runTeam({ name, leadContract, workers }) {
   // Build lead's AI SDK tools
   const leadTools = buildLeadTools(team.id, "lead");
 
-  // Spawn team lead
+  // Spawn team lead — gets normal system prompt (SOUL.md + memory + skills) + team context via parentContext
+  // No systemPromptOverride — lead benefits from full agent capabilities
   const result = await spawnSubAgent(leadPrompt, {
     profile: "coordinator",
     aiToolOverrides: leadTools,
-    systemPromptOverride: {
-      role: "system",
-      content: `You are a Team Lead managing a team of specialist workers. You create workers, assign tasks, review plans, approve execution, and report results. Use your team management tools to coordinate. Never do the work yourself — delegate to workers.`,
-    },
+    parentContext: `You are the Team Lead. Delegate work — never do it yourself. Use your management tools: createWorker, assignTask, reviewPlan, approvePlan, checkStatus, sendMessage, suggestFeature, completeTeam.`,
     depth: 1,
-    timeout: 3_600_000, // 1 hour for team work
-    maxCost: 1.00,
   });
 
   store.updateMemberStatus(lead.id, "done");
   store.updateTeamStatus(team.id, "completed");
 
   return typeof result === "string" ? result : result?.text || "Team completed.";
+}
+
+/**
+ * Re-launch an existing team — resume work with existing state.
+ * Lead gets current task status + previous session. Workers re-spawned for incomplete tasks.
+ */
+export async function relaunchTeam(teamId) {
+  const team = store.getTeam(teamId);
+  if (!team) throw new Error(`Team "${teamId}" not found`);
+  if (team.status === "disbanded") throw new Error(`Team "${teamId}" was disbanded`);
+
+  // Resume if paused
+  if (team.status === "paused") store.updateTeamStatus(teamId, "active");
+
+  const members = store.listMembers(teamId);
+  const tasks = store.listTasks(teamId);
+
+  // Build current state summary for the lead
+  const completedTasks = tasks.filter(t => t.status === "completed");
+  const pendingTasks = tasks.filter(t => ["pending", "assigned", "blocked", "in_progress"].includes(t.status));
+  const failedTasks = tasks.filter(t => t.status === "failed");
+
+  const stateContext = [
+    `RE-LAUNCHING project "${team.project || team.name}" (Team: ${teamId}).`,
+    `\nCurrent state:`,
+    `- Completed tasks: ${completedTasks.length}`,
+    completedTasks.length > 0 ? completedTasks.map(t => `  ✅ "${t.title}" → ${(t.result || "done").slice(0, 80)}`).join("\n") : "",
+    `- Pending/in-progress tasks: ${pendingTasks.length}`,
+    pendingTasks.length > 0 ? pendingTasks.map(t => `  ⏳ "${t.title}" [${t.status}] → ${t.assignee || "unassigned"}`).join("\n") : "",
+    failedTasks.length > 0 ? `- Failed tasks: ${failedTasks.length}\n${failedTasks.map(t => `  ❌ "${t.title}"`).join("\n")}` : "",
+    `\nResume work: check what's pending, re-create workers for incomplete tasks, continue to completion.`,
+    team.requirements ? `\nOriginal requirements: ${team.requirements.slice(0, 500)}` : "",
+    team.projectRepo ? `Repo: ${team.projectRepo}` : "",
+    team.projectStack ? `Stack: ${team.projectStack}` : "",
+  ].filter(Boolean).join("\n");
+
+  const workerBrief = members.filter(m => m.role === "worker").map(m =>
+    `- ${m.name} (${m.profile}) [${m.status}]`
+  ).join("\n");
+
+  const leadPrompt = buildContract({
+    task: `Resume managing project "${team.project || team.name}". Review current state and continue to completion.`,
+    context: `${stateContext}\n\nPrevious workers:\n${workerBrief || "None yet"}`,
+    constraints: "Re-create workers only for incomplete tasks. Don't redo completed work.",
+  });
+
+  const leadTools = buildLeadTools(teamId, "lead");
+
+  console.log(`[TeamLeadRunner] Re-launching team "${team.name}" (${teamId}) — ${completedTasks.length} done, ${pendingTasks.length} pending`);
+
+  const result = await spawnSubAgent(leadPrompt, {
+    profile: "coordinator",
+    aiToolOverrides: leadTools,
+    parentContext: `You are the Team Lead RESUMING a project. Current state is in your task description. Re-create workers for incomplete tasks only. Don't redo completed work. Use your management tools.`,
+    depth: 1,
+  });
+
+  return typeof result === "string" ? result : result?.text || "Team resumed.";
 }

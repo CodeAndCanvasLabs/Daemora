@@ -11,13 +11,15 @@ import { v4 as uuidv4 } from "uuid";
 
 // ── Teams ───────────────────────────────────────────────────────────────────
 
-export function createTeam({ name, tenantId = null, config = null }) {
+export function createTeam({ name, tenantId = null, config = null, project = null, projectType = null, projectRepo = null, projectStack = null, requirements = null }) {
   const id = uuidv4().slice(0, 8);
   run(
-    `INSERT INTO teams (id, name, tenant_id, config) VALUES ($id, $name, $tid, $cfg)`,
-    { $id: id, $name: name, $tid: tenantId, $cfg: config ? JSON.stringify(config) : null }
+    `INSERT INTO teams (id, name, tenant_id, config, project, project_type, project_repo, project_stack, requirements)
+     VALUES ($id, $name, $tid, $cfg, $proj, $ptype, $prepo, $pstack, $req)`,
+    { $id: id, $name: name, $tid: tenantId, $cfg: config ? JSON.stringify(config) : null,
+      $proj: project, $ptype: projectType, $prepo: projectRepo, $pstack: projectStack, $req: requirements }
   );
-  return { id, name, tenantId, status: "active" };
+  return { id, name, tenantId, status: "active", project };
 }
 
 export function getTeam(id) {
@@ -41,11 +43,27 @@ export function setTeamLead(teamId, leadAgentId, leadSessionId) {
     { $aid: leadAgentId, $sid: leadSessionId, $id: teamId });
 }
 
+export function findTeamByProject(project, tenantId = null) {
+  const sql = tenantId
+    ? "SELECT * FROM teams WHERE project = $p AND tenant_id = $tid AND status IN ('active','paused') LIMIT 1"
+    : "SELECT * FROM teams WHERE project = $p AND status IN ('active','paused') LIMIT 1";
+  const params = tenantId ? { $p: project, $tid: tenantId } : { $p: project };
+  const row = queryOne(sql, params);
+  return row ? _rowToTeam(row) : null;
+}
+
+export function pauseTeam(id) {
+  run("UPDATE teams SET status = 'paused', updated_at = datetime('now') WHERE id = $id", { $id: id });
+}
+
 function _rowToTeam(row) {
   return {
     id: row.id, name: row.name, tenantId: row.tenant_id,
     leadAgentId: row.lead_agent_id, leadSessionId: row.lead_session_id,
     status: row.status, config: row.config ? JSON.parse(row.config) : null,
+    project: row.project, projectType: row.project_type,
+    projectRepo: row.project_repo, projectStack: row.project_stack,
+    requirements: row.requirements,
     createdAt: row.created_at, updatedAt: row.updated_at,
   };
 }

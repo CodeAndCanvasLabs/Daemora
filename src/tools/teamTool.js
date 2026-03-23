@@ -11,10 +11,11 @@
  * Team Lead and Workers use their own tools (injected via aiToolOverrides)
  */
 
-import { runTeam } from "../teams/TeamLeadRunner.js";
+import { runTeam, relaunchTeam } from "../teams/TeamLeadRunner.js";
 import * as store from "../teams/TeamStore.js";
 import { applyTemplate, TEAM_TEMPLATES } from "../teams/templates.js";
 import tenantContext from "../tenants/TenantContext.js";
+import { writeMemory } from "./memory.js";
 
 export async function teamTask(params) {
   const action = params?.action;
@@ -28,20 +29,29 @@ export async function teamTask(params) {
       const context = params.context || "";
       const constraints = params.constraints || "";
       const workers = params.workers || [];
+      const project = params.project || name;
+      const projectType = params.projectType || null;
+      const projectRepo = params.projectRepo || null;
+      const projectStack = params.projectStack || null;
 
       if (!name) return "Error: name is required.";
       if (!task) return "Error: task is required — what should this team accomplish?";
-      if (!workers.length) return "Error: workers array is required — define at least one worker { name, profile, task }.";
+      if (!workers.length) return "Error: workers array is required — define at least one worker { name, profile/crew, task }.";
 
-      // Validate workers
       for (const w of workers) {
-        if (!w.name || !w.profile || !w.task) {
-          return `Error: each worker needs { name, profile, task }. Invalid: ${JSON.stringify(w)}`;
+        if (!w.name || (!w.profile && !w.crew) || !w.task) {
+          return `Error: each worker needs { name, profile or crew, task }. Invalid: ${JSON.stringify(w)}`;
         }
       }
 
-      // Check team limit
       const tid = tenantContext.getStore()?.tenant?.id || null;
+
+      // Check if project already has a team
+      const existingProject = store.findTeamByProject(project, tid);
+      if (existingProject) {
+        return `Project "${project}" already has team "${existingProject.name}" (${existingProject.id}, status: ${existingProject.status}). Use relaunchProject to resume it, or disbandTeam first.`;
+      }
+
       const existing = store.listTeams(tid);
       if (existing.length >= 5) {
         return `Error: maximum 5 active teams. Disband one first. Active: ${existing.map(t => t.name).join(", ")}`;
@@ -49,10 +59,18 @@ export async function teamTask(params) {
 
       try {
         const result = await runTeam({
-          name,
-          leadContract: { task, context, constraints },
-          workers,
+          name, leadContract: { task, context, constraints }, workers,
+          project, projectType, projectRepo, projectStack,
         });
+
+        // Auto-write project to memory for future recall
+        try {
+          writeMemory({
+            entry: `[project] "${project}" — Type: ${projectType || "general"}, Workers: ${workers.map(w => w.name).join(", ")}. ${task.slice(0, 150)}`,
+            category: "project",
+          });
+        } catch {}
+
         return result;
       } catch (err) {
         return `Team failed: ${err.message}`;
@@ -84,6 +102,20 @@ export async function teamTask(params) {
       store.updateTeamStatus(teamId, "disbanded");
       store.broadcastMessage({ teamId, from: "system", msgType: "shutdown_request", content: "Team disbanded." });
       return `Team "${teamId}" disbanded.`;
+    }
+
+    case "relaunchProject": {
+      const teamId = params.teamId;
+      if (!teamId) return "Error: teamId is required. Use searchMemory('[project]') to find your team IDs.";
+      const team = store.getTeam(teamId);
+      if (!team) return `Team "${teamId}" not found.`;
+      if (team.status === "disbanded") return `Team "${teamId}" was disbanded. Create a new one.`;
+      try {
+        const result = await relaunchTeam(teamId);
+        return result;
+      } catch (err) {
+        return `Relaunch failed: ${err.message}`;
+      }
     }
 
     case "listTemplates": {

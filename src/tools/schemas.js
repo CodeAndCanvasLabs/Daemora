@@ -468,18 +468,22 @@ const toolSchemas = {
   // ── Teams ────────────────────────────────────────────────────────────────
   teamTask: {
     schema: z.object({
-      action: str("createTeam|createFromTemplate|listTemplates|status|listTeams|disbandTeam"),
-      templateId: z.string().optional().describe("Template ID for createFromTemplate (use listTemplates to see options)"),
+      action: str("createTeam|relaunchProject|createFromTemplate|listTemplates|status|listTeams|disbandTeam"),
+      templateId: z.string().optional().describe("Template ID for createFromTemplate"),
+      project: z.string().optional().describe("Project identifier for tracking and re-launch"),
+      projectType: z.string().optional().describe("coding | research | devops | design"),
+      projectRepo: z.string().optional().describe("GitHub repo URL or local path"),
+      projectStack: z.string().optional().describe("Tech stack (e.g. 'Node.js, PostgreSQL, React')"),
       name: optStr("Team name (for createTeam)"),
       task: optStr("What the team should accomplish (for createTeam)"),
       context: optStr("Background context for the team lead (for createTeam)"),
       constraints: optStr("Rules/limits for the team (for createTeam)"),
       workers: z.array(z.object({
         name: str("Worker name"),
-        profile: str("Agent profile: coder|researcher|writer|analyst|frontend|tester|devops"),
+        profile: z.string().optional().describe("Agent profile: coder|researcher|writer|analyst|frontend|tester|devops"),
+        crew: z.string().optional().describe("Crew member ID as worker (e.g. 'database-connector') — use instead of profile"),
         task: str("Worker's specific assignment — full description"),
         skills: z.array(z.string()).optional().describe("Skill IDs to inject"),
-        blockedBy: z.array(z.string()).optional().describe("Task IDs this depends on"),
       })).optional().describe("Worker definitions (for createTeam)"),
       teamId: optStr("Team ID (for status, disbandTeam)"),
     }),

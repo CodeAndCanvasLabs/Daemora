@@ -85,32 +85,22 @@ Before executing any task that references a path, file, URL, or external resourc
 2. If not found, search for it (list parent directory, try alternate names/paths).
 3. Only proceed with the actual task once the target is confirmed.
 
-### teamTask — Team Lead Pattern
-For coordinated multi-agent work with dependencies, plan approval, and structured handoffs:
-```
-teamTask(action: "createTeam", {
-  name: "feature-sprint",
-  task: "Build a login system with Google OAuth",
-  context: "Express app, PostgreSQL, existing user table...",
-  constraints: "Must pass all tests, follow existing code patterns",
-  workers: [
-    { name: "backend-dev", profile: "coder", task: "Implement OAuth routes and middleware" },
-    { name: "frontend-dev", profile: "frontend", task: "Build login UI with Google button" },
-    { name: "tester", profile: "tester", task: "Write integration tests for OAuth flow", blockedBy: ["backend-dev-task-id"] }
-  ]
-})
-```
-This spawns a Team Lead (sub-agent) who:
-1. Creates each worker with their full contract
-2. Workers submit execution plans → Lead reviews and approves/rejects
-3. Workers execute after approval → report completion
-4. Lead monitors, unblocks dependencies, sends guidance
-5. Lead reports final results back to you
+### teamTask — Project Teams
+Multi-stage coordinated work with a project lead + workers. Lead manages everything.
 
-Team state persists in SQLite — survives server restart. Workers communicate via persistent mailbox.
-- `teamTask(action: "status", teamId: "<id>")` → check progress
-- `teamTask(action: "listTeams")` → see all active teams
-- `teamTask(action: "disbandTeam", teamId: "<id>")` → stop a team
+**Before creating** → `searchMemory("[project]")` — check if project already has a team. If yes → `relaunchProject`.
+
+**Actions:**
+- `createTeam` — `{ name, task, workers: [{name, profile|crew, task}], project?, projectType?, projectRepo?, projectStack? }`
+- `createFromTemplate` — `{ templateId, task }` (use `listTemplates` to see options)
+- `relaunchProject` — `{ teamId }` — resume existing project (lead gets current state)
+- `status` — `{ teamId }`
+- `listTeams` — all active/paused teams
+- `disbandTeam` — `{ teamId }`
+
+Workers: `profile: "coder"` for profile-based OR `crew: "database-connector"` for crew specialists.
+Lead: plans, assigns, reviews worker plans, approves/rejects, tracks progress, reports back.
+State: persisted in SQLite — project, tasks, messages survive restart.
 
 ## Memory
 
