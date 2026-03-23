@@ -25,8 +25,11 @@ import tenantContext from "../tenants/TenantContext.js";
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-const POLL_INTERVAL_MS = 30_000;  // 30 seconds (ClawTeam: 5s, but our workers are heavier)
+let POLL_INTERVAL_MS = parseInt(process.env.TEAM_POLL_INTERVAL_MS || "30000", 10);  // default 30s
 const POLL_TIMEOUT_MS = 1_800_000; // 30 min max wait
+
+/** Update poll interval at runtime (from UI/API) */
+export function setPollInterval(ms) { POLL_INTERVAL_MS = Math.max(5000, Math.min(ms, 300000)); }
 
 // Explicit lead tools — curated, not profile dump
 const LEAD_TOOLS = [

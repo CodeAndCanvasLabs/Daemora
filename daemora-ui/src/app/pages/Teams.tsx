@@ -8,8 +8,11 @@ import {
 import { Card, CardContent } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
+import { Plus } from "lucide-react";
 
 interface TeamMember {
   id: string; name: string; role: string; profile: string; status: string;
@@ -63,6 +66,14 @@ export function Teams() {
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   const [detailTeam, setDetailTeam] = useState<Team | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [createForm, setCreateForm] = useState({
+    name: "", task: "", context: "", projectType: "coding", projectRepo: "", projectStack: "",
+    templateId: "", pollInterval: "30",
+    workers: [{ name: "", profile: "coder", crew: "", task: "" }],
+  });
 
   const fetchTeams = useCallback(async () => {
     try {
@@ -77,7 +88,41 @@ export function Teams() {
     }
   }, []);
 
-  useEffect(() => { fetchTeams(); }, [fetchTeams]);
+  useEffect(() => {
+    fetchTeams();
+    apiFetch("/api/teams/templates").then(r => r.json()).then(d => setTemplates(d.templates || [])).catch(() => {});
+  }, [fetchTeams]);
+
+  const handleCreate = async () => {
+    if (!createForm.task) { toast.error("What should this team accomplish?"); return; }
+    setCreating(true);
+    try {
+      const body: any = {
+        name: createForm.name || createForm.task.slice(0, 30),
+        task: createForm.task,
+        context: createForm.context || undefined,
+        project: createForm.name || createForm.task.slice(0, 30),
+        projectType: createForm.projectType || undefined,
+        projectRepo: createForm.projectRepo || undefined,
+        projectStack: createForm.projectStack || undefined,
+      };
+      if (createForm.templateId) {
+        body.templateId = createForm.templateId;
+      } else {
+        body.workers = createForm.workers.filter(w => w.name && w.task).map(w => ({
+          name: w.name, task: w.task,
+          ...(w.crew ? { crew: w.crew } : { profile: w.profile }),
+        }));
+        if (body.workers.length === 0) { toast.error("Add at least one worker"); setCreating(false); return; }
+      }
+      const res = await apiFetch("/api/teams", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      toast.success("Team launched!");
+      setCreateOpen(false);
+      setCreateForm({ name: "", task: "", context: "", projectType: "coding", projectRepo: "", projectStack: "", templateId: "", pollInterval: "30", workers: [{ name: "", profile: "coder", crew: "", task: "" }] });
+      setTimeout(fetchTeams, 2000);
+    } catch (e: any) { toast.error(e.message); } finally { setCreating(false); }
+  };
 
   // Auto-refresh every 10 seconds for live status
   useEffect(() => {
@@ -124,9 +169,114 @@ export function Teams() {
             Project Teams — Lead + Workers Coordination
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchTeams} className="border-slate-700 text-gray-400 hover:text-white hover:border-slate-500">
-          <RefreshCw className="w-4 h-4" />
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={fetchTeams} className="border-slate-700 text-gray-400 hover:text-white hover:border-slate-500">
+            <RefreshCw className="w-4 h-4" />
+          </Button>
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="bg-[#00d9ff]/20 text-[#00d9ff] border border-[#00d9ff]/30 hover:bg-[#00d9ff]/30">
+                <Plus className="w-4 h-4 mr-1" /> New Team
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-lg max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Launch a Team</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 mt-4">
+                {/* Template picker */}
+                {templates.length > 0 && (
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">Start from Template</label>
+                    <Select value={createForm.templateId || "__custom__"} onValueChange={v => setCreateForm({ ...createForm, templateId: v === "__custom__" ? "" : v })}>
+                      <SelectTrigger className="bg-slate-800 border-slate-700 text-white"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-slate-800 border-slate-700">
+                        <SelectItem value="__custom__">Custom — define workers manually</SelectItem>
+                        {templates.map((t: any) => (
+                          <SelectItem key={t.id} value={t.id}>{t.name} — {t.workers?.length} workers</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Project name */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">Project Name</label>
+                  <Input className="bg-slate-800 border-slate-700 text-white" value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} placeholder="e.g. auth-system, q4-research" />
+                </div>
+
+                {/* Goal */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">What should this team accomplish?</label>
+                  <textarea className="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-white resize-none h-20" value={createForm.task} onChange={e => setCreateForm({ ...createForm, task: e.target.value })} placeholder="Build a complete login system with Google OAuth, including backend API, frontend UI, and tests" />
+                </div>
+
+                {/* Project details */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">Type</label>
+                    <Select value={createForm.projectType} onValueChange={v => setCreateForm({ ...createForm, projectType: v })}>
+                      <SelectTrigger className="bg-slate-800 border-slate-700 text-white"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-slate-800 border-slate-700">
+                        <SelectItem value="coding">Coding</SelectItem>
+                        <SelectItem value="research">Research</SelectItem>
+                        <SelectItem value="design">Design</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">Stack</label>
+                    <Input className="bg-slate-800 border-slate-700 text-white" value={createForm.projectStack} onChange={e => setCreateForm({ ...createForm, projectStack: e.target.value })} placeholder="Node.js, React, PostgreSQL" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">Repo URL <span className="text-gray-600">(optional)</span></label>
+                  <Input className="bg-slate-800 border-slate-700 text-white" value={createForm.projectRepo} onChange={e => setCreateForm({ ...createForm, projectRepo: e.target.value })} placeholder="https://github.com/org/repo" />
+                </div>
+
+                {/* Context */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">Additional Context <span className="text-gray-600">(optional)</span></label>
+                  <textarea className="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-white resize-none h-16" value={createForm.context} onChange={e => setCreateForm({ ...createForm, context: e.target.value })} placeholder="Existing codebase uses Express, auth via JWT, database has users table..." />
+                </div>
+
+                {/* Workers (custom only) */}
+                {!createForm.templateId && (
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">Workers</label>
+                    {createForm.workers.map((w, i) => (
+                      <div key={i} className="grid grid-cols-12 gap-2 mb-2">
+                        <Input className="col-span-3 bg-slate-800 border-slate-700 text-white text-xs" value={w.name} onChange={e => { const ws = [...createForm.workers]; ws[i].name = e.target.value; setCreateForm({ ...createForm, workers: ws }); }} placeholder="Name" />
+                        <Select value={w.profile} onValueChange={v => { const ws = [...createForm.workers]; ws[i].profile = v; setCreateForm({ ...createForm, workers: ws }); }}>
+                          <SelectTrigger className="col-span-3 bg-slate-800 border-slate-700 text-white text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent className="bg-slate-800 border-slate-700">
+                            {["coder","frontend","tester","researcher","writer","analyst","devops","architect","designer","reviewer"].map(p => (
+                              <SelectItem key={p} value={p}>{p}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input className="col-span-5 bg-slate-800 border-slate-700 text-white text-xs" value={w.task} onChange={e => { const ws = [...createForm.workers]; ws[i].task = e.target.value; setCreateForm({ ...createForm, workers: ws }); }} placeholder="Task assignment" />
+                        <Button variant="ghost" size="icon" className="col-span-1 h-8 w-8 text-gray-400 hover:text-red-400" onClick={() => { const ws = createForm.workers.filter((_, j) => j !== i); setCreateForm({ ...createForm, workers: ws.length ? ws : [{ name: "", profile: "coder", crew: "", task: "" }] }); }}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button variant="outline" size="sm" className="border-slate-700 text-gray-400 text-xs" onClick={() => setCreateForm({ ...createForm, workers: [...createForm.workers, { name: "", profile: "coder", crew: "", task: "" }] })}>
+                      + Add Worker
+                    </Button>
+                  </div>
+                )}
+
+                <Button onClick={handleCreate} disabled={creating} className="w-full bg-[#00d9ff]/20 text-[#00d9ff] border border-[#00d9ff]/30 hover:bg-[#00d9ff]/30">
+                  {creating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Launch Team
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Stats */}

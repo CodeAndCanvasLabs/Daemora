@@ -996,6 +996,45 @@ app.get("/api/teams/templates", async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+app.post("/api/teams", async (req, res) => {
+  try {
+    const { runTeam } = await import("./teams/TeamLeadRunner.js");
+    const { name, task, context, constraints, workers, project, projectType, projectRepo, projectStack, templateId } = req.body;
+
+    let teamConfig;
+    if (templateId) {
+      const { applyTemplate } = await import("./teams/templates.js");
+      teamConfig = applyTemplate(templateId, task);
+      if (!teamConfig) return res.status(400).json({ error: `Template "${templateId}" not found` });
+      teamConfig.context = (teamConfig.context || "") + "\n\n" + (context || "");
+    } else {
+      if (!name || !task || !workers?.length) {
+        return res.status(400).json({ error: "name, task, and workers[] required" });
+      }
+      teamConfig = { name, task, context, constraints, workers };
+    }
+
+    // Run team in background (don't block HTTP response)
+    const teamStore = await import("./teams/TeamStore.js");
+    const tenantId = null; // API calls are admin-level
+    const team = teamStore.createTeam({
+      name: teamConfig.name || name, tenantId, config: { workers: teamConfig.workers },
+      project: project || name, projectType, projectRepo, projectStack,
+      requirements: task,
+    });
+
+    // Fire-and-forget — team runs async
+    runTeam({
+      name: teamConfig.name || name,
+      leadContract: { task: teamConfig.task || task, context: teamConfig.context || context, constraints },
+      workers: teamConfig.workers || workers,
+      project: project || name, projectType, projectRepo, projectStack,
+    }).catch(err => console.log(`[API] Team failed: ${err.message}`));
+
+    res.status(202).json({ teamId: team.id, name: team.name, status: "starting", workers: (teamConfig.workers || workers).length });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
 app.post("/api/teams/:id/disband", async (req, res) => {
   try {
     const { updateTeamStatus, broadcastMessage } = await import("./teams/TeamStore.js");
