@@ -22,7 +22,6 @@
     "writeMemory",
     "searchMemory",
     "cron",
-    "teamTask",
     "replyToUser",
     "transcribeAudio"
   ],

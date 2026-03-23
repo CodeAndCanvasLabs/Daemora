@@ -24,7 +24,6 @@
     "readMemory",
     "writeMemory",
     "searchMemory",
-    "teamTask",
     "replyToUser",
     "generateImage"
   ],

@@ -23,7 +23,6 @@
     "writeMemory",
     "searchMemory",
     "useMCP",
-    "teamTask",
     "replyToUser"
   ],
   "skills": [

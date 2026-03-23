@@ -643,61 +643,7 @@ export function Tenants() {
               <Input value={editForm.blockedPaths || ""} onChange={(e) => setEditForm({ ...editForm, blockedPaths: e.target.value })}
                 placeholder="/etc, /root" className="bg-slate-900 border-slate-800 text-white text-xs" />
             </div>
-            {/* Allowed Tools */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] text-gray-500 uppercase">Allowed Tools</label>
-              <Select value="" onValueChange={(v) => {
-                const current = (editForm.allowedTools || "").split(",").map((t: string) => t.trim()).filter(Boolean);
-                if (!current.includes(v)) setEditForm({ ...editForm, allowedTools: [...current, v].join(", ") });
-              }}>
-                <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-[10px] h-8 font-mono">
-                  <SelectValue placeholder="Add tool..." />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-48">
-                  {availableTools.filter(t => !(editForm.allowedTools || "").split(",").map((x: string) => x.trim()).includes(t) && !(editForm.blockedTools || "").split(",").map((x: string) => x.trim()).includes(t)).map(t => (
-                    <SelectItem key={t} value={t} className="text-[10px] font-mono">{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {(editForm.allowedTools || "").split(",").some((t: string) => t.trim()) && (
-                <div className="flex flex-wrap gap-1">
-                  {(editForm.allowedTools || "").split(",").filter((t: string) => t.trim()).map((t: string) => (
-                    <span key={t.trim()} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#00d9ff]/10 border border-[#00d9ff]/30 text-[9px] font-mono text-[#00d9ff]">
-                      {t.trim()}
-                      <button onClick={() => setEditForm({ ...editForm, allowedTools: (editForm.allowedTools || "").split(",").filter((x: string) => x.trim() !== t.trim()).join(", ") })} className="hover:text-red-400"><X className="w-2.5 h-2.5" /></button>
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Blocked Tools */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] text-gray-500 uppercase">Blocked Tools</label>
-              <Select value="" onValueChange={(v) => {
-                const current = (editForm.blockedTools || "").split(",").map((t: string) => t.trim()).filter(Boolean);
-                if (!current.includes(v)) setEditForm({ ...editForm, blockedTools: [...current, v].join(", ") });
-              }}>
-                <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-[10px] h-8 font-mono">
-                  <SelectValue placeholder="Block tool..." />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-48">
-                  {availableTools.filter(t => !(editForm.blockedTools || "").split(",").map((x: string) => x.trim()).includes(t) && !(editForm.allowedTools || "").split(",").map((x: string) => x.trim()).includes(t)).map(t => (
-                    <SelectItem key={t} value={t} className="text-[10px] font-mono">{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {(editForm.blockedTools || "").split(",").some((t: string) => t.trim()) && (
-                <div className="flex flex-wrap gap-1">
-                  {(editForm.blockedTools || "").split(",").filter((t: string) => t.trim()).map((t: string) => (
-                    <span key={t.trim()} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-500/10 border border-red-500/30 text-[9px] font-mono text-red-400">
-                      {t.trim()}
-                      <button onClick={() => setEditForm({ ...editForm, blockedTools: (editForm.blockedTools || "").split(",").filter((x: string) => x.trim() !== t.trim()).join(", ") })} className="hover:text-red-300"><X className="w-2.5 h-2.5" /></button>
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Allowed Tools / Blocked Tools removed — crews handle tool scoping now */}
 
             {/* MCP Servers */}
             <div className="space-y-1.5">

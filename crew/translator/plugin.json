@@ -20,7 +20,6 @@
     "readMemory",
     "writeMemory",
     "searchMemory",
-    "teamTask",
     "replyToUser"
   ],
   "skills": [

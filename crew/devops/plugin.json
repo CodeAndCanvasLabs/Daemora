@@ -21,7 +21,6 @@
     "readMemory",
     "writeMemory",
     "searchMemory",
-    "teamTask",
     "replyToUser",
     "gitTool"
   ],
