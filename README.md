@@ -656,29 +656,6 @@ Use nginx or Caddy as a reverse proxy for HTTPS if exposing the API port.
 
 ---
 
-## vs OpenClaw
-
-Daemora was built in response to OpenClaw's security weaknesses. Key differences:
-
-| Feature | Daemora | OpenClaw |
-|---|---|---|
-| Multi-tenant isolation | Full (AsyncLocalStorage) | None |
-| Per-tenant memory | Isolated per user | Shared - User A sees User B's memories |
-| Per-tenant API keys | AES-256-GCM, call stack only | None |
-| Filesystem sandbox | Directory scoping + blocklist | None |
-| Secret vault | AES-256-GCM encrypted | Plaintext `.env` only |
-| Audit log | Full, per-tenant, secrets stripped | Partial |
-| Security audit | `daemora doctor` (8 checks, scored) | None |
-| Agent teams | Shared tasks, deps, messaging | None |
-| A2A protocol | Auth + allowlist + rate limiting | None |
-| Supervisor agent | Built-in | Manual |
-| Task-type model routing | CODE_MODEL / RESEARCH_MODEL / etc. | None |
-| Sub-agent model routing | SUB_AGENT_MODEL + profile routing + parent inheritance | Falls back to default |
-| Setup | `npm install -g daemora && daemora start` | Complex multi-step with Docker/WSL |
-| Codebase size | ~31k LOC, no build | 80k+ LOC, TypeScript build |
-
----
-
 ## Testing
 
 ```bash
