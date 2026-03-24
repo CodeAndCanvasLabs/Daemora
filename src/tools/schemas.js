@@ -472,12 +472,13 @@ const toolSchemas = {
         name: str("Worker name"),
         profile: z.string().optional().describe("Crew member: backend|frontend|reviewer|tester|devops|researcher|analyst|writer|translator|sysadmin|coordinator"),
         crew: z.string().optional().describe("Crew member ID as worker (e.g. 'database-connector') - use instead of profile"),
-        task: str("Worker's specific assignment - full description"),
+        task: str("Worker's specific assignment - full description with context, files, constraints, expected output"),
         skills: z.array(z.string()).optional().describe("Skill IDs to inject"),
+        blockedByWorkers: z.array(z.string()).optional().describe("Worker names this depends on (e.g. ['backend']). Worker won't start until deps complete. Gets their results as context."),
       })).optional().describe("Worker definitions (for createTeam)"),
       teamId: optStr("Team ID (for status, disbandTeam)"),
     }),
-    description: "Create a team of workers with a Team Lead. Lead assigns tasks, reviews plans, coordinates. Workers get full contracts. Use for multi-stage work requiring coordination.",
+    description: "Swarm-style team: code orchestrator spawns workers, passes completed results to dependent workers. Use blockedByWorkers for dependencies (e.g. frontend blocked by backend).",
   },
 
   // ── Voice ────────────────────────────────────────────────────────────────

@@ -96,7 +96,7 @@ export function listMembers(teamId) {
 }
 
 export function updateMemberStatus(id, status, agentId = null, sessionId = null) {
-  const updates = ["status = $s", "updated_at = datetime('now')"];
+  const updates = ["status = $s"];
   const params = { $s: status, $id: id };
   if (agentId) { updates.push("agent_id = $aid"); params.$aid = agentId; }
   if (sessionId) { updates.push("session_id = $sid"); params.$sid = sessionId; }
@@ -144,7 +144,7 @@ export function listTasks(teamId, { status = null, assignee = null } = {}) {
 export function updateTask(id, updates) {
   const fields = [];
   const params = { $id: id };
-  const allowed = ["status", "assignee", "plan", "plan_feedback", "result", "started_at", "completed_at"];
+  const allowed = ["status", "assignee", "plan", "plan_feedback", "result", "started_at", "completed_at", "blocked_by"];
   for (const key of allowed) {
     if (updates[key] !== undefined) {
       const col = key; // column names match
