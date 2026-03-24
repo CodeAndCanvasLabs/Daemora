@@ -40,8 +40,7 @@
     "browser",
     "changelog",
     "healthcheck",
-    "tmux",
-    "git"
+    "tmux"
   ],
   "skillsExclude": [
     "orchestration"

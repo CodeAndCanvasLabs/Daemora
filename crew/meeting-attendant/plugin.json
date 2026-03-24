@@ -25,10 +25,9 @@
     "makeVoiceCall"
   ],
   "skills": [
-    "meeting",
-    "notes",
+    "meeting-attendance",
     "summarize",
-    "transcription"
+    "meeting-insights-analyzer"
   ],
   "skillsExclude": [
     "orchestration",
