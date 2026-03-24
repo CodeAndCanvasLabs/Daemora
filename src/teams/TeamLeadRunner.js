@@ -1,16 +1,23 @@
 /**
- * TeamLeadRunner - Deterministic team orchestration (ClawTeam pattern).
+ * TeamLeadRunner - Deterministic swarm orchestration.
  *
- * Architecture: Lead = CODE (not AI). Workers = AI sub-agents.
+ * Pattern: Code orchestrator + AI workers + shared context (swarm-style).
  *
- * The lead is a JavaScript loop that:
- * 1. Creates all workers (spawns sub-agents) - deterministic
- * 2. Waits for completion (Promise.allSettled) - deterministic
- * 3. Handles dependencies (phase-based execution) - deterministic
- * 4. Collects results and updates state - deterministic
+ * Key design (from OpenAI Swarm + CrewAI + ClawTeam):
+ * - Lead = deterministic code loop, never an AI model
+ * - Workers = AI sub-agents doing actual work
+ * - Shared context: completed worker results flow into dependent workers
+ * - Filesystem IS shared state: workers read each other's files
+ * - Phase-based: spawn ready workers, wait, pass results forward, repeat
  *
- * AI is ONLY in the workers doing actual work. Orchestration is pure code.
- * All state in SQLite (survives restart).
+ * Flow:
+ * 1. Create all tasks/members in DB
+ * 2. Resolve dependency graph (blockedByWorkers → task IDs)
+ * 3. Spawn all non-blocked workers with full context
+ * 4. When worker completes → store structured result → unblock dependents
+ * 5. Spawn newly ready workers WITH completed dependency results injected
+ * 6. Repeat until all done
+ * 7. Return summary
  */
 
 import { tool } from "ai";
@@ -24,8 +31,8 @@ import tenantContext from "../tenants/TenantContext.js";
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-const POLL_INTERVAL_MS = 5000; // 5s status check (ClawTeam: 5s)
-const TEAM_TIMEOUT_MS = 1_800_000; // 30 min max
+const POLL_INTERVAL_MS = 5000;
+const TEAM_TIMEOUT_MS = 1_800_000; // 30 min
 
 // ── Worker Session Persistence ──────────────────────────────────────────────
 
@@ -51,16 +58,32 @@ function _saveWorkerSession(teamId, workerName, messages) {
   setMessages(sessionId, compactForSession(capped));
 }
 
-// ── Worker Tools (minimal - just reporting) ─────────────────────────────────
+// ── Worker Tools ────────────────────────────────────────────────────────────
 
 function _buildWorkerTools(teamId, workerName, taskId) {
   const completeTask = tool({
-    description: "Mark your task as completed with a summary of what you built",
+    description: "Mark your task as completed. Include structured details so dependent workers know what you built.",
     inputSchema: z.object({
-      result: z.string().describe("What you accomplished - files created, endpoints built, etc."),
+      result: z.string().describe("Summary of what you accomplished"),
+      filesCreated: z.array(z.string()).optional().describe("List of file paths you created or modified"),
+      endpoints: z.array(z.string()).optional().describe("API endpoints you built (e.g. 'GET /api/todos')"),
+      port: z.number().optional().describe("Port number your service runs on"),
+      notes: z.string().optional().describe("Anything the next worker needs to know"),
     }),
     execute: async (params) => {
-      store.updateTask(taskId, { status: "completed", result: params.result, completed_at: new Date().toISOString() });
+      // Store structured result as JSON
+      const structured = {
+        summary: params.result,
+        filesCreated: params.filesCreated || [],
+        endpoints: params.endpoints || [],
+        port: params.port || null,
+        notes: params.notes || null,
+      };
+      store.updateTask(taskId, {
+        status: "completed",
+        result: JSON.stringify(structured),
+        completed_at: new Date().toISOString(),
+      });
       store.resolveDependencies(teamId, taskId);
       store.sendMessage({ teamId, from: workerName, to: "lead", msgType: "status_update",
         content: `Task completed: ${params.result}` });
@@ -69,7 +92,7 @@ function _buildWorkerTools(teamId, workerName, taskId) {
   });
 
   const sendToLead = tool({
-    description: "Report a blocker, question, or progress update to the lead",
+    description: "Report a blocker, question, or progress update",
     inputSchema: z.object({ message: z.string() }),
     execute: async (params) => {
       store.sendMessage({ teamId, from: workerName, to: "lead", msgType: "message", content: params.message });
@@ -80,13 +103,62 @@ function _buildWorkerTools(teamId, workerName, taskId) {
   return { completeTask, sendToLead };
 }
 
+// ── Shared Context Builder (Swarm Pattern) ──────────────────────────────────
+
+/**
+ * Build context string from completed dependency results.
+ * This is the swarm handoff — completed worker artifacts flow into dependent workers.
+ */
+function _buildDependencyContext(ws, allState) {
+  const deps = ws.worker.blockedByWorkers || ws.worker.blockedBy || [];
+  if (deps.length === 0) return "";
+
+  const sections = [];
+  for (const depName of deps) {
+    const dep = allState.find(s => s.worker.name === depName);
+    if (!dep || !dep.done || dep.error) continue;
+
+    const taskRow = store.getTask(dep.task.id);
+    if (!taskRow?.result) continue;
+
+    // Parse structured result if JSON, otherwise use raw text
+    let resultInfo;
+    try {
+      const parsed = JSON.parse(taskRow.result);
+      const parts = [`"${depName}" completed: ${parsed.summary}`];
+      if (parsed.filesCreated?.length) parts.push(`Files: ${parsed.filesCreated.join(", ")}`);
+      if (parsed.endpoints?.length) parts.push(`Endpoints: ${parsed.endpoints.join(", ")}`);
+      if (parsed.port) parts.push(`Port: ${parsed.port}`);
+      if (parsed.notes) parts.push(`Notes: ${parsed.notes}`);
+      resultInfo = parts.join("\n");
+    } catch {
+      resultInfo = `"${depName}" completed: ${taskRow.result}`;
+    }
+
+    sections.push(resultInfo);
+  }
+
+  if (sections.length === 0) return "";
+  return `\n\n## Completed by other workers (use this context):\n${sections.join("\n\n")}`;
+}
+
 // ── Spawn a single worker ───────────────────────────────────────────────────
 
-async function _spawnWorker(teamId, worker, member, task) {
+async function _spawnWorker(teamId, ws, allState) {
+  const worker = ws.worker;
+  const member = ws.member;
+  const task = ws.task;
+
+  // Build dependency context (swarm handoff)
+  const depContext = _buildDependencyContext(ws, allState);
+
   const contract = buildContract({
     task: worker.task,
-    context: `You are "${worker.name}" on team "${teamId}". Execute this task fully and autonomously.`,
-    constraints: "Execute the task directly. Do not ask for confirmation.\n1. Read relevant files/context to understand what exists.\n2. Execute: create files, write code, run commands.\n3. Verify your work: run tests, read back files, check builds.\n4. Call completeTask with a summary of what you built.\n5. Blockers → sendToLead.",
+    context: [
+      `You are "${worker.name}" on team "${teamId}". Execute this task fully and autonomously.`,
+      depContext,
+    ].filter(Boolean).join("\n"),
+    constraints: "Execute the task directly. Do not ask for confirmation.\n1. Read relevant files/context to understand what exists.\n2. Execute: create files, write code, run commands.\n3. Verify your work: run tests, read back files, check builds.\n4. Call completeTask with structured details (files, endpoints, port) so dependent workers can use your output.\n5. Blockers → sendToLead.",
   });
 
   const workerTools = _buildWorkerTools(teamId, worker.name, task.id);
@@ -99,7 +171,6 @@ async function _spawnWorker(teamId, worker, member, task) {
   store.updateMemberStatus(member.id, "working");
   store.updateTask(task.id, { status: "assigned", started_at: new Date().toISOString() });
 
-  // Spawn worker as sub-agent
   const result = worker.crew
     ? await import("../crew/CrewAgentRunner.js").then(({ runCrewAgent }) =>
         runCrewAgent(worker.crew, contract, {})
@@ -113,24 +184,13 @@ async function _spawnWorker(teamId, worker, member, task) {
         returnFullResult: true,
       });
 
-  // Save session for future re-assignment
   if (result?.messages) _saveWorkerSession(teamId, worker.name, result.messages);
-
   return result;
 }
 
-// ── Deterministic Orchestration Loop ────────────────────────────────────────
+// ── Deterministic Orchestration Loop (Swarm) ────────────────────────────────
 
-/**
- * Phase-based execution:
- * 1. Spawn all workers that are not blocked
- * 2. Wait for them to finish (Promise.allSettled)
- * 3. Process results, resolve dependencies
- * 4. Repeat for newly unblocked workers
- * 5. Stop when all done or deadlocked
- */
 async function _orchestrate(teamId, workerDefs) {
-  // Track state for each worker
   const state = workerDefs.map(w => ({
     worker: w,
     member: null,
@@ -138,6 +198,7 @@ async function _orchestrate(teamId, workerDefs) {
     done: false,
     result: null,
     error: null,
+    _promise: null,
   }));
 
   // Create all members and tasks upfront
@@ -156,10 +217,10 @@ async function _orchestrate(teamId, workerDefs) {
 
   // Resolve blockedByWorkers → actual task IDs
   for (const ws of state) {
-    const blockedByWorkers = ws.worker.blockedByWorkers || ws.worker.blockedBy || [];
-    if (blockedByWorkers.length > 0) {
+    const deps = ws.worker.blockedByWorkers || ws.worker.blockedBy || [];
+    if (deps.length > 0) {
       const blockedByTaskIds = [];
-      for (const depName of blockedByWorkers) {
+      for (const depName of deps) {
         const dep = state.find(s => s.worker.name === depName);
         if (dep) blockedByTaskIds.push(dep.task.id);
       }
@@ -171,9 +232,8 @@ async function _orchestrate(teamId, workerDefs) {
 
   const startTime = Date.now();
 
-  // Phase loop: spawn ready → wait → resolve deps → repeat
+  // Phase loop: spawn ready → wait → pass results → spawn newly ready → repeat
   while (true) {
-    // Timeout check
     if (Date.now() - startTime > TEAM_TIMEOUT_MS) {
       console.log(`[Team:${teamId}] Timeout after ${TEAM_TIMEOUT_MS / 60000} minutes`);
       break;
@@ -187,21 +247,18 @@ async function _orchestrate(teamId, workerDefs) {
     });
 
     if (ready.length === 0) {
-      // Check if we're done or deadlocked
       const allDone = state.every(ws => ws.done);
       const anyRunning = state.some(ws => ws._promise && !ws.done);
       if (allDone || !anyRunning) break;
-
-      // Workers still running, wait a bit
       await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
       continue;
     }
 
-    // Spawn all ready workers in parallel
+    // Spawn all ready workers in parallel — each gets dependency results injected
     console.log(`[Team:${teamId}] Spawning ${ready.length} worker(s): ${ready.map(ws => ws.worker.name).join(", ")}`);
 
     for (const ws of ready) {
-      ws._promise = _spawnWorker(teamId, ws.worker, ws.member, ws.task)
+      ws._promise = _spawnWorker(teamId, ws, state)
         .then(result => {
           ws.done = true;
           ws.result = result;
@@ -234,7 +291,7 @@ async function _orchestrate(teamId, workerDefs) {
     }
   }
 
-  // Wait for any remaining promises
+  // Wait for any stragglers
   const remaining = state.filter(ws => ws._promise && !ws.done);
   if (remaining.length > 0) {
     await Promise.allSettled(remaining.map(ws => ws._promise));
@@ -256,8 +313,16 @@ function _buildSummary(teamName, state) {
     lines.push(`\nCompleted (${completed.length}):`);
     for (const ws of completed) {
       const taskRow = store.getTask(ws.task.id);
-      const result = taskRow?.result || ws.result?.text || "Done";
-      lines.push(`  - ${ws.worker.name}: ${result.slice(0, 200)}`);
+      let summary = "Done";
+      if (taskRow?.result) {
+        try {
+          const parsed = JSON.parse(taskRow.result);
+          summary = parsed.summary || taskRow.result;
+        } catch {
+          summary = taskRow.result;
+        }
+      }
+      lines.push(`  - ${ws.worker.name}: ${summary.slice(0, 200)}`);
     }
   }
 
@@ -272,15 +337,6 @@ function _buildSummary(teamName, state) {
     lines.push(`\nBlocked/Unfinished (${blocked.length}):`);
     for (const ws of blocked) {
       lines.push(`  - ${ws.worker.name}`);
-    }
-  }
-
-  // Collect worker messages
-  const messages = store.readMessages(state[0]?.task?.teamId || "", "lead");
-  if (messages.length > 0) {
-    lines.push(`\nWorker messages (${messages.length}):`);
-    for (const m of messages.slice(0, 10)) {
-      lines.push(`  [${m.from}] ${m.content?.slice(0, 150)}`);
     }
   }
 
@@ -302,21 +358,18 @@ export async function runTeam({ name, leadContract, workers, project = null, pro
   const lead = store.addMember({ teamId: team.id, name: "lead", role: "lead", profile: "orchestrator", instructions: leadContract.task });
   store.updateMemberStatus(lead.id, "working");
 
-  console.log(`[TeamLeadRunner] Created team "${name}" (${team.id}), ${workers.length} worker(s)`);
+  console.log(`[TeamLeadRunner] Team "${name}" (${team.id}) — ${workers.length} worker(s)`);
   console.log(`[TeamLeadRunner] Workers: ${workers.map(w => `${w.name} (${w.crew || w.profile})`).join(", ")}`);
 
-  // Deterministic orchestration - no AI lead
   const state = await _orchestrate(team.id, workers);
 
   store.updateMemberStatus(lead.id, "done");
-
   const allDone = state.every(ws => ws.done);
   const anyFailed = state.some(ws => ws.error);
   store.updateTeamStatus(team.id, allDone && !anyFailed ? "completed" : "completed");
 
   const summary = _buildSummary(name, state);
   console.log(`[TeamLeadRunner] ${summary.split("\n")[0]}`);
-
   return summary;
 }
 
@@ -329,7 +382,6 @@ export async function relaunchTeam(teamId) {
 
   if (team.status === "paused") store.updateTeamStatus(teamId, "active");
 
-  // Find incomplete workers from original config
   const tasks = store.listTasks(teamId);
   const completedNames = new Set(
     tasks.filter(t => t.status === "completed").map(t => t.assignee).filter(Boolean)
@@ -340,12 +392,11 @@ export async function relaunchTeam(teamId) {
 
   if (workersToRun.length === 0) {
     store.updateTeamStatus(teamId, "completed");
-    return `Team "${team.name}" already completed - all workers finished.`;
+    return `Team "${team.name}" already completed.`;
   }
 
-  console.log(`[TeamLeadRunner] Re-launching "${team.name}" (${teamId}) - ${completedNames.size} done, ${workersToRun.length} remaining`);
+  console.log(`[TeamLeadRunner] Re-launching "${team.name}" (${teamId}) — ${completedNames.size} done, ${workersToRun.length} remaining`);
 
-  // Run the remaining workers through the same deterministic loop
   const state = await _orchestrate(teamId, workersToRun);
 
   const allDone = state.every(ws => ws.done);
