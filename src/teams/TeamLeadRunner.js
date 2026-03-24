@@ -124,7 +124,7 @@ function buildLeadTools(teamId, leadName) {
       name: z.string().describe("Worker name (unique within team)"),
       profile: z.string().optional().describe("Agent profile: coder|researcher|writer|analyst|frontend|tester|devops"),
       crew: z.string().optional().describe("Crew member ID (e.g. 'database-connector'). Use instead of profile."),
-      task: z.string().describe("Full task description - be specific"),
+      task: z.string().describe("Full task description with complete context. Worker will execute directly from this - include: what to build, which files/paths, tech stack, API contracts, expected output. Worker does NOT plan - your description IS the plan."),
       skills: z.array(z.string()).optional().describe("Skill IDs to inject"),
       blockedBy: z.array(z.string()).optional().describe("Task IDs this depends on"),
     }),
@@ -152,7 +152,7 @@ function buildLeadTools(teamId, leadName) {
         const workerContract = buildContract({
           task: params.task,
           context: `You are "${params.name}" on team "${teamId}". Your team lead assigned this task.`,
-          constraints: "1. Read the codebase/context first - understand what exists before changing anything.\n2. Plan your approach: list the files to create/modify, the order, and why.\n3. Submit your plan via submitPlan so the lead can track your approach.\n4. Execute your plan immediately after submitting - do NOT wait for lead approval.\n5. Verify your work: run tests, read back files, check builds.\n6. Report via completeTask with what you built and verification results.\n7. Blockers → sendToLead.",
+          constraints: "Your lead already planned the work. Execute the task directly - no re-planning needed.\n1. Read relevant files/context to understand what exists.\n2. Execute: create files, write code, run commands - whatever the task requires.\n3. Verify: run tests, read back files, check builds.\n4. Report via completeTask with what you built and verification results.\n5. Blockers → sendToLead.",
         });
 
         const workerTools = buildWorkerTools(teamId, params.name, task.id);
@@ -440,12 +440,11 @@ export async function runTeam({ name, leadContract, workers, project = null, pro
       projectStack ? `Stack: ${projectStack}` : "",
       `\nPlanned workers:\n${workerBrief}`,
       `\nWork loop:`,
-      `1. Create each worker using createWorker`,
-      `2. Call waitForWorkers("plans") - blocks until plans arrive`,
-      `3. reviewPlan → read plans → approvePlan each one`,
-      `4. Call waitForWorkers("completion") - blocks until tasks done`,
-      `5. checkStatus → verify all complete`,
-      `6. completeTeam with summary`,
+      `1. Read project structure if needed (listDirectory, readFile)`,
+      `2. Create each worker using createWorker with FULL task contracts (you are the planner, workers execute directly)`,
+      `3. Call waitForWorkers("completion") - blocks until tasks done`,
+      `4. checkStatus → verify all complete`,
+      `5. completeTeam with summary`,
     ].filter(Boolean).join("\n"),
     constraints: [
       "AUTONOMOUS: Execute immediately. First action = createWorker calls. No text output, no plans, no confirmation requests.",
