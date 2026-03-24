@@ -1,5 +1,5 @@
 /**
- * EgressGuard — scans outbound HTTP requests for leaked secrets.
+ * EgressGuard - scans outbound HTTP requests for leaked secrets.
  * Checks URL, headers, and body against known secret values.
  * Blocks requests that contain API keys or tokens.
  */
@@ -31,8 +31,8 @@ class EgressGuard {
 
   /**
    * Check if a string contains any known secret value.
-   * @param {string} data — URL, body, header value, etc.
-   * @returns {{ safe: boolean, leaked?: string }} — leaked = env var name hint
+   * @param {string} data - URL, body, header value, etc.
+   * @returns {{ safe: boolean, leaked?: string }} - leaked = env var name hint
    */
   check(data) {
     if (!this._enabled || !data || typeof data !== "string") return { safe: true };

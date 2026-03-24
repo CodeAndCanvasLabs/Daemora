@@ -12,11 +12,11 @@
 
   <rect width="900" height="540" fill="url(#bg)" rx="12"/>
 
-  <text x="450" y="34" text-anchor="middle" fill="#e6edf3" font-size="18" font-weight="700">Delegation — Crew Members + Project Teams</text>
+  <text x="450" y="34" text-anchor="middle" fill="#e6edf3" font-size="18" font-weight="700">Delegation - Crew Members + Project Teams</text>
 
   <!-- Divider -->
   <text x="230" y="62" text-anchor="middle" fill="#58a6ff" font-size="13" font-weight="700">useCrew / parallelCrew</text>
-  <text x="680" y="62" text-anchor="middle" fill="#d2a8ff" font-size="13" font-weight="700">teamTask — Project Teams</text>
+  <text x="680" y="62" text-anchor="middle" fill="#d2a8ff" font-size="13" font-weight="700">teamTask - Project Teams</text>
   <line x1="460" y1="50" x2="460" y2="510" stroke="#30363d" stroke-width="1" stroke-dasharray="4,4"/>
 
   <!-- LEFT: Crew Delegation -->
@@ -47,7 +47,7 @@
   <text x="310" y="204" text-anchor="middle" fill="#8b949e" font-size="8">createDocument</text>
 
   <rect x="22" y="160" width="346" height="66" rx="10" fill="none" stroke="#3fb950" stroke-width="1" stroke-dasharray="4,3"/>
-  <text x="195" y="238" text-anchor="middle" fill="#3fb950" font-size="9">concurrent — results merge back to main agent</text>
+  <text x="195" y="238" text-anchor="middle" fill="#3fb950" font-size="9">concurrent - results merge back to main agent</text>
 
   <!-- Features -->
   <rect x="30" y="260" width="400" height="36" rx="6" fill="#1a2332" stroke="#30363d" stroke-width="1"/>

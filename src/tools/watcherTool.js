@@ -152,5 +152,5 @@ export function watcher(toolParams) {
 }
 
 export const watcherDescription =
-  "watcher(action, ...) - Manage named watchers — event-driven triggers that execute tasks when webhooks fire. " +
+  "watcher(action, ...) - Manage named watchers - event-driven triggers that execute tasks when webhooks fire. " +
   "Actions: add, list, update, delete, enable, disable.";

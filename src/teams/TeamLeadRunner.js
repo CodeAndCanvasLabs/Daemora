@@ -1,11 +1,11 @@
 /**
- * TeamLeadRunner — project team orchestration (ClawTeam pattern).
+ * TeamLeadRunner - project team orchestration (ClawTeam pattern).
  *
  * Architecture: Main Agent → Team Lead (sub-agent) → Workers (sub-agents)
  *
  * Key behaviors (matching ClawTeam):
  * - Lead polls worker status every 30s via waitForWorkers (ClawTeam: 5s poll)
- * - Worker sessions persist — re-assigned workers get full history
+ * - Worker sessions persist - re-assigned workers get full history
  * - Workers submit plans → lead approves before execution
  * - All state in SQLite (survives restart)
  * - Lead gets curated tools (19), not full profile dump
@@ -31,7 +31,7 @@ const POLL_TIMEOUT_MS = 1_800_000; // 30 min max wait
 /** Update poll interval at runtime (from UI/API) */
 export function setPollInterval(ms) { POLL_INTERVAL_MS = Math.max(5000, Math.min(ms, 300000)); }
 
-// Explicit lead tools — curated, not profile dump
+// Explicit lead tools - curated, not profile dump
 const LEAD_TOOLS = [
   "readFile", "listDirectory", "glob", "grep", "gitTool",  // project awareness
   "readMemory", "writeMemory", "searchMemory",               // memory
@@ -124,7 +124,7 @@ function buildLeadTools(teamId, leadName) {
       name: z.string().describe("Worker name (unique within team)"),
       profile: z.string().optional().describe("Agent profile: coder|researcher|writer|analyst|frontend|tester|devops"),
       crew: z.string().optional().describe("Crew member ID (e.g. 'database-connector'). Use instead of profile."),
-      task: z.string().describe("Full task description — be specific"),
+      task: z.string().describe("Full task description - be specific"),
       skills: z.array(z.string()).optional().describe("Skill IDs to inject"),
       blockedBy: z.array(z.string()).optional().describe("Task IDs this depends on"),
     }),
@@ -152,7 +152,7 @@ function buildLeadTools(teamId, leadName) {
         const workerContract = buildContract({
           task: params.task,
           context: `You are "${params.name}" on team "${teamId}". Your team lead assigned this task.`,
-          constraints: "1. Submit your plan via submitPlan FIRST — WAIT for approval before doing any work.\n2. Check readMail for approval/rejection.\n3. After approved, execute fully.\n4. Report via completeTask when done.\n5. Questions/blockers → sendToLead.",
+          constraints: "1. Submit your plan via submitPlan FIRST - WAIT for approval before doing any work.\n2. Check readMail for approval/rejection.\n3. After approved, execute fully.\n4. Report via completeTask when done.\n5. Questions/blockers → sendToLead.",
         });
 
         const workerTools = buildWorkerTools(teamId, params.name, task.id);
@@ -248,11 +248,11 @@ function buildLeadTools(teamId, leadName) {
           }
           // Check for messages even while waiting
           if (unread > 0) {
-            return `${active.length} task(s) still in progress. ${unread} unread message(s) — check them with reviewPlan.`;
+            return `${active.length} task(s) still in progress. ${unread} unread message(s) - check them with reviewPlan.`;
           }
         }
 
-        // Poll interval — actually wait (blocks the tool, not the model)
+        // Poll interval - actually wait (blocks the tool, not the model)
         await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
       }
 
@@ -261,7 +261,7 @@ function buildLeadTools(teamId, leadName) {
   });
 
   const reviewPlan = tool({
-    description: "Read mailbox — plan submissions, status updates, messages from workers",
+    description: "Read mailbox - plan submissions, status updates, messages from workers",
     inputSchema: z.object({}),
     execute: async () => {
       const msgs = store.readMessages(teamId, leadName);
@@ -296,17 +296,17 @@ function buildLeadTools(teamId, leadName) {
   });
 
   const checkStatus = tool({
-    description: "Full team status — members, tasks, messages",
+    description: "Full team status - members, tasks, messages",
     inputSchema: z.object({}),
     execute: async () => {
       const members = store.listMembers(teamId);
       const tasks = store.listTasks(teamId);
       const memberLines = members.filter(m => m.role !== "lead").map(m =>
-        `  ${m.name} [${m.profile}] — ${m.status}`
+        `  ${m.name} [${m.profile}] - ${m.status}`
       ).join("\n");
       const taskLines = tasks.map(t => {
         const blocked = t.blockedBy?.length ? ` (blocked by: ${t.blockedBy.join(", ")})` : "";
-        return `  ${t.id} "${t.title}" — ${t.status} → ${t.assignee || "unassigned"}${blocked}`;
+        return `  ${t.id} "${t.title}" - ${t.status} → ${t.assignee || "unassigned"}${blocked}`;
       }).join("\n");
       const unread = store.unreadCount(teamId, leadName);
       return `TEAM STATUS:\n\nWorkers:\n${memberLines || "  (none)"}\n\nTasks:\n${taskLines || "  (none)"}\n\nUnread: ${unread}`;
@@ -329,7 +329,7 @@ function buildLeadTools(teamId, leadName) {
   });
 
   const suggestFeature = tool({
-    description: "Suggest scope change to main agent (don't wait — continue current work)",
+    description: "Suggest scope change to main agent (don't wait - continue current work)",
     inputSchema: z.object({
       title: z.string(), description: z.string(), impact: z.string().optional(),
     }),
@@ -341,7 +341,7 @@ function buildLeadTools(teamId, leadName) {
   });
 
   const completeTeam = tool({
-    description: "All tasks done — report final results to main agent",
+    description: "All tasks done - report final results to main agent",
     inputSchema: z.object({
       summary: z.string().describe("What was accomplished"),
     }),
@@ -361,13 +361,13 @@ function buildWorkerTools(teamId, workerName, taskId) {
   const submitPlan = tool({
     description: "Submit your execution plan to lead. REQUIRED before starting work.",
     inputSchema: z.object({
-      plan: z.string().describe("Your plan — what you'll do, in what order, what tools"),
+      plan: z.string().describe("Your plan - what you'll do, in what order, what tools"),
     }),
     execute: async (params) => {
       store.updateTask(taskId, { plan: params.plan, status: "plan_submitted" });
       store.sendMessage({ teamId, from: workerName, to: "lead", msgType: "plan_request",
         content: params.plan, requestId: `plan-${taskId}` });
-      return "Plan submitted. WAIT for approval — check readMail.";
+      return "Plan submitted. WAIT for approval - check readMail.";
     },
   });
 
@@ -428,7 +428,7 @@ export async function runTeam({ name, leadContract, workers, project = null, pro
   console.log(`[TeamLeadRunner] Created team "${name}" (${team.id}), ${workers.length} workers, lead: ${leadCrewId}`);
 
   const workerBrief = workers.map((w, i) =>
-    `${i + 1}. ${w.name} (${w.crew || w.profile}) — ${w.task.slice(0, 100)}`
+    `${i + 1}. ${w.name} (${w.crew || w.profile}) - ${w.task.slice(0, 100)}`
   ).join("\n");
 
   const leadPrompt = buildContract({
@@ -441,9 +441,9 @@ export async function runTeam({ name, leadContract, workers, project = null, pro
       `\nPlanned workers:\n${workerBrief}`,
       `\nWork loop:`,
       `1. Create each worker using createWorker`,
-      `2. Call waitForWorkers("plans") — blocks until plans arrive`,
+      `2. Call waitForWorkers("plans") - blocks until plans arrive`,
       `3. reviewPlan → read plans → approvePlan each one`,
-      `4. Call waitForWorkers("completion") — blocks until tasks done`,
+      `4. Call waitForWorkers("completion") - blocks until tasks done`,
       `5. checkStatus → verify all complete`,
       `6. completeTeam with summary`,
     ].filter(Boolean).join("\n"),
@@ -452,7 +452,7 @@ export async function runTeam({ name, leadContract, workers, project = null, pro
 
   const leadTools = buildLeadTools(team.id, "lead");
 
-  // Build explicit lead tool map (curated — not full profile)
+  // Build explicit lead tool map (curated - not full profile)
   const leadBaseTools = {};
   for (const name of LEAD_TOOLS) {
     if (toolFunctions[name]) leadBaseTools[name] = toolFunctions[name];
@@ -468,7 +468,7 @@ export async function runTeam({ name, leadContract, workers, project = null, pro
     aiToolOverrides: leadTools,
     skills: leadProfile.skills || null,
     parentContext: [
-      leadProfile.systemPrompt || "You are the Team Lead. Delegate — never do the work yourself.",
+      leadProfile.systemPrompt || "You are the Team Lead. Delegate - never do the work yourself.",
       extraContext,
     ].filter(Boolean).join("\n\n"),
     depth: 1,
@@ -523,7 +523,7 @@ export async function relaunchTeam(teamId) {
     if (toolFunctions[name]) leadBaseTools[name] = toolFunctions[name];
   }
 
-  console.log(`[TeamLeadRunner] Re-launching "${team.name}" (${teamId}) — ${completed.length} done, ${pending.length} pending`);
+  console.log(`[TeamLeadRunner] Re-launching "${team.name}" (${teamId}) - ${completed.length} done, ${pending.length} pending`);
 
   const mcpCtx = await _getMCPContext();
   const crewCtx = _getCrewContext();

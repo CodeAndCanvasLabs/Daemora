@@ -69,7 +69,7 @@ async function runPreCompactionFlush(messages, tools = {}) {
       if (tools[name]) memoryTools[name] = tools[name];
     }
     if (Object.keys(memoryTools).length === 0) {
-      console.log("[Compaction] No memory tools available — skipping pre-compaction flush");
+      console.log("[Compaction] No memory tools available - skipping pre-compaction flush");
       return;
     }
 
@@ -138,7 +138,7 @@ export async function compactIfNeeded(messages, modelMeta, taskId = null, tools 
   );
   eventBus.emitEvent("compact:triggered", { tokenCount, threshold: compactThreshold });
 
-  // Pre-compaction memory flush — let agent save important context before we compact
+  // Pre-compaction memory flush - let agent save important context before we compact
   await runPreCompactionFlush(messages, tools);
 
   // Step 1: Identify protected messages (system prompt + last 3 exchanges)

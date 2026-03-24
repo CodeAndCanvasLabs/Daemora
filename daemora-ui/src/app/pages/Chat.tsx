@@ -118,7 +118,7 @@ export function Chat() {
             setStreamStatus("Reconnecting...");
             connectToStream(pendingTaskId);
           } else {
-            // Task completed, failed, or doesn't exist — clean up stale reference
+            // Task completed, failed, or doesn't exist - clean up stale reference
             sessionStorage.removeItem("daemora_active_task");
             // Reload session to get final messages if task completed while away
             if (task?.status === "completed" && sessionIdRef.current) {
@@ -226,7 +226,7 @@ export function Chat() {
     es.addEventListener("task:state", (e) => {
       const data = JSON.parse(e.data);
       if (data.status === "completed" && data.result) {
-        // Task already completed before we connected — reload session to get full history
+        // Task already completed before we connected - reload session to get full history
         clearActiveTask();
         setIsLoading(false);
         setStreamStatus(null);
@@ -330,7 +330,7 @@ export function Chat() {
     es.onerror = () => {
       errorCount++;
       if (es.readyState === EventSource.CLOSED || errorCount >= 3) {
-        // Connection fully closed or too many retries — clean up
+        // Connection fully closed or too many retries - clean up
         clearActiveTask();
         setIsLoading(false);
         setStreamStatus(null);

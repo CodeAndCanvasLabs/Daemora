@@ -1,5 +1,5 @@
 /**
- * broadcast(preset, text?, filePath?, channels?) — Send content to delivery preset targets or specific channels.
+ * broadcast(preset, text?, filePath?, channels?) - Send content to delivery preset targets or specific channels.
  *
  * General-purpose delivery tool. Works in any context: cron, chat, sub-agent, API.
  * Resolves routing metadata from tenant_channels at send time (always fresh).
@@ -51,7 +51,7 @@ export async function broadcast(params) {
         targets = targets.filter(t => filter.includes(t.channel?.toLowerCase()));
         if (targets.length === 0) return `Error: No targets match channels: ${filter.join(", ")}`;
       } else {
-        // No preset — build targets from channel names (global channels)
+        // No preset - build targets from channel names (global channels)
         targets = filter.map(ch => ({ channel: ch, tenantId: null, userId: null }));
       }
     }
@@ -79,7 +79,7 @@ export async function broadcast(params) {
 }
 
 /**
- * Send to a single target — resolves fresh routing meta, finds channel instance, sends.
+ * Send to a single target - resolves fresh routing meta, finds channel instance, sends.
  */
 async function _sendToTarget(target, text, filePath) {
   const { channel: channelType, tenantId, userId } = target;
@@ -89,7 +89,7 @@ async function _sendToTarget(target, text, filePath) {
   const meta = _resolveMeta(channelType, tenantId, userId, target.channelMeta);
   if (!meta) return { ok: false, error: `No routing metadata for ${channelType}${tenantId ? `:${tenantId}` : ""}` };
 
-  // Find channel instance — tenant-specific first, then global
+  // Find channel instance - tenant-specific first, then global
   const instanceKey = meta.instanceKey || (tenantId ? `${channelType}::${tenantId}` : null);
   const ch = channelRegistry.get(channelType, instanceKey) || channelRegistry.get(channelType);
   if (!ch || !ch.running) return { ok: false, error: `Channel "${channelType}" not running` };
@@ -130,7 +130,7 @@ function _resolveMeta(channelType, tenantId, userId, fallback) {
 }
 
 export const broadcastDescription =
-  "broadcast(preset, text?, filePath?, channels?) — Fleet Command: send text or file to all targets in a delivery preset. " +
+  "broadcast(preset, text?, filePath?, channels?) - Fleet Command: send text or file to all targets in a delivery preset. " +
   "preset: preset name (required unless channels specified). " +
   "channels: optional comma-separated filter. " +
   "Admin-only.";

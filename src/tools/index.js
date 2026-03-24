@@ -4,7 +4,7 @@ import { readFile } from "./readFile.js";
 import { writeFile } from "./writeFile.js";
 import { editFile } from "./editFile.js";
 import { listDirectory } from "./listDirectory.js";
-// searchFiles + searchContent removed — duplicates of glob + grep
+// searchFiles + searchContent removed - duplicates of glob + grep
 import { webFetch } from "./webFetch.js";
 import { webSearch } from "./webSearch.js";
 import { sendEmail } from "./sendEmail.js";
@@ -19,7 +19,7 @@ import { spawnSubAgent, spawnParallelAgents } from "../agents/SubAgentManager.js
 import { delegateToAgent } from "../a2a/A2AClient.js";
 import { transcribeAudio } from "./transcribeAudio.js";
 import { sendFile } from "./sendFile.js";
-// replyWithFile removed — duplicate of sendFile
+// replyWithFile removed - duplicate of sendFile
 import { textToSpeech } from "./textToSpeech.js";
 import { globSearch } from "./glob.js";
 import { grep } from "./grep.js";
@@ -41,7 +41,7 @@ import { generateImage } from "./generateImage.js";
 import { readPDF } from "./readPDF.js";
 import { gitTool } from "./gitTool.js";
 import { clipboard } from "./clipboard.js";
-// Crew tools NOT imported here — crew members are self-contained sub-agents.
+// Crew tools NOT imported here - crew members are self-contained sub-agents.
 // Main agent delegates via useCrew(crewId, task).
 import { useCrew } from "./useCrew.js";
 import { reload } from "./reloadTool.js";
@@ -98,5 +98,5 @@ export const toolFunctions = {
   reload,
 };
 
-// mergePluginTools() removed — crew members are self-contained sub-agents.
+// mergePluginTools() removed - crew members are self-contained sub-agents.
 // Crew tools stay in PluginRegistry, accessed via CrewAgentRunner.

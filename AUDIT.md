@@ -1,13 +1,13 @@
-# Daemora vs OpenClaw — Full Gap Audit
+# Daemora vs OpenClaw - Full Gap Audit
 
 Where Daemora lacks, what OpenClaw does better, and what to fix. File-indexed.
 
 ---
 
-## 1. TOOL SYSTEM — ✅ DONE
+## 1. TOOL SYSTEM - ✅ DONE
 
 ### What Was Done
-- 54 Zod schemas in `src/tools/schemas.js` — `.describe()` on every field for LLM hints
+- 54 Zod schemas in `src/tools/schemas.js` - `.describe()` on every field for LLM hints
 - Named params: `params: z.record(z.unknown())` in `src/services/models/outputSchema.js`
 - All 50+ tool files updated from positional args to single `params` object
 - `validateToolParams()` in AgentLoop validates before dispatch
@@ -21,7 +21,7 @@ Where Daemora lacks, what OpenClaw does better, and what to fix. File-indexed.
 
 ---
 
-## 2. SYSTEM PROMPT — ✅ DONE
+## 2. SYSTEM PROMPT - ✅ DONE
 
 ### What Was Done
 - SOUL.md: 211 lines → 74 lines (~897 tokens, was 3,609)
@@ -38,13 +38,13 @@ Where Daemora lacks, what OpenClaw does better, and what to fix. File-indexed.
 
 ---
 
-## 3. CONFIG VALIDATION — NO SCHEMA
+## 3. CONFIG VALIDATION - NO SCHEMA
 
 ### Current State (Daemora)
 - Raw `process.env` reads with manual `parseInt`/`parseFloat` (`src/config/default.js:22-237`)
-- No startup validation — `MAX_DAILY_COST="unlimited"` → `NaN` → silently bypassed
-- No required field checks — missing API keys only caught at runtime
-- No type coercion safety — `PORT="abc"` → `NaN` → falls back silently
+- No startup validation - `MAX_DAILY_COST="unlimited"` → `NaN` → silently bypassed
+- No required field checks - missing API keys only caught at runtime
+- No type coercion safety - `PORT="abc"` → `NaN` → falls back silently
 
 ### OpenClaw's Approach
 - JSON5/YAML config with Zod schema validation (`openclaw/src/config/types.ts`)
@@ -63,7 +63,7 @@ Where Daemora lacks, what OpenClaw does better, and what to fix. File-indexed.
 
 ---
 
-## 4. STORAGE LAYER — FLAT FILES, NO TRANSACTIONS
+## 4. STORAGE LAYER - FLAT FILES, NO TRANSACTIONS
 
 ### Concurrent Write Vulnerabilities
 | Component | File | Pattern | Risk |
@@ -95,14 +95,14 @@ Where Daemora lacks, what OpenClaw does better, and what to fix. File-indexed.
 
 ---
 
-## 5. ERROR HANDLING — SCATTERED, NO HIERARCHY
+## 5. ERROR HANDLING - SCATTERED, NO HIERARCHY
 
 ### Current State (Daemora)
 - 573 try/catch blocks across 97 files
-- No custom error classes — everything is `Error` or return string
+- No custom error classes - everything is `Error` or return string
 - Silent failures: `catch { return []; }` (`src/tools/memory.js:85-94`)
 - Inconsistent logging: some `console.log`, some `console.error`, some silent
-- No error codes — can't machine-parse or route errors
+- No error codes - can't machine-parse or route errors
 
 ### OpenClaw's Approach
 - `ToolInputError` for tool validation failures (`openclaw/src/agents/tools/common.ts`)
@@ -112,18 +112,18 @@ Where Daemora lacks, what OpenClaw does better, and what to fix. File-indexed.
 
 ### Missing Error Classes in Daemora
 ```
-ToolInputError      — malformed params, missing required fields
-ConfigError         — invalid config values, missing keys
-ChannelError        — channel connection/send failures
-BudgetError         — cost limit exceeded
-StorageError        — file I/O failures, corruption
-SecurityError       — permission denied, secret detected
-CompactionError     — context window management failures
+ToolInputError      - malformed params, missing required fields
+ConfigError         - invalid config values, missing keys
+ChannelError        - channel connection/send failures
+BudgetError         - cost limit exceeded
+StorageError        - file I/O failures, corruption
+SecurityError       - permission denied, secret detected
+CompactionError     - context window management failures
 ```
 
 ---
 
-## 6. CHANNEL ARCHITECTURE — 20 IMPLEMENTATIONS, 0 TESTS
+## 6. CHANNEL ARCHITECTURE - 20 IMPLEMENTATIONS, 0 TESTS
 
 ### Current State (Daemora)
 - BaseChannel: 80 LOC (`src/channels/BaseChannel.js:18-80`)
@@ -150,14 +150,14 @@ CompactionError     — context window management failures
 
 ---
 
-## 7. CREW/EXTENSION SYSTEM — MINIMAL
+## 7. CREW/EXTENSION SYSTEM - MINIMAL
 
 ### Current State (Daemora)
 - HookRunner: 5 events, shell/JS hooks from JSON config (`src/hooks/HookRunner.js`)
 - SkillLoader: Static .md files with embedding match (`src/skills/SkillLoader.js`)
 - No crew manifest, no versioning, no marketplace
 - No hot-reload of hooks
-- No error isolation — hook crash kills the task
+- No error isolation - hook crash kills the task
 
 ### OpenClaw's Approach
 - Full crew system with loader/registry (`openclaw/src/plugins/loader.ts`, `openclaw/src/plugins/types.ts`)
@@ -169,7 +169,7 @@ CompactionError     — context window management failures
 
 ---
 
-## 8. DEPENDENCIES — MONOLITH
+## 8. DEPENDENCIES - MONOLITH
 
 ### Current State (Daemora)
 - All 22 prod deps required even if user only wants Telegram
@@ -179,12 +179,12 @@ CompactionError     — context window management failures
 
 ### OpenClaw's Approach
 - pnpm workspaces: `extensions/discord`, `extensions/matrix`, etc.
-- Core package is lean — channels are separate packages
+- Core package is lean - channels are separate packages
 - Users install only what they need
 
 ---
 
-## 9. TESTING — 7% COVERAGE
+## 9. TESTING - 7% COVERAGE
 
 ### Current State (Daemora)
 - 8 test files across 27.5K LOC source
@@ -200,10 +200,10 @@ CompactionError     — context window management failures
 
 ---
 
-## 10. OBSERVABILITY — CONSOLE.LOG
+## 10. OBSERVABILITY - CONSOLE.LOG
 
 ### Current State (Daemora)
-- `console.log` everywhere — no structured logging
+- `console.log` everywhere - no structured logging
 - EventBus exists but events go to console
 - No log levels (info/warn/error/debug)
 - No correlation IDs across request lifecycle
@@ -217,46 +217,46 @@ CompactionError     — context window management failures
 
 ---
 
-## 11. NATIVE TOOL CALLING — ✅ DONE
+## 11. NATIVE TOOL CALLING - ✅ DONE
 
 ### What Was Done
 - Migrated from custom JSON output schema to Vercel AI SDK native `tool()` + `generateText` + `stopWhen: stepCountIs(N)`
-- SDK handles schema conversion per provider (OpenAI, Anthropic, Google/Gemini, Ollama) — no custom logic needed
-- Session format uses SDK's provider-agnostic `ModelMessage` types (`tool-call`, `tool-result`, `toolCallId`) — works across all providers
+- SDK handles schema conversion per provider (OpenAI, Anthropic, Google/Gemini, Ollama) - no custom logic needed
+- Session format uses SDK's provider-agnostic `ModelMessage` types (`tool-call`, `tool-result`, `toolCallId`) - works across all providers
 - `compactForSession()` preserves tool call/result structure in sessions (truncates large outputs, keeps context)
 - `filterCleanMessages()` only for API display, never for session storage
-- `msgText()` utility (`src/utils/msgText.js`) — central text extraction from any SDK message format
+- `msgText()` utility (`src/utils/msgText.js`) - central text extraction from any SDK message format
 - Confirmed: all 4 providers (OpenAI, Anthropic, Google/Gemini, Ollama) work with native tool calling
 
 ---
 
-## 12. SUB-AGENT & TEAM IMPROVEMENTS — ✅ DONE
+## 12. SUB-AGENT & TEAM IMPROVEMENTS - ✅ DONE
 
 ### What Was Done
 - Simplified model resolution: `SUB_AGENT_MODEL` → parent model → `DEFAULT_MODEL` (deleted overengineered profile routing)
-- Removed `model` param from `spawnAgent` schema — user defines model in `.env`, not per-spawn
+- Removed `model` param from `spawnAgent` schema - user defines model in `.env`, not per-spawn
 - Sub-agent autonomy: "Plan → execute. Never stop after planning. No user. No confirmation."
-- Teammate prompt rewritten — terse, with claim→execute→complete loop and comms instructions
+- Teammate prompt rewritten - terse, with claim→execute→complete loop and comms instructions
 - SOUL.md Multi-Agent section rewritten with exact call patterns (spawnAgent, parallelAgents, teamTask)
-- Spawn contract: `taskDescription`, `parentContext`, `skills` — applies to spawns and teams
-- General-purpose examples (research, writing, product launch — not code-only)
+- Spawn contract: `taskDescription`, `parentContext`, `skills` - applies to spawns and teams
+- General-purpose examples (research, writing, product launch - not code-only)
 - Skills reduced from 30 to 20 in system prompt
 - Sub-agent skill preamble: "If a skill applies → readFile its path, follow it. Skip confirm steps."
 
 ### Files Changed
-- `src/agents/SubAgentManager.js` — simplified model resolution, `compactForSession` for sessions
-- `src/models/ModelRouter.js` — `resolveSubAgentModel()` replaces `resolveModelForProfile`/`getTaskTypeModel`
-- `src/agents/systemPrompt.js` — sub-agent context, skill preamble, limit 20
-- `src/agents/TeamManager.js` — `_buildTeammatePrompt` rewritten
-- `src/tools/schemas.js` — removed `model` from spawnAgent options
-- `SOUL.md` — Multi-Agent Orchestration, Memory section added
+- `src/agents/SubAgentManager.js` - simplified model resolution, `compactForSession` for sessions
+- `src/models/ModelRouter.js` - `resolveSubAgentModel()` replaces `resolveModelForProfile`/`getTaskTypeModel`
+- `src/agents/systemPrompt.js` - sub-agent context, skill preamble, limit 20
+- `src/agents/TeamManager.js` - `_buildTeammatePrompt` rewritten
+- `src/tools/schemas.js` - removed `model` from spawnAgent options
+- `SOUL.md` - Multi-Agent Orchestration, Memory section added
 
 ---
 
-## 13. MEMORY INSTRUCTIONS — ✅ DONE
+## 13. MEMORY INSTRUCTIONS - ✅ DONE
 
 ### What Was Done
-- Added `## Memory` section to SOUL.md — when to log, when to save, format rules, categories, security
+- Added `## Memory` section to SOUL.md - when to log, when to save, format rules, categories, security
 - Tools: `writeDailyLog`, `writeMemory`, `readMemory`, `searchMemory`
 - Categories: preferences, patterns, projects, people, debug
 
@@ -264,23 +264,23 @@ CompactionError     — context window management failures
 
 ## PRIORITY MATRIX
 
-### P0 — ✅ COMPLETE
-1. ~~**System prompt diet**~~ — 8K → 2.7K tokens (66% reduction). Done.
-2. ~~**Tool schema system**~~ — 54 Zod schemas, named params, validation in AgentLoop. Done.
-3. ~~**Native tool calling**~~ — Vercel AI SDK `tool()` + `generateText`, all providers confirmed. Done.
-4. ~~**Sub-agent & team maturity**~~ — Model resolution, autonomy, spawn contract, SOUL.md instructions. Done.
-5. ~~**Memory instructions**~~ — SOUL.md section for when/how to use memory tools. Done.
+### P0 - ✅ COMPLETE
+1. ~~**System prompt diet**~~ - 8K → 2.7K tokens (66% reduction). Done.
+2. ~~**Tool schema system**~~ - 54 Zod schemas, named params, validation in AgentLoop. Done.
+3. ~~**Native tool calling**~~ - Vercel AI SDK `tool()` + `generateText`, all providers confirmed. Done.
+4. ~~**Sub-agent & team maturity**~~ - Model resolution, autonomy, spawn contract, SOUL.md instructions. Done.
+5. ~~**Memory instructions**~~ - SOUL.md section for when/how to use memory tools. Done.
 
-### P1 — ✅ COMPLETE
-6. ~~**Config validation**~~ — Zod schema (`src/config/schema.js`), fail-closed startup, `channelWith()` DRY helper. Done.
-7. ~~**SQLite storage**~~ — `node:sqlite` DatabaseSync, WAL mode, 9 tables, reusable helpers (`queryAll/queryOne/run/transaction`), auto-migration from flat files. Done.
+### P1 - ✅ COMPLETE
+6. ~~**Config validation**~~ - Zod schema (`src/config/schema.js`), fail-closed startup, `channelWith()` DRY helper. Done.
+7. ~~**SQLite storage**~~ - `node:sqlite` DatabaseSync, WAL mode, 9 tables, reusable helpers (`queryAll/queryOne/run/transaction`), auto-migration from flat files. Done.
 
-### P2 — Do After (Quality + Scale)
-8. **Error class hierarchy** — ToolInputError, ConfigError, etc. New file: `src/errors.js`
-9. **Channel middleware** — Shared retry/rate-limit in BaseChannel. File: `src/channels/BaseChannel.js`
-10. **Test coverage** — Target 50%. Priority: AgentLoop, tool schemas, memory, channels
+### P2 - Do After (Quality + Scale)
+8. **Error class hierarchy** - ToolInputError, ConfigError, etc. New file: `src/errors.js`
+9. **Channel middleware** - Shared retry/rate-limit in BaseChannel. File: `src/channels/BaseChannel.js`
+10. **Test coverage** - Target 50%. Priority: AgentLoop, tool schemas, memory, channels
 
-### P3 — Future (Ecosystem)
-11. **Optional deps** — Move channel SDKs to optional. File: `package.json`
-12. **Crew system** — Manifest, loader, registry. New files: `src/crew/`
-13. **Structured logging** — Replace console.log with pino. All files.
+### P3 - Future (Ecosystem)
+11. **Optional deps** - Move channel SDKs to optional. File: `package.json`
+12. **Crew system** - Manifest, loader, registry. New files: `src/crew/`
+13. **Structured logging** - Replace console.log with pino. All files.

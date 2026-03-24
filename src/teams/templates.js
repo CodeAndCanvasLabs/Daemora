@@ -1,5 +1,5 @@
 /**
- * Team Templates — pre-built team configurations for common workflows.
+ * Team Templates - pre-built team configurations for common workflows.
  *
  * Pattern: ClawTeam's TOML templates adapted for our JSON format.
  * Each template defines: leader context + worker roster with specific profiles, tasks, and skills.

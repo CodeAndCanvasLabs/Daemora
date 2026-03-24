@@ -200,7 +200,7 @@ export function Crew() {
             <Input
               value={installPkg}
               onChange={(e) => setInstallPkg(e.target.value)}
-              placeholder="Install from npm — e.g. daemora-crew-weather"
+              placeholder="Install from npm - e.g. daemora-crew-weather"
               className="bg-slate-900 border-slate-700 text-sm flex-1"
               onKeyDown={(e) => e.key === "Enter" && handleInstall()}
             />

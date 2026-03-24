@@ -1,11 +1,11 @@
 # Daemora
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/CodeAndCanvasLabs/Daemora/main/public/banner.png" alt="Daemora — Autonomous AI Agent" width="100%" />
+  <img src="https://raw.githubusercontent.com/CodeAndCanvasLabs/Daemora/main/public/banner.png" alt="Daemora - Autonomous AI Agent" width="100%" />
 </p>
 
 <p align="center">
-  <strong>Self-hosted AI agent platform for teams — autonomous, multi-channel, multi-tenant.</strong>
+  <strong>Self-hosted AI agent platform for teams - autonomous, multi-channel, multi-tenant.</strong>
 </p>
 
 <p align="center">
@@ -15,9 +15,9 @@
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-black" alt="platform" />
 </p>
 
-Deploy once on your machine. Connect your channels. Your team messages the bot — it writes code, does research, sends emails, runs cron jobs, and reports back. Each user gets isolated memory, encrypted keys, and cost caps. You own everything.
+Deploy once on your machine. Connect your channels. Your team messages the bot - it writes code, does research, sends emails, runs cron jobs, and reports back. Each user gets isolated memory, encrypted keys, and cost caps. You own everything.
 
-59 built-in tools. 20 channels. 16 security layers. 7 AI providers. Multi-agent teams. Production-grade scheduling. Crew system with self-improving learning. MCP integration. All self-hosted — nothing leaves your infrastructure except the tokens you send to model APIs.
+59 built-in tools. 20 channels. 16 security layers. 7 AI providers. Multi-agent teams. Production-grade scheduling. Crew system with self-improving learning. MCP integration. All self-hosted - nothing leaves your infrastructure except the tokens you send to model APIs.
 
 ---
 
@@ -27,14 +27,14 @@ Deploy once on your machine. Connect your channels. Your team messages the bot �
 |---|---|
 | **Code** | Write, edit, run, test, and debug code across multiple files. Takes screenshots of UIs to verify output. Fixes failing tests. Ships working software. |
 | **Research** | Search the web, read pages, analyse images, cross-reference sources, write reports. Spawns parallel sub-agents for speed. |
-| **Goals** | Set persistent goals — the agent works toward them autonomously on schedule. No prompting needed. Runs 24/7 with isolated sessions, auto-pauses on repeated failures. |
-| **Watchers** | Named event triggers — "when GitHub issue opens, triage and notify Telegram." Webhook-driven with pattern matching, cooldown, and per-tenant scoping. |
+| **Goals** | Set persistent goals - the agent works toward them autonomously on schedule. No prompting needed. Runs 24/7 with isolated sessions, auto-pauses on repeated failures. |
+| **Watchers** | Named event triggers - "when GitHub issue opens, triage and notify Telegram." Webhook-driven with pattern matching, cooldown, and per-tenant scoping. |
 | **Scheduler** | Production-grade scheduling (one-shot, interval, cron expressions) with overlap prevention, retry with backoff, channel delivery, failure alerts, Morning Pulse daily briefing, and run history. |
 | **Fleet Command** | One admin command → every tenant's agent executes simultaneously. Each uses their own context, memory, tools. Each reports back individually. |
-| **Communicate** | Send emails, Telegram messages, Slack posts, Discord messages — autonomously. Screenshots, files, and media sent directly back to you via `replyWithFile`. |
-| **Crew** | Self-contained specialist sub-agents — database queries, smart home control, SSH, notifications, calendars. Build your own crew member in 3 files. Community crew marketplace coming soon. |
+| **Communicate** | Send emails, Telegram messages, Slack posts, Discord messages - autonomously. Screenshots, files, and media sent directly back to you via `replyWithFile`. |
+| **Crew** | Self-contained specialist sub-agents - database queries, smart home control, SSH, notifications, calendars. Build your own crew member in 3 files. Community crew marketplace coming soon. |
 | **Self-Improving** | After complex tasks, a background agent reviews the conversation and auto-creates reusable skills + saves user preferences. The more you use it, the better it gets. |
-| **Tools** | Connect to any MCP server — create Notion pages, open GitHub issues, update Linear tasks, manage Shopify products, query databases. |
+| **Tools** | Connect to any MCP server - create Notion pages, open GitHub issues, update Linear tasks, manage Shopify products, query databases. |
 | **Voice & Meetings** | Join any meeting (Google Meet, Zoom, Teams) via phone dial-in. OpenAI Realtime STT + ElevenLabs/OpenAI TTS. Voice cloning. Outbound voice calls. Auto-transcription + meeting summaries. |
 | **Multi-Agent** | Spawn parallel sub-agents (researcher + coder + writer working simultaneously). Create agent teams with shared task lists, dependencies, and inter-agent messaging. |
 | **Multi-Tenant** | Run one instance for your whole team. Per-user memory, cost caps, tool allowlists, filesystem isolation, and encrypted API keys. |
@@ -53,19 +53,19 @@ Deploy once on your machine. Connect your channels. Your team messages the bot �
   <img src="https://raw.githubusercontent.com/CodeAndCanvasLabs/Daemora/main/public/security.svg" alt="16-Layer Security Architecture" width="100%" />
 </p>
 
-### Task Lifecycle — Message to Response
+### Task Lifecycle - Message to Response
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/CodeAndCanvasLabs/Daemora/main/public/task-lifecycle.svg" alt="Task Lifecycle" width="100%" />
 </p>
 
-### Multi-Agent — Parallel Sub-Agents + Teams
+### Multi-Agent - Parallel Sub-Agents + Teams
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/CodeAndCanvasLabs/Daemora/main/public/multi-agent.svg" alt="Multi-Agent Architecture" width="100%" />
 </p>
 
-### Steer/Inject — Follow-up Mid-Task
+### Steer/Inject - Follow-up Mid-Task
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/CodeAndCanvasLabs/Daemora/main/public/steer-inject.svg" alt="Steer/Inject Flow" width="100%" />
@@ -139,7 +139,7 @@ MISTRAL_API_KEY=...
 DEFAULT_MODEL=openai:gpt-4.1-mini
 ```
 
-**7 providers, 59+ models** — including:
+**7 providers, 59+ models** - including:
 
 | Provider | Models |
 |---|---|
@@ -149,7 +149,7 @@ DEFAULT_MODEL=openai:gpt-4.1-mini
 | **xAI** | `grok-4`, `grok-3-beta`, `grok-3-mini-beta` |
 | **DeepSeek** | `deepseek-chat`, `deepseek-reasoner` |
 | **Mistral** | `mistral-large-latest`, `codestral-latest`, `mistral-small-latest` |
-| **Ollama** | `llama3`, `llama3.1`, `qwen2.5-coder` — local, no API key needed |
+| **Ollama** | `llama3`, `llama3.1`, `qwen2.5-coder` - local, no API key needed |
 
 Use format `provider:model-id` (e.g. `openai:gpt-5.2`, `anthropic:claude-sonnet-4-6`). Supports dynamic passthrough for any model ID your provider accepts.
 
@@ -337,7 +337,7 @@ daemora crew reload        # Hot-reload all crew members
 
 ## Agent Teams
 
-Teams enable coordinated multi-agent collaboration with shared task lists, dependency tracking, and inter-agent messaging. Use teams when agents need to coordinate — use `parallelCrew` when they don't.
+Teams enable coordinated multi-agent collaboration with shared task lists, dependency tracking, and inter-agent messaging. Use teams when agents need to coordinate - use `parallelCrew` when they don't.
 
 ### Team Lifecycle
 
@@ -361,16 +361,16 @@ createTeam("feature-sprint")
 | **Shared Task List** | `addTask` with `blockedBy` dependency tracking. Teammates `claim` → `complete` or `fail` tasks. |
 | **Inter-Agent Messaging** | `sendMessage(to, message)` for direct, `broadcast(message)` for all. Teammates read mail between tool calls. |
 | **Dependency Tracking** | Tasks with unmet `blockedBy` deps are not claimable. Automatically unblocked when deps complete. |
-| **Status Monitoring** | `getTeamStatus` returns full state — teammates, tasks, messages. |
+| **Status Monitoring** | `getTeamStatus` returns full state - teammates, tasks, messages. |
 
 ### When to Use
 
 | Scenario | Use |
 |---|---|
-| 5 independent web searches | `parallelCrew` — no coordination needed |
-| Research → implement → document pipeline | **Team** — tasks depend on each other |
-| Coder + reviewer need to discuss approach | **Team** — inter-agent messaging |
-| Translate a doc into 3 languages | `parallelCrew` — independent, no coordination |
+| 5 independent web searches | `parallelCrew` - no coordination needed |
+| Research → implement → document pipeline | **Team** - tasks depend on each other |
+| Coder + reviewer need to discuss approach | **Team** - inter-agent messaging |
+| Translate a doc into 3 languages | `parallelCrew` - independent, no coordination |
 
 ### Limits
 
@@ -434,7 +434,7 @@ daemora tenant apikey set telegram:123 OPENAI_API_KEY sk-their-key
 # Per-tenant channel instances (tenant gets their own bot)
 # Configured via UI → Tenant Edit → Channel Connections
 # Each tenant can have separate Telegram, Discord, Slack, etc. bots
-# Channel identities auto-linked on first message — enables cross-channel sends
+# Channel identities auto-linked on first message - enables cross-channel sends
 
 # Manage per-tenant workspace paths
 daemora tenant workspace telegram:123                  # Show workspace paths
@@ -451,18 +451,18 @@ Per-tenant isolation:
 
 | Isolation | Mechanism |
 |---|---|
-| Memory | `data/tenants/{id}/MEMORY.md` — never shared across users |
+| Memory | `data/tenants/{id}/MEMORY.md` - never shared across users |
 | Sessions | Persistent per-user sessions + per-sub-agent sessions (`userId--coder`, `userId--researcher`) |
 | Filesystem | `allowedPaths` and `blockedPaths` scoped per user. `TENANT_ISOLATE_FILESYSTEM=true` → temp files in `data/tenants/{id}/workspace/` |
 | API keys | AES-256-GCM encrypted; passed through call stack, never via `process.env` |
 | Cost tracking | Per-tenant daily cost recorded in audit log |
 | MCP servers | `mcpServers` field restricts which servers a tenant can call |
 | Tools | `tools` allowlist limits which tools the agent can use for this user |
-| Channel context | `channelMeta` auto-carried in TenantContext — tools like `replyWithFile` send files back without LLM knowing channel details |
-| Channel identity | Auto-linked routing metadata per channel — enables cross-channel sends (e.g. "send to telegram" from discord) |
+| Channel context | `channelMeta` auto-carried in TenantContext - tools like `replyWithFile` send files back without LLM knowing channel details |
+| Channel identity | Auto-linked routing metadata per channel - enables cross-channel sends (e.g. "send to telegram" from discord) |
 | Per-tenant channels | Each tenant can have their own channel instances (`telegram::tenantId`) with separate bot tokens |
 
-All isolation runs via `AsyncLocalStorage` — concurrent tasks from different users cannot read each other's context.
+All isolation runs via `AsyncLocalStorage` - concurrent tasks from different users cannot read each other's context.
 
 ---
 
@@ -475,21 +475,21 @@ daemora doctor
 
 | Layer | Feature | Description |
 |---|---|---|
-| 1 | **Permission tiers** | `minimal` / `standard` / `full` — controls which tools the agent can call |
+| 1 | **Permission tiers** | `minimal` / `standard` / `full` - controls which tools the agent can call |
 | 2 | **Filesystem sandbox** | Directory scoping via `ALLOWED_PATHS`, hardcoded blocks for `.ssh`, `.env`, `.aws`. All 19 file-touching tools enforce FilesystemGuard |
 | 3 | **Secret vault** | AES-256-GCM encrypted secrets in SQLite, scrypt key derivation, passphrase required on start |
-| 4 | **Channel allowlists** | Per-channel user ID whitelist — blocks unknown senders |
+| 4 | **Channel allowlists** | Per-channel user ID whitelist - blocks unknown senders |
 | 5 | **Subprocess env isolation** | Secrets stripped from `executeCommand` child processes and MCP stdio subprocesses. Agent cannot dump env. |
 | 6 | **Command guard** | Blocks env dumps, `.env` reads, credential exfiltration, CLI privilege escalation |
 | 7 | **Comprehensive secret redaction** | ALL env secrets tracked (not just 3). Pattern + blind redaction. Live refresh on vault unlock. |
-| 8 | **Log sanitisation** | Tool params and output redacted before `console.log` — secrets never written to logs |
-| 9 | **Network egress guard** | Outbound HTTP requests and emails scanned for secret values — blocks exfiltration attempts |
-| 10 | **Crew tenant isolation** | Crew members can only access current request's tenant keys — cross-tenant access blocked and logged |
+| 8 | **Log sanitisation** | Tool params and output redacted before `console.log` - secrets never written to logs |
+| 9 | **Network egress guard** | Outbound HTTP requests and emails scanned for secret values - blocks exfiltration attempts |
+| 10 | **Crew tenant isolation** | Crew members can only access current request's tenant keys - cross-tenant access blocked and logged |
 | 11 | **A2A security** | Agent-to-agent protocol: bearer token, agent allowlist, rate limiting |
 | 12 | **Supervisor agent** | Detects runaway loops, cost overruns, `rm -rf`, `curl | bash` patterns |
 | 13 | **Input sanitisation** | User messages wrapped in `<untrusted-input>` tags; prompt injection patterns flagged |
-| 14 | **Multi-tenant isolation** | AsyncLocalStorage — no cross-tenant data leakage in concurrent requests |
-| 15 | **Secret access audit trail** | Every `resolveKey()` call logged to SQLite — caller, key name, tenant, timestamp |
+| 14 | **Multi-tenant isolation** | AsyncLocalStorage - no cross-tenant data leakage in concurrent requests |
+| 15 | **Secret access audit trail** | Every `resolveKey()` call logged to SQLite - caller, key name, tenant, timestamp |
 | 16 | **Tool filesystem guard** | All 19 file-touching tools enforce `checkRead`/`checkWrite` per-tenant scoping |
 
 ---
@@ -611,7 +611,7 @@ curl http://localhost:8081/tenants
 curl http://localhost:8081/mcp
 ```
 
-> POST /chat and POST /tasks (unauthenticated task submission) are disabled by default — use a channel (Telegram, Slack, etc.) instead.
+> POST /chat and POST /tasks (unauthenticated task submission) are disabled by default - use a channel (Telegram, Slack, etc.) instead.
 
 ---
 
@@ -642,16 +642,16 @@ Use nginx or Caddy as a reverse proxy for HTTPS if exposing the API port.
 
 | Layer | Technology |
 |---|---|
-| Runtime | Node.js 20+ — ES modules, no build step |
-| AI SDK | Vercel AI SDK (`ai`) — model-agnostic, 25+ providers |
+| Runtime | Node.js 20+ - ES modules, no build step |
+| AI SDK | Vercel AI SDK (`ai`) - model-agnostic, 25+ providers |
 | Models | OpenAI, Anthropic, Google Gemini, xAI, DeepSeek, Mistral, Ollama (local) |
 | Testing | Vitest (unit + integration), Playwright (E2E) |
-| MCP | `@modelcontextprotocol/sdk` — stdio, HTTP, SSE |
+| MCP | `@modelcontextprotocol/sdk` - stdio, HTTP, SSE |
 | Channels | grammy, twilio, discord.js, @slack/bolt, nodemailer/imap, botbuilder, google-auth-library |
 | Voice/Meetings | Twilio (phone dial-in + WebSocket media streams), OpenAI Realtime API (STT), ElevenLabs/OpenAI (TTS), cloudflared (auto-tunneling) |
-| Scheduling | croner — production-grade cron with overlap prevention, retry, delivery |
-| Vault | Node.js `crypto` built-in — AES-256-GCM + scrypt, no binary deps |
-| Sandbox | Node.js tool-level path enforcement — no Docker required |
+| Scheduling | croner - production-grade cron with overlap prevention, retry, delivery |
+| Vault | Node.js `crypto` built-in - AES-256-GCM + scrypt, no binary deps |
+| Sandbox | Node.js tool-level path enforcement - no Docker required |
 | Storage | SQLite (`node:sqlite`) + file-based (Markdown, JSONL) |
 
 ---
@@ -663,7 +663,7 @@ Daemora was built in response to OpenClaw's security weaknesses. Key differences
 | Feature | Daemora | OpenClaw |
 |---|---|---|
 | Multi-tenant isolation | Full (AsyncLocalStorage) | None |
-| Per-tenant memory | Isolated per user | Shared — User A sees User B's memories |
+| Per-tenant memory | Isolated per user | Shared - User A sees User B's memories |
 | Per-tenant API keys | AES-256-GCM, call stack only | None |
 | Filesystem sandbox | Directory scoping + blocklist | None |
 | Secret vault | AES-256-GCM encrypted | Plaintext `.env` only |
@@ -712,7 +712,7 @@ Contributions are welcome. Please open an issue before submitting large PRs.
 
 ## License
 
-**AGPL-3.0** — Daemora is open source. If you modify Daemora and distribute it, or run it as a network service, you must open-source your changes under AGPL-3.0.
+**AGPL-3.0** - Daemora is open source. If you modify Daemora and distribute it, or run it as a network service, you must open-source your changes under AGPL-3.0.
 
 See [LICENSE](LICENSE) for the full text.
 

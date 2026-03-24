@@ -43,7 +43,7 @@ export async function notification(params) {
     }
   }
 
-  // ── Ntfy.sh (HTTP push — open source, self-hostable) ───────────────────
+  // ── Ntfy.sh (HTTP push - open source, self-hostable) ───────────────────
   if (service === "ntfy") {
     const ntfyUrl = resolveKey("NTFY_URL") || "https://ntfy.sh";
     const ntfyTopic = topic || resolveKey("NTFY_TOPIC");

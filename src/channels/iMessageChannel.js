@@ -12,7 +12,7 @@ import { execSync } from "node:child_process";
  *    Optional: IMESSAGE_ALLOWLIST - comma-separated phone numbers/emails
  *
  * Note: Polling-based (reads latest unread messages periodically).
- * This is a best-effort implementation — macOS AppleScript access to iMessages
+ * This is a best-effort implementation - macOS AppleScript access to iMessages
  * has limitations; consider BlueBubbles channel for more reliable access.
  *
  * Config:
@@ -114,7 +114,7 @@ export class iMessageChannel extends BaseChannel {
         this.processedIds = new Set(arr.slice(-500));
       }
     } catch (err) {
-      // Silent — polling failures are expected occasionally
+      // Silent - polling failures are expected occasionally
     }
   }
 

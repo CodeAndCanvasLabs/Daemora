@@ -5,7 +5,7 @@ import os from "os";
 
 // We need to test CostTracker in isolation without the real data dir.
 // We do this by temporarily overriding process.env and re-importing via dynamic import.
-// Instead, test the exported functions directly — they read from COSTS_DIR.
+// Instead, test the exported functions directly - they read from COSTS_DIR.
 // Since COSTS_DIR is fixed at module load, we test the functions with actual temp files.
 
 describe("CostTracker", () => {

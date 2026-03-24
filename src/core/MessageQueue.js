@@ -1,5 +1,5 @@
 /**
- * Inbound message debouncer — batches rapid-fire messages from the same session
+ * Inbound message debouncer - batches rapid-fire messages from the same session
  * into a single task instead of spawning separate agent loops for each.
  *
  * When messages arrive within the debounce window (default 1.5s), they're

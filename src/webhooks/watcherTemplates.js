@@ -1,10 +1,10 @@
 /**
- * Watcher Templates — pre-configured watcher setups for common services.
+ * Watcher Templates - pre-configured watcher setups for common services.
  *
  * Each template pre-fills the watcher creation form:
  * - name, description, action (agent instructions), pattern, cooldown
  *
- * The action prompt is the critical part — it tells the agent exactly
+ * The action prompt is the critical part - it tells the agent exactly
  * what to extract from the payload and what to do with it.
  *
  * Pattern limitation: our matching only works on top-level JSON keys.
@@ -19,8 +19,8 @@ export const WATCHER_TEMPLATES = [
     id: "github-new-issue",
     category: "DevOps",
     name: "github-new-issue",
-    label: "GitHub — New Issue Opened",
-    description: "Triage new GitHub issues — assess priority, suggest labels, summarize",
+    label: "GitHub - New Issue Opened",
+    description: "Triage new GitHub issues - assess priority, suggest labels, summarize",
     pattern: { action: "opened" },
     cooldownSeconds: 10,
     action: `A new GitHub issue was opened. Read the webhook payload below carefully.
@@ -45,7 +45,7 @@ Keep the summary concise and actionable.`,
     id: "github-pr-review",
     category: "DevOps",
     name: "github-pr-review",
-    label: "GitHub — PR Ready for Review",
+    label: "GitHub - PR Ready for Review",
     description: "Summarize new pull requests and flag potential concerns",
     pattern: { action: "opened" },
     cooldownSeconds: 10,
@@ -63,7 +63,7 @@ Then:
 3. Note if tests are mentioned or missing
 4. Suggest reviewers based on the files changed (if context provides team info)
 
-Keep it concise — this goes to the team channel.`,
+Keep it concise - this goes to the team channel.`,
     contextHint: "Add: repo stack, team members and their areas, PR conventions, required reviewers",
   },
 
@@ -72,7 +72,7 @@ Keep it concise — this goes to the team channel.`,
     category: "DevOps",
     name: "deploy-notification",
     label: "Deployment Notification",
-    description: "Track deployments — summarize what was deployed and where",
+    description: "Track deployments - summarize what was deployed and where",
     pattern: {},
     cooldownSeconds: 10,
     action: `A deployment event was received. Read the webhook payload.
@@ -92,7 +92,7 @@ Summarize: what was deployed, where, by whom, and whether it succeeded. If the d
     id: "uptime-alert",
     category: "DevOps",
     name: "uptime-alert",
-    label: "Uptime Monitor — Service Down",
+    label: "Uptime Monitor - Service Down",
     description: "Investigate service downtime alerts and report findings",
     pattern: {},
     cooldownSeconds: 300,
@@ -121,7 +121,7 @@ Use a 5-minute cooldown to avoid alert fatigue from flapping services.`,
     id: "stripe-payment-failed",
     category: "Business",
     name: "stripe-payment-failed",
-    label: "Stripe — Payment Failed",
+    label: "Stripe - Payment Failed",
     description: "Alert on failed payments with customer details and recovery suggestions",
     pattern: { type: "payment_intent.payment_failed" },
     cooldownSeconds: 60,
@@ -149,7 +149,7 @@ Then:
     id: "stripe-subscription-canceled",
     category: "Business",
     name: "stripe-subscription-canceled",
-    label: "Stripe — Subscription Canceled",
+    label: "Stripe - Subscription Canceled",
     description: "Track subscription cancellations for churn monitoring",
     pattern: { type: "customer.subscription.deleted" },
     cooldownSeconds: 60,
@@ -175,7 +175,7 @@ Then:
     category: "Business",
     name: "form-submission",
     label: "Form Submission",
-    description: "Process incoming form submissions — categorize and route",
+    description: "Process incoming form submissions - categorize and route",
     pattern: {},
     cooldownSeconds: 0,
     action: `A form was submitted via webhook. Read the payload.

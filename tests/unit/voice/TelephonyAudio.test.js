@@ -32,7 +32,7 @@ describe("TelephonyAudio", () => {
     const mulaw = pcmToMulaw(original);
     const restored = mulawToPcm(mulaw);
 
-    // mu-law is lossy — values won't be exact but should be close
+    // mu-law is lossy - values won't be exact but should be close
     for (let i = 0; i < 4; i++) {
       const orig = original.readInt16LE(i * 2);
       const rest = restored.readInt16LE(i * 2);

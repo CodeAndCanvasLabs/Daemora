@@ -1,9 +1,9 @@
 /**
- * myTool — replace this with your tool implementation.
+ * myTool - replace this with your tool implementation.
  *
  * Rules:
  * - Always return a string (the agent reads this as the tool result)
- * - Handle errors gracefully — return error messages, don't throw
+ * - Handle errors gracefully - return error messages, don't throw
  * - Use params?.field (defensive access)
  * - For API calls, read credentials from env or tenantContext
  *

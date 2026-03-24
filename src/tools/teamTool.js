@@ -1,5 +1,5 @@
 /**
- * teamTask — Main agent tool for creating and managing teams.
+ * teamTask - Main agent tool for creating and managing teams.
  *
  * New architecture (ClawTeam pattern):
  * - Main agent creates a team with a Team Lead + worker definitions
@@ -35,8 +35,8 @@ export async function teamTask(params) {
       const projectStack = params.projectStack || null;
 
       if (!name) return "Error: name is required.";
-      if (!task) return "Error: task is required — what should this team accomplish?";
-      if (!workers.length) return "Error: workers array is required — define at least one worker { name, profile/crew, task }.";
+      if (!task) return "Error: task is required - what should this team accomplish?";
+      if (!workers.length) return "Error: workers array is required - define at least one worker { name, profile/crew, task }.";
 
       for (const w of workers) {
         if (!w.name || (!w.profile && !w.crew) || !w.task) {
@@ -66,7 +66,7 @@ export async function teamTask(params) {
         // Auto-write project to memory for future recall
         try {
           writeMemory({
-            entry: `[project] "${project}" — Type: ${projectType || "general"}, Workers: ${workers.map(w => w.name).join(", ")}. ${task.slice(0, 150)}`,
+            entry: `[project] "${project}" - Type: ${projectType || "general"}, Workers: ${workers.map(w => w.name).join(", ")}. ${task.slice(0, 150)}`,
             category: "project",
           });
         } catch {}
@@ -84,16 +84,16 @@ export async function teamTask(params) {
       if (!team) return `Team "${teamId}" not found.`;
       const members = store.listMembers(teamId);
       const tasks = store.listTasks(teamId);
-      const memberLines = members.map(m => `  ${m.name} [${m.role}/${m.profile || "general"}] — ${m.status}`).join("\n");
-      const taskLines = tasks.map(t => `  ${t.id} "${t.title}" — ${t.status} → ${t.assignee || "unassigned"}`).join("\n");
-      return `Team: ${team.name} (${team.id}) — ${team.status}\n\nMembers:\n${memberLines}\n\nTasks:\n${taskLines}`;
+      const memberLines = members.map(m => `  ${m.name} [${m.role}/${m.profile || "general"}] - ${m.status}`).join("\n");
+      const taskLines = tasks.map(t => `  ${t.id} "${t.title}" - ${t.status} → ${t.assignee || "unassigned"}`).join("\n");
+      return `Team: ${team.name} (${team.id}) - ${team.status}\n\nMembers:\n${memberLines}\n\nTasks:\n${taskLines}`;
     }
 
     case "listTeams": {
       const tid = tenantContext.getStore()?.tenant?.id || null;
       const teams = store.listTeams(tid);
       if (teams.length === 0) return "No active teams.";
-      return teams.map(t => `${t.id} "${t.name}" — ${t.status} (created: ${t.createdAt})`).join("\n");
+      return teams.map(t => `${t.id} "${t.name}" - ${t.status} (created: ${t.createdAt})`).join("\n");
     }
 
     case "disbandTeam": {
@@ -120,7 +120,7 @@ export async function teamTask(params) {
 
     case "listTemplates": {
       return TEAM_TEMPLATES.map(t =>
-        `${t.id}: ${t.name} — ${t.description} (${t.workers.length} workers: ${t.workers.map(w => w.name).join(", ")})`
+        `${t.id}: ${t.name} - ${t.description} (${t.workers.length} workers: ${t.workers.map(w => w.name).join(", ")})`
       ).join("\n");
     }
 
@@ -128,7 +128,7 @@ export async function teamTask(params) {
       const templateId = params.templateId;
       const goal = params.task || params.goal;
       if (!templateId) return "Error: templateId is required. Use listTemplates to see options.";
-      if (!goal) return "Error: task/goal is required — what should this team accomplish?";
+      if (!goal) return "Error: task/goal is required - what should this team accomplish?";
 
       const teamConfig = applyTemplate(templateId, goal);
       if (!teamConfig) return `Error: template "${templateId}" not found. Use listTemplates to see options.`;

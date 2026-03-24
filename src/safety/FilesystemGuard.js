@@ -8,11 +8,11 @@ import tenantContext from "../tenants/TenantContext.js";
  * Filesystem Guard - restricts file access to safe paths.
  *
  * Layers:
- *   1. Hardcoded BLOCKED_PATTERNS — sensitive files always blocked
- *   2. Hardcoded WRITE_BLOCKED_PATTERNS — system dirs write-blocked
- *   3. User blocked paths (global ∪ tenant) — always denied
- *   4. User allowed paths (global ∩ tenant) — if set, only these accessible
- *   5. Otherwise — allowed
+ *   1. Hardcoded BLOCKED_PATTERNS - sensitive files always blocked
+ *   2. Hardcoded WRITE_BLOCKED_PATTERNS - system dirs write-blocked
+ *   3. User blocked paths (global ∪ tenant) - always denied
+ *   4. User allowed paths (global ∩ tenant) - if set, only these accessible
+ *   5. Otherwise - allowed
  *
  * Path rules:
  *   - allowedPaths set → ONLY those dirs accessible, everything else blocked
@@ -81,7 +81,7 @@ const WRITE_BLOCKED_PATTERNS = [
  */
 function normalizePath(p) {
   let norm = resolve(p);
-  try { norm = realpathSync(norm); } catch { /* path may not exist yet — use resolved */ }
+  try { norm = realpathSync(norm); } catch { /* path may not exist yet - use resolved */ }
   if (CASE_INSENSITIVE) norm = norm.toLowerCase();
   return norm;
 }
@@ -149,7 +149,7 @@ class FilesystemGuard {
 
     // ── Resolve per-tenant or global path config ────────────────────────────
     // resolvedConfig already has merged paths (global ∪ tenant for blocked,
-    // global ∩ tenant for allowed) — computed by TenantManager.resolveTaskConfig().
+    // global ∩ tenant for allowed) - computed by TenantManager.resolveTaskConfig().
     const store = tenantContext.getStore();
     const resolvedConfig = store?.resolvedConfig;
 

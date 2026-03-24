@@ -32,6 +32,6 @@ spawnAgent({
 - Saved to `data/meetings/YYYY-MM-DD-<platform>.md`
 
 ### Notes
-- You do NOT need to manage the meeting yourself — the sub-agent handles everything
+- You do NOT need to manage the meeting yourself - the sub-agent handles everything
 - Supported platforms: Google Meet, Zoom, Teams (auto-detected from URL)
 - Container auto-kills on meeting end, kick, or leave

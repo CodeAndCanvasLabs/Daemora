@@ -1,5 +1,5 @@
 /**
- * TelephonyAudio — PCM ↔ G.711 mu-law codec + resampling.
+ * TelephonyAudio - PCM ↔ G.711 mu-law codec + resampling.
  *
  * Telephony standard: 8kHz mono G.711 mu-law (64kbps).
  * OpenAI TTS outputs: PCM 24kHz 16-bit mono.
@@ -38,7 +38,7 @@ function mulawToLinear(mulaw) {
 
 /**
  * Convert 16-bit PCM Buffer → mu-law Buffer (2:1 compression).
- * @param {Buffer} pcmBuf — PCM 16-bit LE mono
+ * @param {Buffer} pcmBuf - PCM 16-bit LE mono
  * @returns {Buffer} mu-law
  */
 export function pcmToMulaw(pcmBuf) {
@@ -66,10 +66,10 @@ export function mulawToPcm(mulawBuf) {
 
 /**
  * Resample PCM 16-bit mono buffer from one rate to another.
- * Linear interpolation — simple, deterministic, no external deps.
- * @param {Buffer} input — PCM 16-bit LE
- * @param {number} fromRate — e.g. 24000
- * @param {number} toRate — e.g. 8000
+ * Linear interpolation - simple, deterministic, no external deps.
+ * @param {Buffer} input - PCM 16-bit LE
+ * @param {number} fromRate - e.g. 24000
+ * @param {number} toRate - e.g. 8000
  * @returns {Buffer} resampled PCM 16-bit LE
  */
 export function resamplePcm(input, fromRate, toRate) {
@@ -93,8 +93,8 @@ export function resamplePcm(input, fromRate, toRate) {
 
 /**
  * Convert PCM at any rate to mu-law 8kHz (Twilio telephony format).
- * @param {Buffer} pcmBuf — PCM 16-bit LE
- * @param {number} sampleRate — input sample rate (e.g. 24000, 16000)
+ * @param {Buffer} pcmBuf - PCM 16-bit LE
+ * @param {number} sampleRate - input sample rate (e.g. 24000, 16000)
  * @returns {Buffer} mu-law 8kHz
  */
 export function pcmToMulaw8k(pcmBuf, sampleRate) {
@@ -107,7 +107,7 @@ export function pcmToMulaw8k(pcmBuf, sampleRate) {
 /**
  * Split a Buffer into fixed-size chunks.
  * @param {Buffer} buf
- * @param {number} chunkSize — bytes per chunk (default 160 = 20ms mu-law)
+ * @param {number} chunkSize - bytes per chunk (default 160 = 20ms mu-law)
  * @returns {Buffer[]}
  */
 export function chunkBuffer(buf, chunkSize = CHUNK_SIZE) {

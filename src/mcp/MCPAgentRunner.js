@@ -29,7 +29,7 @@ const MCP_BASE_TOOLS = [
  * Each specialist gets:
  *   - MCP tools with proper Zod schemas (via @ai-sdk/mcp)
  *   - Base tools for file I/O, web, etc.
- *   - A focused system prompt — no manual tool docs needed
+ *   - A focused system prompt - no manual tool docs needed
  */
 
 // ── Env var expansion (reused from MCPClient) ─────────────────────────────────
@@ -68,7 +68,7 @@ function _buildMcpEnv(declaredEnv) {
 function _buildTransport(serverConfig) {
   const cfg = serverConfig;
 
-  // stdio — local subprocess
+  // stdio - local subprocess
   if (cfg.command) {
     return new StdioClientTransport({
       command: cfg.command,
@@ -103,7 +103,7 @@ function _buildTransport(serverConfig) {
 
 /**
  * Build a focused system prompt for an MCP specialist agent.
- * No tool docs needed — tools are self-describing via Zod schemas from @ai-sdk/mcp.
+ * No tool docs needed - tools are self-describing via Zod schemas from @ai-sdk/mcp.
  */
 function buildMCPAgentSystemPrompt(serverName) {
   return {
@@ -113,7 +113,7 @@ function buildMCPAgentSystemPrompt(serverName) {
 # Rules - You Own This Task
 
 - **Do the work, don't describe it.** Your first response must be a tool_call, not a plan.
-- **Chain calls until fully done.** After each tool result, decide: need more tools? Call another. Only set finalResponse true when the task is genuinely complete. Never set finalResponse true with "in progress" or "will follow up" — that is a failure.
+- **Chain calls until fully done.** After each tool result, decide: need more tools? Call another. Only set finalResponse true when the task is genuinely complete. Never set finalResponse true with "in progress" or "will follow up" - that is a failure.
 - **Never ask for clarification.** You have everything you need in the task description. Make reasonable decisions and proceed.
 - **Handle errors yourself.** If a tool call fails, read the error, adjust your approach, try again. Do not give up and report failure unless you have exhausted all approaches.
 - **Mid-task user follow-up** → replyToUser() to acknowledge immediately, fold in, keep working.
@@ -152,7 +152,7 @@ function _getServerConfig(serverName) {
  * Run a specialist MCP agent for the given server.
  *
  * Uses @ai-sdk/mcp to create proper AI SDK tools with Zod schemas.
- * The sub-agent gets native tool calling — no string-based JSON parsing.
+ * The sub-agent gets native tool calling - no string-based JSON parsing.
  *
  * @param {string} serverName       - MCP server name (e.g. "github", "notion")
  * @param {string} taskDescription  - Full task description
@@ -183,7 +183,7 @@ export async function runMCPAgent(serverName, taskDescription, options = {}) {
   }
 
   try {
-    // Get proper AI SDK tools with Zod schemas — automatic schema discovery
+    // Get proper AI SDK tools with Zod schemas - automatic schema discovery
     const mcpTools = await mcpClient.tools();
     const mcpToolCount = Object.keys(mcpTools).length;
 
@@ -197,7 +197,7 @@ export async function runMCPAgent(serverName, taskDescription, options = {}) {
       namespacedMcpTools[`mcp__${serverName}__${name}`] = toolDef;
     }
 
-    // Build system prompt (simplified — tools are self-describing via schemas)
+    // Build system prompt (simplified - tools are self-describing via schemas)
     const systemPromptOverride = buildMCPAgentSystemPrompt(serverName);
 
     // Load sub-agent session history (persistent across calls)

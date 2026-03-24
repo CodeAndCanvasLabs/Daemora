@@ -70,7 +70,7 @@ describe("PluginLoader", () => {
 
   it("handles missing plugin.json gracefully", async () => {
     mkdirSync(TEST_PLUGINS_DIR, { recursive: true });
-    // No plugin.json — should skip
+    // No plugin.json - should skip
 
     const { loadPlugins } = await import("../../../src/plugins/PluginLoader.js");
     clearRegistry();

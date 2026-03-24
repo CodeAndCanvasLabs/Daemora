@@ -1,7 +1,7 @@
 /**
- * RealtimeSTT — OpenAI Realtime API transcription over WebSocket.
+ * RealtimeSTT - OpenAI Realtime API transcription over WebSocket.
  *
- * Accepts G.711 mu-law 8kHz audio (native telephony format — no resampling needed).
+ * Accepts G.711 mu-law 8kHz audio (native telephony format - no resampling needed).
  * Uses server-side VAD for speech detection.
  * Emits: onTranscript(text), onPartial(text), onSpeechStart(), onError(err)
  *
@@ -63,7 +63,7 @@ export class RealtimeSTT {
         clearTimeout(timeout);
         this._ws = ws;
         this._reconnectAttempts = 0;
-        console.log("[RealtimeSTT] Connected — server-side VAD, native mu-law");
+        console.log("[RealtimeSTT] Connected - server-side VAD, native mu-law");
 
         // Configure transcription session
         ws.send(JSON.stringify({
@@ -88,7 +88,7 @@ export class RealtimeSTT {
       ws.on("close", () => {
         this._ws = null;
         if (!this._closed) {
-          console.log("[RealtimeSTT] Disconnected — reconnecting...");
+          console.log("[RealtimeSTT] Disconnected - reconnecting...");
           this._reconnect();
         }
       });
@@ -144,7 +144,7 @@ export class RealtimeSTT {
 
   /**
    * Send mu-law audio chunk to STT.
-   * @param {Buffer} mulawChunk — 8kHz mono mu-law bytes
+   * @param {Buffer} mulawChunk - 8kHz mono mu-law bytes
    */
   sendAudio(mulawChunk) {
     if (!this._ws || this._ws.readyState !== WebSocket.OPEN) return;

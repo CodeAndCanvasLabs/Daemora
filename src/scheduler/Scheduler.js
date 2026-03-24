@@ -68,7 +68,7 @@ class Scheduler {
 
     this.running = true;
     const enabled = [...this.jobs.values()].filter(j => j.enabled).length;
-    console.log(`[Scheduler] Started — ${this.jobs.size} job(s), ${enabled} enabled`);
+    console.log(`[Scheduler] Started - ${this.jobs.size} job(s), ${enabled} enabled`);
   }
 
   stop() {
@@ -191,7 +191,7 @@ class Scheduler {
     if (!job) throw new Error(`Job not found: ${id}`);
     if (tenantId && job.tenantId !== tenantId) throw new Error("Access denied");
 
-    // Schedule change — revalidate and restart timer
+    // Schedule change - revalidate and restart timer
     if (patch.schedule) {
       validateSchedule(patch.schedule);
       job.schedule = patch.schedule;
@@ -276,7 +276,7 @@ class Scheduler {
     if (tenantId && job.tenantId !== tenantId) throw new Error("Access denied");
 
     if (this.runningJobs.has(fullId)) {
-      return `Job "${job.name}" is already running — skipped.`;
+      return `Job "${job.name}" is already running - skipped.`;
     }
 
     this.runningJobs.add(fullId);
@@ -364,7 +364,7 @@ class Scheduler {
 
     // Overlap prevention
     if (this.runningJobs.has(id)) {
-      console.log(`[Scheduler] Skipping "${job.name}" — still running from previous trigger`);
+      console.log(`[Scheduler] Skipping "${job.name}" - still running from previous trigger`);
       return;
     }
 
@@ -457,7 +457,7 @@ class Scheduler {
     // Sort by nextRunAt (oldest first)
     missed.sort((a, b) => new Date(a.nextRunAt) - new Date(b.nextRunAt));
 
-    console.log(`[Scheduler] ${missed.length} missed job(s) detected — catching up (max ${MAX_MISSED_CATCHUP} at once)`);
+    console.log(`[Scheduler] ${missed.length} missed job(s) detected - catching up (max ${MAX_MISSED_CATCHUP} at once)`);
 
     // Execute in batches
     const batch = missed.slice(0, MAX_MISSED_CATCHUP);

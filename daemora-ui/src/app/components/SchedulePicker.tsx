@@ -1,13 +1,13 @@
 /**
- * SchedulePicker — visual schedule builder for non-technical users.
+ * SchedulePicker - visual schedule builder for non-technical users.
  *
  * Three modes:
- *   1. Once — calendar date picker + time picker + timezone
- *   2. Recurring — frequency (hourly/daily/weekly/monthly) + visual pickers
- *   3. Advanced — raw cron expression for power users
+ *   1. Once - calendar date picker + time picker + timezone
+ *   2. Recurring - frequency (hourly/daily/weekly/monthly) + visual pickers
+ *   3. Advanced - raw cron expression for power users
  *
  * Outputs: { cronExpression?, every?, at?, timezone? }
- * All formats the backend already supports — no backend changes needed.
+ * All formats the backend already supports - no backend changes needed.
  */
 
 import { useState, useEffect } from "react";
@@ -266,7 +266,7 @@ export function SchedulePicker({ value, onChange, showOnce = true, defaultMode =
             </div>
           </div>
 
-          {/* Hourly — interval picker */}
+          {/* Hourly - interval picker */}
           {frequency === "hourly" && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-400">Every</span>
@@ -283,7 +283,7 @@ export function SchedulePicker({ value, onChange, showOnce = true, defaultMode =
             </div>
           )}
 
-          {/* Daily — time picker */}
+          {/* Daily - time picker */}
           {frequency === "daily" && (
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -324,7 +324,7 @@ export function SchedulePicker({ value, onChange, showOnce = true, defaultMode =
             </div>
           )}
 
-          {/* Weekly — day checkboxes + time */}
+          {/* Weekly - day checkboxes + time */}
           {frequency === "weekly" && (
             <div className="space-y-3">
               <div>
@@ -379,7 +379,7 @@ export function SchedulePicker({ value, onChange, showOnce = true, defaultMode =
             </div>
           )}
 
-          {/* Monthly — day of month + time */}
+          {/* Monthly - day of month + time */}
           {frequency === "monthly" && (
             <div className="space-y-3">
               <div className="grid grid-cols-3 gap-3">
@@ -446,7 +446,7 @@ export function SchedulePicker({ value, onChange, showOnce = true, defaultMode =
           <div>
             <label className="text-xs text-gray-400 mb-1 block">Cron Expression</label>
             <Input value={customCron} onChange={e => setCustomCron(e.target.value)} className="bg-slate-800 border-slate-700 text-white font-mono" placeholder="0 9 * * *" />
-            <p className="text-[10px] text-gray-500 mt-1">Format: minute hour day month weekday — e.g. "0 9 * * 1-5" = weekdays at 9am</p>
+            <p className="text-[10px] text-gray-500 mt-1">Format: minute hour day month weekday - e.g. "0 9 * * 1-5" = weekdays at 9am</p>
           </div>
           <div>
             <label className="text-xs text-gray-400 mb-1 block">Timezone</label>

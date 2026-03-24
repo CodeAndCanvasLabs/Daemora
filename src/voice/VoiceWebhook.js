@@ -1,12 +1,12 @@
 /**
- * VoiceWebhook — Express router for Twilio voice call webhooks.
+ * VoiceWebhook - Express router for Twilio voice call webhooks.
  *
  * Twilio calls these endpoints during the lifecycle of an active call:
  *
- *   POST /voice/answer/:sessionId    — call connected, return opening TwiML
- *   POST /voice/input/:sessionId     — caller finished speaking (SpeechResult)
- *   POST /voice/wait/:sessionId      — poll for agent's next reply
- *   POST /voice/status/:sessionId    — call status change (completed/failed/busy)
+ *   POST /voice/answer/:sessionId    - call connected, return opening TwiML
+ *   POST /voice/input/:sessionId     - caller finished speaking (SpeechResult)
+ *   POST /voice/wait/:sessionId      - poll for agent's next reply
+ *   POST /voice/status/:sessionId    - call status change (completed/failed/busy)
  *
  * The agent talks to the call via VoiceSessionManager (not via these routes).
  * These routes are only for Twilio ↔ Daemora signalling.
@@ -17,14 +17,14 @@ import voiceSessionManager from "./VoiceSessionManager.js";
 
 const router = Router();
 
-// Twilio sends form-encoded bodies — parse them for voice routes
+// Twilio sends form-encoded bodies - parse them for voice routes
 import { urlencoded } from "express";
 router.use(urlencoded({ extended: false }));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 // ── Voice quality + latency config ────────────────────────────────────────────
-// Polly.Joanna = Amazon Polly neural voice via Twilio — high quality, low latency.
+// Polly.Joanna = Amazon Polly neural voice via Twilio - high quality, low latency.
 // Use "alice" as fallback (built-in Twilio TTS, slightly lower quality but zero extra cost).
 const VOICE    = process.env.VOICE_TTS_VOICE    || "Polly.Joanna";
 const LANGUAGE = process.env.VOICE_TTS_LANGUAGE || "en-US";
@@ -34,7 +34,7 @@ const LANGUAGE = process.env.VOICE_TTS_LANGUAGE || "en-US";
 const SPEECH_TIMEOUT_START = process.env.VOICE_SPEECH_TIMEOUT || "4";
 
 // How long Twilio waits after caller stops speaking before finalising (seconds).
-// "auto" = Twilio's ML-based end-of-speech detector — fastest + most accurate option.
+// "auto" = Twilio's ML-based end-of-speech detector - fastest + most accurate option.
 const SPEECH_TIMEOUT_END   = "auto";
 
 // How often we poll for the agent's reply while the caller is on hold (ms).
@@ -57,20 +57,20 @@ function escapeXml(str) {
 
 function sayAndListen(sessionId, message) {
   // <Gather> wraps <Say> so caller can barge-in (interrupt the agent mid-sentence).
-  // speechTimeout="auto" uses Twilio's ML end-of-speech — much faster than a fixed delay.
+  // speechTimeout="auto" uses Twilio's ML end-of-speech - much faster than a fixed delay.
   // bargeIn="true" lets the caller speak while agent is still talking (reduces turn latency).
   return twiml(
     `<Gather input="speech" timeout="${SPEECH_TIMEOUT_START}" speechTimeout="${SPEECH_TIMEOUT_END}" ` +
     `bargeIn="true" action="/voice/input/${sessionId}" method="POST">` +
     `<Say voice="${VOICE}" language="${LANGUAGE}">${escapeXml(message)}</Say>` +
     `</Gather>` +
-    // Fallback if no speech detected — re-poll the agent (in case it has a follow-up)
+    // Fallback if no speech detected - re-poll the agent (in case it has a follow-up)
     `<Redirect method="POST">/voice/wait/${sessionId}</Redirect>`
   );
 }
 
 function waitAndPoll(sessionId) {
-  // Hold music is better UX than silence but adds latency — skip it.
+  // Hold music is better UX than silence but adds latency - skip it.
   // Use the shortest TwiML pause Twilio supports (1s) and redirect.
   // The actual responsiveness is determined by how fast the agent queues its reply
   // (session.waitForAgentResponse uses 8s internal timeout, which is polled at 500ms).
@@ -90,7 +90,7 @@ function waitAndPoll(sessionId) {
 router.post("/answer/:sessionId", (req, res) => {
   const session = voiceSessionManager.get(req.params.sessionId);
   if (!session) {
-    // Unknown session — hang up gracefully
+    // Unknown session - hang up gracefully
     res.type("text/xml").send(twiml("<Hangup/>"));
     return;
   }
@@ -121,7 +121,7 @@ router.post("/input/:sessionId", (req, res) => {
     console.log(`[VoiceWebhook] Caller spoke (confidence ${confidence}): "${speechResult}"`);
     session.receiveCallerInput(speechResult.trim());
   } else {
-    console.log(`[VoiceWebhook] No speech detected — re-polling`);
+    console.log(`[VoiceWebhook] No speech detected - re-polling`);
   }
 
   // Park the call while the agent processes the input
@@ -146,7 +146,7 @@ router.post("/wait/:sessionId", async (req, res) => {
   const response = session.consumeResponse();
 
   if (response === null) {
-    // Agent still thinking — keep the caller on hold
+    // Agent still thinking - keep the caller on hold
     res.type("text/xml").send(waitAndPoll(session.id));
     return;
   }
@@ -159,13 +159,13 @@ router.post("/wait/:sessionId", async (req, res) => {
     return;
   }
 
-  // Agent reply — speak it and listen for caller's next utterance
+  // Agent reply - speak it and listen for caller's next utterance
   res.type("text/xml").send(sayAndListen(session.id, response));
 });
 
 /**
  * POST /voice/status/:sessionId
- * Twilio status callback — tracks call lifecycle (ringing → in-progress → completed).
+ * Twilio status callback - tracks call lifecycle (ringing → in-progress → completed).
  * If call ends unexpectedly (caller hangs up), we clean up the session.
  */
 router.post("/status/:sessionId", (req, res) => {

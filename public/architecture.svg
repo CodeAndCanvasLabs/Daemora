@@ -18,11 +18,11 @@
   <rect width="900" height="720" fill="url(#bg)" rx="12"/>
 
   <!-- Title -->
-  <text x="450" y="36" text-anchor="middle" fill="#e6edf3" font-size="18" font-weight="700">Daemora — System Architecture</text>
+  <text x="450" y="36" text-anchor="middle" fill="#e6edf3" font-size="18" font-weight="700">Daemora - System Architecture</text>
 
   <!-- Input Channels -->
   <rect x="60" y="54" width="780" height="72" rx="8" fill="#1a2332" stroke="#2f81f7" stroke-width="1.5"/>
-  <text x="450" y="76" text-anchor="middle" fill="#2f81f7" font-size="13" font-weight="700">INPUT CHANNELS (20) — Per-Tenant Instances</text>
+  <text x="450" y="76" text-anchor="middle" fill="#2f81f7" font-size="13" font-weight="700">INPUT CHANNELS (20) - Per-Tenant Instances</text>
   <text x="450" y="96" text-anchor="middle" fill="#8b949e" font-size="11">Telegram · WhatsApp · Discord · Slack · Email · LINE · Signal · Teams · Google Chat · Matrix · iMessage</text>
   <text x="450" y="112" text-anchor="middle" fill="#8b949e" font-size="11">Webhooks (Watchers) · HTTP API · Each tenant can have own bot tokens (AES-256-GCM encrypted)</text>
 
@@ -31,7 +31,7 @@
   <!-- Multi-Tenant Layer -->
   <rect x="60" y="148" width="780" height="68" rx="8" fill="#1a2332" stroke="#8957e5" stroke-width="1.5"/>
   <text x="450" y="172" text-anchor="middle" fill="#8957e5" font-size="13" font-weight="700">MULTI-TENANT LAYER</text>
-  <text x="450" y="192" text-anchor="middle" fill="#8b949e" font-size="10">TenantManager + TenantContext (AsyncLocalStorage) — per-tenant model, crews, MCP, channels, filesystem, cost caps, API keys</text>
+  <text x="450" y="192" text-anchor="middle" fill="#8b949e" font-size="10">TenantManager + TenantContext (AsyncLocalStorage) - per-tenant model, crews, MCP, channels, filesystem, cost caps, API keys</text>
 
   <line x1="450" y1="216" x2="450" y2="236" stroke="#8957e5" stroke-width="2" marker-end="url(#arrowPurple)"/>
 

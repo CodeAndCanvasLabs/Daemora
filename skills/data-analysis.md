@@ -5,11 +5,11 @@ triggers: csv, json, data, analysis, chart, graph, plot, statistics, transform, 
 ---
 ## Workflow: Load → Explore → Transform → Analyze → Report
 
-1. **Load** — read the data file. Check format, encoding, delimiters.
-2. **Explore** — check shape (rows × columns), column names, data types, missing values, sample rows.
-3. **Transform** — filter, sort, group, pivot, join as needed. Use shell tools or write a script.
-4. **Analyze** — compute statistics, find patterns, answer the question.
-5. **Report** — present findings clearly. Tables for data, bullet points for insights.
+1. **Load** - read the data file. Check format, encoding, delimiters.
+2. **Explore** - check shape (rows × columns), column names, data types, missing values, sample rows.
+3. **Transform** - filter, sort, group, pivot, join as needed. Use shell tools or write a script.
+4. **Analyze** - compute statistics, find patterns, answer the question.
+5. **Report** - present findings clearly. Tables for data, bullet points for insights.
 
 ## Tools
 - Small CSV/JSON: `executeCommand` with `jq`, `awk`, `sort`, `uniq -c`, `cut`
@@ -23,5 +23,5 @@ triggers: csv, json, data, analysis, chart, graph, plot, statistics, transform, 
 
 ## Don't
 - Don't load entire large files into memory if you can stream/filter
-- Don't guess data format — read a sample first
-- Don't present raw data dumps — summarize and highlight key findings
+- Don't guess data format - read a sample first
+- Don't present raw data dumps - summarize and highlight key findings

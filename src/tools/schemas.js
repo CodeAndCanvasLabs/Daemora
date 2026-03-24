@@ -154,11 +154,11 @@ const toolSchemas = {
     schema: z.object({
       filePath: str("Absolute path to file"),
       caption: optStr("File caption"),
-      channel: optStr("Target channel: 'telegram', 'discord', 'slack', etc. Cross-channel auto-resolved from tenant's linked accounts — no chat ID needed"),
+      channel: optStr("Target channel: 'telegram', 'discord', 'slack', etc. Cross-channel auto-resolved from tenant's linked accounts - no chat ID needed"),
     }),
     description: "Send file to user. Omit channel = current channel. Set channel = cross-channel delivery (auto-resolved, never ask user for IDs).",
   },
-  // replyWithFile removed — duplicate of sendFile
+  // replyWithFile removed - duplicate of sendFile
   broadcast: {
     schema: z.object({
       preset: str("Delivery preset name (e.g. 'leads-team', 'engineers')"),
@@ -292,7 +292,7 @@ const toolSchemas = {
   // ── Profile Discovery ──────────────────────────────────────────────────
   discoverCrew: {
     schema: z.object({
-      query: str("What you need done — e.g. 'send email', 'query database', 'build frontend'"),
+      query: str("What you need done - e.g. 'send email', 'query database', 'build frontend'"),
       limit: optNum("Max results (default: 5)"),
       offset: optNum("Skip first N results for pagination (default: 0)"),
       all: optBool("Return all crew members"),
@@ -304,8 +304,8 @@ const toolSchemas = {
   parallelCrew: {
     schema: z.object({
       tasks: z.array(z.object({
-        description: str("Task description — full brief, crew member has zero context"),
-        profile: str("Crew member ID — Dev: backend|frontend|reviewer|tester|devops|security|db-architect. Research: researcher|analyst. Content: writer|translator. Business: assistant|coordinator. Ops: sysadmin|meeting-attendant"),
+        description: str("Task description - full brief, crew member has zero context"),
+        profile: str("Crew member ID - Dev: backend|frontend|reviewer|tester|devops|security|db-architect. Research: researcher|analyst. Content: writer|translator. Business: assistant|coordinator. Ops: sysadmin|meeting-attendant"),
       })).describe("Array of tasks to run simultaneously"),
       sharedContext: optStr("Context shared across all crew members"),
     }),
@@ -382,7 +382,7 @@ const toolSchemas = {
   useCrew: {
     schema: z.object({
       crewId: str("Crew member ID (e.g. 'google-services', 'database-connector', 'smart-home')"),
-      taskDescription: str("Complete task description — the crew member has no other context"),
+      taskDescription: str("Complete task description - the crew member has no other context"),
     }),
     description: "Delegate task to a specialist crew member",
   },
@@ -396,11 +396,11 @@ const toolSchemas = {
       taskInput: optStr("The prompt to execute autonomously (required for add)"),
       cronExpression: optStr("Cron expression for recurring: '0 9 * * *' (daily 9am), '*/30 * * * *' (every 30min)"),
       every: optStr("Interval shorthand for repeating: '30m', '2h', '1d'"),
-      at: optStr("ISO timestamp for one-shot: '2026-03-15T10:00:00Z'. Use for 'in X minutes' — compute the timestamp"),
+      at: optStr("ISO timestamp for one-shot: '2026-03-15T10:00:00Z'. Use for 'in X minutes' - compute the timestamp"),
       timezone: optStr("IANA timezone: 'America/New_York'"),
       model: optStr("Model override for this job"),
       deleteAfterRun: optBool("Auto-delete after one-shot run (use with 'at')"),
-      deliveryPreset: optStr("Delivery preset name (admin only) — e.g. 'engineers', 'team-leads', 'interns'. Resolves to saved tenant/channel group."),
+      deliveryPreset: optStr("Delivery preset name (admin only) - e.g. 'engineers', 'team-leads', 'interns'. Resolves to saved tenant/channel group."),
       delivery: z.object({
         mode: optStr("Delivery mode: 'announce'"),
         channel: optStr("Target channel name"),
@@ -444,7 +444,7 @@ const toolSchemas = {
       cooldownSeconds: optNum("Min seconds between triggers (default: 0)"),
       description: optStr("Watcher description"),
     }),
-    description: "Manage named watchers — event-driven triggers that execute tasks when webhooks fire.",
+    description: "Manage named watchers - event-driven triggers that execute tasks when webhooks fire.",
   },
 
   // ── System Reload ──────────────────────────────────────────────────────
@@ -471,8 +471,8 @@ const toolSchemas = {
       workers: z.array(z.object({
         name: str("Worker name"),
         profile: z.string().optional().describe("Crew member: backend|frontend|reviewer|tester|devops|researcher|analyst|writer|translator|sysadmin|coordinator"),
-        crew: z.string().optional().describe("Crew member ID as worker (e.g. 'database-connector') — use instead of profile"),
-        task: str("Worker's specific assignment — full description"),
+        crew: z.string().optional().describe("Crew member ID as worker (e.g. 'database-connector') - use instead of profile"),
+        task: str("Worker's specific assignment - full description"),
         skills: z.array(z.string()).optional().describe("Skill IDs to inject"),
       })).optional().describe("Worker definitions (for createTeam)"),
       teamId: optStr("Team ID (for status, disbandTeam)"),
@@ -564,7 +564,7 @@ const toolSchemas = {
     description: "Read/write system clipboard",
   },
   // notification, iMessageTool, calendar, contacts, sshTool, database,
-  // googlePlaces, philipsHue, sonos — moved to bundled plugins.
+  // googlePlaces, philipsHue, sonos - moved to bundled plugins.
   // Schemas registered dynamically via registerPluginSchema() when plugins load.
 };
 
@@ -633,7 +633,7 @@ export function buildToolDocLines(availableTools) {
 
 /**
  * Build Vercel AI SDK tool definitions for generateText().
- * Returns { toolName: tool({ description, inputSchema }) } — no execute.
+ * Returns { toolName: tool({ description, inputSchema }) } - no execute.
  * Dispatch is handled manually in AgentLoop with guards.
  */
 export function buildAITools(availableNames) {
@@ -663,7 +663,7 @@ export function buildAITools(availableNames) {
  */
 export function registerPluginSchema(name, schema, description) {
   if (toolSchemas[name]) return; // don't override built-in
-  toolSchemas[name] = { schema: schema || z.object({}).passthrough(), description: description || `${name} — plugin tool` };
+  toolSchemas[name] = { schema: schema || z.object({}).passthrough(), description: description || `${name} - plugin tool` };
 }
 
 export default toolSchemas;

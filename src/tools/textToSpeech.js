@@ -2,9 +2,9 @@
  * textToSpeech(text, optionsJson?) - Convert text to speech audio file.
  *
  * Providers (priority):
- *   1. OpenAI   — gpt-4o-mini-tts (default), tts-1, tts-1-hd. 14 voices. Requires OPENAI_API_KEY.
- *   2. ElevenLabs — highest quality, voice cloning. Requires ELEVENLABS_API_KEY.
- *   3. Edge TTS — Microsoft Edge free TTS. No API key. Works offline-ish. Fallback for everyone.
+ *   1. OpenAI   - gpt-4o-mini-tts (default), tts-1, tts-1-hd. 14 voices. Requires OPENAI_API_KEY.
+ *   2. ElevenLabs - highest quality, voice cloning. Requires ELEVENLABS_API_KEY.
+ *   3. Edge TTS - Microsoft Edge free TTS. No API key. Works offline-ish. Fallback for everyone.
  *
  * Model configurable via TTS_MODEL setting (SQLite/env).
  * Auto-splits text > 4096 chars at sentence boundaries.

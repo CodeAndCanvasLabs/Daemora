@@ -3,10 +3,10 @@
  *
  * Two responsibilities:
  *
- * 1. wrapUntrusted / sanitize — wraps file/web content in <untrusted-content>
+ * 1. wrapUntrusted / sanitize - wraps file/web content in <untrusted-content>
  *    tags so the agent knows to treat it as DATA, not instructions.
  *
- * 2. detectInjection — scans direct user messages (from Telegram, Discord, etc.)
+ * 2. detectInjection - scans direct user messages (from Telegram, Discord, etc.)
  *    for common prompt injection / jailbreak attempts. When detected:
  *    - The message is still processed (we don't block the user)
  *    - A SECURITY_NOTICE is prepended to the task input so the agent is warned
@@ -85,7 +85,7 @@ class InputSanitizer {
   /**
    * Detect prompt injection attempts in direct user messages.
    *
-   * Does NOT block the message — the agent's own SOUL.md + untrusted-content
+   * Does NOT block the message - the agent's own SOUL.md + untrusted-content
    * wrapping should handle it. Instead we:
    *   - Emit a security event for the audit log
    *   - Return a warning prefix to prepend to the task input

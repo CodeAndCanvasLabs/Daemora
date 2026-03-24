@@ -157,7 +157,7 @@ class TaskQueue {
       // Timeout guard - prevent hanging forever (default 5 min)
       const timer = setTimeout(() => {
         this.waiters.delete(taskId);
-        const timeoutMsg = `Task is still running after ${timeoutMs / 1000}s — you'll receive the result when it completes.`;
+        const timeoutMsg = `Task is still running after ${timeoutMs / 1000}s - you'll receive the result when it completes.`;
         resolve({
           id: taskId,
           status: "pending",

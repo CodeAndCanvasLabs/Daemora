@@ -153,7 +153,7 @@ export async function runSetupWizard() {
         options: providerModels,
       }));
     } else {
-      // Provider not in registry — free text input
+      // Provider not in registry - free text input
       const model = guard(await p.text({
         message: `${provider} model name (e.g. ${provider}:model-name)`,
         validate: (v) => !v ? "Required" : undefined,
@@ -393,12 +393,12 @@ export async function runSetupWizard() {
     message: "Configure tool API keys?  (space = toggle, enter = confirm)",
     required: false,
     options: [
-      { value: "openai_tools",  label: "OpenAI (images, TTS, transcription)", hint: "OPENAI_API_KEY — skip if already set as main provider" },
+      { value: "openai_tools",  label: "OpenAI (images, TTS, transcription)", hint: "OPENAI_API_KEY - skip if already set as main provider" },
       { value: "elevenlabs",    label: "ElevenLabs TTS",                      hint: "Premium voice synthesis" },
-      { value: "brave_search",  label: "Brave Search",                        hint: "Web search API — BRAVE_API_KEY" },
-      { value: "tavily",        label: "Tavily",                              hint: "AI-powered web search — TAVILY_API_KEY" },
-      { value: "perplexity",    label: "Perplexity",                          hint: "Research search — PERPLEXITY_API_KEY" },
-      { value: "firecrawl",     label: "Firecrawl",                           hint: "JS page extraction — FIRECRAWL_API_KEY" },
+      { value: "brave_search",  label: "Brave Search",                        hint: "Web search API - BRAVE_API_KEY" },
+      { value: "tavily",        label: "Tavily",                              hint: "AI-powered web search - TAVILY_API_KEY" },
+      { value: "perplexity",    label: "Perplexity",                          hint: "Research search - PERPLEXITY_API_KEY" },
+      { value: "firecrawl",     label: "Firecrawl",                           hint: "JS page extraction - FIRECRAWL_API_KEY" },
       { value: "none",          label: "Skip for now",                        hint: "Configure plugins later in Settings → Plugins" },
     ],
   }));
@@ -476,7 +476,7 @@ export async function runSetupWizard() {
     message: "Auto-delete old tasks, logs & sessions after how many days?",
     options: [
       { value: "30",  label: "30 days",  hint: "recommended" },
-      { value: "7",   label: "7 days",   hint: "aggressive — saves most space" },
+      { value: "7",   label: "7 days",   hint: "aggressive - saves most space" },
       { value: "90",  label: "90 days",  hint: "keep 3 months of history" },
       { value: "365", label: "1 year",   hint: "long-term retention" },
       { value: "0",   label: "Never",    hint: "keep everything forever" },
@@ -566,7 +566,7 @@ export async function runSetupWizard() {
       if (allFilled) {
         mcpConfig.mcpServers[serverName].enabled = true;
       } else {
-        p.log.warn(`${serverInfo.label}: missing credentials — saved but not enabled`);
+        p.log.warn(`${serverInfo.label}: missing credentials - saved but not enabled`);
       }
     } else {
       mcpConfig.mcpServers[serverName].enabled = true;
@@ -873,8 +873,8 @@ export async function runSetupWizard() {
   let multiTenantMode = "personal";
 
   p.note(
-    `  ${S.info}  Personal  — single user, global config (default)\n` +
-    `  ${S.info}  Multi-Tenant — per-user isolation, cost limits, model overrides`,
+    `  ${S.info}  Personal  - single user, global config (default)\n` +
+    `  ${S.info}  Multi-Tenant - per-user isolation, cost limits, model overrides`,
     "Deployment mode"
   );
 
@@ -893,7 +893,7 @@ export async function runSetupWizard() {
     envConfig.TENANT_ISOLATE_FILESYSTEM = "true";
     const { randomBytes: rb } = await import("crypto");
     envConfig.DAEMORA_TENANT_KEY = rb(16).toString("hex");
-    p.log.success(`${S.check}  Multi-tenant enabled — admin-managed tenants, filesystem isolation, encryption key generated`);
+    p.log.success(`${S.check}  Multi-tenant enabled - admin-managed tenants, filesystem isolation, encryption key generated`);
   }
 
   // ━━━ Write Config ━━━
@@ -906,7 +906,7 @@ export async function runSetupWizard() {
   const configCount = configStore.import(envConfig);
   configStore.set("SETUP_COMPLETED", new Date().toISOString());
 
-  // Write a minimal .env — only bootstrap info needed before SQLite is open.
+  // Write a minimal .env - only bootstrap info needed before SQLite is open.
   // Everything else is in SQLite now.
   const envPath = join(ROOT_DIR, ".env");
   const bootstrapLines = [
@@ -923,7 +923,7 @@ export async function runSetupWizard() {
   }
   writeFileSync(envPath, bootstrapLines.join("\n"), "utf-8");
 
-  // Install daemon if requested — pass vault passphrase so daemon can auto-unlock
+  // Install daemon if requested - pass vault passphrase so daemon can auto-unlock
   if (daemonMode) {
     spin.message("Installing daemon service");
     try {
@@ -940,7 +940,7 @@ export async function runSetupWizard() {
   try {
     await setupSkillEmbeddings(provider, envConfig, spin);
   } catch {
-    // Non-fatal — TF-IDF fallback will handle it
+    // Non-fatal - TF-IDF fallback will handle it
   }
 
   spin.stop(`${S.check}  Configuration saved to SQLite (${configCount} setting${configCount !== 1 ? "s" : ""})`);

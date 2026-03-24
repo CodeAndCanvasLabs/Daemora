@@ -6,7 +6,7 @@
  *   ONE-SHOT: initiate a call that plays a message and hangs up
  *     makeVoiceCall("call", "+1555...", {"message":"Your order is ready"})
  *
- *   INTERACTIVE: full two-way conversation — agent speaks, listens, responds
+ *   INTERACTIVE: full two-way conversation - agent speaks, listens, responds
  *     makeVoiceCall("initiate", "+1555...", {"greeting":"Hi, how can I help?"})
  *     makeVoiceCall("listen",   sessionId)                   ← blocks until caller speaks
  *     makeVoiceCall("speak",    sessionId, {"message":"..."}) ← agent says something
@@ -138,7 +138,7 @@ export async function makeVoiceCall(params) {
     return `Session ${session.id} | Status: ${session.status} | Turns: ${turns}${lastTurn}`;
   }
 
-  // ── Twilio API actions — credentials required ────────────────────────────────
+  // ── Twilio API actions - credentials required ────────────────────────────────
 
   if (!accountSid || !authToken) {
     return "Error: Twilio not configured. Set TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN in .env, or: daemora tenant channel set <id> twilio_account_sid <sid>";
@@ -146,7 +146,7 @@ export async function makeVoiceCall(params) {
 
   const opts = _mergedOpts;
 
-  // ── initiate — start an interactive call ────────────────────────────────────
+  // ── initiate - start an interactive call ────────────────────────────────────
   if (action === "initiate") {
     const to = phoneNumberOrSessionId;
     if (!to) return "Error: phoneNumber is required for initiate.";
@@ -202,7 +202,7 @@ export async function makeVoiceCall(params) {
     );
   }
 
-  // ── call — one-shot call that speaks a message and hangs up ─────────────────
+  // ── call - one-shot call that speaks a message and hangs up ─────────────────
   if (action === "call") {
     const to = phoneNumberOrSessionId;
     if (!to) return "Error: phoneNumber is required for call.";
@@ -234,7 +234,7 @@ export async function makeVoiceCall(params) {
     return `Call initiated. SID: ${d.sid} | Status: ${d.status} | To: ${d.to} | From: ${d.from}`;
   }
 
-  // ── hangup — end a call by SID (non-session, admin use) ─────────────────────
+  // ── hangup - end a call by SID (non-session, admin use) ─────────────────────
   if (action === "hangup") {
     const sid = opts.sid || phoneNumberOrSessionId;
     if (!sid) return 'Error: Provide call SID via optionsJson {"sid":"CA..."} or as the second argument.';
@@ -244,7 +244,7 @@ export async function makeVoiceCall(params) {
     return `Call ${result.data.sid} ended. Final status: ${result.data.status}`;
   }
 
-  // ── list — recent calls ──────────────────────────────────────────────────────
+  // ── list - recent calls ──────────────────────────────────────────────────────
   if (action === "list") {
     const limit = opts.limit || 20;
     const statusFilter = opts.status ? `&Status=${opts.status}` : "";

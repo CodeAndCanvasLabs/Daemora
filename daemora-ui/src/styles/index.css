@@ -35,7 +35,7 @@ code, pre, code.font-mono, pre.font-mono {
 }
 
 /* ── Font Size Normalization ─────────────────────────────────────────────── */
-/* Bump tiny text in main content + dialogs — sidebar untouched */
+/* Bump tiny text in main content + dialogs - sidebar untouched */
 
 main .text-\[7px\],  [role="dialog"] .text-\[7px\]  { font-size: 0.625rem !important; }   /* 7→10px */
 main .text-\[8px\],  [role="dialog"] .text-\[8px\]  { font-size: 0.6875rem !important; }  /* 8→11px */
@@ -45,7 +45,7 @@ main .text-\[11px\], [role="dialog"] .text-\[11px\] { font-size: 0.8125rem !impo
 main .text-xs,       [role="dialog"] .text-xs       { font-size: 0.8125rem !important; }  /* 12→13px */
 
 /* ── Uppercase Normalization ─────────────────────────────────────────────── */
-/* Remove uppercase from labels/headings in main content — keep for badges only */
+/* Remove uppercase from labels/headings in main content - keep for badges only */
 
 main .uppercase {
   text-transform: none !important;

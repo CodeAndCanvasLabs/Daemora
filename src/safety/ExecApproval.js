@@ -1,13 +1,13 @@
 /**
- * Exec Approval Manager — interactive approval gates for dangerous commands.
+ * Exec Approval Manager - interactive approval gates for dangerous commands.
  *
  * When approval mode is enabled and a command matches dangerous patterns,
  * the agent loop pauses and waits for user approval via the API.
  *
  * Config: approval.mode = "off" | "dangerous-only" | "all"
  * API:
- *   GET  /api/approvals       — list pending approvals
- *   POST /api/approvals/:id   — approve/deny { decision: "allow" | "allow-once" | "deny" }
+ *   GET  /api/approvals       - list pending approvals
+ *   POST /api/approvals/:id   - approve/deny { decision: "allow" | "allow-once" | "deny" }
  */
 
 import { v4 as uuidv4 } from "uuid";
@@ -49,7 +49,7 @@ class ExecApprovalManager {
   needsApproval(command) {
     if (this._mode === "off") return false;
     if (this._mode === "all") return true;
-    // "dangerous-only" — check against patterns
+    // "dangerous-only" - check against patterns
     return DANGEROUS_PATTERNS.some(p => p.test(command));
   }
 
@@ -65,7 +65,7 @@ class ExecApprovalManager {
 
       const timer = setTimeout(() => {
         this._pending.delete(approvalId);
-        console.log(`[ExecApproval] Timeout for ${approvalId} — denying`);
+        console.log(`[ExecApproval] Timeout for ${approvalId} - denying`);
         resolve("deny");
       }, this._timeoutMs);
 

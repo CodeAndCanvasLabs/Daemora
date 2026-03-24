@@ -195,7 +195,7 @@ export function Goals() {
             Goals
           </h2>
           <p className="text-[10px] text-gray-500 font-mono uppercase tracking-[0.3em] mt-1">
-            Autonomous Objectives — Agent Works Toward Them 24/7
+            Autonomous Objectives - Agent Works Toward Them 24/7
           </p>
         </div>
         <div className="flex items-center gap-2">

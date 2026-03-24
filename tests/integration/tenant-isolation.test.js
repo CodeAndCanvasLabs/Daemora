@@ -4,14 +4,14 @@ import { logCost, getTenantTodayCost } from "../../src/core/CostTracker.js";
 import filesystemGuard from "../../src/safety/FilesystemGuard.js";
 
 /**
- * Integration tests — verify multi-tenant isolation guarantees:
+ * Integration tests - verify multi-tenant isolation guarantees:
  *   1. TenantContext isolates store across concurrent tasks
  *   2. CostTracker per-tenant sums don't bleed between tenants
  *   3. FilesystemGuard uses per-tenant allowed/blocked paths from TenantContext
  */
 
 describe("Multi-tenant isolation", () => {
-  describe("TenantContext — concurrent task isolation", () => {
+  describe("TenantContext - concurrent task isolation", () => {
     it("two concurrent tasks see their own tenant IDs", async () => {
       const captured = {};
 
@@ -49,7 +49,7 @@ describe("Multi-tenant isolation", () => {
     });
   });
 
-  describe("CostTracker — per-tenant isolation", () => {
+  describe("CostTracker - per-tenant isolation", () => {
     it("cost logged for tenant A does not appear in tenant B's total", () => {
       const tenantA = `integration:costA_${Date.now()}`;
       const tenantB = `integration:costB_${Date.now()}`;
@@ -72,7 +72,7 @@ describe("Multi-tenant isolation", () => {
     });
   });
 
-  describe("FilesystemGuard — per-tenant path scoping via TenantContext", () => {
+  describe("FilesystemGuard - per-tenant path scoping via TenantContext", () => {
     it("allows file access when inside allowedPaths", async () => {
       const store = {
         tenant: { id: "telegram:pathtest" },

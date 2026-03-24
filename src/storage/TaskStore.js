@@ -127,7 +127,7 @@ export function recoverStaleTasks() {
 
 /**
  * Load pending tasks for recovery on startup.
- * Only recovers agent-created tasks (background work) — not user chat tasks.
+ * Only recovers agent-created tasks (background work) - not user chat tasks.
  * User chat sessions are one-shot and replaying them after restart creates duplicates.
  */
 export function loadPendingTasks() {

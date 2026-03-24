@@ -137,7 +137,7 @@ export function goal(toolParams) {
         existing.nextCheckAt = _computeNextCheckAt(existing.checkCron, existing.checkTz);
         existing.updatedAt = new Date().toISOString();
         saveGoal(existing);
-        return `Goal "${existing.title}" resumed — next: ${existing.nextCheckAt || "computing..."}`;
+        return `Goal "${existing.title}" resumed - next: ${existing.nextCheckAt || "computing..."}`;
       }
 
       case "check": {

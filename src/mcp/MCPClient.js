@@ -28,13 +28,13 @@ function expandEnvVars(value) {
   return value;
 }
 
-// Build safe env for MCP subprocess — strip secrets, keep only infra + explicitly declared vars
+// Build safe env for MCP subprocess - strip secrets, keep only infra + explicitly declared vars
 function _buildMcpEnv(declaredEnv) {
   const safe = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (!SENSITIVE_ENV_PATTERN.test(k)) safe[k] = v;
   }
-  // Merge user-declared env vars (already expanded from ${VAR}) — these are intentional
+  // Merge user-declared env vars (already expanded from ${VAR}) - these are intentional
   if (declaredEnv) Object.assign(safe, declaredEnv);
   return safe;
 }

@@ -1,17 +1,17 @@
 /**
- * Shared channel definitions — used by CLI, setup wizard, channels registry, and API.
+ * Shared channel definitions - used by CLI, setup wizard, channels registry, and API.
  *
  * Each definition includes:
- *   name        — internal key (matches channel registry)
- *   label       — display name
- *   desc        — short description
- *   tenantKey   — tenant ID prefix
- *   envRequired — env vars that MUST be set (entries like "KEY=value" mean literal match)
- *   envOptional — [KEY, description] pairs
- *   setup       — setup instruction lines
- *   prompts     — ordered list of env vars to prompt for during interactive setup
+ *   name        - internal key (matches channel registry)
+ *   label       - display name
+ *   desc        - short description
+ *   tenantKey   - tenant ID prefix
+ *   envRequired - env vars that MUST be set (entries like "KEY=value" mean literal match)
+ *   envOptional - [KEY, description] pairs
+ *   setup       - setup instruction lines
+ *   prompts     - ordered list of env vars to prompt for during interactive setup
  *                 { key, label, type: "password"|"text", initialValue?, placeholder? }
- *   subFlows    — optional follow-up prompts triggered by confirm()
+ *   subFlows    - optional follow-up prompts triggered by confirm()
  */
 
 export const CHANNEL_DEFS = [
@@ -268,7 +268,7 @@ export const CHANNEL_DEFS = [
     ],
   },
   {
-    name: "irc", label: "IRC", desc: "Any IRC network — no external packages",
+    name: "irc", label: "IRC", desc: "Any IRC network - no external packages",
     tenantKey: "irc",
     envRequired: ["IRC_SERVER", "IRC_NICK"],
     envOptional: [
@@ -278,7 +278,7 @@ export const CHANNEL_DEFS = [
     ],
     setup: [
       "Popular networks: irc.libera.chat  irc.freenode.net  irc.oftc.net",
-      "Uses raw TCP — no npm packages needed.",
+      "Uses raw TCP - no npm packages needed.",
     ],
     prompts: [
       { key: "IRC_SERVER",  label: "IRC server",              type: "text", initialValue: "irc.libera.chat" },
@@ -289,7 +289,7 @@ export const CHANNEL_DEFS = [
     ],
   },
   {
-    name: "imessage", label: "iMessage", desc: "macOS only — AppleScript polling",
+    name: "imessage", label: "iMessage", desc: "macOS only - AppleScript polling",
     tenantKey: "imessage",
     envRequired: ["IMESSAGE_ENABLED=true"],
     envOptional: [
@@ -329,7 +329,7 @@ export const CHANNEL_DEFS = [
     ],
   },
   {
-    name: "zalo", label: "Zalo", desc: "Vietnam — 75M+ users",
+    name: "zalo", label: "Zalo", desc: "Vietnam - 75M+ users",
     tenantKey: "zalo",
     envRequired: ["ZALO_APP_ID", "ZALO_ACCESS_TOKEN"],
     envOptional: [
@@ -383,7 +383,7 @@ export const CHANNEL_DEFS = [
     ],
   },
   {
-    name: "nostr", label: "Nostr", desc: "Decentralized protocol — NIP-04 encrypted DMs",
+    name: "nostr", label: "Nostr", desc: "Decentralized protocol - NIP-04 encrypted DMs",
     tenantKey: "nostr",
     envRequired: ["NOSTR_PRIVATE_KEY"],
     envOptional: [

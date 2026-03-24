@@ -1,5 +1,5 @@
 /**
- * discoverProfiles — main agent tool for finding the right sub-agent profile.
+ * discoverProfiles - main agent tool for finding the right sub-agent profile.
  *
  * Uses embeddings to match task description against profile descriptions.
  * Filters by tenant's enabled crew members.
@@ -43,7 +43,7 @@ async function _ensureEmbeddings() {
           crew: _getProfileCrew(p.id),
         });
       } catch {
-        // Embedding failed — store without embedding (keyword fallback)
+        // Embedding failed - store without embedding (keyword fallback)
         _profileEmbeddings.push({
           id: p.id,
           name: p.name,
@@ -54,7 +54,7 @@ async function _ensureEmbeddings() {
       }
     }
   } catch {
-    // No embedding provider — keyword matching only
+    // No embedding provider - keyword matching only
     for (const p of profiles) {
       _profileEmbeddings.push({
         id: p.id,
@@ -85,7 +85,7 @@ function _getProfileCrew(profileId) {
 function _isCrewEnabledForTenant(crewId) {
   const store = tenantContext.getStore();
   const tenant = store?.tenant;
-  if (!tenant) return true; // admin/global — all enabled
+  if (!tenant) return true; // admin/global - all enabled
 
   // Check tenant's crew array
   const tenantCrew = tenant.crew;
@@ -184,7 +184,7 @@ export async function discoverProfiles(params) {
 }
 
 export const discoverProfilesDescription =
-  `discoverProfiles(query, {limit?, offset?, all?}) — Find the right sub-agent profile for a task. Returns matching profiles sorted by relevance. Use before spawnAgent when unsure which profile to use. Disabled crew members returned with "not enabled" message.`;
+  `discoverProfiles(query, {limit?, offset?, all?}) - Find the right sub-agent profile for a task. Returns matching profiles sorted by relevance. Use before spawnAgent when unsure which profile to use. Disabled crew members returned with "not enabled" message.`;
 
 export function clearProfileEmbeddingsCache() {
   _profileEmbeddings = null;

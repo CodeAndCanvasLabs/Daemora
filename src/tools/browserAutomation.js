@@ -1,5 +1,5 @@
 /**
- * Browser Automation — Heavy Playwright-based web interaction.
+ * Browser Automation - Heavy Playwright-based web interaction.
  *
  * Features:
  * - Accessibility snapshots (ARIA tree with numeric refs for agent navigation)
@@ -74,11 +74,11 @@ function getOrCreateRefCache(targetId) {
   return refCacheByTarget.get(targetId);
 }
 
-// Download tracking — persistent across actions
+// Download tracking - persistent across actions
 const downloads = new Map();    // downloadId → { id, filename, url, path, status, timestamp }
 let downloadCounter = 0;
 
-// Dialog handling — configurable behavior
+// Dialog handling - configurable behavior
 let lastDialog = null;          // { type, message, defaultValue, timestamp }
 let dialogMode = "auto";        // auto | accept | dismiss | manual
 const pendingDialogs = [];      // queue for manual mode
@@ -116,7 +116,7 @@ function toAIFriendlyError(error) {
   if (msg.includes("strict mode violation") || msg.includes("resolved to")) {
     const match = msg.match(/resolved to (\d+) elements/);
     const n = match ? match[1] : "multiple";
-    return `Matched ${n} elements — run snapshot to get updated refs and use a more specific one.`;
+    return `Matched ${n} elements - run snapshot to get updated refs and use a more specific one.`;
   }
   if (msg.includes("Timeout") && (msg.includes("waiting for selector") || msg.includes("waiting for locator"))) {
     return `Element not found or not visible within timeout. Run snapshot to see current page state.`;
@@ -137,19 +137,19 @@ function toAIFriendlyError(error) {
     return `Browser/page was closed. Use navigate to open a new page.`;
   }
   if (msg.includes("net::ERR_CONNECTION_REFUSED")) {
-    return `Connection refused — server may not be running at this URL.`;
+    return `Connection refused - server may not be running at this URL.`;
   }
   if (msg.includes("net::ERR_NAME_NOT_RESOLVED")) {
-    return `DNS lookup failed — check the URL spelling.`;
+    return `DNS lookup failed - check the URL spelling.`;
   }
   if (msg.includes("net::ERR_CERT")) {
     return `SSL certificate error. The site may have an invalid or expired certificate.`;
   }
   if (msg.includes("net::ERR_TOO_MANY_REDIRECTS")) {
-    return `Too many redirects — the site is in a redirect loop. Check cookies/auth state.`;
+    return `Too many redirects - the site is in a redirect loop. Check cookies/auth state.`;
   }
   if (msg.includes("Evaluate timed out") || msg.includes("terminateExecution")) {
-    return `JavaScript execution timed out — the page script is stuck. Use forceDisconnect to recover.`;
+    return `JavaScript execution timed out - the page script is stuck. Use forceDisconnect to recover.`;
   }
   if (msg.includes("Unknown ref")) return msg;
   if (msg.includes("frame was detached")) {
@@ -254,7 +254,7 @@ function attachPageListeners(targetId, page) {
       id, filename: safeName, url: download.url(), path: null,
       status: "pending", timestamp: Date.now(), _download: download,
     });
-    // Atomic save — temp path then rename
+    // Atomic save - temp path then rename
     download.path().then(p => {
       const dl = downloads.get(id);
       if (dl) { dl.path = p; dl.status = "completed"; }
@@ -307,7 +307,7 @@ async function ensureBrowser(profileName = "default") {
 
     let chromiumLauncher;
     if (isMeetingProfile) {
-      // Stealth mode — evades Google Meet bot detection
+      // Stealth mode - evades Google Meet bot detection
       const { chromium: stealthChromium } = await import("playwright-extra");
       const StealthPlugin = (await import("puppeteer-extra-plugin-stealth")).default;
       const stealth = StealthPlugin();
@@ -322,7 +322,7 @@ async function ensureBrowser(profileName = "default") {
     }
 
     if (isMeetingProfile) {
-      // Vexa pattern: launch() + newContext() — separate browser and context
+      // Vexa pattern: launch() + newContext() - separate browser and context
       // launchPersistentContext doesn't work well with stealth plugin for meetings
       const rawBrowser = await chromiumLauncher.launch({
         headless: false,
@@ -415,24 +415,24 @@ async function buildAccessibilitySnapshot(page, opts = {}) {
   cache.frameSelector = frameSelector || null;
   activeRefTarget = activeTargetId;
 
-  // Determine the scope — main page or a frame
+  // Determine the scope - main page or a frame
   let scope = page;
   if (frameSelector) {
     scope = page.frameLocator(frameSelector);
-    // For accessibility, we need the frame's page — use frame()
+    // For accessibility, we need the frame's page - use frame()
     const frames = page.frames();
     const matchedFrame = frames.find(f => {
       try { return f.url() && f !== page.mainFrame(); } catch { return false; }
     });
     if (matchedFrame) {
       const tree = await matchedFrame.accessibility?.snapshot({ interestingOnly: interactive !== false });
-      if (!tree) return { text: `(empty frame — no accessible content in "${frameSelector}")`, refs: {}, count: 0 };
+      if (!tree) return { text: `(empty frame - no accessible content in "${frameSelector}")`, refs: {}, count: 0 };
       return buildTreeFromNode(tree, cache, { interactive, compact, maxChars });
     }
   }
 
   const tree = await page.accessibility.snapshot({ interestingOnly: interactive !== false });
-  if (!tree) return { text: "(empty page — no accessible content)", refs: {}, count: 0 };
+  if (!tree) return { text: "(empty page - no accessible content)", refs: {}, count: 0 };
 
   return buildTreeFromNode(tree, cache, { interactive, compact, maxChars });
 }
@@ -504,7 +504,7 @@ function buildTreeFromNode(tree, cache, opts = {}) {
   return { text, refs, count: cache.counter };
 }
 
-// Resolve ref (e5) to a Playwright locator — uses per-target cache
+// Resolve ref (e5) to a Playwright locator - uses per-target cache
 async function resolveRef(page, ref) {
   // Try current target cache first, then active ref target
   let cache = refCacheByTarget.get(activeTargetId);
@@ -518,7 +518,7 @@ async function resolveRef(page, ref) {
   const info = cache.refs.get(ref);
   const { role, name, nth } = info;
 
-  // Determine scope — use frame if snapshot was frame-scoped
+  // Determine scope - use frame if snapshot was frame-scoped
   let scope = page;
   if (cache.frameSelector) {
     scope = page.frameLocator(cache.frameSelector);
@@ -543,7 +543,7 @@ async function resolveRef(page, ref) {
     return locator.first();
   }
 
-  throw new Error(`Could not locate element for ref "${ref}" (role=${role}, name="${name}"). Page may have changed — take a fresh snapshot.`);
+  throw new Error(`Could not locate element for ref "${ref}" (role=${role}, name="${name}"). Page may have changed - take a fresh snapshot.`);
 }
 
 function isRef(param) {
@@ -573,7 +573,7 @@ const MAX_SCREENSHOT_SIDE = 2000;
 async function normalizedScreenshot(page, opts = {}) {
   const { path: savePath, fullPage = false, selector } = opts;
 
-  // First attempt — PNG
+  // First attempt - PNG
   let buffer;
   if (selector) {
     const locator = await getLocator(page, selector);
@@ -588,7 +588,7 @@ async function normalizedScreenshot(page, opts = {}) {
     return { path: savePath, size: buffer.length, format: "png" };
   }
 
-  // Too large — try JPEG with reducing quality
+  // Too large - try JPEG with reducing quality
   const qualities = [85, 75, 65, 50, 35];
   for (const quality of qualities) {
     if (selector) {
@@ -604,7 +604,7 @@ async function normalizedScreenshot(page, opts = {}) {
     }
   }
 
-  // Last resort — save whatever we got
+  // Last resort - save whatever we got
   const jpegPath = savePath.replace(/\.png$/, ".jpg");
   writeFileSync(jpegPath, buffer);
   return { path: jpegPath, size: buffer.length, format: "jpeg", quality: 35, warning: "Image exceeds 2MB limit" };
@@ -671,7 +671,7 @@ export async function browserAction(params) {
           try { Object.assign(opts, JSON.parse(param2)); } catch {}
         }
         const { text, count } = await buildAccessibilitySnapshot(p, opts);
-        return `Frame snapshot (${count} elements, frame: ${param1}):\n\n${text}\n\nRefs are scoped to this frame — click/fill will target elements inside it.`;
+        return `Frame snapshot (${count} elements, frame: ${param1}):\n\n${text}\n\nRefs are scoped to this frame - click/fill will target elements inside it.`;
       }
 
       // ── List frames ──────────────────────────────────────────────────────
@@ -683,7 +683,7 @@ export async function browserAction(params) {
           const name = f.name() || "(unnamed)";
           const url = f.url() || "about:blank";
           const isMain = f === page.mainFrame() ? " (main)" : "";
-          return `  ${i}: ${name}${isMain} — ${url}`;
+          return `  ${i}: ${name}${isMain} - ${url}`;
         });
         return `Frames (${frames.length}):\n${entries.join("\n")}\n\nUse snapshotFrame("iframe[name=...]") to interact with a specific frame.`;
       }
@@ -1095,7 +1095,7 @@ export async function browserAction(params) {
         const dlPath = join(downloadDir, safeName);
         const dc = filesystemGuard.checkWrite(dlPath);
         if (!dc.allowed) return `Error: ${dc.reason}`;
-        // Atomic write — save to temp, then rename
+        // Atomic write - save to temp, then rename
         const tmpPath = dlPath + `.tmp-${Date.now()}`;
         await download.saveAs(tmpPath);
         try { renameSync(tmpPath, dlPath); } catch { /* rename failed, tmp file remains */ }
@@ -1149,7 +1149,7 @@ export async function browserAction(params) {
         }
         dialogMode = mode;
         pendingDialogs.length = 0;
-        return `Dialog mode set to "${mode}". ${mode === "manual" ? "Dialogs will queue — use handleDialog to respond." : ""}`;
+        return `Dialog mode set to "${mode}". ${mode === "manual" ? "Dialogs will queue - use handleDialog to respond." : ""}`;
       }
 
       case "handleDialog": {
@@ -1332,7 +1332,7 @@ export async function browserAction(params) {
       }
 
       case "forceDisconnect": {
-        // Nuclear option — kill the CDP connection and reconnect fresh
+        // Nuclear option - kill the CDP connection and reconnect fresh
         const page = currentPage();
         try {
           // Try to terminate stuck JS first
@@ -1343,7 +1343,7 @@ export async function browserAction(params) {
           ]);
           await client.detach().catch(() => {});
         } catch {
-          // CDP itself is stuck — close and reconnect
+          // CDP itself is stuck - close and reconnect
         }
         // Close current page and open fresh one
         const url = page.url();
@@ -1428,7 +1428,7 @@ export async function browserAction(params) {
 
 /**
  * Get the raw Playwright page object for the active tab.
- * Internal use only — for meeting bot audio capture, page.exposeFunction, etc.
+ * Internal use only - for meeting bot audio capture, page.exposeFunction, etc.
  * Returns null if no browser/page is active.
  */
 export function getActivePage() {
@@ -1439,7 +1439,7 @@ export function getActivePage() {
 
 /**
  * Get the raw Playwright browser context.
- * Internal use only — for meeting bot CDP sessions.
+ * Internal use only - for meeting bot CDP sessions.
  */
 export function getBrowserContext() {
   return browserConnected ? browserContext : null;
@@ -1447,16 +1447,16 @@ export function getBrowserContext() {
 
 export const browserActionDescription =
   'browserAction(action, param1?, param2?) - Heavy Playwright browser automation. ' +
-  'Actions: navigate(url), snapshot(opts?), snapshotFrame(frameSelector,opts?) — snapshot an iframe, listFrames — list all iframes, ariaSnapshot(selector?), click(selector|ref,opts?), fill(selector|ref,value), type(selector|ref,text), hover(selector|ref), selectOption(selector|ref,value), pressKey(key), scroll(direction|selector|ref,amount?), drag(source,target), getText(selector|ref?), getContent(selector?), screenshot(path|selector?,full?) — auto-normalized to fit 2MB, pdf(path?), evaluate(js,timeout?), getLinks, ' +
-  'console(filter?,limit?) — 500-entry buffer, pageErrors(limit?,clear?) — page JS errors, networkRequests(urlFilter?,limit?) — per-request tracking with status codes, captureResponses(urlPattern,timeout?) — capture response bodies matching pattern, getCapturedResponses(captureId?), ' +
+  'Actions: navigate(url), snapshot(opts?), snapshotFrame(frameSelector,opts?) - snapshot an iframe, listFrames - list all iframes, ariaSnapshot(selector?), click(selector|ref,opts?), fill(selector|ref,value), type(selector|ref,text), hover(selector|ref), selectOption(selector|ref,value), pressKey(key), scroll(direction|selector|ref,amount?), drag(source,target), getText(selector|ref?), getContent(selector?), screenshot(path|selector?,full?) - auto-normalized to fit 2MB, pdf(path?), evaluate(js,timeout?), getLinks, ' +
+  'console(filter?,limit?) - 500-entry buffer, pageErrors(limit?,clear?) - page JS errors, networkRequests(urlFilter?,limit?) - per-request tracking with status codes, captureResponses(urlPattern,timeout?) - capture response bodies matching pattern, getCapturedResponses(captureId?), ' +
   'waitFor(condition,timeout?), waitForNavigation(timeout?), reload, goBack, goForward, ' +
   'newTab(url?), switchTab(targetId), listTabs, closeTab(targetId?), getCookies(domain?), setCookie(json), clearCookies, getStorage(local|session,key?), setStorage(json), clearStorage(local|session), upload(selector|ref,filePath), download(selector|ref), resize(WxH), highlight(selector|ref), ' +
-  'batch(actionsJson) — execute up to 100 actions sequentially, supports nested batches (max depth 5). ' +
+  'batch(actionsJson) - execute up to 100 actions sequentially, supports nested batches (max depth 5). ' +
   'configureDialog(auto|accept|dismiss|manual), handleDialog(accept|dismiss,text?), getLastDialog, ' +
   'listDownloads, saveDownload(downloadId,savePath?), ' +
-  'interceptNetwork(configJson) — block/modify network requests, clearInterceptions, ' +
-  'listProfiles, recoverStuck — kill stuck JS via CDP, forceDisconnect — nuclear recovery: kill CDP + reconnect fresh page, ' +
-  'traceStart(opts?) — start Playwright trace recording, traceStop(path?) — stop and save trace zip, ' +
+  'interceptNetwork(configJson) - block/modify network requests, clearInterceptions, ' +
+  'listProfiles, recoverStuck - kill stuck JS via CDP, forceDisconnect - nuclear recovery: kill CDP + reconnect fresh page, ' +
+  'traceStart(opts?) - start Playwright trace recording, traceStop(path?) - stop and save trace zip, ' +
   'newSession(profile?), status, close. ' +
   'Supports ref-based interaction: take snapshot first, then use refs (e1, e5) instead of CSS selectors. Refs are stable across actions (per-target cached). ' +
-  'Frame support: use snapshotFrame to interact with iframes — refs will target elements inside the frame.';
+  'Frame support: use snapshotFrame to interact with iframes - refs will target elements inside the frame.';

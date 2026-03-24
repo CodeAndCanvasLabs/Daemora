@@ -17,7 +17,7 @@ class GoalPulse {
     if (this.running) return;
     this.running = true;
     this.timer = setInterval(() => this.check().catch(e => console.log(`[GoalPulse] Error: ${e.message}`)), 60_000);
-    console.log("[GoalPulse] Started — checking goals every 60s");
+    console.log("[GoalPulse] Started - checking goals every 60s");
   }
 
   async check() {

@@ -49,7 +49,7 @@ const TENANT_CHANNEL_BUILDERS = {
     : null,
 };
 
-/** Required credential key(s) per channel type — used by the UI to show what to enter. */
+/** Required credential key(s) per channel type - used by the UI to show what to enter. */
 export const TENANT_CHANNEL_CRED_KEYS = {
   telegram: ["TELEGRAM_BOT_TOKEN"],
   discord:  ["DISCORD_BOT_TOKEN"],
@@ -68,14 +68,14 @@ class ChannelRegistry {
     // Map<instanceKey, channelInstance>
     // Global: "discord" | Per-tenant: "discord::telegram:123456"
     this.channels = new Map();
-    // Map<channelType, channelClass/factory> — crew-registered channels
+    // Map<channelType, channelClass/factory> - crew-registered channels
     this.crewChannels = new Map();
   }
 
   /**
    * Register a crew-provided channel implementation.
-   * @param {string} name — channel type name
-   * @param {Function|object} impl — channel class or factory { create(config) → instance }
+   * @param {string} name - channel type name
+   * @param {Function|object} impl - channel class or factory { create(config) → instance }
    */
   registerCrewChannel(name, impl) {
     this.crewChannels.set(name, impl);
@@ -518,7 +518,7 @@ class ChannelRegistry {
     // Load per-tenant channel instances
     await this.loadTenantChannels();
 
-    // Recovery reply handler — routes to the right instance via instanceKey
+    // Recovery reply handler - routes to the right instance via instanceKey
     eventBus.on("task:reply:needed", async ({ task }) => {
       const channel = this.get(task.channel, task.channelMeta?.instanceKey);
       if (!channel?.running) {

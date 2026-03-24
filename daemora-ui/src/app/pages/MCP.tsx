@@ -339,7 +339,7 @@ export function MCP() {
                 </div>
               )}
 
-              {/* Env vars — for stdio servers */}
+              {/* Env vars - for stdio servers */}
               {newServer.type === "stdio" && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -385,7 +385,7 @@ export function MCP() {
                 </div>
               )}
 
-              {/* Headers — for HTTP/SSE servers */}
+              {/* Headers - for HTTP/SSE servers */}
               {(newServer.type === "http" || newServer.type === "sse") && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -567,7 +567,7 @@ export function MCP() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {/* Configure button — shown when server needs credentials or has configurable keys */}
+                      {/* Configure button - shown when server needs credentials or has configurable keys */}
                       {hasCredKeys && (
                         <Button
                           variant="ghost"

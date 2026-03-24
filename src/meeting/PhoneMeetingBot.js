@@ -1,5 +1,5 @@
 /**
- * PhoneMeetingBot — joins meetings by dialing the meeting's phone number via Twilio.
+ * PhoneMeetingBot - joins meetings by dialing the meeting's phone number via Twilio.
  *
  * Every meeting platform (Google Meet, Zoom, Teams) provides a dial-in number + PIN.
  * This bot calls that number using Twilio, then:
@@ -60,7 +60,7 @@ class PhoneMeetingSession {
   startSTT() {
     const apiKey = conf("OPENAI_API_KEY");
     if (!apiKey) {
-      console.log("[PhoneMeeting] No OPENAI_API_KEY — STT disabled, listen-only");
+      console.log("[PhoneMeeting] No OPENAI_API_KEY - STT disabled, listen-only");
       return;
     }
 
@@ -94,7 +94,7 @@ class PhoneMeetingSession {
 
     const llm = _resolveLLM(this._llmModel);
     if (!llm.apiKey) {
-      console.log("[PhoneMeeting] No LLM key — cannot respond");
+      console.log("[PhoneMeeting] No LLM key - cannot respond");
       return;
     }
 
@@ -252,7 +252,7 @@ export function attachStream(sessionId, stream) {
   session.attachStream(stream);
   session.startSTT();
   updateState(sessionId, "active");
-  console.log(`[PhoneMeeting:${sessionId}] Stream attached — STT active`);
+  console.log(`[PhoneMeeting:${sessionId}] Stream attached - STT active`);
 }
 
 /**
@@ -336,7 +336,7 @@ function _buildContext(sessionId) {
 }
 
 function _buildSystemPrompt(botName) {
-  return `You are ${botName} — an AI participant in a live phone meeting. Be concise, natural, human.
+  return `You are ${botName} - an AI participant in a live phone meeting. Be concise, natural, human.
 - 1-2 sentences max. Answer directly.
 - NEVER start with "I'm here to help". Just answer.
 - If the conversation doesn't need you → respond with "" (empty string).

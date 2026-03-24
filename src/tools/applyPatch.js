@@ -2,14 +2,14 @@
  * applyPatch(filePath, patch) - Apply a diff patch to a file.
  * Handles multi-hunk edits that editFile's single find-replace can't do.
  *
- * Model-agnostic — robust against every common LLM patch format and mistake:
+ * Model-agnostic - robust against every common LLM patch format and mistake:
  *
  * Supported formats:
- *   1. Unified diff    — @@ -n,m +n,m @@ with +/- /space-prefixed lines
- *   2. V4A / OpenAI    — *** Begin Patch / *** Update File / bare @@ separators
- *   3. Bare hunks      — @@ separators with +/- lines, no line numbers
- *   4. Simple diff     — n,m c/a/d ranges with < > lines and --- separator
- *   5. Raw +/- blocks  — no headers, just consecutive +/- prefixed lines
+ *   1. Unified diff    - @@ -n,m +n,m @@ with +/- /space-prefixed lines
+ *   2. V4A / OpenAI    - *** Begin Patch / *** Update File / bare @@ separators
+ *   3. Bare hunks      - @@ separators with +/- lines, no line numbers
+ *   4. Simple diff     - n,m c/a/d ranges with < > lines and --- separator
+ *   5. Raw +/- blocks  - no headers, just consecutive +/- prefixed lines
  *
  * Resilience features:
  *   - Auto-detects format, falls back through all parsers
@@ -218,13 +218,13 @@ function normalizeHunkLines(lines) {
       continue;
     }
 
-    // Empty line — could be context for an empty line in the file
+    // Empty line - could be context for an empty line in the file
     if (line === "") {
       result.push(" ");
       continue;
     }
 
-    // No prefix — likely a context line where the model forgot the space prefix.
+    // No prefix - likely a context line where the model forgot the space prefix.
     // Only treat as context if we already have some properly prefixed lines
     // (otherwise it might just be garbage).
     if (result.length > 0 && result.some((r) => r.startsWith("+") || r.startsWith("-"))) {
@@ -285,7 +285,7 @@ function buildMiddle(hunk) {
  * For hunks with no origStart (V4A/bare): skip steps 1-2, go straight to full scan.
  */
 function applyHunk(fileLines, hunk, offset) {
-  // Pure additions with no context/removals — append at end
+  // Pure additions with no context/removals - append at end
   const hasAnchor = hunk.lines.some((l) => l.startsWith("-") || l.startsWith(" "));
   if (!hasAnchor) {
     const additions = hunk.lines.filter((l) => l.startsWith("+")).map((l) => l.slice(1));

@@ -88,7 +88,7 @@ export class WhatsAppChannel extends BaseChannel {
       }
     } catch {}
 
-    console.log(`[Channel:WhatsApp] Auto-webhook skipped — set manually in Twilio Console: ${webhookUrl}`);
+    console.log(`[Channel:WhatsApp] Auto-webhook skipped - set manually in Twilio Console: ${webhookUrl}`);
   }
 
   async stop() {

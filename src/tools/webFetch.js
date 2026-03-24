@@ -1,5 +1,5 @@
 /**
- * webFetch — production-grade web fetch + content extraction with prompt injection defense.
+ * webFetch - production-grade web fetch + content extraction with prompt injection defense.
  */
 import { convert } from "html-to-text";
 import { URL } from "node:url";
@@ -18,7 +18,7 @@ const PRIVATE_RANGES = [
 function isPrivateIP(h) { return PRIVATE_RANGES.some(r => r.test(h)); }
 
 // ---------------------------------------------------------------------------
-// Cache — 15min TTL, 100 entries, LRU eviction
+// Cache - 15min TTL, 100 entries, LRU eviction
 // ---------------------------------------------------------------------------
 const cache = new Map();
 const CACHE_TTL_MS = 15 * 60 * 1000;
@@ -57,7 +57,7 @@ function stripInvisibleUnicode(text) {
 }
 
 // ---------------------------------------------------------------------------
-// HTML sanitization — regex-based prompt injection defense
+// HTML sanitization - regex-based prompt injection defense
 // ---------------------------------------------------------------------------
 const STRIP_TAGS_RE = /<(script|style|meta|template|svg|canvas|iframe|object|embed|noscript)\b[\s\S]*?<\/\1\s*>/gi;
 const COMMENT_RE = /<!--[\s\S]*?-->/g;
@@ -121,7 +121,7 @@ function sanitizeHtml(html) {
 }
 
 // ---------------------------------------------------------------------------
-// Nesting depth check — skip DOM parsing on pathological HTML
+// Nesting depth check - skip DOM parsing on pathological HTML
 // ---------------------------------------------------------------------------
 const VOID_TAGS = new Set([
   "area","base","br","col","embed","hr","img","input",
@@ -182,7 +182,7 @@ function normalizeWs(s) {
 }
 
 // ---------------------------------------------------------------------------
-// htmlToMarkdown — convert HTML to clean markdown
+// htmlToMarkdown - convert HTML to clean markdown
 // ---------------------------------------------------------------------------
 function htmlToMarkdown(html) {
   let t = html;
@@ -448,7 +448,7 @@ export async function webFetch(params) {
       return cached;
     }
 
-    // Egress guard — block if URL contains a known secret value
+    // Egress guard - block if URL contains a known secret value
     const egressCheck = egressGuard.check(url);
     if (!egressCheck.safe) {
       return `Error: URL contains a leaked secret (${egressCheck.leaked}). Request blocked.`;

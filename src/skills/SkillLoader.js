@@ -101,7 +101,7 @@ class SkillLoader {
   }
 
   /**
-   * Load skills from a directory — supports flat .md files and subdirectories with SKILL.md.
+   * Load skills from a directory - supports flat .md files and subdirectories with SKILL.md.
    * Scans one level deep: skills/foo.md and skills/bar/SKILL.md both work.
    */
   _loadFromDir(dir) {
@@ -201,11 +201,11 @@ class SkillLoader {
     if (!provider) return;
     if (!this.loaded) this.load();
 
-    // TF-IDF vectors depend on entire vocabulary — invalidate when skill count changes
+    // TF-IDF vectors depend on entire vocabulary - invalidate when skill count changes
     if (provider === "tfidf") {
       const cachedCount = Object.keys(this._skillVectors).length;
       if (cachedCount > 0 && cachedCount !== this.skills.size) {
-        console.log(`[SkillLoader] TF-IDF vocab changed (${cachedCount} cached, ${this.skills.size} skills) — re-embedding all`);
+        console.log(`[SkillLoader] TF-IDF vocab changed (${cachedCount} cached, ${this.skills.size} skills) - re-embedding all`);
         this._skillVectors = {};
       }
     }
@@ -302,7 +302,7 @@ class SkillLoader {
     if (!this.loaded) this.load();
     if (this.skills.size === 0) return [];
 
-    // Skip skills for trivial/greeting inputs — no point wasting tokens
+    // Skip skills for trivial/greeting inputs - no point wasting tokens
     const TRIVIAL = /^(hi|hello|hey|thanks|thank you|ok|okay|yes|no|sure|yep|nope|bye|good morning|good evening|gm|gn|sup|yo)\s*[!.?]*$/i;
     if (!taskInput || taskInput.trim().length < 8 || TRIVIAL.test(taskInput.trim())) return [];
 
@@ -313,7 +313,7 @@ class SkillLoader {
       return { name: skill.name, description: skill.description, location };
     };
 
-    // ── Skill scoping filter — profile-based tag matching ────────────────────
+    // ── Skill scoping filter - profile-based tag matching ────────────────────
     // Match skill name + description + triggers against include/exclude tags
     const isInScope = (skill) => {
       if (!skillScope) return true; // no scoping = all skills
@@ -322,14 +322,14 @@ class SkillLoader {
       if (skillScope.exclude?.length > 0) {
         if (skillScope.exclude.some(tag => haystack.includes(tag.toLowerCase()))) return false;
       }
-      // Include check — at least one include tag must match
+      // Include check - at least one include tag must match
       if (skillScope.include?.length > 0) {
         return skillScope.include.some(tag => haystack.includes(tag.toLowerCase()));
       }
       return true;
     };
 
-    // 1. Embedding match — use the SAME provider that created the vectors.
+    // 1. Embedding match - use the SAME provider that created the vectors.
     // If vectors are TF-IDF, query with TF-IDF. Never mix providers.
     const firstVector = Object.values(this._skillVectors)[0];
     const vectorProvider = firstVector?.provider || "tfidf";
@@ -358,7 +358,7 @@ class SkillLoader {
       }
     }
 
-    // 2. Keyword fallback — only return actual matches, don't pad with unrelated skills
+    // 2. Keyword fallback - only return actual matches, don't pad with unrelated skills
     const keywordMatched = this.matchSkills(taskInput).filter(isInScope);
     if (keywordMatched.length > 0) {
       const top = keywordMatched.slice(0, limit);
@@ -366,7 +366,7 @@ class SkillLoader {
       return top.map(toSummary);
     }
 
-    // 3. No matches — return empty instead of dumping random skills
+    // 3. No matches - return empty instead of dumping random skills
     return [];
   }
 

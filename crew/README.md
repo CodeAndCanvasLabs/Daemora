@@ -23,14 +23,14 @@ crew/my-crew/
 
 ---
 
-## 1. plugin.json — Manifest
+## 1. plugin.json - Manifest
 
 ```json
 {
   "id": "my-crew",
   "name": "My Crew Member",
   "version": "1.0.0",
-  "description": "What this crew member does — shown to the main agent",
+  "description": "What this crew member does - shown to the main agent",
   "config": {
     "MY_API_KEY": { "type": "secret", "required": true, "label": "API Key" }
   },
@@ -50,19 +50,19 @@ crew/my-crew/
 | `id` | yes | Unique ID (lowercase, hyphens). Used in `useCrew("my-crew", ...)` |
 | `name` | yes | Display name |
 | `version` | no | Semver version |
-| `description` | yes | One-line description — the main agent sees this to decide when to delegate |
+| `description` | yes | One-line description - the main agent sees this to decide when to delegate |
 | `config` | no | Required configuration. If missing, crew member shows "needs-config" status |
-| `config.*.type` | — | `"secret"` (masked in UI) or `"string"` |
-| `config.*.required` | — | If `true`, crew member won't load without this value set |
-| `config.*.label` | — | Human-readable label for the UI |
-| `profile.systemPrompt` | no | Identity prompt — tells the sub-agent who it is and how to behave |
+| `config.*.type` | - | `"secret"` (masked in UI) or `"string"` |
+| `config.*.required` | - | If `true`, crew member won't load without this value set |
+| `config.*.label` | - | Human-readable label for the UI |
+| `profile.systemPrompt` | no | Identity prompt - tells the sub-agent who it is and how to behave |
 | `profile.temperature` | no | Model temperature (0.0-1.0). Lower = precise, higher = creative |
 | `profile.model` | no | Model override. `null` = use default model |
 | `skills` | no | Array of global skill IDs to inject (e.g. `["coding", "devops"]`) |
 
 ---
 
-## 2. index.js — Registration
+## 2. index.js - Registration
 
 ```javascript
 import { myTool } from "./tools/myTool.js";
@@ -76,7 +76,7 @@ export default {
     api.registerTool("myTool", myTool, z.object({
       action: z.enum(["list", "create", "delete"]).describe("Action to perform"),
       name: z.string().optional().describe("Item name"),
-    }), "myTool(action, name?) — Manage items. action: list | create | delete");
+    }), "myTool(action, name?) - Manage items. action: list | create | delete");
 
     api.log.info("Registered: myTool");
   },
@@ -87,8 +87,8 @@ export default {
 
 | Param | Type | Description |
 |---|---|---|
-| `name` | string | Tool name — must be unique across all crew members |
-| `fn` | function | `async (params) => string` — receives validated params, returns result text |
+| `name` | string | Tool name - must be unique across all crew members |
+| `fn` | function | `async (params) => string` - receives validated params, returns result text |
 | `schema` | Zod schema | Zod object schema for parameter validation. Use `z.object({}).passthrough()` for flexible params |
 | `description` | string | One-line description shown in tool docs |
 
@@ -110,11 +110,11 @@ api.log.info(msg) / .warn(msg) / .error(msg)      // logging
 
 ---
 
-## 3. tools/myTool.js — Tool Implementation
+## 3. tools/myTool.js - Tool Implementation
 
 ```javascript
 /**
- * myTool — does something useful.
+ * myTool - does something useful.
  *
  * @param {object} params - Validated by Zod schema from index.js
  * @returns {string} Result text (shown to the agent)
@@ -143,7 +143,7 @@ export async function myTool(params) {
 ### Rules
 
 - Always return a string (the agent reads this as the tool result)
-- Handle errors gracefully — return error messages, don't throw
+- Handle errors gracefully - return error messages, don't throw
 - Use `params?.field` (params are pre-validated by Zod but be defensive)
 - For API calls, read credentials via environment or `api.config(key)` / `api.getTenantKeys()`
 
@@ -154,7 +154,7 @@ export async function myTool(params) {
 Crew members access config via environment variables or the api:
 
 ```javascript
-// In index.js — read config during registration
+// In index.js - read config during registration
 register(api) {
   const apiKey = api.config("MY_API_KEY");  // reads from env or config store
   if (!apiKey) {
@@ -162,7 +162,7 @@ register(api) {
   }
 }
 
-// In tools — read per-tenant keys at runtime
+// In tools - read per-tenant keys at runtime
 import tenantContext from "../../src/tenants/TenantContext.js";
 
 export async function myTool(params) {
@@ -268,15 +268,15 @@ daemora crew install daemora-crew-my-crew
 
 ### Minimal (no config, no API keys)
 
-See `crew/system-monitor/` — checks CPU, memory, disk. Zero dependencies.
+See `crew/system-monitor/` - checks CPU, memory, disk. Zero dependencies.
 
 ### With API keys
 
-See `crew/google-services/` — requires Google API keys. Shows config schema pattern.
+See `crew/google-services/` - requires Google API keys. Shows config schema pattern.
 
 ### With multiple tools
 
-See `crew/smart-home/` — registers `philipsHue` + `sonos` tools from one crew member.
+See `crew/smart-home/` - registers `philipsHue` + `sonos` tools from one crew member.
 
 ---
 

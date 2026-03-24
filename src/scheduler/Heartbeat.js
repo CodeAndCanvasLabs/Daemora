@@ -6,11 +6,11 @@ import eventBus from "../core/EventBus.js";
 import { queryAll, queryOne } from "../storage/Database.js";
 
 /**
- * Heartbeat — proactive self-check + user-defined heartbeat instructions.
+ * Heartbeat - proactive self-check + user-defined heartbeat instructions.
  *
  * Two modes combined:
  * 1. HEARTBEAT.md: user-written instructions (backwards compatible)
- * 2. Proactive checks: system health — overdue goals, broken cron, silent watchers
+ * 2. Proactive checks: system health - overdue goals, broken cron, silent watchers
  *
  * If something needs attention → enqueues a proactive task with findings.
  * If nothing found → silent (no wasted tokens).
@@ -93,19 +93,19 @@ class Heartbeat {
     try {
       const findings = [];
 
-      // 1. Overdue goals — active goals that missed their check window
+      // 1. Overdue goals - active goals that missed their check window
       const overdueGoals = this._checkOverdueGoals();
       if (overdueGoals.length > 0) findings.push(...overdueGoals);
 
-      // 2. Broken cron jobs — consecutive errors
+      // 2. Broken cron jobs - consecutive errors
       const brokenCrons = this._checkBrokenCrons();
       if (brokenCrons.length > 0) findings.push(...brokenCrons);
 
-      // 3. Silent watchers — enabled but haven't fired when expected
+      // 3. Silent watchers - enabled but haven't fired when expected
       const silentWatchers = this._checkSilentWatchers();
       if (silentWatchers.length > 0) findings.push(...silentWatchers);
 
-      // 4. Failed tasks — recent failures that might need attention
+      // 4. Failed tasks - recent failures that might need attention
       const failedTasks = this._checkFailedTasks();
       if (failedTasks.length > 0) findings.push(...failedTasks);
 
@@ -120,7 +120,7 @@ class Heartbeat {
       // Something needs attention → enqueue proactive task
       const findingsText = findings.map((f, i) => `${i + 1}. [${f.type}] ${f.message}`).join("\n");
 
-      console.log(`[Heartbeat] Proactive check: ${findings.length} finding(s) — enqueuing task`);
+      console.log(`[Heartbeat] Proactive check: ${findings.length} finding(s) - enqueuing task`);
 
       const prompt = `[Proactive Check] The system detected issues that need attention. Review each finding and take appropriate action.
 
@@ -136,7 +136,7 @@ If nothing actually needs action after review, respond with just "HEARTBEAT_OK".
 
 Current time: ${new Date().toISOString()}`;
 
-      // Resolve delivery channel — use most recent active channel
+      // Resolve delivery channel - use most recent active channel
       const delivery = this._resolveDeliveryChannel();
 
       taskQueue.enqueue({
@@ -158,7 +158,7 @@ Current time: ${new Date().toISOString()}`;
   }
 
   /**
-   * Check for overdue goals — active goals that missed their check window by 2x.
+   * Check for overdue goals - active goals that missed their check window by 2x.
    */
   _checkOverdueGoals() {
     const findings = [];
@@ -257,7 +257,7 @@ Current time: ${new Date().toISOString()}`;
 
       if (failed.length > 0) {
         const summary = failed.map(t =>
-          `Task ${t.id.slice(0, 8)}: "${(t.input || "").slice(0, 60)}..." — ${(t.error || "unknown error").slice(0, 80)}`
+          `Task ${t.id.slice(0, 8)}: "${(t.input || "").slice(0, 60)}..." - ${(t.error || "unknown error").slice(0, 80)}`
         ).join("\n  ");
 
         findings.push({
@@ -270,7 +270,7 @@ Current time: ${new Date().toISOString()}`;
   }
 
   /**
-   * Resolve best delivery channel — most recent channel from channel_routing.
+   * Resolve best delivery channel - most recent channel from channel_routing.
    */
   _resolveDeliveryChannel() {
     try {
@@ -334,7 +334,7 @@ Current time: ${new Date().toISOString()}`;
         hour = h;
         minute = m;
       } catch {
-        // Invalid timezone — fall back to host time
+        // Invalid timezone - fall back to host time
         hour = now.getHours();
         minute = now.getMinutes();
       }

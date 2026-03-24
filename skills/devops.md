@@ -13,7 +13,7 @@ triggers: docker, dockerfile, compose, deploy, deployment, ci, cd, github action
 - Workflow structure: trigger → jobs → steps
 - Cache dependencies (`actions/cache`) to speed up builds
 - Run tests before deploy. Fail fast.
-- Use secrets for API keys — never hardcode
+- Use secrets for API keys - never hardcode
 - Pin action versions (`actions/checkout@v4`, not `@main`)
 
 ## Deployment Checklist

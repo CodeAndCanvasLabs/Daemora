@@ -341,7 +341,7 @@ ${passphraseEnv}cd /d "${config.rootDir}"
     // Inject before closing </dict> of EnvironmentVariables
     const escaped = passphrase.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const entry = `    <key>VAULT_PASSPHRASE</key>\n    <string>${escaped}</string>\n  `;
-    // Find the EnvironmentVariables closing </dict> — it's the inner one
+    // Find the EnvironmentVariables closing </dict> - it's the inner one
     const envDictClose = plist.lastIndexOf("</dict>", plist.lastIndexOf("</dict>") - 1);
     if (envDictClose !== -1) {
       plist = plist.slice(0, envDictClose) + entry + plist.slice(envDictClose);

@@ -177,7 +177,7 @@ export function Teams() {
             Teams
           </h2>
           <p className="text-[10px] text-gray-500 font-mono uppercase tracking-[0.3em] mt-1">
-            Project Teams — Lead + Workers Coordination
+            Project Teams - Lead + Workers Coordination
           </p>
         </div>
         <div className="flex gap-2">
@@ -202,9 +202,9 @@ export function Teams() {
                     <Select value={createForm.templateId || "__custom__"} onValueChange={v => setCreateForm({ ...createForm, templateId: v === "__custom__" ? "" : v })}>
                       <SelectTrigger className="bg-slate-800 border-slate-700 text-white"><SelectValue /></SelectTrigger>
                       <SelectContent className="bg-slate-800 border-slate-700">
-                        <SelectItem value="__custom__">Custom — define workers manually</SelectItem>
+                        <SelectItem value="__custom__">Custom - define workers manually</SelectItem>
                         {templates.map((t: any) => (
-                          <SelectItem key={t.id} value={t.id}>{t.name} — {t.workers?.length} workers</SelectItem>
+                          <SelectItem key={t.id} value={t.id}>{t.name} - {t.workers?.length} workers</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

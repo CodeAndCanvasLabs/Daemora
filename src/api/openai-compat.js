@@ -1,5 +1,5 @@
 /**
- * OpenAI-Compatible API — /v1/chat/completions
+ * OpenAI-Compatible API - /v1/chat/completions
  *
  * Drop-in replacement for OpenAI API. Routes through TaskRunner as a chat task.
  * Supports both non-streaming and SSE streaming responses.
@@ -138,7 +138,7 @@ router.post("/chat/completions", async (req, res) => {
     }, 300_000);
 
   } else {
-    // Non-streaming — wait for completion
+    // Non-streaming - wait for completion
     try {
       const result = await new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
@@ -198,7 +198,7 @@ router.post("/chat/completions", async (req, res) => {
 });
 
 /**
- * GET /v1/models — list available models
+ * GET /v1/models - list available models
  */
 router.get("/models", (req, res) => {
   res.json({

@@ -9,7 +9,7 @@
  *
  * Ollama is the default local embedding engine. On startup, ensureOllamaEmbedModel()
  * probes localhost:11434, and if Ollama is running but the model isn't pulled, auto-pulls it.
- * No user configuration needed — just have Ollama installed and running.
+ * No user configuration needed - just have Ollama installed and running.
  *
  * Override with: EMBEDDING_PROVIDER=openai|google|ollama|tfidf
  * Override Ollama model with: OLLAMA_EMBED_MODEL=all-minilm
@@ -44,7 +44,7 @@ async function _probeOllama() {
 
 /**
  * Check if a specific model is available in Ollama. If not, pull it.
- * Called once at startup — non-blocking background pull.
+ * Called once at startup - non-blocking background pull.
  */
 async function _ensureOllamaModel(modelName) {
   if (_ollamaModelReady) return true;
@@ -65,7 +65,7 @@ async function _ensureOllamaModel(modelName) {
       return true;
     }
 
-    // Model not found — pull it
+    // Model not found - pull it
     console.log(`[Embeddings] Pulling Ollama model "${modelName}" for embeddings (one-time)...`);
     const pullRes = await fetch(`${baseUrl}/api/pull`, {
       method: "POST",
@@ -90,7 +90,7 @@ async function _ensureOllamaModel(modelName) {
 
 /**
  * Initialize Ollama embedding model on startup.
- * Call this once — it probes Ollama and auto-pulls the embed model if needed.
+ * Call this once - it probes Ollama and auto-pulls the embed model if needed.
  * Non-blocking, fire-and-forget safe.
  */
 export async function ensureOllamaEmbedModel() {
@@ -103,7 +103,7 @@ export async function ensureOllamaEmbedModel() {
 
   const ollamaAvailable = await _probeOllama();
   if (!ollamaAvailable) {
-    console.log("[Embeddings] Ollama not detected — using TF-IDF for embeddings");
+    console.log("[Embeddings] Ollama not detected - using TF-IDF for embeddings");
     return;
   }
 
@@ -113,7 +113,7 @@ export async function ensureOllamaEmbedModel() {
 
 /**
  * Returns the currently active embedding provider name, or null if none available.
- * Sync version — returns "ollama-auto" when auto-detect is pending (caller must handle).
+ * Sync version - returns "ollama-auto" when auto-detect is pending (caller must handle).
  */
 export function getEmbeddingProvider() {
   const override = process.env.EMBEDDING_PROVIDER?.toLowerCase();
@@ -132,12 +132,12 @@ export function getEmbeddingProvider() {
   if (process.env.OLLAMA_HOST)       return "ollama";
   // Ollama auto-detect result (set after first generateEmbedding call or ensureOllamaEmbedModel)
   if (_ollamaAutoDetected === true)  return "ollama";
-  // Always available — built-in TF-IDF as last resort
+  // Always available - built-in TF-IDF as last resort
   return "tfidf";
 }
 
 /**
- * Async version of getEmbeddingProvider — probes Ollama if not yet tested.
+ * Async version of getEmbeddingProvider - probes Ollama if not yet tested.
  */
 export async function getEmbeddingProviderAsync() {
   const override = process.env.EMBEDDING_PROVIDER?.toLowerCase();
@@ -256,7 +256,7 @@ export function tfidfEmbed(text) {
 
 /**
  * Standard cosine similarity between two vectors.
- * Shared utility — used by memory.js and TaskRunner auto-capture.
+ * Shared utility - used by memory.js and TaskRunner auto-capture.
  * @param {number[]} a
  * @param {number[]} b
  * @returns {number} Similarity score 0..1
@@ -283,7 +283,7 @@ export async function generateEmbedding(text, forceProvider = null) {
   const provider = forceProvider || await getEmbeddingProviderAsync();
   if (!provider) return null;
 
-  // Built-in TF-IDF — no API call needed
+  // Built-in TF-IDF - no API call needed
   if (provider === "tfidf") {
     return tfidfEmbed(text);
   }
@@ -313,7 +313,7 @@ export async function generateEmbedding(text, forceProvider = null) {
     return embedding;
 
   } catch {
-    // API provider failed — fall back to TF-IDF
+    // API provider failed - fall back to TF-IDF
     const tfidfVec = tfidfEmbed(text);
     if (tfidfVec) return tfidfVec;
     return null;

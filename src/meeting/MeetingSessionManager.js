@@ -1,5 +1,5 @@
 /**
- * MeetingSessionManager — state machine for meeting sessions.
+ * MeetingSessionManager - state machine for meeting sessions.
  *
  * Each session tracks: state, dialIn, participants, transcript.
  * States: idle → joining → active → leaving → left → error
@@ -131,7 +131,7 @@ export function getSession(id) {
 }
 
 /**
- * Get raw session (internal use — not tenant-scoped).
+ * Get raw session (internal use - not tenant-scoped).
  */
 export function _getRawSession(id) {
   return sessions.get(id) || null;
@@ -180,7 +180,7 @@ export function addTranscript(id, entry) {
     timestamp: Date.now(),
   };
 
-  // Dedup — skip if same text within 2 seconds of last entry
+  // Dedup - skip if same text within 2 seconds of last entry
   const last = session.transcript[session.transcript.length - 1];
   if (last && last.text === transcriptEntry.text && (transcriptEntry.timestamp - last.timestamp) < 2000) {
     return; // duplicate
@@ -188,7 +188,7 @@ export function addTranscript(id, entry) {
 
   session.transcript.push(transcriptEntry);
 
-  // Persist to disk (JSONL — one JSON object per line, survives restarts)
+  // Persist to disk (JSONL - one JSON object per line, survives restarts)
   try {
     if (!session._transcriptPath) {
       const dir = join(config.dataDir, "meetings");

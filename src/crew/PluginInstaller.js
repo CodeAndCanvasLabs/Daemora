@@ -1,5 +1,5 @@
 /**
- * CrewInstaller — install/remove crew members from npm.
+ * CrewInstaller - install/remove crew members from npm.
  *
  * Install: npm install <package> --prefix crew/<package-name>
  *   → creates crew/<name>/node_modules + plugin.json (from package)
@@ -17,7 +17,7 @@ const CREW_DIR = join(config.rootDir, "crew");
 
 /**
  * Install a crew member from npm.
- * @param {string} pkg — npm package name (e.g. "daemora-plugin-weather" or "@scope/plugin")
+ * @param {string} pkg - npm package name (e.g. "daemora-plugin-weather" or "@scope/plugin")
  */
 export async function installCrewMember(pkg) {
   if (!pkg) throw new Error("Package name required");
@@ -54,7 +54,7 @@ export async function installCrewMember(pkg) {
     const packageJson = join(installed, "package.json");
 
     if (existsSync(pluginJson)) {
-      // Has a plugin.json — copy files to crew member root
+      // Has a plugin.json - copy files to crew member root
       _copyCrewFiles(installed, memberDir);
       console.log(`[CrewInstaller] ✓ Installed: ${dirName} (has plugin.json)`);
     } else if (existsSync(packageJson)) {
@@ -66,7 +66,7 @@ export async function installCrewMember(pkg) {
         _generatePluginJson(memberDir, pkgMeta);
         console.log(`[CrewInstaller] ✓ Installed: ${dirName} (from package.json metadata)`);
       } else {
-        // No manifest — create a basic one
+        // No manifest - create a basic one
         _copyCrewFiles(installed, memberDir);
         _generatePluginJson(memberDir, pkgMeta);
         console.log(`[CrewInstaller] ✓ Installed: ${dirName} (generated plugin.json)`);
@@ -88,10 +88,10 @@ export async function installCrewMember(pkg) {
 
 /**
  * Remove an installed crew member.
- * @param {string} crewId — crew member directory name or ID
+ * @param {string} crewId - crew member directory name or ID
  */
 export async function removeCrewMember(crewId) {
-  // Find crew member dir — match by directory name or plugin.json id
+  // Find crew member dir - match by directory name or plugin.json id
   const memberDir = _findCrewMemberDir(crewId);
   if (!memberDir) {
     console.error(`[CrewInstaller] Crew member not found: ${crewId}`);

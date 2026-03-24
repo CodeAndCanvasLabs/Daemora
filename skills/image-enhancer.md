@@ -5,7 +5,7 @@ description: Improves the quality of images, especially screenshots, by enhancin
 
 # Image Enhancer
 
-This skill takes your images and screenshots and makes them look better—sharper, clearer, and more professional.
+This skill takes your images and screenshots and makes them look better-sharper, clearer, and more professional.
 
 ## When to Use This Skill
 

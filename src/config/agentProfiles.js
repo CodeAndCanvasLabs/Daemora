@@ -7,7 +7,7 @@
  * Usage: useCrew("coder", task) / parallelCrew([...]) / teamTask(...)
  */
 
-// Legacy profile objects — kept for reference only, not used by ProfileLoader.
+// Legacy profile objects - kept for reference only, not used by ProfileLoader.
 // Profiles now live in crew/*/plugin.json.
 const _legacyProfiles = {
 
@@ -101,7 +101,7 @@ const _legacyProfiles = {
  * dynamically into sub-agents by SubAgentManager based on recursion depth.
  */
 /**
- * Core tools — always available to the main agent.
+ * Core tools - always available to the main agent.
  * Rule: if it needs an API key or external service, it's NOT core.
  * Everything else goes through profiles (sub-agents).
  */

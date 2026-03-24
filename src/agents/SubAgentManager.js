@@ -81,7 +81,7 @@ eventBus.on("supervisor:kill", ({ taskId }) => {
  * @param {string[]} [options.extraTools]          Additional tools on top of profile or default
  * @param {string[]} [options.tools]               Explicit tool list (overrides profile)
  * @param {object}   [options.toolOverride]        Exact tool functions (specialist agents, bypasses all)
- * @param {object}   [options.aiToolOverrides]     Pre-built AI SDK tools (e.g. from @ai-sdk/mcp) — merged into aiTools in AgentLoop
+ * @param {object}   [options.aiToolOverrides]     Pre-built AI SDK tools (e.g. from @ai-sdk/mcp) - merged into aiTools in AgentLoop
  * @param {object}   [options.systemPromptOverride] Replace system prompt entirely (specialist agents)
  * @param {number}   [options.maxCost]             Cost budget
  * @param {number}   [options.timeout]             Timeout in ms
@@ -200,11 +200,11 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     delete agentTools.discoverCrew;
     delete agentTools.delegateToAgent;
     // teamTask kept ONLY if spawned by TeamManager (has externalSteerQueue).
-    // Regular sub-agents don't get team tools — prevents creating teams from inside sub-agents.
+    // Regular sub-agents don't get team tools - prevents creating teams from inside sub-agents.
     if (!externalSteerQueue) {
       delete agentTools.teamTask;
     }
-    // MCP management is orchestration — sub-agents use tools via useMCP, don't manage servers.
+    // MCP management is orchestration - sub-agents use tools via useMCP, don't manage servers.
     delete agentTools.manageMCP;
   }
 
@@ -220,7 +220,7 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     steerQueue,
   });
 
-  console.log(`[SubAgent:${agentId}] Spawned (profile: ${profile || "default"}, depth: ${depth}, model: ${model || "inherit"}) — ${taskDescription.slice(0, 80)}`);
+  console.log(`[SubAgent:${agentId}] Spawned (profile: ${profile || "default"}, depth: ${depth}, model: ${model || "inherit"}) - ${taskDescription.slice(0, 80)}`);
 
   eventBus.emitEvent("agent:spawned", {
     agentId,
@@ -230,7 +230,7 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     taskDescription: taskDescription.slice(0, 100),
   });
 
-  // ── Auto session load for regular sub-agents (not MCP — they manage their own) ──
+  // ── Auto session load for regular sub-agents (not MCP - they manage their own) ──
   const mainSessionId = store?.sessionId || null;
   const shouldManageSession = !toolOverride && historyMessages.length === 0 && mainSessionId;
   let subSessionId = null;
@@ -248,7 +248,7 @@ export async function spawnSubAgent(taskDescription, options = {}) {
   // ── Skill injection ─────────────────────────────────────────────────────
   // Explicit skills only (parent passed skill paths/names directly).
   // Scoped skill summaries are handled by systemPrompt.js → renderSkills() with profile tags.
-  // No duplicate semantic search here — system prompt already does it with proper scoping.
+  // No duplicate semantic search here - system prompt already does it with proper scoping.
   let skillContext = "";
   try {
     if (skills && skills.length > 0) {

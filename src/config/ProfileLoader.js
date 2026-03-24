@@ -1,11 +1,11 @@
 /**
- * ProfileLoader — reads agent profiles from YAML files.
+ * ProfileLoader - reads agent profiles from YAML files.
  *
  * Profiles define: identity (systemPrompt), tools, skill scoping, temperature, model.
  * Built-in profiles ship in src/config/profiles/*.yaml.
  * Tenant overrides: data/tenants/{safeId}/profiles/*.yaml (loaded on top).
  *
- * Open-source friendly — contributors add profiles via PR (drop a YAML file).
+ * Open-source friendly - contributors add profiles via PR (drop a YAML file).
  */
 
 import { join, basename } from "path";
@@ -14,7 +14,7 @@ import { config } from "./default.js";
 import tenantContext from "../tenants/TenantContext.js";
 import { getRegistry } from "../crew/PluginRegistry.js";
 
-// ── YAML parser (no dependency — profiles are simple key-value) ──────────────
+// ── YAML parser (no dependency - profiles are simple key-value) ──────────────
 // Handles: scalars, arrays, multi-line strings (|), nested objects (1 level)
 
 function parseYaml(text) {
@@ -35,7 +35,7 @@ function parseYaml(text) {
     if (multiLineKey) {
       const indent = line.search(/\S/);
       if (indent === -1) {
-        // Empty line inside multi-line — preserve
+        // Empty line inside multi-line - preserve
         multiLineValue.push("");
         continue;
       }
@@ -43,7 +43,7 @@ function parseYaml(text) {
         multiLineValue.push(line.slice(multiLineIndent));
         continue;
       }
-      // Dedent — end multi-line block
+      // Dedent - end multi-line block
       result[multiLineKey] = multiLineValue.join("\n").trimEnd();
       multiLineKey = null;
       multiLineIndent = null;
@@ -79,7 +79,7 @@ function parseYaml(text) {
         // Inline array: [a, b, c]
         result[key] = value.slice(1, -1).split(",").map(s => s.trim()).filter(Boolean);
       } else if (value.startsWith("{") && value.endsWith("}")) {
-        // Inline object — skip, not needed for profiles
+        // Inline object - skip, not needed for profiles
         result[key] = {};
       } else {
         result[key] = value;
@@ -92,7 +92,7 @@ function parseYaml(text) {
         result[currentKey].push(itemMatch[1].trim());
       }
     } else if (line.match(/^\s+(\w[\w.-]*)\s*:\s*(.*)/)) {
-      // Nested key (1 level) — for skills.include, skills.exclude
+      // Nested key (1 level) - for skills.include, skills.exclude
       const nestedMatch = line.match(/^\s+(\w[\w.-]*)\s*:\s*(.*)/);
       if (nestedMatch && currentKey) {
         if (!result[currentKey] || typeof result[currentKey] !== "object" || Array.isArray(result[currentKey])) {
@@ -163,14 +163,14 @@ function ensureLoaded() {
   if (cacheLoaded) return;
   cacheLoaded = true;
 
-  // 1. Crew-based profiles (new source of truth — crew/*/plugin.json)
+  // 1. Crew-based profiles (new source of truth - crew/*/plugin.json)
   _loadFromCrewRegistry();
 
-  // 2. Legacy YAML profiles (fallback — src/config/profiles/*.yaml)
+  // 2. Legacy YAML profiles (fallback - src/config/profiles/*.yaml)
   // Only loads profiles NOT already loaded from crew (crew takes priority)
   loadProfilesFromDir(BUILTIN_DIR, true);
 
-  // 3. User custom profiles (data dir — tenant overrides)
+  // 3. User custom profiles (data dir - tenant overrides)
   const customDir = join(config.dataDir, "profiles");
   loadProfilesFromDir(customDir, false);
 
@@ -211,7 +211,7 @@ function _loadFromCrewRegistry() {
       });
     }
   } catch {
-    // Crew registry not loaded yet — will use YAML fallback
+    // Crew registry not loaded yet - will use YAML fallback
   }
 }
 

@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: false,
-    // Only run tests in our tests/ directory — not in agents/ subprojects
+    // Only run tests in our tests/ directory - not in agents/ subprojects
     include: ["tests/**/*.test.{js,ts}"],
     coverage: {
       provider: "v8",

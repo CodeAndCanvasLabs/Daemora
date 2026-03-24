@@ -244,7 +244,7 @@ function _initTables(db) {
 
 // ── Schema Migrations ────────────────────────────────────────────────────────
 // ALTER TABLE for columns added after initial schema creation.
-// Each migration is idempotent — silently skipped if column already exists.
+// Each migration is idempotent - silently skipped if column already exists.
 
 function _runMigrations(db) {
   // Add column only when missing. exec() throws on failure in node:sqlite.
@@ -355,7 +355,7 @@ function _runMigrations(db) {
     CREATE INDEX IF NOT EXISTS idx_watchers_enabled ON watchers(enabled);
   `);
 
-  // Channel routing cache — stores channelMeta for watcher/cron delivery
+  // Channel routing cache - stores channelMeta for watcher/cron delivery
   // Works without tenants (global setup) and with tenants
   db.exec(`
     CREATE TABLE IF NOT EXISTS channel_routing (

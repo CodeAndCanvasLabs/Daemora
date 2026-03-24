@@ -1,7 +1,7 @@
 /**
  * philipsHue - Control Philips Hue smart lights via local Bridge API.
  * Requires HUE_BRIDGE_IP and HUE_API_KEY env vars.
- * All requests go to the local bridge — no cloud dependency.
+ * All requests go to the local bridge - no cloud dependency.
  */
 import { resolveKey } from "./_env.js";
 import { mergeLegacyParams as _mergeLegacy } from "../../../src/utils/mergeToolParams.js";
@@ -46,7 +46,7 @@ export async function philipsHue(_params) {
     const entries = Object.entries(data);
     if (!entries.length) return "No lights found";
     return entries.map(([id, light]) =>
-      `[${id}] ${light.name} — ${light.state.on ? "ON" : "OFF"} — brightness: ${light.state.bri || "N/A"} — ${light.state.reachable ? "reachable" : "unreachable"}`
+      `[${id}] ${light.name} - ${light.state.on ? "ON" : "OFF"} - brightness: ${light.state.bri || "N/A"} - ${light.state.reachable ? "reachable" : "unreachable"}`
     ).join("\n");
   }
 

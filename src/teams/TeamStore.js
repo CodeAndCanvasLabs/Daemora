@@ -1,5 +1,5 @@
 /**
- * TeamStore — SQLite persistence for teams, members, tasks, and mailbox.
+ * TeamStore - SQLite persistence for teams, members, tasks, and mailbox.
  *
  * Pattern: ClawTeam's file-based persistence adapted for SQLite.
  * All operations are atomic via SQLite transactions.
