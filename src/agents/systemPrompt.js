@@ -173,13 +173,9 @@ function renderResponseFormat() {
   const channel = store?.channelMeta?.channel || "http";
   const richChannels = new Set(["http", "discord"]);
   const isRich = richChannels.has(channel);
-
-  return `# Response Format
-
-- Use tools to act. Text only when task is done or user input needed.
-- Progress mid-task → replyToUser(), then continue. Never finalize until done.
-- ${isRich ? "Markdown supported." : `Plain text only (${channel} — no markdown headers, bold, tables, code blocks).`}
-- 1-3 sentences. Lead with outcome.`;
+  // Only add channel-specific formatting hint (SOUL.md covers the rest)
+  if (isRich) return null; // markdown is default, no extra hint needed
+  return `Channel format: Plain text only (${channel} — no markdown headers, bold, tables, code blocks).`;
 }
 
 /** Inline tool summaries — so the model knows what it has (OpenClaw style) */
