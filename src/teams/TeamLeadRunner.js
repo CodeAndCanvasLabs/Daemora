@@ -190,7 +190,7 @@ async function _spawnWorker(teamId, ws, allState) {
 
 // ── Deterministic Orchestration Loop (Swarm) ────────────────────────────────
 
-async function _orchestrate(teamId, workerDefs) {
+async function _orchestrate(teamId, workerDefs, preCompletedWorkers = []) {
   const state = workerDefs.map(w => ({
     worker: w,
     member: null,
@@ -201,13 +201,37 @@ async function _orchestrate(teamId, workerDefs) {
     _promise: null,
   }));
 
-  // Create all members and tasks upfront
+  // Add pre-completed workers (from relaunch) so dependency context can find them
+  for (const cw of preCompletedWorkers) {
+    if (cw._preCompleted) {
+      state.push({
+        worker: cw,
+        member: null,
+        task: { id: cw._preCompleted.taskId },
+        done: true,
+        result: cw._preCompleted.result,
+        error: null,
+        _promise: null,
+        _preCompleted: true, // skip spawning
+      });
+    }
+  }
+
+  // Create members and tasks for non-pre-completed workers
   for (const ws of state) {
-    ws.member = store.addMember({
-      teamId, name: ws.worker.name, role: "worker",
-      profile: ws.worker.crew || ws.worker.profile,
-      skills: ws.worker.skills, instructions: ws.worker.task,
-    });
+    if (ws._preCompleted) continue; // already done from previous run
+    // Reuse existing member if re-launching, otherwise create new
+    const existing = store.getMemberByName(teamId, ws.worker.name);
+    if (existing) {
+      ws.member = existing;
+      store.updateMemberStatus(existing.id, "idle");
+    } else {
+      ws.member = store.addMember({
+        teamId, name: ws.worker.name, role: "worker",
+        profile: ws.worker.crew || ws.worker.profile,
+        skills: ws.worker.skills, instructions: ws.worker.task,
+      });
+    }
 
     ws.task = store.createTask({
       teamId, title: `[${ws.worker.name}] ${ws.worker.task.slice(0, 100)}`,
@@ -215,14 +239,15 @@ async function _orchestrate(teamId, workerDefs) {
     });
   }
 
-  // Resolve blockedByWorkers → actual task IDs
+  // Resolve blockedByWorkers → actual task IDs (skip already-completed deps)
   for (const ws of state) {
+    if (ws._preCompleted) continue;
     const deps = ws.worker.blockedByWorkers || ws.worker.blockedBy || [];
     if (deps.length > 0) {
       const blockedByTaskIds = [];
       for (const depName of deps) {
         const dep = state.find(s => s.worker.name === depName);
-        if (dep) blockedByTaskIds.push(dep.task.id);
+        if (dep && !dep.done) blockedByTaskIds.push(dep.task.id); // skip already-done deps
       }
       if (blockedByTaskIds.length > 0) {
         store.updateTask(ws.task.id, { status: "blocked", blocked_by: JSON.stringify(blockedByTaskIds) });
@@ -303,9 +328,11 @@ async function _orchestrate(teamId, workerDefs) {
 // ── Build Summary ───────────────────────────────────────────────────────────
 
 function _buildSummary(teamName, state) {
-  const completed = state.filter(ws => ws.done && !ws.error);
-  const failed = state.filter(ws => ws.done && ws.error);
-  const blocked = state.filter(ws => !ws.done);
+  // Exclude pre-completed entries (from relaunch) — they're not new work
+  const active = state.filter(ws => !ws._preCompleted);
+  const completed = active.filter(ws => ws.done && !ws.error);
+  const failed = active.filter(ws => ws.done && ws.error);
+  const blocked = active.filter(ws => !ws.done);
 
   const lines = [`Team "${teamName}" finished.`];
 
@@ -395,9 +422,20 @@ export async function relaunchTeam(teamId) {
     return `Team "${team.name}" already completed.`;
   }
 
+  // Inject completed workers as "already done" so dependency context works
+  // Workers that depend on completed ones will get their results in context
+  const completedWorkers = originalWorkers.filter(w => completedNames.has(w.name));
+  for (const cw of completedWorkers) {
+    const completedTask = tasks.find(t => t.assignee === cw.name && t.status === "completed");
+    if (completedTask) {
+      // Add a fake state entry so _buildDependencyContext finds it
+      cw._preCompleted = { taskId: completedTask.id, result: completedTask.result };
+    }
+  }
+
   console.log(`[TeamLeadRunner] Re-launching "${team.name}" (${teamId}) — ${completedNames.size} done, ${workersToRun.length} remaining`);
 
-  const state = await _orchestrate(teamId, workersToRun);
+  const state = await _orchestrate(teamId, workersToRun, completedWorkers);
 
   const allDone = state.every(ws => ws.done);
   const anyFailed = state.some(ws => ws.error);
