@@ -168,14 +168,22 @@ function renderUserProfile() {
   }
 }
 
+const CHANNEL_FORMAT = {
+  http:      null, // full markdown, no hint needed
+  discord:   null, // full markdown, no hint needed
+  telegram:  "Telegram formatting: bold (*text*), italic (_text_), code (`code`), links supported. NO tables, NO headers (#). Use bold and bullet lists for structure.",
+  whatsapp:  "WhatsApp formatting: bold (*text*), italic (_text_), monospace (```code```). NO tables, NO headers, NO links. Keep it clean and readable.",
+  slack:     "Slack mrkdwn: bold (*text*), italic (_text_), code (`code`), links (<url|label>). NO standard markdown headers (#). Use bold for sections.",
+  signal:    "Plain text only. No formatting, no markdown, no bold/italic. Use dashes and newlines for structure.",
+  imessage:  "Plain text only. No formatting, no markdown. Use dashes and newlines for structure.",
+};
+
 function renderResponseFormat() {
   const store = tenantContext.getStore();
   const channel = store?.channelMeta?.channel || "http";
-  const richChannels = new Set(["http", "discord"]);
-  const isRich = richChannels.has(channel);
-  // Only add channel-specific formatting hint (SOUL.md covers the rest)
-  if (isRich) return null; // markdown is default, no extra hint needed
-  return `Channel format: Plain text only (${channel} — no markdown headers, bold, tables, code blocks).`;
+  const hint = CHANNEL_FORMAT[channel];
+  if (!hint) return null;
+  return `## Channel Format\n\n${hint}`;
 }
 
 /** Inline tool summaries — so the model knows what it has (OpenClaw style) */
