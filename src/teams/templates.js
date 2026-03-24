@@ -19,7 +19,7 @@ export const TEAM_TEMPLATES = [
     workers: [
       {
         name: "backend-dev",
-        profile: "coder",
+        profile: "backend",
         taskTemplate: "Implement the backend: API routes, database schema, middleware, validation. Write clean, tested code. Use existing patterns from the codebase.",
         skills: ["coding", "api-development", "debugging"],
       },
@@ -52,7 +52,7 @@ export const TEAM_TEMPLATES = [
       },
       {
         name: "implementer",
-        profile: "coder",
+        profile: "backend",
         taskTemplate: "Implement the API based on the architect's design. Routes, controllers, middleware, database queries. Follow RESTful conventions.",
         skills: ["coding", "api-development", "debugging"],
         blockedByWorkers: ["api-architect"],
@@ -139,7 +139,7 @@ export const TEAM_TEMPLATES = [
       },
       {
         name: "pipeline-engineer",
-        profile: "coder",
+        profile: "backend",
         taskTemplate: "Build or update CI/CD pipeline: build, test, deploy stages. Handle environment variables, secrets, caching. Ensure rollback capability.",
         skills: ["devops", "coding"],
       },

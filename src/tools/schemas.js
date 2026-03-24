@@ -305,7 +305,7 @@ const toolSchemas = {
     schema: z.object({
       tasks: z.array(z.object({
         description: str("Task description — full brief, crew member has zero context"),
-        profile: str("Crew member ID — Dev: coder|architect|reviewer|tester|devops|security|database|frontend|api. Research: researcher|analyst|investigator. Content: writer|editor|translator. Business: planner|strategist|assistant. Ops: sysadmin|designer|coordinator"),
+        profile: str("Crew member ID — Dev: backend|frontend|reviewer|tester|devops|security|db-architect. Research: researcher|analyst. Content: writer|translator. Business: assistant|coordinator. Ops: sysadmin|meeting-attendant"),
       })).describe("Array of tasks to run simultaneously"),
       sharedContext: optStr("Context shared across all crew members"),
     }),
@@ -470,7 +470,7 @@ const toolSchemas = {
       constraints: optStr("Rules/limits for the team (for createTeam)"),
       workers: z.array(z.object({
         name: str("Worker name"),
-        profile: z.string().optional().describe("Agent profile: coder|researcher|writer|analyst|frontend|tester|devops"),
+        profile: z.string().optional().describe("Crew member: backend|frontend|reviewer|tester|devops|researcher|analyst|writer|translator|sysadmin|coordinator"),
         crew: z.string().optional().describe("Crew member ID as worker (e.g. 'database-connector') — use instead of profile"),
         task: str("Worker's specific assignment — full description"),
         skills: z.array(z.string()).optional().describe("Skill IDs to inject"),
