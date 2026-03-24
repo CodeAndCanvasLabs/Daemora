@@ -144,7 +144,7 @@ export function listTasks(teamId, { status = null, assignee = null } = {}) {
 export function updateTask(id, updates) {
   const fields = [];
   const params = { $id: id };
-  const allowed = ["status", "assignee", "plan", "plan_feedback", "result", "started_at", "completed_at"];
+  const allowed = ["status", "assignee", "plan", "plan_feedback", "result", "started_at", "completed_at", "blocked_by"];
   for (const key of allowed) {
     if (updates[key] !== undefined) {
       const col = key; // column names match

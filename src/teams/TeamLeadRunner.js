@@ -1,72 +1,31 @@
 /**
- * TeamLeadRunner - project team orchestration (ClawTeam pattern).
+ * TeamLeadRunner - Deterministic team orchestration (ClawTeam pattern).
  *
- * Architecture: Main Agent → Team Lead (sub-agent) → Workers (sub-agents)
+ * Architecture: Lead = CODE (not AI). Workers = AI sub-agents.
  *
- * Key behaviors (matching ClawTeam):
- * - Lead polls worker status every 30s via waitForWorkers (ClawTeam: 5s poll)
- * - Worker sessions persist - re-assigned workers get full history
- * - Workers submit plans → lead approves before execution
- * - All state in SQLite (survives restart)
- * - Lead gets curated tools (19), not full profile dump
- * - Crew members can be workers (specialist tools)
+ * The lead is a JavaScript loop that:
+ * 1. Creates all workers (spawns sub-agents) - deterministic
+ * 2. Waits for completion (Promise.allSettled) - deterministic
+ * 3. Handles dependencies (phase-based execution) - deterministic
+ * 4. Collects results and updates state - deterministic
+ *
+ * AI is ONLY in the workers doing actual work. Orchestration is pure code.
+ * All state in SQLite (survives restart).
  */
 
 import { tool } from "ai";
 import { z } from "zod";
 import { spawnSubAgent } from "../agents/SubAgentManager.js";
 import { buildContract } from "../agents/ContractBuilder.js";
-import { getRegistry } from "../crew/PluginRegistry.js";
 import { getSession, createSession, setMessages } from "../services/sessions.js";
 import { compactForSession } from "../utils/msgText.js";
-import { toolFunctions } from "../tools/index.js";
 import * as store from "./TeamStore.js";
 import tenantContext from "../tenants/TenantContext.js";
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-let POLL_INTERVAL_MS = parseInt(process.env.TEAM_POLL_INTERVAL_MS || "30000", 10);  // default 30s
-const POLL_TIMEOUT_MS = 1_800_000; // 30 min max wait
-
-/** Update poll interval at runtime (from UI/API) */
-export function setPollInterval(ms) { POLL_INTERVAL_MS = Math.max(5000, Math.min(ms, 300000)); }
-
-// Explicit lead tools - curated, not profile dump
-const LEAD_TOOLS = [
-  "readFile", "listDirectory", "glob", "grep", "gitTool",  // project awareness
-  "readMemory", "writeMemory", "searchMemory",               // memory
-  "webFetch", "webSearch",                                    // research
-  "replyToUser",                                              // communication
-  "useMCP", "useCrew",                                        // delegate to MCP servers + crew members
-];
-
-// ── Lead Crew Resolution ────────────────────────────────────────────────────
-
-const LEAD_CREW_MAP = {
-  coding: "project-lead-coding",
-  software: "project-lead-coding",
-  research: "project-lead-research",
-  analysis: "project-lead-research",
-};
-
-function _resolveLeadCrew(projectType) {
-  if (!projectType) return "project-lead-coding";
-  return LEAD_CREW_MAP[projectType.toLowerCase()] || "project-lead-coding";
-}
-
-function _getLeadProfile(crewId) {
-  try {
-    const registry = getRegistry();
-    const member = registry.crew.find(m => m.id === crewId && m.status === "loaded");
-    if (member?.manifest?.profile) {
-      return {
-        systemPrompt: member.manifest.profile.systemPrompt || null,
-        skills: member.manifest.skills || [],
-      };
-    }
-  } catch {}
-  return { systemPrompt: null, skills: [] };
-}
+const POLL_INTERVAL_MS = 5000; // 5s status check (ClawTeam: 5s)
+const TEAM_TIMEOUT_MS = 1_800_000; // 30 min max
 
 // ── Worker Session Persistence ──────────────────────────────────────────────
 
@@ -92,311 +51,13 @@ function _saveWorkerSession(teamId, workerName, messages) {
   setMessages(sessionId, compactForSession(capped));
 }
 
-// ── MCP + Crew context for lead ──────────────────────────────────────────────
+// ── Worker Tools (minimal - just reporting) ─────────────────────────────────
 
-async function _getMCPContext() {
-  try {
-    const { default: mcpManager } = await import("../mcp/MCPManager.js");
-    const servers = mcpManager?.getConnectedServersInfo?.() || [];
-    if (servers.length === 0) return "";
-    const list = servers.map(s => `- ${s.name} (${s.toolCount} tools)`).join("\n");
-    return `MCP Servers available (use useMCP to delegate):\n${list}`;
-  } catch { return ""; }
-}
-
-function _getCrewContext() {
-  try {
-    const registry = getRegistry();
-    const loaded = registry.crew?.filter(p => p.status === "loaded" && p.toolNames?.length > 0) || [];
-    if (loaded.length === 0) return "";
-    const list = loaded.map(p => `- ${p.id}: ${p.description || p.name} (${p.toolNames.join(", ")})`).join("\n");
-    return `Crew members available (use useCrew to delegate):\n${list}`;
-  } catch { return ""; }
-}
-
-// ── Team Lead Tools ─────────────────────────────────────────────────────────
-
-function buildLeadTools(teamId, leadName) {
-
-  const createWorker = tool({
-    description: "Create and spawn a worker. Worker gets full contract + previous session if re-assigned.",
-    inputSchema: z.object({
-      name: z.string().describe("Worker name (unique within team)"),
-      profile: z.string().optional().describe("Agent profile: coder|researcher|writer|analyst|frontend|tester|devops"),
-      crew: z.string().optional().describe("Crew member ID (e.g. 'database-connector'). Use instead of profile."),
-      task: z.string().describe("Full task description with complete context. Worker will execute directly from this - include: what to build, which files/paths, tech stack, API contracts, expected output. Worker does NOT plan - your description IS the plan."),
-      skills: z.array(z.string()).optional().describe("Skill IDs to inject"),
-      blockedBy: z.array(z.string()).optional().describe("Task IDs this depends on"),
-    }),
-    execute: async (params) => {
-      try {
-        if (!params.profile && !params.crew) return "Error: either profile or crew is required.";
-
-        // Dedup: reject if worker with same name already exists in this team
-        const existing = store.getMemberByName(teamId, params.name);
-        if (existing) {
-          return `Worker "${params.name}" already exists (status: ${existing.status}). Use a different name or check status.`;
-        }
-
-        // Cap: max 10 workers per team
-        const allMembers = store.listMembers(teamId).filter(m => m.role === "worker");
-        if (allMembers.length >= 10) {
-          return `Error: team already has ${allMembers.length} workers (max 10). Use existing workers or disband and recreate.`;
-        }
-
-        const member = store.addMember({
-          teamId, name: params.name, role: "worker",
-          profile: params.crew || params.profile,
-          skills: params.skills, instructions: params.task,
-        });
-
-        const task = store.createTask({
-          teamId, title: `[${params.name}] ${params.task.slice(0, 100)}`,
-          description: params.task, assignee: params.name, priority: 2,
-          blockedBy: params.blockedBy,
-        });
-
-        if (params.blockedBy?.length > 0) {
-          store.updateTask(task.id, { status: "blocked" });
-        }
-
-        // Build worker contract
-        const workerContract = buildContract({
-          task: params.task,
-          context: `You are "${params.name}" on team "${teamId}". Your team lead assigned this task.`,
-          constraints: "Your lead already planned the work. Execute the task directly - no re-planning needed.\n1. Read relevant files/context to understand what exists.\n2. Execute: create files, write code, run commands - whatever the task requires.\n3. Verify: run tests, read back files, check builds.\n4. Report via completeTask with what you built and verification results.\n5. Blockers → sendToLead.",
-        });
-
-        const workerTools = buildWorkerTools(teamId, params.name, task.id);
-
-        // Load previous session if worker was re-assigned (context continuity)
-        const historyMessages = _loadWorkerHistory(teamId, params.name);
-        if (historyMessages.length > 0) {
-          console.log(`[Team:${teamId}] Worker "${params.name}" loaded ${historyMessages.length} previous messages`);
-        }
-
-        store.updateMemberStatus(member.id, "working");
-        store.updateTask(task.id, { status: "assigned", started_at: new Date().toISOString() });
-
-        // Spawn worker
-        const spawnPromise = params.crew
-          ? import("../crew/CrewAgentRunner.js").then(({ runCrewAgent }) =>
-              runCrewAgent(params.crew, workerContract, {})
-            )
-          : spawnSubAgent(workerContract, {
-              profile: params.profile,
-              skills: params.skills,
-              aiToolOverrides: workerTools,
-              historyMessages,
-              depth: 2,
-              returnFullResult: true,
-            });
-
-        spawnPromise.then(result => {
-          store.updateMemberStatus(member.id, "done");
-          // Save worker session for future re-assignment
-          if (result?.messages) _saveWorkerSession(teamId, params.name, result.messages);
-          console.log(`[Team:${teamId}] Worker "${params.name}" finished`);
-        }).catch(err => {
-          store.updateMemberStatus(member.id, "failed");
-          console.log(`[Team:${teamId}] Worker "${params.name}" failed: ${err.message}`);
-        });
-
-        return `Worker "${params.name}" (${params.crew || params.profile}) spawned. Task: ${task.id}. ${params.blockedBy?.length ? "Blocked by: " + params.blockedBy.join(", ") : "Ready."}${historyMessages.length > 0 ? " (loaded previous context)" : ""}`;
-      } catch (err) {
-        return `Error: ${err.message}`;
-      }
-    },
-  });
-
-  const assignTask = tool({
-    description: "Create and assign a new task to an existing worker",
-    inputSchema: z.object({
-      workerName: z.string().describe("Worker name"),
-      title: z.string().describe("Task title"),
-      description: z.string().describe("Full task description"),
-      priority: z.number().optional().describe("1=low, 2=medium, 3=high, 4=critical"),
-      blockedBy: z.array(z.string()).optional(),
-    }),
-    execute: async (params) => {
-      const task = store.createTask({
-        teamId, title: params.title, description: params.description,
-        assignee: params.workerName, priority: params.priority || 2,
-        blockedBy: params.blockedBy,
-      });
-      store.sendMessage({ teamId, from: leadName, to: params.workerName, msgType: "message",
-        content: `New task: "${params.title}" (${task.id}). ${params.description}` });
-      return `Task "${params.title}" (${task.id}) assigned to ${params.workerName}.`;
-    },
-  });
-
-  const waitForWorkers = tool({
-    description: "Wait for workers to submit plans or complete tasks. Polls every 30 seconds. Use after creating workers.",
-    inputSchema: z.object({
-      waitFor: z.enum(["plans", "completion"]).describe("Wait for plan submissions or task completions"),
-    }),
-    execute: async (params) => {
-      const startTime = Date.now();
-      const waitingFor = params.waitFor;
-
-      while (Date.now() - startTime < POLL_TIMEOUT_MS) {
-        const tasks = store.listTasks(teamId);
-        const unread = store.unreadCount(teamId, leadName);
-
-        if (waitingFor === "plans") {
-          // Check if any worker submitted a plan
-          const planSubmitted = tasks.some(t => t.status === "plan_submitted");
-          if (planSubmitted || unread > 0) {
-            const submitted = tasks.filter(t => t.status === "plan_submitted");
-            return `${submitted.length} plan(s) submitted. ${unread} unread message(s). Use reviewPlan to read them.`;
-          }
-        } else {
-          // Check if all assigned tasks are completed
-          const active = tasks.filter(t => ["assigned", "plan_submitted", "approved", "in_progress"].includes(t.status));
-          const completed = tasks.filter(t => t.status === "completed");
-          const failed = tasks.filter(t => t.status === "failed");
-          if (active.length === 0 && (completed.length > 0 || failed.length > 0)) {
-            return `All tasks done. Completed: ${completed.length}, Failed: ${failed.length}. Use checkStatus for details.`;
-          }
-          // Check for messages even while waiting
-          if (unread > 0) {
-            return `${active.length} task(s) still in progress. ${unread} unread message(s) - check them with reviewPlan.`;
-          }
-        }
-
-        // Poll interval - actually wait (blocks the tool, not the model)
-        await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
-      }
-
-      return `Timeout after ${POLL_TIMEOUT_MS / 60000} minutes. Use checkStatus to see current state.`;
-    },
-  });
-
-  const reviewPlan = tool({
-    description: "Read mailbox - plan submissions, status updates, messages from workers",
-    inputSchema: z.object({}),
-    execute: async () => {
-      const msgs = store.readMessages(teamId, leadName);
-      if (msgs.length === 0) return "No new messages.";
-      return msgs.map(m => `[${m.msgType}] from "${m.from}"${m.requestId ? ` (ref: ${m.requestId})` : ""}:\n${m.content}`).join("\n\n---\n\n");
-    },
-  });
-
-  const approvePlan = tool({
-    description: "Approve or reject a worker's submitted plan",
-    inputSchema: z.object({
-      workerName: z.string(),
-      requestId: z.string().describe("Plan request ID from reviewPlan"),
-      approved: z.boolean(),
-      feedback: z.string().optional(),
-    }),
-    execute: async (params) => {
-      const msgType = params.approved ? "plan_approved" : "plan_rejected";
-      store.sendMessage({ teamId, from: leadName, to: params.workerName, msgType,
-        content: params.feedback || (params.approved ? "Plan approved. Proceed." : "Plan rejected. Revise."),
-        requestId: params.requestId });
-      if (params.approved) {
-        const tasks = store.listTasks(teamId, { assignee: params.workerName });
-        for (const t of tasks) {
-          if (t.status === "plan_submitted" || t.status === "assigned") {
-            store.updateTask(t.id, { status: "in_progress" });
-          }
-        }
-      }
-      return `Plan ${params.approved ? "approved" : "rejected"} for ${params.workerName}.`;
-    },
-  });
-
-  const checkStatus = tool({
-    description: "Full team status - members, tasks, messages",
-    inputSchema: z.object({}),
-    execute: async () => {
-      const members = store.listMembers(teamId);
-      const tasks = store.listTasks(teamId);
-      const memberLines = members.filter(m => m.role !== "lead").map(m =>
-        `  ${m.name} [${m.profile}] - ${m.status}`
-      ).join("\n");
-      const taskLines = tasks.map(t => {
-        const blocked = t.blockedBy?.length ? ` (blocked by: ${t.blockedBy.join(", ")})` : "";
-        return `  ${t.id} "${t.title}" - ${t.status} → ${t.assignee || "unassigned"}${blocked}`;
-      }).join("\n");
-      const unread = store.unreadCount(teamId, leadName);
-      return `TEAM STATUS:\n\nWorkers:\n${memberLines || "  (none)"}\n\nTasks:\n${taskLines || "  (none)"}\n\nUnread: ${unread}`;
-    },
-  });
-
-  const sendMsg = tool({
-    description: "Message a worker ('*' for broadcast)",
-    inputSchema: z.object({
-      to: z.string(), message: z.string(),
-    }),
-    execute: async (params) => {
-      if (params.to === "*") {
-        store.broadcastMessage({ teamId, from: leadName, content: params.message });
-        return "Broadcast sent.";
-      }
-      store.sendMessage({ teamId, from: leadName, to: params.to, msgType: "message", content: params.message });
-      return `Sent to ${params.to}.`;
-    },
-  });
-
-  const suggestFeature = tool({
-    description: "Suggest scope change to main agent (don't wait - continue current work)",
-    inputSchema: z.object({
-      title: z.string(), description: z.string(), impact: z.string().optional(),
-    }),
-    execute: async (params) => {
-      store.sendMessage({ teamId, from: leadName, to: "main-agent", msgType: "feature_suggestion",
-        content: `Feature: ${params.title}\n${params.description}${params.impact ? "\nImpact: " + params.impact : ""}` });
-      return `Feature "${params.title}" suggested. Continue working.`;
-    },
-  });
-
-  const completeTeam = tool({
-    description: "All tasks done - report final results to main agent",
-    inputSchema: z.object({
-      summary: z.string().describe("What was accomplished"),
-    }),
-    execute: async (params) => {
-      store.updateTeamStatus(teamId, "completed");
-      store.broadcastMessage({ teamId, from: leadName, msgType: "shutdown_request", content: "Team completed." });
-      return params.summary;
-    },
-  });
-
-  return { createWorker, assignTask, waitForWorkers, reviewPlan, approvePlan, checkStatus, sendMessage: sendMsg, suggestFeature, completeTeam };
-}
-
-// ── Worker Tools ────────────────────────────────────────────────────────────
-
-function buildWorkerTools(teamId, workerName, taskId) {
-  const submitPlan = tool({
-    description: "Submit your execution plan to lead. REQUIRED before starting work.",
-    inputSchema: z.object({
-      plan: z.string().describe("Your plan - what you'll do, in what order, what tools"),
-    }),
-    execute: async (params) => {
-      store.updateTask(taskId, { plan: params.plan, status: "plan_submitted" });
-      store.sendMessage({ teamId, from: workerName, to: "lead", msgType: "plan_request",
-        content: params.plan, requestId: `plan-${taskId}` });
-      return "Plan submitted. Proceed with execution now.";
-    },
-  });
-
-  const readMail = tool({
-    description: "Check mailbox for messages from lead (approvals, feedback, instructions)",
-    inputSchema: z.object({}),
-    execute: async () => {
-      const msgs = store.readMessages(teamId, workerName);
-      if (msgs.length === 0) return "No new messages.";
-      return msgs.map(m => `[${m.msgType}] from ${m.from}: ${m.content}`).join("\n\n");
-    },
-  });
-
+function _buildWorkerTools(teamId, workerName, taskId) {
   const completeTask = tool({
-    description: "Mark task as completed",
+    description: "Mark your task as completed with a summary of what you built",
     inputSchema: z.object({
-      result: z.string().describe("What you accomplished"),
+      result: z.string().describe("What you accomplished - files created, endpoints built, etc."),
     }),
     execute: async (params) => {
       store.updateTask(taskId, { status: "completed", result: params.result, completed_at: new Date().toISOString() });
@@ -408,18 +69,225 @@ function buildWorkerTools(teamId, workerName, taskId) {
   });
 
   const sendToLead = tool({
-    description: "Message the lead (questions, blockers, updates)",
+    description: "Report a blocker, question, or progress update to the lead",
     inputSchema: z.object({ message: z.string() }),
     execute: async (params) => {
       store.sendMessage({ teamId, from: workerName, to: "lead", msgType: "message", content: params.message });
-      return "Sent to lead.";
+      return "Logged.";
     },
   });
 
-  return { submitPlan, readMail, completeTask, sendToLead };
+  return { completeTask, sendToLead };
 }
 
-// ── Run Team ────────────────────────────────────────────────────────────────
+// ── Spawn a single worker ───────────────────────────────────────────────────
+
+async function _spawnWorker(teamId, worker, member, task) {
+  const contract = buildContract({
+    task: worker.task,
+    context: `You are "${worker.name}" on team "${teamId}". Execute this task fully and autonomously.`,
+    constraints: "Execute the task directly. Do not ask for confirmation.\n1. Read relevant files/context to understand what exists.\n2. Execute: create files, write code, run commands.\n3. Verify your work: run tests, read back files, check builds.\n4. Call completeTask with a summary of what you built.\n5. Blockers → sendToLead.",
+  });
+
+  const workerTools = _buildWorkerTools(teamId, worker.name, task.id);
+  const historyMessages = _loadWorkerHistory(teamId, worker.name);
+
+  if (historyMessages.length > 0) {
+    console.log(`[Team:${teamId}] Worker "${worker.name}" loaded ${historyMessages.length} previous messages`);
+  }
+
+  store.updateMemberStatus(member.id, "working");
+  store.updateTask(task.id, { status: "assigned", started_at: new Date().toISOString() });
+
+  // Spawn worker as sub-agent
+  const result = worker.crew
+    ? await import("../crew/CrewAgentRunner.js").then(({ runCrewAgent }) =>
+        runCrewAgent(worker.crew, contract, {})
+      )
+    : await spawnSubAgent(contract, {
+        profile: worker.profile,
+        skills: worker.skills,
+        aiToolOverrides: workerTools,
+        historyMessages,
+        depth: 1,
+        returnFullResult: true,
+      });
+
+  // Save session for future re-assignment
+  if (result?.messages) _saveWorkerSession(teamId, worker.name, result.messages);
+
+  return result;
+}
+
+// ── Deterministic Orchestration Loop ────────────────────────────────────────
+
+/**
+ * Phase-based execution:
+ * 1. Spawn all workers that are not blocked
+ * 2. Wait for them to finish (Promise.allSettled)
+ * 3. Process results, resolve dependencies
+ * 4. Repeat for newly unblocked workers
+ * 5. Stop when all done or deadlocked
+ */
+async function _orchestrate(teamId, workerDefs) {
+  // Track state for each worker
+  const state = workerDefs.map(w => ({
+    worker: w,
+    member: null,
+    task: null,
+    done: false,
+    result: null,
+    error: null,
+  }));
+
+  // Create all members and tasks upfront
+  for (const ws of state) {
+    ws.member = store.addMember({
+      teamId, name: ws.worker.name, role: "worker",
+      profile: ws.worker.crew || ws.worker.profile,
+      skills: ws.worker.skills, instructions: ws.worker.task,
+    });
+
+    ws.task = store.createTask({
+      teamId, title: `[${ws.worker.name}] ${ws.worker.task.slice(0, 100)}`,
+      description: ws.worker.task, assignee: ws.worker.name, priority: 2,
+    });
+  }
+
+  // Resolve blockedByWorkers → actual task IDs
+  for (const ws of state) {
+    const blockedByWorkers = ws.worker.blockedByWorkers || ws.worker.blockedBy || [];
+    if (blockedByWorkers.length > 0) {
+      const blockedByTaskIds = [];
+      for (const depName of blockedByWorkers) {
+        const dep = state.find(s => s.worker.name === depName);
+        if (dep) blockedByTaskIds.push(dep.task.id);
+      }
+      if (blockedByTaskIds.length > 0) {
+        store.updateTask(ws.task.id, { status: "blocked", blocked_by: JSON.stringify(blockedByTaskIds) });
+      }
+    }
+  }
+
+  const startTime = Date.now();
+
+  // Phase loop: spawn ready → wait → resolve deps → repeat
+  while (true) {
+    // Timeout check
+    if (Date.now() - startTime > TEAM_TIMEOUT_MS) {
+      console.log(`[Team:${teamId}] Timeout after ${TEAM_TIMEOUT_MS / 60000} minutes`);
+      break;
+    }
+
+    // Find workers ready to spawn (not done, not blocked, not already running)
+    const ready = state.filter(ws => {
+      if (ws.done || ws._promise) return false;
+      const taskRow = store.getTask(ws.task.id);
+      return taskRow && taskRow.status !== "blocked";
+    });
+
+    if (ready.length === 0) {
+      // Check if we're done or deadlocked
+      const allDone = state.every(ws => ws.done);
+      const anyRunning = state.some(ws => ws._promise && !ws.done);
+      if (allDone || !anyRunning) break;
+
+      // Workers still running, wait a bit
+      await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+      continue;
+    }
+
+    // Spawn all ready workers in parallel
+    console.log(`[Team:${teamId}] Spawning ${ready.length} worker(s): ${ready.map(ws => ws.worker.name).join(", ")}`);
+
+    for (const ws of ready) {
+      ws._promise = _spawnWorker(teamId, ws.worker, ws.member, ws.task)
+        .then(result => {
+          ws.done = true;
+          ws.result = result;
+          store.updateMemberStatus(ws.member.id, "done");
+          // Task may already be marked completed by completeTask tool
+          const taskRow = store.getTask(ws.task.id);
+          if (taskRow && taskRow.status !== "completed") {
+            store.updateTask(ws.task.id, {
+              status: "completed",
+              result: typeof result === "string" ? result : result?.text || "Done",
+              completed_at: new Date().toISOString(),
+            });
+            store.resolveDependencies(teamId, ws.task.id);
+          }
+          console.log(`[Team:${teamId}] Worker "${ws.worker.name}" completed`);
+        })
+        .catch(err => {
+          ws.done = true;
+          ws.error = err;
+          store.updateMemberStatus(ws.member.id, "failed");
+          store.updateTask(ws.task.id, { status: "failed" });
+          console.log(`[Team:${teamId}] Worker "${ws.worker.name}" failed: ${err.message}`);
+        });
+    }
+
+    // Wait for at least one to finish before checking deps again
+    const running = state.filter(ws => ws._promise && !ws.done);
+    if (running.length > 0) {
+      await Promise.race(running.map(ws => ws._promise));
+    }
+  }
+
+  // Wait for any remaining promises
+  const remaining = state.filter(ws => ws._promise && !ws.done);
+  if (remaining.length > 0) {
+    await Promise.allSettled(remaining.map(ws => ws._promise));
+  }
+
+  return state;
+}
+
+// ── Build Summary ───────────────────────────────────────────────────────────
+
+function _buildSummary(teamName, state) {
+  const completed = state.filter(ws => ws.done && !ws.error);
+  const failed = state.filter(ws => ws.done && ws.error);
+  const blocked = state.filter(ws => !ws.done);
+
+  const lines = [`Team "${teamName}" finished.`];
+
+  if (completed.length > 0) {
+    lines.push(`\nCompleted (${completed.length}):`);
+    for (const ws of completed) {
+      const taskRow = store.getTask(ws.task.id);
+      const result = taskRow?.result || ws.result?.text || "Done";
+      lines.push(`  - ${ws.worker.name}: ${result.slice(0, 200)}`);
+    }
+  }
+
+  if (failed.length > 0) {
+    lines.push(`\nFailed (${failed.length}):`);
+    for (const ws of failed) {
+      lines.push(`  - ${ws.worker.name}: ${ws.error?.message || "Unknown error"}`);
+    }
+  }
+
+  if (blocked.length > 0) {
+    lines.push(`\nBlocked/Unfinished (${blocked.length}):`);
+    for (const ws of blocked) {
+      lines.push(`  - ${ws.worker.name}`);
+    }
+  }
+
+  // Collect worker messages
+  const messages = store.readMessages(state[0]?.task?.teamId || "", "lead");
+  if (messages.length > 0) {
+    lines.push(`\nWorker messages (${messages.length}):`);
+    for (const m of messages.slice(0, 10)) {
+      lines.push(`  [${m.from}] ${m.content?.slice(0, 150)}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+// ── Run Team (public) ───────────────────────────────────────────────────────
 
 export async function runTeam({ name, leadContract, workers, project = null, projectType = null, projectRepo = null, projectStack = null }) {
   const ctx = tenantContext.getStore();
@@ -431,70 +299,28 @@ export async function runTeam({ name, leadContract, workers, project = null, pro
     requirements: leadContract.task,
   });
 
-  const lead = store.addMember({ teamId: team.id, name: "lead", role: "lead", profile: "coordinator", instructions: leadContract.task });
+  const lead = store.addMember({ teamId: team.id, name: "lead", role: "lead", profile: "orchestrator", instructions: leadContract.task });
   store.updateMemberStatus(lead.id, "working");
 
-  const leadCrewId = _resolveLeadCrew(projectType);
-  const leadProfile = _getLeadProfile(leadCrewId);
+  console.log(`[TeamLeadRunner] Created team "${name}" (${team.id}), ${workers.length} worker(s)`);
+  console.log(`[TeamLeadRunner] Workers: ${workers.map(w => `${w.name} (${w.crew || w.profile})`).join(", ")}`);
 
-  console.log(`[TeamLeadRunner] Created team "${name}" (${team.id}), ${workers.length} workers, lead: ${leadCrewId}`);
-
-  const workerBrief = workers.map((w, i) =>
-    `${i + 1}. ${w.name} (${w.crew || w.profile}) - ${w.task.slice(0, 100)}`
-  ).join("\n");
-
-  const leadPrompt = buildContract({
-    task: leadContract.task,
-    context: [
-      leadContract.context || "",
-      `\nTeam "${name}" (${team.id}).`,
-      projectRepo ? `Repo: ${projectRepo}` : "",
-      projectStack ? `Stack: ${projectStack}` : "",
-      `\nPlanned workers:\n${workerBrief}`,
-      `\nWork loop:`,
-      `1. Read project structure if needed (listDirectory, readFile)`,
-      `2. Create each worker using createWorker with FULL task contracts (you are the planner, workers execute directly)`,
-      `3. Call waitForWorkers("completion") - blocks until tasks done`,
-      `4. checkStatus → verify all complete`,
-      `5. completeTeam with summary`,
-    ].filter(Boolean).join("\n"),
-    constraints: [
-      "AUTONOMOUS: Execute immediately. First action = createWorker calls. No text output, no plans, no confirmation requests.",
-      leadContract.constraints || "Ensure all workers complete. Report blockers.",
-    ].join("\n"),
-  });
-
-  const leadTools = buildLeadTools(team.id, "lead");
-
-  // Build explicit lead tool map (curated - not full profile)
-  const leadBaseTools = {};
-  for (const name of LEAD_TOOLS) {
-    if (toolFunctions[name]) leadBaseTools[name] = toolFunctions[name];
-  }
-
-  // Build MCP + crew context so lead knows what's available
-  const mcpContext = await _getMCPContext();
-  const crewContext = _getCrewContext();
-  const extraContext = [mcpContext, crewContext].filter(Boolean).join("\n\n");
-
-  const result = await spawnSubAgent(leadPrompt, {
-    toolOverride: leadBaseTools,
-    aiToolOverrides: leadTools,
-    skills: leadProfile.skills || null,
-    parentContext: [
-      leadProfile.systemPrompt || "You are the Team Lead. Delegate - never do the work yourself.",
-      extraContext,
-    ].filter(Boolean).join("\n\n"),
-    depth: 1,
-  });
+  // Deterministic orchestration - no AI lead
+  const state = await _orchestrate(team.id, workers);
 
   store.updateMemberStatus(lead.id, "done");
-  store.updateTeamStatus(team.id, "completed");
 
-  return typeof result === "string" ? result : result?.text || "Team completed.";
+  const allDone = state.every(ws => ws.done);
+  const anyFailed = state.some(ws => ws.error);
+  store.updateTeamStatus(team.id, allDone && !anyFailed ? "completed" : "completed");
+
+  const summary = _buildSummary(name, state);
+  console.log(`[TeamLeadRunner] ${summary.split("\n")[0]}`);
+
+  return summary;
 }
 
-// ── Relaunch Team ───────────────────────────────────────────────────────────
+// ── Relaunch Team (public) ──────────────────────────────────────────────────
 
 export async function relaunchTeam(teamId) {
   const team = store.getTeam(teamId);
@@ -503,66 +329,28 @@ export async function relaunchTeam(teamId) {
 
   if (team.status === "paused") store.updateTeamStatus(teamId, "active");
 
+  // Find incomplete workers from original config
   const tasks = store.listTasks(teamId);
-  const members = store.listMembers(teamId);
-  const completed = tasks.filter(t => t.status === "completed");
-  const pending = tasks.filter(t => ["pending", "assigned", "blocked", "in_progress", "plan_submitted"].includes(t.status));
-  const failed = tasks.filter(t => t.status === "failed");
-
-  // Build explicit worker list from original config
-  const originalWorkers = team.config?.workers || [];
   const completedNames = new Set(
-    completed.map(t => t.assignee).filter(Boolean)
+    tasks.filter(t => t.status === "completed").map(t => t.assignee).filter(Boolean)
   );
-  const workersToCreate = originalWorkers.filter(w => !completedNames.has(w.name));
 
-  const workerInstructions = workersToCreate.length > 0
-    ? `\nCreate EXACTLY these workers (use these exact names and profiles):\n${workersToCreate.map((w, i) =>
-        `${i + 1}. name: "${w.name}", profile: "${w.crew || w.profile}", task: "${w.task}"`
-      ).join("\n")}\n\nDo NOT create any other workers. Do NOT rename them.`
-    : "\nAll workers completed. Verify results and call completeTeam.";
+  const originalWorkers = team.config?.workers || [];
+  const workersToRun = originalWorkers.filter(w => !completedNames.has(w.name));
 
-  const stateContext = [
-    `RE-LAUNCHING project "${team.project || team.name}" (${teamId}).`,
-    completed.length > 0 ? `Completed: ${completed.length}\n${completed.map(t => `  ✅ "${t.title}" → ${(t.result || "done").slice(0, 80)}`).join("\n")}` : "",
-    failed.length > 0 ? `Failed: ${failed.length}\n${failed.map(t => `  ❌ "${t.title}"`).join("\n")}` : "",
-    workerInstructions,
-    team.requirements ? `\nRequirements: ${team.requirements.slice(0, 500)}` : "",
-    team.projectRepo ? `Repo: ${team.projectRepo}` : "",
-    team.projectStack ? `Stack: ${team.projectStack}` : "",
-  ].filter(Boolean).join("\n");
-
-  const leadPrompt = buildContract({
-    task: `Resume project "${team.project || team.name}". Review state, continue to completion.`,
-    context: stateContext,
-    constraints: "AUTONOMOUS: Execute immediately. First action = createWorker calls for incomplete tasks. No text output, no plans, no confirmation requests.\nRe-create workers only for incomplete tasks. Workers will have their previous context.",
-  });
-
-  const leadCrewId = _resolveLeadCrew(team.projectType);
-  const leadProfile = _getLeadProfile(leadCrewId);
-  const leadTools = buildLeadTools(teamId, "lead");
-
-  const leadBaseTools = {};
-  for (const name of LEAD_TOOLS) {
-    if (toolFunctions[name]) leadBaseTools[name] = toolFunctions[name];
+  if (workersToRun.length === 0) {
+    store.updateTeamStatus(teamId, "completed");
+    return `Team "${team.name}" already completed - all workers finished.`;
   }
 
-  console.log(`[TeamLeadRunner] Re-launching "${team.name}" (${teamId}) - ${completed.length} done, ${pending.length} pending`);
+  console.log(`[TeamLeadRunner] Re-launching "${team.name}" (${teamId}) - ${completedNames.size} done, ${workersToRun.length} remaining`);
 
-  const mcpCtx = await _getMCPContext();
-  const crewCtx = _getCrewContext();
-  const extraCtx = [mcpCtx, crewCtx].filter(Boolean).join("\n\n");
+  // Run the remaining workers through the same deterministic loop
+  const state = await _orchestrate(teamId, workersToRun);
 
-  const result = await spawnSubAgent(leadPrompt, {
-    toolOverride: leadBaseTools,
-    aiToolOverrides: leadTools,
-    skills: leadProfile.skills || null,
-    parentContext: [
-      leadProfile.systemPrompt || "You are the Team Lead resuming a project.",
-      extraCtx,
-    ].filter(Boolean).join("\n\n"),
-    depth: 1,
-  });
+  const allDone = state.every(ws => ws.done);
+  const anyFailed = state.some(ws => ws.error);
+  store.updateTeamStatus(teamId, allDone && !anyFailed ? "completed" : "completed");
 
-  return typeof result === "string" ? result : result?.text || "Team resumed.";
+  return _buildSummary(team.name, state);
 }
