@@ -5,11 +5,11 @@ triggers: api, rest, endpoint, route, controller, middleware, request, response,
 ---
 ## Workflow: Design → Implement → Validate → Test → Document
 
-1. **Design** — define routes, HTTP methods, request/response shapes. Follow REST conventions.
-2. **Implement** — write handler, validation, business logic. Keep handlers thin.
-3. **Validate** — validate request body/params/query at the boundary. Return 400 for bad input.
-4. **Test** — `curl` or write a test. Check success + error cases + edge cases.
-5. **Document** — update API docs or add inline route comments.
+1. **Design** - define routes, HTTP methods, request/response shapes. Follow REST conventions.
+2. **Implement** - write handler, validation, business logic. Keep handlers thin.
+3. **Validate** - validate request body/params/query at the boundary. Return 400 for bad input.
+4. **Test** - `curl` or write a test. Check success + error cases + edge cases.
+5. **Document** - update API docs or add inline route comments.
 
 ## REST Conventions
 - `GET /items` → list, `GET /items/:id` → get one
@@ -28,7 +28,7 @@ triggers: api, rest, endpoint, route, controller, middleware, request, response,
 ```
 
 ## Security
-- Validate all input at the boundary — never trust client data
+- Validate all input at the boundary - never trust client data
 - Use parameterized queries (no SQL injection)
 - Rate limit public endpoints
 - Don't expose stack traces in production errors

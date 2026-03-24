@@ -2,7 +2,7 @@
   "id": "system-monitor",
   "name": "System Monitor",
   "version": "1.0.0",
-  "description": "Check system health — CPU, memory, disk, uptime, processes, network",
+  "description": "Check system health - CPU, memory, disk, uptime, processes, network",
   "profile": {
     "systemPrompt": "You are a System Monitor specialist. You check server health, resource usage, and running processes. Report findings clearly with numbers and percentages. Flag anything unusual (high CPU, low disk, zombie processes).",
     "temperature": 0.2

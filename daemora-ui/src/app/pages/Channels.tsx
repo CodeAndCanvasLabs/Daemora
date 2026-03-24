@@ -171,7 +171,7 @@ export function Channels() {
                     </div>
                   </div>
 
-                  {/* Required Env Vars — Input Fields */}
+                  {/* Required Env Vars - Input Fields */}
                   <div>
                     <h4 className="text-xs font-semibold text-[#4ECDC4] uppercase tracking-wider mb-3">
                       Configuration

@@ -1,5 +1,5 @@
 /**
- * MorningPulse — create a default daily briefing cron job per tenant.
+ * MorningPulse - create a default daily briefing cron job per tenant.
  * Uses existing Scheduler infrastructure. No new backend needed.
  */
 import scheduler from "./Scheduler.js";
@@ -18,8 +18,8 @@ const DEFAULT_TASK = [
 /**
  * Create a Morning Pulse cron job for a tenant (if one doesn't exist).
  * @param {string} tenantId
- * @param {string} [timezone] — IANA timezone (default: UTC)
- * @param {object} [delivery] — { mode, channel, channelMeta }
+ * @param {string} [timezone] - IANA timezone (default: UTC)
+ * @param {object} [delivery] - { mode, channel, channelMeta }
  * @returns {object} created or existing job
  */
 export function createMorningPulse(tenantId, timezone, delivery) {
@@ -32,7 +32,7 @@ export function createMorningPulse(tenantId, timezone, delivery) {
     schedule: { kind: "cron", expr: DEFAULT_CRON, tz: timezone || null },
     taskInput: DEFAULT_TASK,
     delivery: delivery || { mode: "none" },
-    description: "Daily morning briefing — summarizes your day ahead.",
+    description: "Daily morning briefing - summarizes your day ahead.",
   });
 
   console.log(`[MorningPulse] Created for tenant ${tenantId} at ${DEFAULT_CRON}${timezone ? ` (${timezone})` : ""}`);

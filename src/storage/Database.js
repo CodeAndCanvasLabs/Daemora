@@ -244,7 +244,7 @@ function _initTables(db) {
 
 // ── Schema Migrations ────────────────────────────────────────────────────────
 // ALTER TABLE for columns added after initial schema creation.
-// Each migration is idempotent — silently skipped if column already exists.
+// Each migration is idempotent - silently skipped if column already exists.
 
 function _runMigrations(db) {
   // Add column only when missing. exec() throws on failure in node:sqlite.
@@ -355,7 +355,7 @@ function _runMigrations(db) {
     CREATE INDEX IF NOT EXISTS idx_watchers_enabled ON watchers(enabled);
   `);
 
-  // Channel routing cache — stores channelMeta for watcher/cron delivery
+  // Channel routing cache - stores channelMeta for watcher/cron delivery
   // Works without tenants (global setup) and with tenants
   db.exec(`
     CREATE TABLE IF NOT EXISTS channel_routing (
@@ -366,6 +366,95 @@ function _runMigrations(db) {
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       PRIMARY KEY (channel, user_id)
     );
+  `);
+
+  // Teams: add project fields (migration)
+  const _teamCols = () => {
+    try { return db.prepare("PRAGMA table_info(teams)").all().map(r => r.name); } catch { return []; }
+  };
+  const tc = _teamCols();
+  if (tc.length > 0 && !tc.includes("project")) {
+    for (const col of ["project TEXT", "project_type TEXT", "project_repo TEXT", "project_stack TEXT", "requirements TEXT"]) {
+      try { db.exec(`ALTER TABLE teams ADD COLUMN ${col}`); } catch {}
+    }
+    console.log("[Database] Migration: added teams project fields");
+  }
+
+  // ── Team System (persistent, ClawTeam pattern) ─────────────────────────────
+
+  // Teams
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS teams (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      tenant_id TEXT,
+      lead_agent_id TEXT,
+      lead_session_id TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      config TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_teams_tenant ON teams(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_teams_status ON teams(status);
+  `);
+
+  // Team members
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS team_members (
+      id TEXT PRIMARY KEY,
+      team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'worker',
+      agent_id TEXT,
+      session_id TEXT,
+      profile TEXT,
+      skills TEXT,
+      status TEXT NOT NULL DEFAULT 'idle',
+      instructions TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members(team_id);
+  `);
+
+  // Team tasks (leader assigns, workers execute)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS team_tasks (
+      id TEXT PRIMARY KEY,
+      team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      assignee TEXT,
+      priority INTEGER NOT NULL DEFAULT 2,
+      blocked_by TEXT,
+      plan TEXT,
+      plan_feedback TEXT,
+      result TEXT,
+      started_at TEXT,
+      completed_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_team_tasks_team ON team_tasks(team_id);
+    CREATE INDEX IF NOT EXISTS idx_team_tasks_status ON team_tasks(status);
+    CREATE INDEX IF NOT EXISTS idx_team_tasks_assignee ON team_tasks(assignee);
+  `);
+
+  // Team mailbox (persistent messaging)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS team_mailbox (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+      from_agent TEXT NOT NULL,
+      to_agent TEXT NOT NULL,
+      msg_type TEXT NOT NULL DEFAULT 'message',
+      content TEXT,
+      request_id TEXT,
+      read INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_team_mailbox_to ON team_mailbox(team_id, to_agent, read);
   `);
 
   // Secret access audit log

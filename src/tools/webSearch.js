@@ -1,5 +1,5 @@
 /**
- * Web Search — multi-provider with auto-detection and fallback chain.
+ * Web Search - multi-provider with auto-detection and fallback chain.
  * Providers: Tavily > Perplexity > Brave > SearXNG > DuckDuckGo (free fallback).
  */
 import { resolveKey } from "./_env.js";

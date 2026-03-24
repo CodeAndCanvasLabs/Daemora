@@ -28,7 +28,7 @@ export async function executeJob(job, { isRetry = false, retryAttempt = 0, onCom
     const timeoutMs = (job.timeoutSeconds || 7200) * 1000;
 
     if (stuckMs < timeoutMs) {
-      console.log(`[CronExecutor] Skipping "${job.name}" — already running since ${job.runningSince}`);
+      console.log(`[CronExecutor] Skipping "${job.name}" - already running since ${job.runningSince}`);
       saveRun({
         jobId: job.id, tenantId: job.tenantId, startedAt: new Date().toISOString(),
         completedAt: new Date().toISOString(), status: "skipped",
@@ -36,9 +36,9 @@ export async function executeJob(job, { isRetry = false, retryAttempt = 0, onCom
       });
       return;
     }
-    // Stuck — force-clear and proceed
+    // Stuck - force-clear and proceed
     console.log(`[CronExecutor] Clearing stuck job "${job.name}" (running ${Math.round(stuckMs / 1000)}s)`);
-    _recordFailure(job, "Job timed out — cleared stuck state", retryAttempt);
+    _recordFailure(job, "Job timed out - cleared stuck state", retryAttempt);
   }
 
   // ── Mark as running ───────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ export async function executeJob(job, { isRetry = false, retryAttempt = 0, onCom
     // Inject last execution result if exists
     if (job.lastRunAt && job.lastStatus) {
       const lastPreview = job.lastError || "";
-      cronLines.push(`[Previous run: ${job.lastRunAt} — ${job.lastStatus}${lastPreview ? `: ${lastPreview.slice(0, 150)}` : ""}]`);
+      cronLines.push(`[Previous run: ${job.lastRunAt} - ${job.lastStatus}${lastPreview ? `: ${lastPreview.slice(0, 150)}` : ""}]`);
     }
 
     cronLines.push("", "[Task]:", job.taskInput);

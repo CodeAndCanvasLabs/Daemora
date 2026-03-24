@@ -6,7 +6,7 @@ export default {
 
   register(api) {
     api.registerTool("database", database, null,
-      "database(action, ...) — Query PostgreSQL, MySQL, SQLite databases. Run SQL, list tables, describe schema");
+      "database(action, ...) - Query PostgreSQL, MySQL, SQLite databases. Run SQL, list tables, describe schema");
 
     api.log.info("Registered: database");
   },

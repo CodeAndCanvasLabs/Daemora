@@ -72,7 +72,7 @@ async function _autoCapture(task, result, resolvedConfig) {
     const toolStr = toolNames.length > 0 ? ` | Tools: ${[...new Set(toolNames)].slice(0, 5).join(", ")}` : "";
     const summary = `User: ${input.slice(0, 100)}${input.length > 100 ? "…" : ""} → Result: ${resultText.slice(0, 100)}${resultText.length > 100 ? "…" : ""}${toolStr}`;
 
-    // Dedup via embeddings — skip if too similar to recent auto-captures
+    // Dedup via embeddings - skip if too similar to recent auto-captures
     const summaryVec = await generateEmbedding(summary);
     if (summaryVec) {
       const tenantId = task.tenantId || null;
@@ -96,7 +96,7 @@ async function _autoCapture(task, result, resolvedConfig) {
       for (const row of recentRows) {
         const entryVec = await generateEmbedding(row.entry);
         if (entryVec && cosineSim(summaryVec, entryVec) > 0.95) {
-          return; // Too similar — skip
+          return; // Too similar - skip
         }
       }
     }
@@ -105,12 +105,12 @@ async function _autoCapture(task, result, resolvedConfig) {
     writeDailyLog({ entry: `[auto] ${summary}` });
     console.log(`[TaskRunner] Auto-captured task summary to daily log`);
   } catch {
-    // Silent — auto-capture is best-effort
+    // Silent - auto-capture is best-effort
   }
 }
 
 /**
- * Post-task learning — trajectory extraction + background review.
+ * Post-task learning - trajectory extraction + background review.
  *
  * TrajectoryExtractor: structured learning extraction (our innovation)
  * BackgroundReviewer: agent-in-the-loop review for memory + skills (Hermes pattern)
@@ -122,7 +122,7 @@ async function _postTaskLearning(task, result, apiKeys) {
     const { maybeRunReview } = await import("../learning/BackgroundReviewer.js");
     await maybeRunReview(task, result, { apiKeys });
   } catch {
-    // Silent — learning is best-effort
+    // Silent - learning is best-effort
   }
 }
 
@@ -226,7 +226,7 @@ class TaskRunner {
 
     // ── Prompt injection detection ─────────────────────────────────────────────
     // Check user input for jailbreak / credential-extraction attempts.
-    // We don't block — we prepend a SECURITY_NOTICE so the agent is warned.
+    // We don't block - we prepend a SECURITY_NOTICE so the agent is warned.
     // Channel-sourced tasks only (not http/a2a which have their own auth).
     if (task.input && task.channel && task.channel !== "http" && task.channel !== "a2a") {
       const injCheck = inputSanitizer.detectInjection(task.input);
@@ -268,7 +268,7 @@ class TaskRunner {
     // On every channel message (global or per-tenant), store the sender's
     // routing metadata (chatId, channelId, phone, sender, etc.) in tenant_channels.
     // This enables cross-channel sends and watcher delivery.
-    // Works for all channel types — Telegram, Discord, Slack, WhatsApp, LINE, etc.
+    // Works for all channel types - Telegram, Discord, Slack, WhatsApp, LINE, etc.
     // For global (no-tenant) setup: stores with tenant_id = "__global__"
     if (task.channel && task.channelMeta) {
       const linkTenantId = tenant?.id || "__global__";
@@ -372,7 +372,7 @@ class TaskRunner {
           agentId: "main",
         });
 
-        // Build message history — filter out raw tool-call/tool-result messages
+        // Build message history - filter out raw tool-call/tool-result messages
         // that were persisted by onStepPersist and don't conform to ModelMessage[] schema
         const previousMessages = filterCleanMessages(
           session.messages.map((m) => ({ role: m.role, content: m.content }))
@@ -476,7 +476,7 @@ class TaskRunner {
           const stripped = finalText.replace(/^\s*HEARTBEAT_OK\s*/i, "").replace(/\s*HEARTBEAT_OK\s*$/i, "").trim();
           if (stripped.length <= 300) {
             task.directReplySent = true; // suppress channel delivery
-            console.log(`[TaskRunner] Heartbeat OK — suppressed delivery`);
+            console.log(`[TaskRunner] Heartbeat OK - suppressed delivery`);
           }
           finalText = stripped || finalText;
         }

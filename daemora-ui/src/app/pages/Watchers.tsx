@@ -66,11 +66,11 @@ const EMPTY_FORM = {
 
 // Common webhook patterns users can pick from
 const PATTERN_PRESETS = [
-  { label: "GitHub — Push", value: '{"event": "push"}', desc: "When code is pushed to a repository" },
-  { label: "GitHub — Issue Opened", value: '{"action": "opened"}', desc: "When a new issue is created" },
-  { label: "GitHub — PR Created", value: '{"action": "opened", "pull_request": "/.*/"}', desc: "When a pull request is opened" },
-  { label: "Stripe — Payment Failed", value: '{"type": "payment_intent.payment_failed"}', desc: "When a payment fails" },
-  { label: "Stripe — Subscription Canceled", value: '{"type": "customer.subscription.deleted"}', desc: "When a subscription is canceled" },
+  { label: "GitHub - Push", value: '{"event": "push"}', desc: "When code is pushed to a repository" },
+  { label: "GitHub - Issue Opened", value: '{"action": "opened"}', desc: "When a new issue is created" },
+  { label: "GitHub - PR Created", value: '{"action": "opened", "pull_request": "/.*/"}', desc: "When a pull request is opened" },
+  { label: "Stripe - Payment Failed", value: '{"type": "payment_intent.payment_failed"}', desc: "When a payment fails" },
+  { label: "Stripe - Subscription Canceled", value: '{"type": "customer.subscription.deleted"}', desc: "When a subscription is canceled" },
   { label: "Custom", value: "", desc: "Write your own JSON pattern" },
 ];
 
@@ -158,7 +158,7 @@ export function Watchers() {
         toast.success("Watcher updated");
       } else {
         await apiFetch("/api/watchers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-        toast.success("Watcher created — webhook URL shown below");
+        toast.success("Watcher created - webhook URL shown below");
       }
       setDialogOpen(false);
       setEditingId(null);
@@ -240,7 +240,7 @@ export function Watchers() {
             Watchers
           </h2>
           <p className="text-[10px] text-gray-500 font-mono uppercase tracking-[0.3em] mt-1">
-            Event-Driven Triggers — When X Happens, Agent Does Y
+            Event-Driven Triggers - When X Happens, Agent Does Y
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -258,7 +258,7 @@ export function Watchers() {
                 <DialogTitle>{editingId ? "Edit Watcher" : "New Watcher"}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 mt-4">
-                {/* Template picker — only for new watchers */}
+                {/* Template picker - only for new watchers */}
                 {!editingId && templates.length > 0 && (
                   <div>
                     <label className="text-xs text-gray-400 mb-1 block">Start from Template</label>
@@ -281,7 +281,7 @@ export function Watchers() {
                         <SelectValue placeholder="Blank (configure manually)" />
                       </SelectTrigger>
                       <SelectContent className="bg-slate-800 border-slate-700 max-h-64">
-                        <SelectItem value="__blank__">Blank — configure manually</SelectItem>
+                        <SelectItem value="__blank__">Blank - configure manually</SelectItem>
                         {["DevOps", "Business", "General"].map(cat => {
                           const catTemplates = templates.filter(t => t.category === cat);
                           if (catTemplates.length === 0) return null;
@@ -318,7 +318,7 @@ export function Watchers() {
                   <p className="text-[10px] text-gray-500 mt-1">The full prompt given to the agent when this watcher fires. Be specific.</p>
                 </div>
 
-                {/* Deliver To — multi-select destinations */}
+                {/* Deliver To - multi-select destinations */}
                 <div>
                   <label className="text-xs text-gray-400 mb-1 block">Deliver Results To</label>
                   {destinations.filter(d => d.channelMeta).length > 0 ? (
@@ -363,7 +363,7 @@ export function Watchers() {
                     <p className="text-[10px] text-[#00d9ff] mt-1">{form.destinations.length} destination{form.destinations.length > 1 ? "s" : ""} selected</p>
                   )}
                   {form.destinations.length === 0 && destinations.filter(d => d.channelMeta).length > 0 && (
-                    <p className="text-[10px] text-gray-500 mt-1">No destinations selected — results will be stored only.</p>
+                    <p className="text-[10px] text-gray-500 mt-1">No destinations selected - results will be stored only.</p>
                   )}
                 </div>
 
@@ -402,7 +402,7 @@ export function Watchers() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-800 border-slate-700">
-                      <SelectItem value="0">No cooldown — fire every time</SelectItem>
+                      <SelectItem value="0">No cooldown - fire every time</SelectItem>
                       <SelectItem value="10">10 seconds</SelectItem>
                       <SelectItem value="30">30 seconds</SelectItem>
                       <SelectItem value="60">1 minute</SelectItem>
@@ -414,7 +414,7 @@ export function Watchers() {
                   <p className="text-[10px] text-gray-500 mt-1">Prevents duplicate triggers. If multiple events arrive within the cooldown window, only the first fires.</p>
                 </div>
 
-                {/* Context — project background knowledge */}
+                {/* Context - project background knowledge */}
                 <div>
                   <label className="text-xs text-gray-400 mb-1 block">Project Context <span className="text-gray-600">(optional)</span></label>
                   <textarea className="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-white resize-none h-16" value={form.context} onChange={e => setForm({ ...form, context: e.target.value })} placeholder="e.g. Repo: daemora/daemora, Stack: Node.js + SQLite, Main branch: main, Team: @umar @ali" />
@@ -512,7 +512,7 @@ export function Watchers() {
                   </div>
                 </div>
 
-                {/* Expanded details — webhook URL, setup info */}
+                {/* Expanded details - webhook URL, setup info */}
                 {isExpanded && (
                   <div className="mt-4 pt-4 border-t border-slate-800 space-y-3">
                     {/* Agent instructions */}

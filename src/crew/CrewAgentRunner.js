@@ -20,7 +20,7 @@ const CREW_BASE_TOOLS = [
 ];
 
 /**
- * Crew Agent Runner — spawns specialist sub-agents for crew members.
+ * Crew Agent Runner - spawns specialist sub-agents for crew members.
  *
  * Each crew member is a self-contained sub-agent with:
  *   - Crew member's own tools (from CrewRegistry)
@@ -43,7 +43,7 @@ ${profilePrompt ? `\n${profilePrompt}\n` : ""}
 # Rules - You Own This Task
 
 - **Do the work, don't describe it.** Your first response must be a tool_call, not a plan.
-- **Chain calls until fully done.** After each tool result, decide: need more tools? Call another. Only set finalResponse true when the task is genuinely complete. Never set finalResponse true with "in progress" or "will follow up" — that is a failure.
+- **Chain calls until fully done.** After each tool result, decide: need more tools? Call another. Only set finalResponse true when the task is genuinely complete. Never set finalResponse true with "in progress" or "will follow up" - that is a failure.
 - **Never ask for clarification.** You have everything you need in the task description. Make reasonable decisions and proceed.
 - **Handle errors yourself.** If a tool call fails, read the error, adjust your approach, try again. Do not give up and report failure unless you have exhausted all approaches.
 - **Mid-task user follow-up** → replyToUser() to acknowledge immediately, fold in, keep working.
@@ -103,7 +103,7 @@ export async function runCrewAgent(crewId, taskDescription, options = {}) {
   const crewAITools = {};
   for (const { name, fn, schema, description } of crewTools) {
     crewAITools[name] = tool({
-      description: description || `${name} — crew tool`,
+      description: description || `${name} - crew tool`,
       inputSchema: schema || z.object({}).passthrough(),
       execute: async (params) => {
         console.log(`[CrewAgent:${crewId}] Tool: ${name}`);

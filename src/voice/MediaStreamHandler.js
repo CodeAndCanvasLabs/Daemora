@@ -1,5 +1,5 @@
 /**
- * MediaStreamHandler — Twilio WebSocket media stream (bidirectional audio).
+ * MediaStreamHandler - Twilio WebSocket media stream (bidirectional audio).
  *
  * Twilio opens a WebSocket when a call connects (via <Connect><Stream> in TwiML).
  * This handler:
@@ -26,7 +26,7 @@ export class MediaStream {
     this.streamSid = null;
     this.callSid = null;
 
-    // TTS queue — serializes playback, prevents overlap
+    // TTS queue - serializes playback, prevents overlap
     this._ttsQueue = [];
     this._ttsProcessing = false;
 
@@ -57,7 +57,7 @@ export class MediaStream {
         case "start":
           this.streamSid = msg.start?.streamSid;
           this.callSid = msg.start?.callSid || msg.start?.customParameters?.callSid;
-          console.log(`[MediaStream:${this.sessionToken}] Started — streamSid: ${this.streamSid}`);
+          console.log(`[MediaStream:${this.sessionToken}] Started - streamSid: ${this.streamSid}`);
           if (this.onStart) this.onStart(this.streamSid, this.callSid);
           break;
 
@@ -80,9 +80,9 @@ export class MediaStream {
   }
 
   /**
-   * Queue TTS audio for playback. Serialized — won't overlap.
+   * Queue TTS audio for playback. Serialized - won't overlap.
    * Returns a promise that resolves when audio finishes playing.
-   * @param {Buffer} mulawBuf — mu-law 8kHz audio
+   * @param {Buffer} mulawBuf - mu-law 8kHz audio
    * @returns {Promise<void>}
    */
   queueAudio(mulawBuf) {

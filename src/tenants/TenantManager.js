@@ -84,7 +84,7 @@ class TenantManager {
 
   /**
    * Get or auto-create a tenant record.
-   * Looks up by channel identity — one tenant can have multiple linked channels.
+   * Looks up by channel identity - one tenant can have multiple linked channels.
    * Called on every incoming message to apply per-tenant config.
    */
   getOrCreate(channel, userId) {
@@ -104,7 +104,7 @@ class TenantManager {
       }
     }
 
-    // 2. No identity found — create new tenant (channel:userId id for backward compat)
+    // 2. No identity found - create new tenant (channel:userId id for backward compat)
     if (!config.multiTenant?.autoRegister) return null;
     const id = _makeId(channel, userId);
     const t = _defaultTenant(id);
@@ -165,7 +165,7 @@ class TenantManager {
 
   /**
    * Unlink a channel identity from a tenant.
-   * Refuses if it's the last identity — tenant would become unreachable.
+   * Refuses if it's the last identity - tenant would become unreachable.
    */
   unlinkChannel(tenantId, channel, userId) {
     const count = queryOne(
@@ -173,7 +173,7 @@ class TenantManager {
       { $tid: tenantId }
     );
     if (count.cnt <= 1) {
-      throw new Error("Cannot unlink the last channel identity — tenant would become unreachable");
+      throw new Error("Cannot unlink the last channel identity - tenant would become unreachable");
     }
     run(
       "DELETE FROM tenant_channels WHERE channel = $ch AND user_id = $uid AND tenant_id = $tid",
@@ -552,8 +552,8 @@ class TenantManager {
    *   tenant config > channel config > global config > defaults
    *
    * Path merging rules:
-   *   - blockedPaths: union (global ∪ tenant) — tenant can add blocks, never remove global blocks
-   *   - allowedPaths: intersection (tenant ∩ global) — tenant can narrow, never widen beyond global
+   *   - blockedPaths: union (global ∪ tenant) - tenant can add blocks, never remove global blocks
+   *   - allowedPaths: intersection (tenant ∩ global) - tenant can narrow, never widen beyond global
    *   - Workspace: if sandbox enabled + no tenant allowed + no global allowed, lock to workspace
    */
   resolveTaskConfig(tenant, channelModel) {
@@ -564,10 +564,10 @@ class TenantManager {
     const tenantAllowed = tenant?.allowedPaths || [];
     const tenantBlocked = tenant?.blockedPaths || [];
 
-    // ── Blocked: always union (global + tenant) — tenant can only add more blocks ──
+    // ── Blocked: always union (global + tenant) - tenant can only add more blocks ──
     const mergedBlocked = [...new Set([...globalBlocked, ...tenantBlocked])];
 
-    // ── Allowed: intersection logic — tenant can never exceed global ──
+    // ── Allowed: intersection logic - tenant can never exceed global ──
     let effectiveAllowed;
     if (globalAllowed.length > 0 && tenantAllowed.length > 0) {
       // Tenant paths must be inside a global allowed path (intersection)
@@ -589,7 +589,7 @@ class TenantManager {
     }
 
     // ── Workspace fallback: sandbox enabled + no allowed paths → lock to workspace ──
-    // Global admin tenants are never sandboxed — they own the server
+    // Global admin tenants are never sandboxed - they own the server
     if (sandboxEnabled && effectiveAllowed.length === 0 && tenant?.id && !tenant.globalAdmin) {
       effectiveAllowed = [this.getWorkspace(tenant.id)];
     }

@@ -1,11 +1,11 @@
 /**
- * CrewLoader — discovers and loads crew members from crew/ directory.
+ * CrewLoader - discovers and loads crew members from crew/ directory.
  *
  * Same pattern as OpenClaw's src/plugins/loader.ts + discovery.ts:
  *   1. Scan crew/ dir for subdirectories with plugin.json
  *   2. Validate manifest (id, name, provides)
  *   3. Dynamic import entry point (index.js or register function)
- *   4. Call register(api) — crew member registers tools, channels, hooks, etc.
+ *   4. Call register(api) - crew member registers tools, channels, hooks, etc.
  *   5. Auto-load declarative provides (tools/*.js, skills/*.md, profiles/*.yaml)
  *   6. Store in global CrewRegistry
  *
@@ -36,7 +36,7 @@ export async function loadCrew() {
 
   const crewDir = join(config.rootDir, "crew");
   if (!existsSync(crewDir)) {
-    console.log("[CrewLoader] No crew/ directory — skipping");
+    console.log("[CrewLoader] No crew/ directory - skipping");
     _loaded = true;
     return getRegistry();
   }
@@ -157,7 +157,7 @@ async function _loadCrewMember(memberDir) {
     throw new Error(`plugin.json missing required fields (id, name) in ${memberDir}`);
   }
 
-  // Skip templates — they're starter files for contributors, not real crew members
+  // Skip templates - they're starter files for contributors, not real crew members
   if (manifest.template === true) {
     return;
   }
@@ -192,7 +192,7 @@ async function _loadCrewMember(memberDir) {
     return;
   }
 
-  // Check required config — don't register tools if missing
+  // Check required config - don't register tools if missing
   const configSchema = manifest.config || {};
   const missingKeys = [];
   let _cs = null;
@@ -207,7 +207,7 @@ async function _loadCrewMember(memberDir) {
     record.error = `Missing: ${missingKeys.join(", ")}`;
     record.enabled = false;
     getRegistry().crew.push(record);
-    console.log(`[CrewLoader] Skipped (needs config): ${manifest.id} — ${record.error}`);
+    console.log(`[CrewLoader] Skipped (needs config): ${manifest.id} - ${record.error}`);
     return;
   }
 
@@ -241,7 +241,7 @@ async function _loadCrewMember(memberDir) {
   // 2. Declarative auto-discovery (from provides in manifest)
   await _loadDeclarativeProvides(api, record, manifest, memberDir);
 
-  // 3. Profile auto-append removed — crew members are self-contained sub-agents.
+  // 3. Profile auto-append removed - crew members are self-contained sub-agents.
   // Main agent delegates via useCrew(crewId, task). Crew tools stay in registry.
 
   // 4. Store agentScope for filtering

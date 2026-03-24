@@ -31,7 +31,7 @@ import { execSync } from "child_process";
 import { randomBytes } from "crypto";
 import { CHANNEL_DEFS, isChannelConfigured } from "./channels/channelDefs.js";
 
-// ── Color palette — matches Daemora UI exactly ──────────────────────────────
+// ── Color palette - matches Daemora UI exactly ──────────────────────────────
 const P = {
   cyan:   "#00d9ff",   // primary brand (cyan)
   teal:   "#4ECDC4",   // secondary accent (teal)
@@ -98,7 +98,7 @@ async function main() {
           process.exit(1);
         }
       } catch {
-        // DB not initialized — setup definitely not done
+        // DB not initialized - setup definitely not done
         console.log(`\n  ${S.cross}  ${t.error("Setup not completed.")}`);
         console.log(`\n  Run ${t.cmd("daemora setup")} first to configure your agent.\n`);
         process.exit(1);
@@ -995,7 +995,7 @@ function handleSandbox(action, args) {
         process.exit(1);
       }
       if (/[\x00-\x1f]/.test(blockPath) || /(^|[\\/])\.\.([\\/]|$)/.test(blockPath)) {
-        console.error(`\n  ${S.cross}  Invalid path — no control characters or ".." traversal allowed.\n`);
+        console.error(`\n  ${S.cross}  Invalid path - no control characters or ".." traversal allowed.\n`);
         process.exit(1);
       }
       const updated = [...new Set([...blockedPaths, blockPath])];
@@ -1202,14 +1202,14 @@ async function handleTenant(action, args) {
       if (!id || !key || !value) {
         console.error(`\n  ${S.cross}  Usage: daemora tenant set ${t.dim("<tenantId> <key> <value>")}`);
         console.error(`  ${t.muted("Keys:")}`);
-        console.error(`    model              ${t.dim("— override model (e.g. openai:gpt-4o)")}`);
-        console.error(`    plan               ${t.dim("— free | pro | admin")}`);
-        console.error(`    maxCostPerTask     ${t.dim("— per-task cost limit (e.g. 0.50)")}`);
-        console.error(`    maxDailyCost       ${t.dim("— daily budget (e.g. 5.00)")}`);
-        console.error(`    tools              ${t.dim("— allowed tools (comma-separated, or 'none' to clear)")}`);
-        console.error(`    blockedTools       ${t.dim("— blocked tools (comma-separated, or 'none' to clear)")}`);
-        console.error(`    mcpServers         ${t.dim("— allowed MCP servers (comma-separated, or 'none' to clear)")}`);
-        console.error(`    notes              ${t.dim("— free-text operator notes")}\n`);
+        console.error(`    model              ${t.dim("- override model (e.g. openai:gpt-4o)")}`);
+        console.error(`    plan               ${t.dim("- free | pro | admin")}`);
+        console.error(`    maxCostPerTask     ${t.dim("- per-task cost limit (e.g. 0.50)")}`);
+        console.error(`    maxDailyCost       ${t.dim("- daily budget (e.g. 5.00)")}`);
+        console.error(`    tools              ${t.dim("- allowed tools (comma-separated, or 'none' to clear)")}`);
+        console.error(`    blockedTools       ${t.dim("- blocked tools (comma-separated, or 'none' to clear)")}`);
+        console.error(`    mcpServers         ${t.dim("- allowed MCP servers (comma-separated, or 'none' to clear)")}`);
+        console.error(`    notes              ${t.dim("- free-text operator notes")}\n`);
         process.exit(1);
       }
       const body = {};
@@ -1467,11 +1467,11 @@ async function handleTenant(action, args) {
     }
 
     case "workspace": {
-      // daemora tenant workspace <tenantId>                 — show paths
-      // daemora tenant workspace <tenantId> add <path>      — add to allowedPaths
-      // daemora tenant workspace <tenantId> remove <path>   — remove from allowedPaths
-      // daemora tenant workspace <tenantId> block <path>    — add to blockedPaths
-      // daemora tenant workspace <tenantId> unblock <path>  — remove from blockedPaths
+      // daemora tenant workspace <tenantId>                 - show paths
+      // daemora tenant workspace <tenantId> add <path>      - add to allowedPaths
+      // daemora tenant workspace <tenantId> remove <path>   - remove from allowedPaths
+      // daemora tenant workspace <tenantId> block <path>    - add to blockedPaths
+      // daemora tenant workspace <tenantId> unblock <path>  - remove from blockedPaths
       const [tenantId, wsAction, wsPath] = args;
       if (!tenantId) {
         console.error(`\n  ${S.cross}  Usage: daemora tenant workspace ${t.dim("<tenantId> [add|remove|block|unblock] [path]")}\n`);
@@ -1496,7 +1496,7 @@ async function handleTenant(action, args) {
           console.log(`  ${S.bar}  Allowed paths:`);
           for (const p of allowed) console.log(`  ${S.bar}    ${S.check}  ${p}`);
         } else {
-          console.log(`  ${S.bar}  Allowed paths  ${t.muted("(none — uses global or workspace default)")}`);
+          console.log(`  ${S.bar}  Allowed paths  ${t.muted("(none - uses global or workspace default)")}`);
         }
         if (blocked.length > 0) {
           console.log(`  ${S.bar}  Blocked paths:`);
@@ -2006,7 +2006,7 @@ async function handleChannelAdd(channelName) {
 
   // Prompt for each env var
   if (!ch.prompts || ch.prompts.length === 0) {
-    console.log(`  ${S.arrow}  No credentials needed — just set env vars in .env\n`);
+    console.log(`  ${S.arrow}  No credentials needed - just set env vars in .env\n`);
     return;
   }
 
@@ -2052,7 +2052,7 @@ async function handleChannelAdd(channelName) {
   }
 
   if (written > 0) {
-    console.log(`\n  ${S.check}  ${chalk.bold.hex(P.green)(ch.label)} configured — ${written} env var(s) written to .env`);
+    console.log(`\n  ${S.check}  ${chalk.bold.hex(P.green)(ch.label)} configured - ${written} env var(s) written to .env`);
     console.log(`  ${S.arrow}  Restart Daemora to activate: ${t.cmd("daemora start")}\n`);
   } else {
     console.log(`\n  ${S.arrow}  No values entered. Nothing written.\n`);
@@ -2104,10 +2104,10 @@ async function handleModels() {
 
   const routingRows = [
     ["DEFAULT_MODEL",  process.env.DEFAULT_MODEL  || chalk.hex(P.muted)("openai:gpt-4.1-mini (built-in default)")],
-    ["CODE_MODEL",     process.env.CODE_MODEL     || chalk.hex(P.border)("not set — uses DEFAULT_MODEL")],
-    ["RESEARCH_MODEL", process.env.RESEARCH_MODEL || chalk.hex(P.border)("not set — uses DEFAULT_MODEL")],
-    ["WRITER_MODEL",   process.env.WRITER_MODEL   || chalk.hex(P.border)("not set — uses DEFAULT_MODEL")],
-    ["ANALYST_MODEL",  process.env.ANALYST_MODEL  || chalk.hex(P.border)("not set — uses DEFAULT_MODEL")],
+    ["CODE_MODEL",     process.env.CODE_MODEL     || chalk.hex(P.border)("not set - uses DEFAULT_MODEL")],
+    ["RESEARCH_MODEL", process.env.RESEARCH_MODEL || chalk.hex(P.border)("not set - uses DEFAULT_MODEL")],
+    ["WRITER_MODEL",   process.env.WRITER_MODEL   || chalk.hex(P.border)("not set - uses DEFAULT_MODEL")],
+    ["ANALYST_MODEL",  process.env.ANALYST_MODEL  || chalk.hex(P.border)("not set - uses DEFAULT_MODEL")],
   ];
 
   function renderProvider(prov) {

@@ -38,7 +38,7 @@ export function msgText(content) {
  */
 export function compactForSession(messages, maxToolOutput = 500) {
   return messages.map(msg => {
-    // Tool result messages — truncate large outputs
+    // Tool result messages - truncate large outputs
     if (msg.role === "tool" && Array.isArray(msg.content)) {
       return {
         ...msg,

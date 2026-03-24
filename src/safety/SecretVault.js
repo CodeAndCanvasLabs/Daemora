@@ -6,7 +6,7 @@ import eventBus from "../core/EventBus.js";
 import { getDb } from "../storage/Database.js";
 
 /**
- * Secret Vault — encrypted secret storage in SQLite.
+ * Secret Vault - encrypted secret storage in SQLite.
  *
  * All API keys, channel tokens, and credentials are encrypted at rest using
  * AES-256-GCM with the user-provided master passphrase.
@@ -17,7 +17,7 @@ import { getDb } from "../storage/Database.js";
  * - Each secret encrypted individually with unique IV
  * - Stored in SQLite vault_entries table (not flat files)
  * - No plaintext secrets anywhere on disk
- * - .env is for infrastructure config only (PORT, DATA_DIR) — never secrets
+ * - .env is for infrastructure config only (PORT, DATA_DIR) - never secrets
  *
  * Migration: existing .vault.enc file is imported into SQLite on first unlock,
  * then renamed to .vault.enc.bak.
@@ -105,7 +105,7 @@ class SecretVault {
   }
 
   /**
-   * Lock the vault — wipe decrypted secrets from memory.
+   * Lock the vault - wipe decrypted secrets from memory.
    */
   lock() {
     this.secrets = null;

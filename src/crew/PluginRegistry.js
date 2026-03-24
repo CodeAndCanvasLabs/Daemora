@@ -1,5 +1,5 @@
 /**
- * CrewRegistry — global registry of loaded crew members and their registrations.
+ * CrewRegistry - global registry of loaded crew members and their registrations.
  *
  * Same pattern as OpenClaw's src/plugins/registry.ts:
  *   - Tracks all crew members + what they registered (tools, channels, hooks, services, CLI, routes)
@@ -40,7 +40,7 @@ export function getCrewMember(id) {
 
 /**
  * Get crew tools filtered by tenant plan.
- * @param {string} [tenantPlan] — "free" | "pro" | "admin" | null (admin/global)
+ * @param {string} [tenantPlan] - "free" | "pro" | "admin" | null (admin/global)
  */
 export function getCrewToolsForPlan(tenantPlan) {
   if (!tenantPlan) return _registry.tools;
@@ -53,12 +53,12 @@ export function getCrewToolsForPlan(tenantPlan) {
 
 /**
  * Get crew tools filtered by agent scope.
- * @param {string} scope — "main" | "sub-agent" | "team"
+ * @param {string} scope - "main" | "sub-agent" | "team"
  */
 export function getCrewToolsForScope(scope) {
   return _registry.tools.filter(t => {
     const member = _registry.crew.find(p => p.id === t.crewId);
-    if (!member?.agentScope) return true; // no restriction — available everywhere
+    if (!member?.agentScope) return true; // no restriction - available everywhere
     return member.agentScope.includes(scope);
   });
 }
@@ -82,7 +82,7 @@ export function clearRegistry() {
  * @property {string} name
  * @property {string} [version]
  * @property {string} [description]
- * @property {string} source — path to crew member dir
+ * @property {string} source - path to crew member dir
  * @property {boolean} enabled
  * @property {"loaded"|"disabled"|"error"} status
  * @property {string} [error]
@@ -92,9 +92,9 @@ export function clearRegistry() {
  * @property {string[]} serviceIds
  * @property {string[]} cliCommands
  * @property {number} httpRouteCount
- * @property {object} [manifest] — raw plugin.json
- * @property {string[]} [tenantPlans] — restrict to plans (free/pro/admin)
- * @property {object} [configSchema] — crew config fields
+ * @property {object} [manifest] - raw plugin.json
+ * @property {string[]} [tenantPlans] - restrict to plans (free/pro/admin)
+ * @property {object} [configSchema] - crew config fields
  */
 
 // ── Crew API (passed to register()) ─────────────────────────────────────────
@@ -175,7 +175,7 @@ export function createCrewApi(record, manifest, memberDir) {
       // Priority: process.env > SQLite config_entries > manifest defaults
       const envKey = `CREW_${record.id.toUpperCase().replace(/-/g, "_")}_${key}`;
       if (process.env[envKey]) return process.env[envKey];
-      // Check SQLite config_entries with crew prefix (sync — configStore is already loaded)
+      // Check SQLite config_entries with crew prefix (sync - configStore is already loaded)
       if (_configStore) {
         const val = _configStore.get(`crew:${record.id}:${key}`);
         if (val) return val;
@@ -195,7 +195,7 @@ export function createCrewApi(record, manifest, memberDir) {
     // ── Tenant-aware access (Daemora-specific, not in OpenClaw) ─────────
     getTenantConfig(tenantId) {
       try {
-        // Enforce tenant isolation — crew member can only access current request's tenant
+        // Enforce tenant isolation - crew member can only access current request's tenant
         const store = tenantContext.getStore();
         const currentTenantId = store?.tenant?.id;
         if (tenantId && currentTenantId && tenantId !== currentTenantId) {
@@ -209,7 +209,7 @@ export function createCrewApi(record, manifest, memberDir) {
 
     getTenantKeys(tenantId) {
       try {
-        // Enforce tenant isolation — crew member can only access current request's tenant keys
+        // Enforce tenant isolation - crew member can only access current request's tenant keys
         const store = tenantContext.getStore();
         const currentTenantId = store?.tenant?.id;
         if (tenantId && currentTenantId && tenantId !== currentTenantId) {

@@ -6,10 +6,10 @@ const stringOrNull = z.string().nullable().default(null);
 const stringArray = z.array(z.string()).default([]);
 const portNumber = z.number().int().min(1).max(65535);
 
-/** Provider:model format — loose check, just requires the colon separator. */
+/** Provider:model format - loose check, just requires the colon separator. */
 const modelString = z.string().regex(/^[a-z0-9_-]+:.+$/i, "Must be provider:model format");
 
-/** Base channel schema — every channel has at least `enabled`. */
+/** Base channel schema - every channel has at least `enabled`. */
 const channelBase = z.object({
   enabled: z.boolean().default(false),
   allowlist: stringArray,

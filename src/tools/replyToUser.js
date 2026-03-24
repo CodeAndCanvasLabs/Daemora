@@ -5,7 +5,7 @@
  * Use for progress updates, acknowledgments, and intermediate responses
  * while the agent is still working on a task.
  *
- * Does NOT set directReplySent — the final response still goes through
+ * Does NOT set directReplySent - the final response still goes through
  * the normal channel reply path. This is additive, not a replacement.
  */
 import tenantContext from "../tenants/TenantContext.js";
@@ -20,7 +20,7 @@ export async function replyToUser(params) {
     const channelMeta = store?.channelMeta;
 
     if (!channelMeta?.channel || (!channelMeta?.chatId && !channelMeta?.channelId)) {
-      return "No active channel context — user is on HTTP/API. Progress noted internally.";
+      return "No active channel context - user is on HTTP/API. Progress noted internally.";
     }
 
     const ch = channelRegistry.get(channelMeta.channel, channelMeta.instanceKey);
@@ -38,4 +38,4 @@ export async function replyToUser(params) {
 export const replyToUserDescription =
   'replyToUser(message: string) - Send a text message to the current user mid-task. ' +
   'Use for progress updates ("Working on the API routes now..."), acknowledgments when the user sends a follow-up, ' +
-  'or intermediate results while still working. Does not end the task — work continues after sending.';
+  'or intermediate results while still working. Does not end the task - work continues after sending.';

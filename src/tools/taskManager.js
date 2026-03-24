@@ -58,7 +58,7 @@ export function taskManager(toolParams) {
       saveTask(task);
 
       const parentStr = effectiveParentId ? ` (child of ${effectiveParentId.slice(0, 8)})` : "";
-      return `Task created: ${task.id} "${title}"${parentStr} — status: ${task.status}`;
+      return `Task created: ${task.id} "${title}"${parentStr} - status: ${task.status}`;
     }
 
     // ── Update task ─────────────────────────────────────────────────────────
@@ -111,7 +111,7 @@ export function taskManager(toolParams) {
         const icon = t.status === "completed" ? "✅" : t.status === "running" ? "🔄" : t.status === "failed" ? "❌" : "⬜";
         const agent = t.agentId ? ` [agent:${t.agentId}]` : "";
         const parent = t.parentTaskId ? ` ← ${t.parentTaskId}` : "";
-        return `${icon} ${t.id} ${t.title || t.input?.slice(0, 50)}${agent}${parent} — ${t.status}`;
+        return `${icon} ${t.id} ${t.title || t.input?.slice(0, 50)}${agent}${parent} - ${t.status}`;
       }).join("\n");
     }
 
@@ -141,7 +141,7 @@ export function taskManager(toolParams) {
         for (const child of children) {
           const icon = child.status === "completed" ? "✅" : child.status === "running" ? "🔄" : child.status === "failed" ? "❌" : "⬜";
           const agent = child.agentId ? ` [${child.agentId.slice(0, 8)}]` : "";
-          lines.push(`  ${icon} [${child.id.slice(0, 8)}] ${child.title || child.input?.slice(0, 40)}${agent} — ${child.status}`);
+          lines.push(`  ${icon} [${child.id.slice(0, 8)}] ${child.title || child.input?.slice(0, 40)}${agent} - ${child.status}`);
         }
       }
 

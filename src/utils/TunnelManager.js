@@ -1,5 +1,5 @@
 /**
- * TunnelManager — auto-exposes local server for Twilio webhooks.
+ * TunnelManager - auto-exposes local server for Twilio webhooks.
  *
  * Same approach as OpenClaw voice-call extension:
  *   1. DAEMORA_PUBLIC_URL / SERVER_URL set → use as-is (production)
@@ -36,7 +36,7 @@ export async function ensurePublicUrl(port) {
     return existing;
   }
 
-  // 1. ngrok — spawn CLI, parse JSON stdout (same as OpenClaw)
+  // 1. ngrok - spawn CLI, parse JSON stdout (same as OpenClaw)
   if (process.env.NGROK_AUTHTOKEN) {
     try {
       const url = await _startNgrok(port, process.env.NGROK_AUTHTOKEN);
@@ -61,7 +61,7 @@ export async function ensurePublicUrl(port) {
     }
   }
 
-  // 3. cloudflared — free, no signup, no interstitial (best for local dev)
+  // 3. cloudflared - free, no signup, no interstitial (best for local dev)
   if (await _isCmdAvailable("cloudflared")) {
     try {
       const url = await _startCloudflared(port);

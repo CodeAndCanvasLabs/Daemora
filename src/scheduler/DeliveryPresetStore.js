@@ -1,5 +1,5 @@
 /**
- * DeliveryPresetStore — CRUD for delivery presets (named tenant/channel groups).
+ * DeliveryPresetStore - CRUD for delivery presets (named tenant/channel groups).
  *
  * Presets let admin reuse delivery configurations across cron jobs.
  * e.g. "interns" → [TenantA:telegram, TenantB:telegram]

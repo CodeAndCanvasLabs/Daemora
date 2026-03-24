@@ -17,8 +17,8 @@ cp .env.example .env
 
 | Branch | Purpose |
 |---|---|
-| `main` | Stable releases only — never push directly |
-| `dev` | Active development — all PRs target this branch |
+| `main` | Stable releases only - never push directly |
+| `dev` | Active development - all PRs target this branch |
 
 ### Workflow
 
@@ -59,15 +59,15 @@ test: Add FilesystemGuard edge case coverage
 ## What to Contribute
 
 ### Good First Issues
-Look for issues labeled [`good first issue`](https://github.com/CodeAndCanvasLabs/Daemora/labels/good%20first%20issue) — these are scoped, well-defined tasks ideal for new contributors.
+Look for issues labeled [`good first issue`](https://github.com/CodeAndCanvasLabs/Daemora/labels/good%20first%20issue) - these are scoped, well-defined tasks ideal for new contributors.
 
 ### Areas We Need Help With
-- **New channels** — add support for more messaging platforms
-- **New tools** — expand the agent's built-in capabilities
-- **MCP integrations** — test and document MCP server setups
-- **Tests** — increase coverage, especially edge cases
-- **Documentation** — guides, examples, tutorials
-- **Bug fixes** — check open issues
+- **New channels** - add support for more messaging platforms
+- **New tools** - expand the agent's built-in capabilities
+- **MCP integrations** - test and document MCP server setups
+- **Tests** - increase coverage, especially edge cases
+- **Documentation** - guides, examples, tutorials
+- **Bug fixes** - check open issues
 
 ### What We Probably Won't Merge
 - Large refactors without prior discussion
@@ -112,7 +112,7 @@ node src/index.js
 
 ## Pull Request Guidelines
 
-- Keep PRs focused — one feature or fix per PR
+- Keep PRs focused - one feature or fix per PR
 - Include tests for new functionality
 - Update documentation if behavior changes
 - Ensure all existing tests pass
@@ -121,10 +121,10 @@ node src/index.js
 ## Code Style
 
 - ES modules (`import/export`), no CommonJS
-- No build step — plain JavaScript
+- No build step - plain JavaScript
 - No TypeScript (the project is intentionally JS-only)
-- Follow existing patterns — read the code around your changes
-- Keep it simple — prefer clarity over cleverness
+- Follow existing patterns - read the code around your changes
+- Keep it simple - prefer clarity over cleverness
 
 ## Reporting Bugs
 
@@ -143,8 +143,8 @@ Use the [feature request template](https://github.com/CodeAndCanvasLabs/Daemora/
 
 ## Community
 
-- [GitHub Discussions](https://github.com/CodeAndCanvasLabs/Daemora/discussions) — questions, ideas, show & tell
-- [Issues](https://github.com/CodeAndCanvasLabs/Daemora/issues) — bugs and feature requests
+- [GitHub Discussions](https://github.com/CodeAndCanvasLabs/Daemora/discussions) - questions, ideas, show & tell
+- [Issues](https://github.com/CodeAndCanvasLabs/Daemora/issues) - bugs and feature requests
 
 ## License
 

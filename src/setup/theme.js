@@ -3,13 +3,13 @@ import chalk from "chalk";
 /**
  * Daemora CLI Theme
  * Color palette matches the UI exactly:
- *   Cyan   #00d9ff  — primary brand / headings / CTAs
- *   Teal   #4ECDC4  — secondary / commands / accents
- *   Red    #ff4458  — danger / features (matches logo horns)
- *   Green  #00ff88  — success / security / live badges
- *   Amber  #ffaa00  — warning / scheduling / [NEW] badges
- *   Muted  #64748b  — slate-500 body text
- *   Dim    #94a3b8  — slate-400 captions
+ *   Cyan   #00d9ff  - primary brand / headings / CTAs
+ *   Teal   #4ECDC4  - secondary / commands / accents
+ *   Red    #ff4458  - danger / features (matches logo horns)
+ *   Green  #00ff88  - success / security / live badges
+ *   Amber  #ffaa00  - warning / scheduling / [NEW] badges
+ *   Muted  #64748b  - slate-500 body text
+ *   Dim    #94a3b8  - slate-400 captions
  */
 export const P = {
   cyan:    "#00d9ff",
@@ -67,7 +67,7 @@ function lerp(a, b, t) { return Math.round(a + (b - a) * t); }
 
 /**
  * Render a string with a left→right cyan→teal gradient.
- * One chalk call per visible character — fast enough for a one-shot banner.
+ * One chalk call per visible character - fast enough for a one-shot banner.
  */
 function gradientLine(line) {
   const [cyR, cyG, cyB] = [0x00, 0xd9, 0xff]; // #00d9ff
@@ -88,8 +88,8 @@ function gradientLine(line) {
 // ─── Banner ────────────────────────────────────────────────────────────────
 
 /**
- * DAEMORA ASCII art — figlet "Doom" font.
- * Width: ~65 chars — fits a standard 80-col terminal.
+ * DAEMORA ASCII art - figlet "Doom" font.
+ * Width: ~65 chars - fits a standard 80-col terminal.
  */
 const DAEMORA_ART = [
   "██████╗  █████╗ ███████╗███╗   ███╗ ██████╗ ██████╗  █████╗ ",
@@ -100,7 +100,7 @@ const DAEMORA_ART = [
   "╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝",
 ];
 
-/** Logo mark — small demon eye motif drawn with ASCII */
+/** Logo mark - small demon eye motif drawn with ASCII */
 function logoMark() {
   return [
     chalk.hex(P.red)("    ▲               ▲"),

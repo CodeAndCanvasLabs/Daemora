@@ -154,11 +154,11 @@ const toolSchemas = {
     schema: z.object({
       filePath: str("Absolute path to file"),
       caption: optStr("File caption"),
-      channel: optStr("Target channel: 'telegram', 'discord', 'slack', etc. Cross-channel auto-resolved from tenant's linked accounts — no chat ID needed"),
+      channel: optStr("Target channel: 'telegram', 'discord', 'slack', etc. Cross-channel auto-resolved from tenant's linked accounts - no chat ID needed"),
     }),
     description: "Send file to user. Omit channel = current channel. Set channel = cross-channel delivery (auto-resolved, never ask user for IDs).",
   },
-  // replyWithFile removed — duplicate of sendFile
+  // replyWithFile removed - duplicate of sendFile
   broadcast: {
     schema: z.object({
       preset: str("Delivery preset name (e.g. 'leads-team', 'engineers')"),
@@ -290,36 +290,26 @@ const toolSchemas = {
   },
 
   // ── Profile Discovery ──────────────────────────────────────────────────
-  discoverProfiles: {
+  discoverCrew: {
     schema: z.object({
-      query: str("Task description to match against profiles — e.g. 'send email', 'query database', 'create jira tickets'"),
+      query: str("What you need done - e.g. 'send email', 'query database', 'build frontend'"),
       limit: optNum("Max results (default: 5)"),
       offset: optNum("Skip first N results for pagination (default: 0)"),
-      all: optBool("Return all profiles (ignore query matching)"),
+      all: optBool("Return all crew members"),
     }),
-    description: "Find the right sub-agent profile for a task. Returns matching profiles + disabled plugins. Use before spawnAgent when unsure which profile fits.",
+    description: "Find the right crew member for a task. Returns matching crew sorted by relevance. Use before useCrew when unsure which crew fits.",
   },
 
-  // ── Agents ───────────────────────────────────────────────────────────────
-  spawnAgent: {
-    schema: z.object({
-      taskDescription: str("Complete task brief — include what, constraints, files/APIs, expected output. Agent has zero other context."),
-      profile: str("Agent profile (REQUIRED) — Dev: coder|architect|reviewer|tester|devops|security|database|frontend|api. Research: researcher|analyst|investigator. Content: writer|editor|translator. Business: planner|strategist|assistant. Ops: sysadmin|designer|coordinator|meeting-attendant"),
-      parentContext: optStr("Extra context from parent task"),
-      extraTools: z.array(z.string()).optional().describe("Additional tool names to enable"),
-      skills: z.array(z.string()).optional().describe("Skill names to load"),
-    }),
-    description: "Spawn specialist sub-agent. Use discoverProfiles first to find the right profile. Profile sets identity, tools, and skill scope.",
-  },
-  parallelAgents: {
+  // ── Orchestration ──────────────────────────────────────────────────────
+  parallelCrew: {
     schema: z.object({
       tasks: z.array(z.object({
-        description: str("Task description — full brief, agent has zero context"),
-        profile: str("Agent profile (REQUIRED) — Dev: coder|architect|reviewer|tester|devops|security|database|frontend|api. Research: researcher|analyst|investigator. Content: writer|editor|translator. Business: planner|strategist|assistant. Ops: sysadmin|designer|coordinator|meeting-attendant"),
+        description: str("Task description - full brief, crew member has zero context"),
+        profile: str("Crew member ID - Dev: backend|frontend|reviewer|tester|devops|security|db-architect. Research: researcher|analyst. Content: writer|translator. Business: assistant|coordinator. Ops: sysadmin|meeting-attendant"),
       })).describe("Array of tasks to run simultaneously"),
-      sharedContext: optStr("Context shared across all agents"),
+      sharedContext: optStr("Context shared across all crew members"),
     }),
-    description: "Spawn multiple sub-agents simultaneously for independent tasks. Each gets its own profile, tools, and skill scope.",
+    description: "Run multiple crew members simultaneously for independent tasks. Each gets its own tools and skill scope.",
   },
   delegateToAgent: {
     schema: z.object({
@@ -392,7 +382,7 @@ const toolSchemas = {
   useCrew: {
     schema: z.object({
       crewId: str("Crew member ID (e.g. 'google-services', 'database-connector', 'smart-home')"),
-      taskDescription: str("Complete task description — the crew member has no other context"),
+      taskDescription: str("Complete task description - the crew member has no other context"),
     }),
     description: "Delegate task to a specialist crew member",
   },
@@ -406,11 +396,11 @@ const toolSchemas = {
       taskInput: optStr("The prompt to execute autonomously (required for add)"),
       cronExpression: optStr("Cron expression for recurring: '0 9 * * *' (daily 9am), '*/30 * * * *' (every 30min)"),
       every: optStr("Interval shorthand for repeating: '30m', '2h', '1d'"),
-      at: optStr("ISO timestamp for one-shot: '2026-03-15T10:00:00Z'. Use for 'in X minutes' — compute the timestamp"),
+      at: optStr("ISO timestamp for one-shot: '2026-03-15T10:00:00Z'. Use for 'in X minutes' - compute the timestamp"),
       timezone: optStr("IANA timezone: 'America/New_York'"),
       model: optStr("Model override for this job"),
       deleteAfterRun: optBool("Auto-delete after one-shot run (use with 'at')"),
-      deliveryPreset: optStr("Delivery preset name (admin only) — e.g. 'engineers', 'team-leads', 'interns'. Resolves to saved tenant/channel group."),
+      deliveryPreset: optStr("Delivery preset name (admin only) - e.g. 'engineers', 'team-leads', 'interns'. Resolves to saved tenant/channel group."),
       delivery: z.object({
         mode: optStr("Delivery mode: 'announce'"),
         channel: optStr("Target channel name"),
@@ -454,7 +444,7 @@ const toolSchemas = {
       cooldownSeconds: optNum("Min seconds between triggers (default: 0)"),
       description: optStr("Watcher description"),
     }),
-    description: "Manage named watchers — event-driven triggers that execute tasks when webhooks fire.",
+    description: "Manage named watchers - event-driven triggers that execute tasks when webhooks fire.",
   },
 
   // ── System Reload ──────────────────────────────────────────────────────
@@ -468,29 +458,26 @@ const toolSchemas = {
   // ── Teams ────────────────────────────────────────────────────────────────
   teamTask: {
     schema: z.object({
-      action: str("createTeam|addTeammate|spawnTeammate|spawnAll|addTask|claim|complete|failTask|listTasks|claimable|sendMessage|broadcast|readMail|mailHistory|status|disband"),
-      teamId: optStr("Team ID (required for most actions)"),
+      action: str("createTeam|relaunchProject|createFromTemplate|listTemplates|status|listTeams|disbandTeam"),
+      templateId: z.string().optional().describe("Template ID for createFromTemplate"),
+      project: z.string().optional().describe("Project identifier for tracking and re-launch"),
+      projectType: z.string().optional().describe("coding | research | devops | design"),
+      projectRepo: z.string().optional().describe("GitHub repo URL or local path"),
+      projectStack: z.string().optional().describe("Tech stack (e.g. 'Node.js, PostgreSQL, React')"),
       name: optStr("Team name (for createTeam)"),
-      profile: optStr("Teammate profile: 'coder' | 'researcher' | 'writer' | 'analyst' (for addTeammate)"),
-      instructions: optStr("Teammate instructions (for addTeammate)"),
-      teammateId: optStr("Teammate ID (for spawnTeammate, claim, complete, failTask)"),
-      context: optStr("Context string (for spawnTeammate, spawnAll)"),
-      title: optStr("Task title (for addTask)"),
-      description: optStr("Task description (for addTask)"),
-      blockedBy: z.array(z.string()).optional().describe("Task IDs this task depends on (for addTask)"),
-      taskId: optStr("Task ID (for claim, complete, failTask)"),
-      result: optStr("Task result (for complete)"),
-      reason: optStr("Failure reason (for failTask)"),
-      status: optStr("Filter by status (for listTasks)"),
-      assignee: optStr("Filter by assignee (for listTasks)"),
-      to: optStr("Recipient teammate ID (for sendMessage)"),
-      message: optStr("Message text (for sendMessage, broadcast)"),
-      from: optStr("Sender ID (default: 'lead')"),
-      recipientId: optStr("Recipient ID (for readMail)"),
-      limit: optNum("Max results (for mailHistory, default: 50)"),
-      id: optStr("Custom teammate ID (for addTeammate)"),
+      task: optStr("What the team should accomplish (for createTeam)"),
+      context: optStr("Background context for the team lead (for createTeam)"),
+      constraints: optStr("Rules/limits for the team (for createTeam)"),
+      workers: z.array(z.object({
+        name: str("Worker name"),
+        profile: z.string().optional().describe("Crew member: backend|frontend|reviewer|tester|devops|researcher|analyst|writer|translator|sysadmin|coordinator"),
+        crew: z.string().optional().describe("Crew member ID as worker (e.g. 'database-connector') - use instead of profile"),
+        task: str("Worker's specific assignment - full description"),
+        skills: z.array(z.string()).optional().describe("Skill IDs to inject"),
+      })).optional().describe("Worker definitions (for createTeam)"),
+      teamId: optStr("Team ID (for status, disbandTeam)"),
     }),
-    description: "Coordinate a team of sub-agents with shared tasks, dependencies, and messaging. Use for multi-stage work with handoffs.",
+    description: "Create a team of workers with a Team Lead. Lead assigns tasks, reviews plans, coordinates. Workers get full contracts. Use for multi-stage work requiring coordination.",
   },
 
   // ── Voice ────────────────────────────────────────────────────────────────
@@ -577,7 +564,7 @@ const toolSchemas = {
     description: "Read/write system clipboard",
   },
   // notification, iMessageTool, calendar, contacts, sshTool, database,
-  // googlePlaces, philipsHue, sonos — moved to bundled plugins.
+  // googlePlaces, philipsHue, sonos - moved to bundled plugins.
   // Schemas registered dynamically via registerPluginSchema() when plugins load.
 };
 
@@ -646,7 +633,7 @@ export function buildToolDocLines(availableTools) {
 
 /**
  * Build Vercel AI SDK tool definitions for generateText().
- * Returns { toolName: tool({ description, inputSchema }) } — no execute.
+ * Returns { toolName: tool({ description, inputSchema }) } - no execute.
  * Dispatch is handled manually in AgentLoop with guards.
  */
 export function buildAITools(availableNames) {
@@ -676,7 +663,7 @@ export function buildAITools(availableNames) {
  */
 export function registerPluginSchema(name, schema, description) {
   if (toolSchemas[name]) return; // don't override built-in
-  toolSchemas[name] = { schema: schema || z.object({}).passthrough(), description: description || `${name} — plugin tool` };
+  toolSchemas[name] = { schema: schema || z.object({}).passthrough(), description: description || `${name} - plugin tool` };
 }
 
 export default toolSchemas;

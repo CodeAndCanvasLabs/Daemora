@@ -39,6 +39,6 @@ triggers: linux, process, service, systemctl, log, monitor, disk, memory, cpu, n
 
 ## Don't
 - Don't run `rm -rf /` or destructive commands without confirming scope
-- Don't change permissions to 777 — use minimum required
+- Don't change permissions to 777 - use minimum required
 - Don't edit system config files without backup
 - Don't kill processes without understanding what they do

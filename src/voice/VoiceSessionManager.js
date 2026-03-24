@@ -1,5 +1,5 @@
 /**
- * VoiceSessionManager — in-memory state for active interactive voice calls.
+ * VoiceSessionManager - in-memory state for active interactive voice calls.
  *
  * Each session bridges two async tracks:
  *   - The agent loop (calls listen/speak/end as tool calls)
@@ -70,7 +70,7 @@ class VoiceSession {
   }
 
   /**
-   * Agent tool `listen` calls this — blocks until caller speaks or timeout.
+   * Agent tool `listen` calls this - blocks until caller speaks or timeout.
    * @returns {Promise<string>} caller's spoken text
    */
   waitForCallerInput(timeoutMs = 120_000) {

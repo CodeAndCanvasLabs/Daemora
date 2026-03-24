@@ -5,10 +5,10 @@ import eventBus from "../core/EventBus.js";
  *
  * Two complementary layers:
  *
- * 1. Pattern-based redaction — regex patterns for known secret formats
+ * 1. Pattern-based redaction - regex patterns for known secret formats
  *    (AWS keys, GitHub tokens, OpenAI keys, JWTs, connection strings, etc.)
  *
- * 2. Blind env-var redaction — at startup, collect all process.env values whose
+ * 2. Blind env-var redaction - at startup, collect all process.env values whose
  *    names look like secrets (contain _KEY, _TOKEN, _SECRET, etc.) and redact
  *    their exact values from any tool output. This catches custom tokens like
  *    TELEGRAM_BOT_TOKEN, TWILIO_AUTH_TOKEN, DISCORD_BOT_TOKEN that don't match
@@ -35,7 +35,7 @@ const SECRET_PATTERNS = [
 
 // ── Blind env-var redaction setup ─────────────────────────────────────────────
 // Collect values of env vars whose NAMES suggest they hold secrets.
-// Done once at module load — captures all secrets including ones that don't
+// Done once at module load - captures all secrets including ones that don't
 // match any regex pattern above (e.g. DISCORD_BOT_TOKEN, LINE_CHANNEL_SECRET).
 const SENSITIVE_NAME_PATTERN = /(_KEY|_TOKEN|_SECRET|_PASSWORD|_PASS|_PWD|_SID|_AUTH|_PRIVATE|_CREDENTIAL|_API|_WEBHOOK)$/i;
 
@@ -64,7 +64,7 @@ class SecretScanner {
         added++;
       }
     }
-    if (added > 0) console.log(`[SecretScanner] Refreshed — ${added} new secret(s) tracked (total: ${_sensitiveEnvValues.size})`);
+    if (added > 0) console.log(`[SecretScanner] Refreshed - ${added} new secret(s) tracked (total: ${_sensitiveEnvValues.size})`);
     return added;
   }
 

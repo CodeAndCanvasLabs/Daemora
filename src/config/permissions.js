@@ -35,7 +35,7 @@ export const permissionTiers = {
       "executeCommand",
       // Web & browser
       "webFetch", "webSearch", "browserAction",
-      // Communication (no sendEmail/messageChannel — those are full-only)
+      // Communication (no sendEmail/messageChannel - those are full-only)
       "sendFile", "replyToUser",
       // Media
       "transcribeAudio", "textToSpeech",
@@ -47,7 +47,7 @@ export const permissionTiers = {
       "readMemory", "writeMemory", "readDailyLog", "writeDailyLog",
       "searchMemory", "pruneMemory", "listMemoryCategories",
       // Agents & teams
-      "spawnAgent", "parallelAgents", "manageAgents",
+      "parallelCrew", "manageAgents",
       "teamTask",
       // MCP + Crew
       "manageMCP", "useMCP", "useCrew",
@@ -78,8 +78,8 @@ export const permissionTiers = {
       "readMemory", "writeMemory", "readDailyLog", "writeDailyLog",
       "searchMemory", "pruneMemory", "listMemoryCategories",
       // Agents & teams
-      "spawnAgent", "parallelAgents", "delegateToAgent", "manageAgents",
-      "teamTask", "discoverProfiles",
+      "parallelCrew", "delegateToAgent", "manageAgents",
+      "teamTask", "discoverCrew",
       // MCP + Crew
       "manageMCP", "useMCP", "useCrew",
       // Project & task tracking

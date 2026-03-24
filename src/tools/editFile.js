@@ -82,7 +82,7 @@ export function editFile(params) {
     return "Error: editFile requires path.";
   }
   if (!oldString || typeof oldString !== "string") {
-    return "Error: editFile requires oldString — the text to find.";
+    return "Error: editFile requires oldString - the text to find.";
   }
   if (newString === undefined || newString === null || typeof newString !== "string") {
     return "Error: editFile requires oldString and newString.";

@@ -12,6 +12,7 @@ import { Input } from "../components/ui/input";
 import { Switch } from "../components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { toast } from "sonner";
+import { SchedulePicker } from "../components/SchedulePicker";
 
 const SCHEDULE_PRESETS = [
   { label: "Every 15 minutes", cron: "*/15 * * * *" },
@@ -194,7 +195,7 @@ export function Goals() {
             Goals
           </h2>
           <p className="text-[10px] text-gray-500 font-mono uppercase tracking-[0.3em] mt-1">
-            Autonomous Objectives — Agent Works Toward Them 24/7
+            Autonomous Objectives - Agent Works Toward Them 24/7
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -224,48 +225,20 @@ export function Goals() {
                   <label className="text-xs text-gray-400 mb-1 block">Strategy</label>
                   <textarea className="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-white resize-none h-16" value={form.strategy} onChange={e => setForm({ ...form, strategy: e.target.value })} placeholder="How should the agent approach this?" />
                 </div>
-                <div className="space-y-2">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs text-gray-400 mb-1 block">Check Schedule</label>
-                      <Select value={schedulePreset} onValueChange={(val) => {
-                        setSchedulePreset(val);
-                        if (val !== "custom") {
-                          setForm({ ...form, checkSchedule: val });
-                        }
-                      }}>
-                        <SelectTrigger className="bg-slate-800 border-slate-700 text-white text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-slate-800 border-slate-700">
-                          {SCHEDULE_PRESETS.map(p => (
-                            <SelectItem key={p.cron} value={p.cron} className="text-white text-xs hover:bg-slate-700 focus:bg-slate-700 focus:text-white">
-                              {p.label}
-                            </SelectItem>
-                          ))}
-                          <SelectItem value="custom" className="text-white text-xs hover:bg-slate-700 focus:bg-slate-700 focus:text-white">
-                            Custom (cron expression)
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-400 mb-1 block">Timezone</label>
-                      <Input className="bg-slate-800 border-slate-700 text-white" value={form.timezone} onChange={e => setForm({ ...form, timezone: e.target.value })} placeholder="e.g. America/New_York" />
-                    </div>
-                  </div>
-                  {schedulePreset === "custom" && (
-                    <div>
-                      <label className="text-xs text-gray-400 mb-1 block">Cron Expression</label>
-                      <Input className="bg-slate-800 border-slate-700 text-white font-mono text-xs" value={form.checkSchedule} onChange={e => setForm({ ...form, checkSchedule: e.target.value })} placeholder="e.g. 0 */4 * * *" />
-                    </div>
-                  )}
-                  <p className="text-[10px] text-gray-500">
-                    {schedulePreset === "custom"
-                      ? `Schedule: ${form.checkSchedule}`
-                      : cronToLabel(form.checkSchedule)
-                    }
-                  </p>
+                <div>
+                  <label className="text-xs text-gray-400 mb-2 block">Check Schedule</label>
+                  <SchedulePicker
+                    showOnce={false}
+                    defaultMode="recurring"
+                    value={{ cronExpression: form.checkSchedule, timezone: form.timezone }}
+                    onChange={(v) => {
+                      setForm({
+                        ...form,
+                        checkSchedule: v.cronExpression || v.every || form.checkSchedule,
+                        timezone: v.timezone || form.timezone,
+                      });
+                    }}
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>

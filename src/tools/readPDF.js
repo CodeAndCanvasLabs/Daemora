@@ -19,7 +19,7 @@ export async function readPDF(params) {
   const opts = _mergeLegacyOpts(params, ["filePath"]);
   const { pages = null, method = "auto" } = opts;
 
-  // Method 1: pdftotext (poppler-utils) — fast, no API cost
+  // Method 1: pdftotext (poppler-utils) - fast, no API cost
   if (method === "auto" || method === "pdftotext") {
     try {
       const pageFlag = pages ? `-f ${pages.split("-")[0]} -l ${pages.split("-")[1] || pages.split("-")[0]}` : "";
@@ -30,7 +30,7 @@ export async function readPDF(params) {
     }
   }
 
-  // Method 2: OpenAI vision API — works without pdftotext installed
+  // Method 2: OpenAI vision API - works without pdftotext installed
   if (method === "auto" || method === "vision") {
     const store = tenantContext.getStore();
     const apiKey = store?.apiKeys?.OPENAI_API_KEY || process.env.OPENAI_API_KEY;

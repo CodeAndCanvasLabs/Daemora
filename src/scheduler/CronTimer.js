@@ -43,7 +43,7 @@ export function createTimer(job, onFire) {
     if (tz) opts.timezone = tz;
     cronInstance = new Cron(expr, opts, fire);
   } else if (kind === "every") {
-    // setInterval for fixed intervals — first fire after everyMs, then repeat
+    // setInterval for fixed intervals - first fire after everyMs, then repeat
     intervalId = setInterval(fire, everyMs);
   } else if (kind === "at") {
     const target = new Date(at).getTime();

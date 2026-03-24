@@ -4,7 +4,7 @@ import { readFile } from "./readFile.js";
 import { writeFile } from "./writeFile.js";
 import { editFile } from "./editFile.js";
 import { listDirectory } from "./listDirectory.js";
-// searchFiles + searchContent removed — duplicates of glob + grep
+// searchFiles + searchContent removed - duplicates of glob + grep
 import { webFetch } from "./webFetch.js";
 import { webSearch } from "./webSearch.js";
 import { sendEmail } from "./sendEmail.js";
@@ -19,7 +19,7 @@ import { spawnSubAgent, spawnParallelAgents } from "../agents/SubAgentManager.js
 import { delegateToAgent } from "../a2a/A2AClient.js";
 import { transcribeAudio } from "./transcribeAudio.js";
 import { sendFile } from "./sendFile.js";
-// replyWithFile removed — duplicate of sendFile
+// replyWithFile removed - duplicate of sendFile
 import { textToSpeech } from "./textToSpeech.js";
 import { globSearch } from "./glob.js";
 import { grep } from "./grep.js";
@@ -41,26 +41,16 @@ import { generateImage } from "./generateImage.js";
 import { readPDF } from "./readPDF.js";
 import { gitTool } from "./gitTool.js";
 import { clipboard } from "./clipboard.js";
-// Crew tools NOT imported here — crew members are self-contained sub-agents.
+// Crew tools NOT imported here - crew members are self-contained sub-agents.
 // Main agent delegates via useCrew(crewId, task).
 import { useCrew } from "./useCrew.js";
 import { reload } from "./reloadTool.js";
-import { discoverProfiles } from "./discoverProfiles.js";
+import { discoverProfiles as discoverCrew } from "./discoverProfiles.js";
 import { broadcast } from "./broadcast.js";
 import { goal } from "./goalTool.js";
 import { watcher } from "./watcherTool.js";
 
-// ─── Agent wrappers (params object → SubAgentManager) ────────────────────────
-
-function spawnAgent(params) {
-  const taskDescription = params?.taskDescription;
-  // Merge flat fields with legacy options JSON
-  const optionsStr = params?.options;
-  const legacyOpts = optionsStr ? (typeof optionsStr === "string" ? JSON.parse(optionsStr) : optionsStr) : {};
-  const { taskDescription: _, options: _o, ...flatFields } = params || {};
-  const options = { ...legacyOpts, ...flatFields };
-  return spawnSubAgent(taskDescription, options);
-}
+// ─── Crew wrappers (params → SubAgentManager) ────────────────────────────────
 
 function parallelAgents(params) {
   // New schema: tasks is array of objects, sharedContext is flat string
@@ -91,7 +81,7 @@ export const toolFunctions = {
   createDocument,
   readMemory, writeMemory, readDailyLog, writeDailyLog,
   searchMemory, pruneMemory, listMemoryCategories,
-  spawnAgent, parallelAgents, delegateToAgent, manageAgents,
+  parallelCrew: parallelAgents, delegateToAgent, manageAgents,
   projectTracker, taskManager,
   cron,
   imageAnalysis, screenCapture,
@@ -101,12 +91,12 @@ export const toolFunctions = {
   meetingAction,
   generateImage, readPDF,
   gitTool, clipboard,
-  discoverProfiles,
+  discoverCrew,
   broadcast,
   goal,
   watcher,
   reload,
 };
 
-// mergePluginTools() removed — crew members are self-contained sub-agents.
+// mergePluginTools() removed - crew members are self-contained sub-agents.
 // Crew tools stay in PluginRegistry, accessed via CrewAgentRunner.

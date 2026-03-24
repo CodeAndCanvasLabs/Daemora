@@ -203,7 +203,7 @@ export function Tenants() {
         });
         if (!res.ok) { const err = await res.json(); toast.error(err.error || `Failed to save ${key}`, { id: toastId }); return; }
       }
-      toast.success(`${channel} connected — bot starting...`, { id: toastId });
+      toast.success(`${channel} connected - bot starting...`, { id: toastId });
       setNewCredValues(v => { const next = { ...v }; keys.forEach(k => delete next[k]); return next; });
       fetchChannelCredKeys(editTenant.id);
     } catch (e: any) { toast.error(e.message, { id: toastId }); }
@@ -554,7 +554,7 @@ export function Tenants() {
                 placeholder="e.g. acme-corp, john-doe"
                 className="bg-slate-900 border-slate-800 text-white text-xs font-mono"
               />
-              <p className="text-[9px] text-gray-600">Unique identifier — lowercase, hyphens allowed</p>
+              <p className="text-[9px] text-gray-600">Unique identifier - lowercase, hyphens allowed</p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -643,61 +643,7 @@ export function Tenants() {
               <Input value={editForm.blockedPaths || ""} onChange={(e) => setEditForm({ ...editForm, blockedPaths: e.target.value })}
                 placeholder="/etc, /root" className="bg-slate-900 border-slate-800 text-white text-xs" />
             </div>
-            {/* Allowed Tools */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] text-gray-500 uppercase">Allowed Tools</label>
-              <Select value="" onValueChange={(v) => {
-                const current = (editForm.allowedTools || "").split(",").map((t: string) => t.trim()).filter(Boolean);
-                if (!current.includes(v)) setEditForm({ ...editForm, allowedTools: [...current, v].join(", ") });
-              }}>
-                <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-[10px] h-8 font-mono">
-                  <SelectValue placeholder="Add tool..." />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-48">
-                  {availableTools.filter(t => !(editForm.allowedTools || "").split(",").map((x: string) => x.trim()).includes(t) && !(editForm.blockedTools || "").split(",").map((x: string) => x.trim()).includes(t)).map(t => (
-                    <SelectItem key={t} value={t} className="text-[10px] font-mono">{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {(editForm.allowedTools || "").split(",").some((t: string) => t.trim()) && (
-                <div className="flex flex-wrap gap-1">
-                  {(editForm.allowedTools || "").split(",").filter((t: string) => t.trim()).map((t: string) => (
-                    <span key={t.trim()} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#00d9ff]/10 border border-[#00d9ff]/30 text-[9px] font-mono text-[#00d9ff]">
-                      {t.trim()}
-                      <button onClick={() => setEditForm({ ...editForm, allowedTools: (editForm.allowedTools || "").split(",").filter((x: string) => x.trim() !== t.trim()).join(", ") })} className="hover:text-red-400"><X className="w-2.5 h-2.5" /></button>
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Blocked Tools */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] text-gray-500 uppercase">Blocked Tools</label>
-              <Select value="" onValueChange={(v) => {
-                const current = (editForm.blockedTools || "").split(",").map((t: string) => t.trim()).filter(Boolean);
-                if (!current.includes(v)) setEditForm({ ...editForm, blockedTools: [...current, v].join(", ") });
-              }}>
-                <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-[10px] h-8 font-mono">
-                  <SelectValue placeholder="Block tool..." />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-950 border-slate-800 text-white max-h-48">
-                  {availableTools.filter(t => !(editForm.blockedTools || "").split(",").map((x: string) => x.trim()).includes(t) && !(editForm.allowedTools || "").split(",").map((x: string) => x.trim()).includes(t)).map(t => (
-                    <SelectItem key={t} value={t} className="text-[10px] font-mono">{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {(editForm.blockedTools || "").split(",").some((t: string) => t.trim()) && (
-                <div className="flex flex-wrap gap-1">
-                  {(editForm.blockedTools || "").split(",").filter((t: string) => t.trim()).map((t: string) => (
-                    <span key={t.trim()} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-500/10 border border-red-500/30 text-[9px] font-mono text-red-400">
-                      {t.trim()}
-                      <button onClick={() => setEditForm({ ...editForm, blockedTools: (editForm.blockedTools || "").split(",").filter((x: string) => x.trim() !== t.trim()).join(", ") })} className="hover:text-red-300"><X className="w-2.5 h-2.5" /></button>
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Allowed Tools / Blocked Tools removed - crews handle tool scoping now */}
 
             {/* MCP Servers */}
             <div className="space-y-1.5">
@@ -727,7 +673,7 @@ export function Tenants() {
               )}
             </div>
 
-            {/* Tool API Keys — only show for selected tools */}
+            {/* Tool API Keys - only show for selected tools */}
             {(() => {
               const selectedTools = (editForm.allowedTools || "").split(",").map((t: string) => t.trim()).filter(Boolean);
               const TOOL_KEYS = [
@@ -736,8 +682,8 @@ export function Tenants() {
                 { tools: ["generateImage", "readPDF", "imageAnalysis"], label: "Google AI", keys: ["GOOGLE_AI_API_KEY"], color: "#4285f4" },
                 { tools: ["generateImage", "readPDF", "imageAnalysis"], label: "OpenRouter", keys: ["OPENROUTER_API_KEY"], color: "#6366f1" },
                 { tools: ["textToSpeech"], label: "ElevenLabs (TTS)", keys: ["ELEVENLABS_API_KEY"], color: "#f0883e" },
-                { tools: ["sendEmail"], label: "Email — Resend", keys: ["RESEND_API_KEY", "RESEND_FROM"], color: "#a78bfa" },
-                { tools: ["sendEmail"], label: "Email — SMTP", keys: ["EMAIL_USER", "EMAIL_PASSWORD", "EMAIL_SMTP_HOST"], color: "#a78bfa" },
+                { tools: ["sendEmail"], label: "Email - Resend", keys: ["RESEND_API_KEY", "RESEND_FROM"], color: "#a78bfa" },
+                { tools: ["sendEmail"], label: "Email - SMTP", keys: ["EMAIL_USER", "EMAIL_PASSWORD", "EMAIL_SMTP_HOST"], color: "#a78bfa" },
                 { tools: ["webSearch"], label: "Brave Search", keys: ["BRAVE_API_KEY"], color: "#fb542b" },
                 { tools: ["webSearch"], label: "Tavily", keys: ["TAVILY_API_KEY"], color: "#6366f1" },
                 { tools: ["webSearch"], label: "Perplexity", keys: ["PERPLEXITY_API_KEY"], color: "#20b2aa" },
@@ -750,7 +696,7 @@ export function Tenants() {
                 { tools: ["calendar"], label: "Google Calendar", keys: ["GOOGLE_CALENDAR_ACCESS_TOKEN"], color: "#34d399" },
                 { tools: ["makeVoiceCall"], label: "Twilio (Voice)", keys: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_FROM"], color: "#e74c3c" },
               ];
-              // Only show key cards for explicitly selected tools — no tools selected = no keys shown
+              // Only show key cards for explicitly selected tools - no tools selected = no keys shown
               if (selectedTools.length === 0) return null;
               const visible = TOOL_KEYS.filter(({ tools }) =>
                 tools.some(t => selectedTools.includes(t))
@@ -900,7 +846,7 @@ export function Tenants() {
                   })}
                 </div>
               ) : (
-                <p className="text-[10px] text-gray-600 font-mono italic">No private MCP servers — using global servers only</p>
+                <p className="text-[10px] text-gray-600 font-mono italic">No private MCP servers - using global servers only</p>
               )}
 
               <div className="space-y-2 pt-1">

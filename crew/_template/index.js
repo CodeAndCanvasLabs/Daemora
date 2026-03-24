@@ -15,7 +15,7 @@ export default {
         id: z.string().optional().describe("Item ID (for get/update/delete)"),
         data: z.string().optional().describe("JSON data (for create/update)"),
       }),
-      "myTool(action, id?, data?) — Manage items. action: list | get | create | update | delete"
+      "myTool(action, id?, data?) - Manage items. action: list | get | create | update | delete"
     );
 
     // Register more tools if needed:

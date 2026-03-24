@@ -1,4 +1,4 @@
-// Settings page — agent identity, skills, memory, API keys, and environment config
+// Settings page - agent identity, skills, memory, API keys, and environment config
 import { useEffect, useState, useRef } from "react";
 import { apiFetch } from "../api";
 import {
@@ -563,7 +563,7 @@ export function Settings() {
       <Section
         icon={Cpu}
         title="Global Config"
-        subtitle="Core agent settings — model, permissions, cost limits"
+        subtitle="Core agent settings - model, permissions, cost limits"
         defaultOpen={true}
         actions={<SaveBtn dirty={configDirty} saving={configSaving} saved={configSaved} onSave={handleConfigSave} />}
       >
@@ -584,9 +584,9 @@ export function Settings() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                  <SelectItem value="minimal" className="text-xs font-mono">MINIMAL — read-only tools, no shell</SelectItem>
-                  <SelectItem value="standard" className="text-xs font-mono">STANDARD — most tools, guarded shell</SelectItem>
-                  <SelectItem value="full" className="text-xs font-mono">FULL — all tools, unrestricted</SelectItem>
+                  <SelectItem value="minimal" className="text-xs font-mono">MINIMAL - read-only tools, no shell</SelectItem>
+                  <SelectItem value="standard" className="text-xs font-mono">STANDARD - most tools, guarded shell</SelectItem>
+                  <SelectItem value="full" className="text-xs font-mono">FULL - all tools, unrestricted</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -605,11 +605,11 @@ export function Settings() {
                   onChange={(e) => handleConfigChange("sttModel", e.target.value)}
                 />
                 <datalist id="stt-models">
-                  <option value="gpt-4o-mini-transcribe">$0.003/min — fast, cheap</option>
-                  <option value="gpt-4o-transcribe">$0.006/min — best accuracy</option>
-                  <option value="gpt-4o-transcribe-diarize">$0.006/min — speaker ID</option>
+                  <option value="gpt-4o-mini-transcribe">$0.003/min - fast, cheap</option>
+                  <option value="gpt-4o-transcribe">$0.006/min - best accuracy</option>
+                  <option value="gpt-4o-transcribe-diarize">$0.006/min - speaker ID</option>
                   <option value="whisper-1">legacy</option>
-                  <option value="whisper-large-v3-turbo">Groq — free tier</option>
+                  <option value="whisper-large-v3-turbo">Groq - free tier</option>
                 </datalist>
               </div>
             </div>
@@ -625,8 +625,8 @@ export function Settings() {
                   onChange={(e) => handleConfigChange("ttsModel", e.target.value)}
                 />
                 <datalist id="tts-models">
-                  <option value="groq">Groq PlayAI — free tier</option>
-                  <option value="edge">Edge TTS — free, no API key</option>
+                  <option value="groq">Groq PlayAI - free tier</option>
+                  <option value="edge">Edge TTS - free, no API key</option>
                   <option value="gpt-4o-mini-tts">steerable, 14 voices</option>
                   <option value="tts-1">standard</option>
                   <option value="tts-1-hd">high quality</option>
@@ -649,14 +649,14 @@ export function Settings() {
                   onChange={(e) => handleConfigChange("ttsVoice", e.target.value)}
                 />
                 <datalist id="tts-voices">
-                  <option value="nova">nova — OpenAI female</option>
-                  <option value="alloy">alloy — OpenAI neutral</option>
-                  <option value="echo">echo — OpenAI male</option>
-                  <option value="fable">fable — OpenAI UK</option>
-                  <option value="onyx">onyx — OpenAI deep</option>
-                  <option value="shimmer">shimmer — OpenAI soft</option>
-                  <option value="hannah">hannah — Groq orpheus</option>
-                  <option value="fritz">fritz — Groq orpheus</option>
+                  <option value="nova">nova - OpenAI female</option>
+                  <option value="alloy">alloy - OpenAI neutral</option>
+                  <option value="echo">echo - OpenAI male</option>
+                  <option value="fable">fable - OpenAI UK</option>
+                  <option value="onyx">onyx - OpenAI deep</option>
+                  <option value="shimmer">shimmer - OpenAI soft</option>
+                  <option value="hannah">hannah - Groq orpheus</option>
+                  <option value="fritz">fritz - Groq orpheus</option>
                 </datalist>
               </div>
             </div>
@@ -672,10 +672,10 @@ export function Settings() {
                   onChange={(e) => handleConfigChange("meetingLlm", e.target.value)}
                 />
                 <datalist id="meeting-llm-models">
-                  <option value="openai:gpt-4o-mini">gpt-4o-mini — fast, cheap</option>
-                  <option value="groq:llama-3.3-70b-versatile">groq llama-3.3-70b — fast free</option>
-                  <option value="anthropic:claude-haiku-4-5-20251001">claude haiku — fast</option>
-                  <option value="ollama:llama3.2">ollama llama3.2 — local</option>
+                  <option value="openai:gpt-4o-mini">gpt-4o-mini - fast, cheap</option>
+                  <option value="groq:llama-3.3-70b-versatile">groq llama-3.3-70b - fast free</option>
+                  <option value="anthropic:claude-haiku-4-5-20251001">claude haiku - fast</option>
+                  <option value="ollama:llama3.2">ollama llama3.2 - local</option>
                 </datalist>
               </div>
             </div>
@@ -889,7 +889,7 @@ export function Settings() {
           {customSkills.length === 0 && !showNewSkill ? (
             <div className="text-center py-10 border border-dashed border-slate-800 rounded-xl">
               <Sparkles className="w-6 h-6 text-gray-700 mx-auto mb-3" />
-              <p className="text-gray-600 font-mono text-xs">No custom skills yet — create one to extend the agent</p>
+              <p className="text-gray-600 font-mono text-xs">No custom skills yet - create one to extend the agent</p>
             </div>
           ) : (
             customSkills.map((skill) => (
@@ -928,7 +928,7 @@ export function Settings() {
           />
           <p className="text-[11px] font-mono text-gray-600 mt-3 flex items-center gap-2">
             <Brain className="w-3.5 h-3.5" />
-            Injected into the system prompt — the agent learns from this across all sessions
+            Injected into the system prompt - the agent learns from this across all sessions
           </p>
         </div>
       </Section>
@@ -937,7 +937,7 @@ export function Settings() {
       <Section
         icon={KeyRound}
         title="AI Provider Keys"
-        subtitle="API keys for LLM providers — encrypted in vault"
+        subtitle="API keys for LLM providers - encrypted in vault"
         badge={(() => {
           const providerKeys = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "OPENROUTER_API_KEY", "XAI_API_KEY", "DEEPSEEK_API_KEY", "MISTRAL_API_KEY", "GROQ_API_KEY"];
           const set = providerKeys.filter(k => data.vars[k]);
@@ -1036,7 +1036,7 @@ export function Settings() {
       <Section
         icon={Zap}
         title="Global Channels"
-        subtitle="Default channel tokens — tenants can override with their own"
+        subtitle="Default channel tokens - tenants can override with their own"
         badge={(() => {
           const channelTokens = ["TELEGRAM_BOT_TOKEN", "DISCORD_BOT_TOKEN", "SLACK_BOT_TOKEN", "TWILIO_ACCOUNT_SID", "LINE_CHANNEL_ACCESS_TOKEN"];
           const set = channelTokens.filter(k => data.vars[k]);

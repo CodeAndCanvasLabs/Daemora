@@ -1,9 +1,9 @@
 /**
- * meetingTool — Agent-facing tool for meeting management and voice cloning.
+ * meetingTool - Agent-facing tool for meeting management and voice cloning.
  *
  * Meeting bot dials into any meeting's phone number via Twilio.
  * OpenAI Realtime STT (native mu-law, server-side VAD) + ElevenLabs/OpenAI TTS.
- * No Docker, no browser — pure phone audio pipeline (same as OpenClaw).
+ * No Docker, no browser - pure phone audio pipeline (same as OpenClaw).
  */
 
 import { mergeLegacyParams as _mergeLegacy } from "../utils/mergeToolParams.js";
@@ -67,7 +67,7 @@ export async function meetingAction(toolParams) {
         return await speakInMeeting(sessionId, text);
       }
 
-      // Blocks until the meeting ends — no polling needed.
+      // Blocks until the meeting ends - no polling needed.
       // Twilio media stream + OpenAI Realtime handles voice conversation autonomously.
       // Returns when call ends: {status: "meeting_ended", transcript: "..."}
       case "wait": {

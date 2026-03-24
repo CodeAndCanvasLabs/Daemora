@@ -52,7 +52,7 @@ export function manageAgents(toolParams) {
           const label = id.slice(mainSessionId.length + 2); // strip "telegram-123--"
           const session = getSession(id);
           const msgCount = session?.messages?.length || 0;
-          return `• ${label} (${msgCount} messages) — sessionId: "${id}"`;
+          return `• ${label} (${msgCount} messages) - sessionId: "${id}"`;
         });
         return `Sub-agent sessions (${subSessions.length}):\n${lines.join("\n")}`;
       }

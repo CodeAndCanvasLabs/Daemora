@@ -15,7 +15,7 @@ describe("ModelRouter", () => {
       const { getModel } = await import("../../../src/models/ModelRouter.js");
       try {
         getModel("openai:gpt-4.1-mini", {}); // no key in apiKeys, no env key
-        // If we get here without throwing, it may be using a cached provider — that's ok
+        // If we get here without throwing, it may be using a cached provider - that's ok
       } catch (e) {
         expect(e.message).toMatch(/not configured|API key/i);
       } finally {
@@ -44,7 +44,7 @@ describe("ModelRouter", () => {
       }
       const result = getCheapModel();
       expect(result).toBeDefined();
-      // May be null if no providers configured — that's acceptable
+      // May be null if no providers configured - that's acceptable
     });
   });
 

@@ -6,7 +6,7 @@
  *   2. Global .env                (RESEND_API_KEY / EMAIL_USER + EMAIL_PASSWORD)
  *
  * This means each tenant can use their own email credentials without affecting others.
- * Concurrent requests are safe — tenant credentials are never written to process.env.
+ * Concurrent requests are safe - tenant credentials are never written to process.env.
  */
 
 import tenantContext from "../tenants/TenantContext.js";
@@ -24,7 +24,7 @@ function parseAddressList(val) {
   return val.split(",").map((a) => a.trim()).filter(Boolean);
 }
 
-// Module-level singleton for global (non-tenant) SMTP — reused across requests for performance.
+// Module-level singleton for global (non-tenant) SMTP - reused across requests for performance.
 // Tenant-specific transporters are always fresh (never cached) to avoid cross-tenant bleed.
 let _globalTransporter = null;
 
@@ -46,7 +46,7 @@ async function getTransporter() {
   const hasTenantCreds = !!(ch.resend_api_key || ch.email);
 
   if (hasTenantCreds) {
-    // Tenant-specific: always create a fresh transporter (never cache — different per tenant)
+    // Tenant-specific: always create a fresh transporter (never cache - different per tenant)
     if (resendKey) {
       return {
         transporter: nodemailer.default.createTransport({
@@ -155,7 +155,7 @@ export async function sendEmail(params) {
       }));
     }
 
-    // Egress guard — scan email body for leaked secrets
+    // Egress guard - scan email body for leaked secrets
     const bodyCheck = egressGuard.check(mailOptions.text || mailOptions.html || "");
     if (!bodyCheck.safe) {
       return `Error: Email body contains a leaked secret (${bodyCheck.leaked}). Sending blocked.`;

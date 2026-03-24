@@ -1,6 +1,6 @@
 ---
 name: orchestration
-description: Multi-agent orchestration — sub-agents, teams, parallel execution, workspace collaboration, priority-based task ordering
+description: Multi-agent orchestration - sub-agents, teams, parallel execution, workspace collaboration, priority-based task ordering
 triggers: parallel, orchestrate, sub-agent, project, plan, multiple tasks, frontend backend, coordinate, spawn, workspace, contract, full-stack, multi-step, team, teammates, competing hypotheses, debug, priority, research
 ---
 
@@ -14,22 +14,22 @@ triggers: parallel, orchestrate, sub-agent, project, plan, multiple tasks, front
 - < 3 tool calls total
 
 ### Use spawnAgent when:
-- Single focused task — research, build one file, analysis
-- Fire-and-forget — spawn, collect result, move on
+- Single focused task - research, build one file, analysis
+- Fire-and-forget - spawn, collect result, move on
 
 ### Use parallelAgents when:
-- Multiple INDEPENDENT tasks — no data sharing needed
-- Never for dependent tasks — use teamTask instead
+- Multiple INDEPENDENT tasks - no data sharing needed
+- Never for dependent tasks - use teamTask instead
 
 ### Use teamTask when:
-- Dependent tasks (A→B→C) — agents share results via workspace
+- Dependent tasks (A→B→C) - agents share results via workspace
 - 3+ interdependent tasks with priority ordering
-- Competing hypotheses — multiple investigators, compare results
-- Cross-layer coordination — frontend + backend + tests sharing contract
+- Competing hypotheses - multiple investigators, compare results
+- Cross-layer coordination - frontend + backend + tests sharing contract
 
 ## 21 Agent Profiles
 
-Pick the right profile — each has specialized tools, system prompt, and skill scope.
+Pick the right profile - each has specialized tools, system prompt, and skill scope.
 
 **Development:** `coder` · `architect` · `reviewer` · `tester` · `devops` · `security` · `database` · `frontend` · `api`
 **Research:** `researcher` · `analyst` · `investigator`
@@ -37,7 +37,7 @@ Pick the right profile — each has specialized tools, system prompt, and skill 
 **Business:** `planner` · `strategist` · `assistant`
 **Operations:** `sysadmin` · `designer` · `coordinator` · `meeting-attendant`
 
-Profile is REQUIRED — always specify one.
+Profile is REQUIRED - always specify one.
 
 ## Sub-Agent Patterns
 
@@ -79,7 +79,7 @@ useMCP("github", "Create issue titled 'Bug: login fails' with reproduction steps
 ```
 
 ### Team workspace (shared context between agents)
-Agents share findings via workspace — researcher stores, coder reads:
+Agents share findings via workspace - researcher stores, coder reads:
 ```
 // Researcher stores findings
 teamTask("storeContext", '{"teamId":"...","key":"auth-research","value":"JWT with RS256, refresh tokens...","author":"researcher"}')
@@ -99,7 +99,7 @@ teamTask("eventLog", '{"teamId":"..."}')
 
 ### Task priority
 Tasks have priority: `critical` > `high` > `medium` > `low`
-- `claimable` returns priority-sorted tasks — agents work on critical first
+- `claimable` returns priority-sorted tasks - agents work on critical first
 - `executionOrder` shows topological sort (deps + priority)
 
 ### Competing hypotheses (debugging)
@@ -119,11 +119,11 @@ Every spawn/teammate instruction must include:
 
 ```
 TASK: What to build/research/fix (one sentence)
-CONTEXT: Background — what exists, what this connects to, why
+CONTEXT: Background - what exists, what this connects to, why
 FILES: Exact paths to create or modify
-SPEC: Full contract — endpoints, schemas, interfaces
+SPEC: Full contract - endpoints, schemas, interfaces
 CONSTRAINTS: Frameworks, patterns, format requirements
-OUTPUT: What to produce — files, report, test results
+OUTPUT: What to produce - files, report, test results
 ```
 
 **Bad:** "Write the CSS file"

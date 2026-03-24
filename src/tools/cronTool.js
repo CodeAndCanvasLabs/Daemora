@@ -78,7 +78,7 @@ export function cron(toolParams) {
         const isAdmin = !tenantId || tenantId === "__global__" || store?.tenant?.globalAdmin === true;
         const deliveryPreset = isAdmin ? (params.deliveryPreset || null) : null;
 
-        // Build delivery — preset takes priority over auto-announce
+        // Build delivery - preset takes priority over auto-announce
         let delivery = params.delivery || { mode: "none" };
         if (!deliveryPreset && delivery.mode === "none") {
           const channelMeta = _getChannelMeta();
@@ -138,13 +138,13 @@ export function cron(toolParams) {
       case "enable": {
         if (!params.id) return "Error: id is required.";
         const job = scheduler.update(params.id, { enabled: true }, tenantId);
-        return `Job "${job.name}" enabled — next run: ${job.nextRunAt || "computing..."}`;
+        return `Job "${job.name}" enabled - next run: ${job.nextRunAt || "computing..."}`;
       }
 
       case "disable": {
         if (!params.id) return "Error: id is required.";
         const job = scheduler.update(params.id, { enabled: false }, tenantId);
-        return `Job "${job.name}" disabled — paused, not deleted.`;
+        return `Job "${job.name}" disabled - paused, not deleted.`;
       }
 
       case "remove": {
@@ -155,7 +155,7 @@ export function cron(toolParams) {
 
       case "run": {
         if (!params.id) return "Error: id is required.";
-        // Fire-and-forget — don't await, just trigger
+        // Fire-and-forget - don't await, just trigger
         scheduler.forceRun(params.id, tenantId).catch(e =>
           console.log(`[cron] Force-run error: ${e.message}`)
         );
@@ -166,7 +166,7 @@ export function cron(toolParams) {
         const presets = listPresets();
         if (presets.length === 0) return "No delivery presets configured. Admin can create them from Cron → Presets in the dashboard.";
         return presets.map(p =>
-          `• "${p.name}" — ${p.targets.length} target(s)${p.description ? ` | ${p.description}` : ""}`
+          `• "${p.name}" - ${p.targets.length} target(s)${p.description ? ` | ${p.description}` : ""}`
         ).join("\n");
       }
 
@@ -179,7 +179,7 @@ export function cron(toolParams) {
         });
         if (runs.length === 0) return "No run history for this job.";
         return runs.map(r =>
-          `[${r.started_at}] ${r.status}${r.duration_ms ? ` (${Math.round(r.duration_ms / 1000)}s)` : ""}${r.error ? ` — ${r.error.slice(0, 100)}` : ""}${r.delivery_status !== "not-requested" ? ` | delivery: ${r.delivery_status}` : ""}`
+          `[${r.started_at}] ${r.status}${r.duration_ms ? ` (${Math.round(r.duration_ms / 1000)}s)` : ""}${r.error ? ` - ${r.error.slice(0, 100)}` : ""}${r.delivery_status !== "not-requested" ? ` | delivery: ${r.delivery_status}` : ""}`
         ).join("\n");
       }
 

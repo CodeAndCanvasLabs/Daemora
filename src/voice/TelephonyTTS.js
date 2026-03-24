@@ -1,5 +1,5 @@
 /**
- * TelephonyTTS — TTS synthesis → mu-law 8kHz for Twilio media streams.
+ * TelephonyTTS - TTS synthesis → mu-law 8kHz for Twilio media streams.
  *
  * Provider priority (based on available keys):
  *   1. ElevenLabs (best quality, turbo_v2_5 model)
@@ -32,7 +32,7 @@ export async function synthesizeForTelephony(text, opts = {}) {
     try {
       return await _elevenLabsTTS(text, opts.voiceId, elevenKey);
     } catch (e) {
-      console.log(`[TelephonyTTS] ElevenLabs failed: ${e.message} — falling back to OpenAI`);
+      console.log(`[TelephonyTTS] ElevenLabs failed: ${e.message} - falling back to OpenAI`);
     }
   }
 

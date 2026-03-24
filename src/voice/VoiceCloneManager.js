@@ -1,5 +1,5 @@
 /**
- * VoiceCloneManager — ElevenLabs voice cloning API integration.
+ * VoiceCloneManager - ElevenLabs voice cloning API integration.
  *
  * Upload voice samples → create instant or professional clones.
  * List, delete, and manage cloned voices.

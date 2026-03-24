@@ -1,10 +1,10 @@
 import { getDb } from "../storage/Database.js";
 
 /**
- * ConfigStore — non-secret configuration stored in SQLite config_entries table.
+ * ConfigStore - non-secret configuration stored in SQLite config_entries table.
  *
  * Keys are env-var-style strings (PORT, DEFAULT_MODEL, PERMISSION_TIER, etc.)
- * matching the same keys used in .env — so reloadFromDb() can inject them
+ * matching the same keys used in .env - so reloadFromDb() can inject them
  * directly into process.env without key translation.
  *
  * Secrets (API keys, tokens) belong in SecretVault, not here.

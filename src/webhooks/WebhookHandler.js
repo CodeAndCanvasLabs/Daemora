@@ -1,8 +1,8 @@
 /**
- * Webhook Handler — trigger agent runs via HTTP.
+ * Webhook Handler - trigger agent runs via HTTP.
  *
- * POST /hooks/agent — full agent run (queued, returns taskId)
- * POST /hooks/wake  — lightweight heartbeat-style trigger
+ * POST /hooks/agent - full agent run (queued, returns taskId)
+ * POST /hooks/wake  - lightweight heartbeat-style trigger
  *
  * Auth: Bearer token from WEBHOOK_TOKEN env var. Rejects if not set.
  * Rate limit: 30 requests/minute per token.
@@ -78,7 +78,7 @@ function checkAuth(req, res) {
 }
 
 /**
- * POST /hooks/agent — trigger a full agent run.
+ * POST /hooks/agent - trigger a full agent run.
  * Body: { message: string, sessionId?: string, model?: string, timeoutSeconds?: number }
  * Returns: { taskId, status: "queued" }
  */
@@ -108,7 +108,7 @@ router.post("/agent", (req, res) => {
 });
 
 /**
- * POST /hooks/wake — lightweight trigger (heartbeat-style).
+ * POST /hooks/wake - lightweight trigger (heartbeat-style).
  * Body: { text: string }
  * Returns: { taskId, status: "queued" }
  */
@@ -135,7 +135,7 @@ router.post("/wake", (req, res) => {
 });
 
 /**
- * POST /hooks/watch/:name — trigger a watcher by name.
+ * POST /hooks/watch/:name - trigger a watcher by name.
  * Body: arbitrary JSON payload passed to the watcher's action.
  * Returns: { triggered: true, taskId }
  */
@@ -158,7 +158,7 @@ router.post("/watch/:name", async (req, res) => {
       }
     }
 
-    // Resolve destinations — use new destinations[] array, fallback to legacy channel/channelMeta
+    // Resolve destinations - use new destinations[] array, fallback to legacy channel/channelMeta
     let destinations = watcher.destinations || [];
     if (destinations.length === 0 && watcher.channel) {
       let meta = watcher.channelMeta;
@@ -174,7 +174,7 @@ router.post("/watch/:name", async (req, res) => {
     const input = `[Watcher: ${watcher.name}] ${watcher.action}${contextBlock}\n\nPayload:\n${JSON.stringify(req.body, null, 2)}`;
 
     if (destinations.length === 0) {
-      // No destinations — still run the agent, results stored only
+      // No destinations - still run the agent, results stored only
       const task = taskQueue.enqueue({
         input,
         channel: "webhook",
@@ -213,7 +213,7 @@ router.post("/watch/:name", async (req, res) => {
 });
 
 /**
- * POST /hooks/event — generic event ingress, match against watcher patterns.
+ * POST /hooks/event - generic event ingress, match against watcher patterns.
  * Body: arbitrary JSON event payload.
  * Returns: { matched: N, triggered: N }
  */

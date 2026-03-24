@@ -406,7 +406,7 @@ All added to your outline with proper citations.
 > "Last month, I asked AI to analyze 500 customer interviews. It took 30 minutes instead of 3 weeks. Product management will never be the same."
 
 **Option 2 (Question)**:
-> "What if you could talk to every customer, read every review, and analyze every support ticket—all before your morning coffee?"
+> "What if you could talk to every customer, read every review, and analyze every support ticket-all before your morning coffee?"
 
 **Option 3 (Story)**:
 > "Sarah spent two weeks building the wrong feature. Not because she didn't understand her users, but because she couldn't process the hundreds of interviews fast enough to spot the pattern."

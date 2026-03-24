@@ -31,7 +31,7 @@ export async function googlePlaces(_params) {
     const res = await fetchFn(`${BASE}/place/textsearch/json?${qs}`);
     const data = await res.json();
     if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
-      return `Places API error: ${data.status} — ${data.error_message || ""}`;
+      return `Places API error: ${data.status} - ${data.error_message || ""}`;
     }
     if (!data.results?.length) return `No places found for "${query}"`;
 
@@ -69,7 +69,7 @@ export async function googlePlaces(_params) {
     if (r.reviews?.length && params.includeReviews) {
       lines.push("Top reviews:");
       r.reviews.slice(0, 3).forEach(rev => {
-        lines.push(`  ⭐${rev.rating} — ${rev.author_name}: "${rev.text?.slice(0, 100)}..."`);
+        lines.push(`  ⭐${rev.rating} - ${rev.author_name}: "${rev.text?.slice(0, 100)}..."`);
       });
     }
 
@@ -95,7 +95,7 @@ export async function googlePlaces(_params) {
     if (!data.results?.length) return "No places found nearby";
 
     return data.results.slice(0, params.limit || 5).map(p =>
-      `${p.name} — ${p.vicinity} (Rating: ${p.rating || "N/A"})`
+      `${p.name} - ${p.vicinity} (Rating: ${p.rating || "N/A"})`
     ).join("\n");
   }
 

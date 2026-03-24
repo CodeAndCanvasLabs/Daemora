@@ -5,7 +5,7 @@ import { createOllama } from "ollama-ai-provider";
 import { models, fallbackChains } from "../config/models.js";
 
 /**
- * Provider registry — maps provider name → { envKey, baseURL (for OpenAI-compat), factory }.
+ * Provider registry - maps provider name → { envKey, baseURL (for OpenAI-compat), factory }.
  * xAI, DeepSeek, Mistral use OpenAI-compatible APIs with custom baseURL.
  */
 const PROVIDERS = {
@@ -32,7 +32,7 @@ function _createProvider(name, apiKey) {
   if (name === "openai")    return createOpenAI({ apiKey });
   if (name === "anthropic") return createAnthropic({ apiKey });
   if (name === "google")    return createGoogleGenerativeAI({ apiKey });
-  // OpenRouter — include ranking headers
+  // OpenRouter - include ranking headers
   if (name === "openrouter") return createOpenAI({ apiKey, baseURL: info.baseURL, headers: { "HTTP-Referer": "https://daemora.com", "X-OpenRouter-Title": "Daemora" } });
   // OpenAI-compatible providers (xAI, DeepSeek, Mistral)
   if (info?.baseURL)        return createOpenAI({ apiKey, baseURL: info.baseURL });
@@ -53,7 +53,7 @@ function getProvider(name, apiKeys = {}) {
   const globalKey = info.envKey ? process.env[info.envKey] : null;
   if (!tenantKey && !globalKey) return null;
 
-  // Per-tenant key: always create a fresh instance — never cache, prevents cross-tenant bleed
+  // Per-tenant key: always create a fresh instance - never cache, prevents cross-tenant bleed
   if (tenantKey) return _createProvider(name, tenantKey);
 
   // Global key: singleton cache (zero overhead for single-user mode)
@@ -78,7 +78,7 @@ export function getModel(modelId, apiKeys = {}) {
     const [providerName, modelName] = modelId.split(":", 2);
     const knownProviders = Object.keys(PROVIDERS);
     if (knownProviders.includes(providerName)) {
-      console.log(`[ModelRouter] Model "${modelId}" not in registry — using dynamic passthrough`);
+      console.log(`[ModelRouter] Model "${modelId}" not in registry - using dynamic passthrough`);
       meta = {
         provider: providerName,
         model: modelName,
@@ -138,7 +138,7 @@ function _availableProviders(apiKeys = {}) {
 /**
  * Resolve the default model based on available provider keys.
  * Priority: DEFAULT_MODEL env → first available provider's best standard model.
- * Never crashes — returns first available model from any configured provider.
+ * Never crashes - returns first available model from any configured provider.
  *
  * @param {object} apiKeys - Per-tenant API key overlay
  * @returns {string} Resolved model ID (e.g. "anthropic:claude-sonnet-4-6")
@@ -150,7 +150,7 @@ export function resolveDefaultModel(apiKeys = {}) {
     const provider = explicit.split(":")[0];
     const available = _availableProviders(apiKeys);
     if (available.has(provider)) return explicit;
-    console.log(`[ModelRouter] DEFAULT_MODEL "${explicit}" provider not configured — auto-detecting`);
+    console.log(`[ModelRouter] DEFAULT_MODEL "${explicit}" provider not configured - auto-detecting`);
   }
 
   const available = _availableProviders(apiKeys);
@@ -170,7 +170,7 @@ export function resolveDefaultModel(apiKeys = {}) {
     if (available.has(provider)) return model;
   }
 
-  // Absolute last resort (should never reach here — ollama is always available)
+  // Absolute last resort (should never reach here - ollama is always available)
   return "ollama:llama3.1";
 }
 

@@ -15,13 +15,13 @@ async function makeTempManager() {
   const tmpDir = join(os.tmpdir(), `daemora-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   mkdirSync(join(tmpDir, "tenants"), { recursive: true });
 
-  // We import TenantManager internals indirectly — the singleton points at real dataDir.
+  // We import TenantManager internals indirectly - the singleton points at real dataDir.
   // Instead, directly test the encryption round-trip using the module's helpers
   // by exposing them via the public setApiKey / getDecryptedApiKeys interface.
   return { tmpDir };
 }
 
-describe("TenantManager — encryption (AES-256-GCM)", () => {
+describe("TenantManager - encryption (AES-256-GCM)", () => {
   let originalKey;
 
   beforeEach(() => {
@@ -44,7 +44,7 @@ describe("TenantManager — encryption (AES-256-GCM)", () => {
     const testTenantId = `test:encrypt_${Date.now()}`;
 
     // Ensure tenant exists (need to inject it directly since autoRegister may be off)
-    // We test via the public interface — setApiKey + getDecryptedApiKeys
+    // We test via the public interface - setApiKey + getDecryptedApiKeys
     tenantManager.setApiKey(testTenantId, "OPENAI_API_KEY", "sk-test-my-secret-key-123456789");
     const keys = tenantManager.getDecryptedApiKeys(testTenantId);
 
@@ -111,12 +111,12 @@ describe("TenantManager — encryption (AES-256-GCM)", () => {
     tenantManager.setApiKey(t1, "OPENAI_API_KEY", "sk-same-value");
     tenantManager.setApiKey(t2, "OPENAI_API_KEY", "sk-same-value");
 
-    // Both tenants store same value — decrypted values should match but internal ciphertexts differ (random IV)
+    // Both tenants store same value - decrypted values should match but internal ciphertexts differ (random IV)
     const keys1 = tenantManager.getDecryptedApiKeys(t1);
     const keys2 = tenantManager.getDecryptedApiKeys(t2);
     expect(keys1.OPENAI_API_KEY).toBe("sk-same-value");
     expect(keys2.OPENAI_API_KEY).toBe("sk-same-value");
-    // Internal ciphertexts differ due to random IV — verified by the fact both decrypt correctly
+    // Internal ciphertexts differ due to random IV - verified by the fact both decrypt correctly
   });
 
   it("decryption returns correct value after set", async () => {
@@ -141,7 +141,7 @@ describe("TenantManager — encryption (AES-256-GCM)", () => {
   });
 });
 
-describe("TenantManager — resolveTaskConfig()", () => {
+describe("TenantManager - resolveTaskConfig()", () => {
   it("returns empty apiKeys for null tenant", async () => {
     const { default: tenantManager } = await import("../../../src/tenants/TenantManager.js");
     const resolved = tenantManager.resolveTaskConfig(null, null);
@@ -176,7 +176,7 @@ describe("TenantManager — resolveTaskConfig()", () => {
   });
 });
 
-describe("TenantManager — stats()", () => {
+describe("TenantManager - stats()", () => {
   it("returns total, suspended, totalCost, totalTasks", async () => {
     const { default: tenantManager } = await import("../../../src/tenants/TenantManager.js");
     const s = tenantManager.stats();

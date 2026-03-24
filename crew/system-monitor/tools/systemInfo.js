@@ -2,7 +2,7 @@ import os from "node:os";
 import { execSync } from "node:child_process";
 
 /**
- * systemInfo — check system health metrics.
+ * systemInfo - check system health metrics.
  *
  * Actions:
  * - overview: CPU, memory, uptime, load averages
@@ -102,4 +102,4 @@ function formatBytes(bytes) {
   return `${(bytes / 1073741824).toFixed(1)} GB`;
 }
 
-export const systemInfoDescription = "systemInfo(action) — Check system health. action: overview | disk | processes | network | all";
+export const systemInfoDescription = "systemInfo(action) - Check system health. action: overview | disk | processes | network | all";

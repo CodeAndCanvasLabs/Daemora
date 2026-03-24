@@ -1,7 +1,7 @@
 /**
  * iMessageTool - Send iMessages and SMS via macOS Messages app.
  * Requires macOS with Messages app configured and accessibility permissions.
- * Uses osascript (AppleScript) — no external deps.
+ * Uses osascript (AppleScript) - no external deps.
  */
 import { execSync } from "node:child_process";
 import { mergeLegacyParams as _mergeLegacy } from "../../../src/utils/mergeToolParams.js";

@@ -81,7 +81,7 @@ export async function executeCommand(params) {
     return `Command blocked by security policy: ${cmdCheck.reason}`;
   }
 
-  // ── Exec approval gate — pause for user approval if needed ──
+  // ── Exec approval gate - pause for user approval if needed ──
   if (execApproval.needsApproval(cmd)) {
     const decision = await execApproval.requestApproval(cmd, opts.taskId || null);
     if (decision === "deny") {
@@ -124,12 +124,12 @@ export async function executeCommand(params) {
     ? Math.min(parseInt(timeoutRaw), MAX_TIMEOUT_MS)
     : DEFAULT_TIMEOUT_MS;
 
-  // Build safe env — strip secrets from child process environment
+  // Build safe env - strip secrets from child process environment
   const env = _buildSafeEnv(extraEnv);
 
   console.log(`      [executeCommand] Running: ${cmd}${cwdRaw ? ` (cwd: ${cwdRaw})` : ""}${background ? " [background]" : ""}`);
 
-  // ── Docker sandbox mode — route through container ──
+  // ── Docker sandbox mode - route through container ──
   if (config.sandbox?.mode === "docker" && dockerSandbox.isAvailable() && !background) {
     const scope = config.sandbox.docker?.scope === "shared" ? "shared" : (store?.sessionId || "shared");
     return dockerSandbox.exec(scope, cmd, { timeout, cwd });

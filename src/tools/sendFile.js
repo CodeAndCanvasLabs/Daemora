@@ -53,11 +53,11 @@ export async function sendFile(params) {
 
     let targetMeta = channelMeta;
 
-    // Cross-channel or no-context (cron/autonomous) — look up tenant's linked channel identity
+    // Cross-channel or no-context (cron/autonomous) - look up tenant's linked channel identity
     if (!channelMeta?.channel || targetChannel !== channelMeta.channel) {
       const tenantId = store?.tenant?.id;
       if (!tenantId) {
-        return `Error: No tenant context — cannot determine your identity on "${targetChannel}".`;
+        return `Error: No tenant context - cannot determine your identity on "${targetChannel}".`;
       }
       const linkedChannels = tenantManager.getChannels(tenantId);
       const linked = linkedChannels.find(c => c.channel === targetChannel);
@@ -95,7 +95,7 @@ export async function sendFile(params) {
 
 export const sendFileDescription =
   'sendFile(filePath, caption?, channel?) - Send a file, image, or video back to the current user. ' +
-  'Always sends to the current user — never to arbitrary external targets. ' +
+  'Always sends to the current user - never to arbitrary external targets. ' +
   'channel: optional, specify a different channel (e.g. "telegram") only if the user explicitly requests it and has that channel linked to their account. ' +
   'filePath: absolute path to the file. caption: optional text alongside the file. ' +
   'Send file to user on current or specified channel.';

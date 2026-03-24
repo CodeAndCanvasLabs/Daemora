@@ -1,19 +1,15 @@
 /**
- * Agent Profiles - tool presets for common sub-agent roles.
+ * Core tools + defaults for agent orchestration.
  *
- * Rather than giving every sub-agent all 33 tools, profiles provide
- * focused tool sets matched to the task type. Inspired by the research
- * finding that specialized context windows outperform bloated ones.
+ * Profiles are now defined in crew plugin.json files (unified crew system).
+ * This file only defines: CORE_TOOLS for main agent + defaultSubAgentTools fallback.
  *
- * Usage in spawnAgent / parallelAgents:
- *   { profile: "coder" }                        - preset tool list
- *   { profile: "researcher", extraTools: ["writeFile"] }  - preset + additions
- *   { tools: ["readFile", "webSearch"] }         - explicit list (overrides profile)
- *
- * spawnAgent and parallelAgents are NOT available to sub-agents — only the main agent orchestrates.
+ * Usage: useCrew("coder", task) / parallelCrew([...]) / teamTask(...)
  */
 
-export const agentProfiles = {
+// Legacy profile objects - kept for reference only, not used by ProfileLoader.
+// Profiles now live in crew/*/plugin.json.
+const _legacyProfiles = {
 
   /**
    * researcher - gather, analyze, summarize, produce findings.
@@ -105,7 +101,7 @@ export const agentProfiles = {
  * dynamically into sub-agents by SubAgentManager based on recursion depth.
  */
 /**
- * Core tools — always available to the main agent.
+ * Core tools - always available to the main agent.
  * Rule: if it needs an API key or external service, it's NOT core.
  * Everything else goes through profiles (sub-agents).
  */
@@ -120,7 +116,7 @@ export const CORE_TOOLS = [
   // Memory
   "readMemory", "writeMemory", "searchMemory",
   // Orchestration
-  "spawnAgent", "parallelAgents", "manageAgents", "teamTask", "discoverProfiles",
+  "parallelCrew", "manageAgents", "teamTask", "discoverCrew",
   // Communication
   "replyToUser",
   "sendFile",
@@ -149,13 +145,9 @@ export const defaultSubAgentTools = [
   // Project tracking
   "projectTracker",
   "taskManager",
-  // Communication (mid-task)
+  // Communication
   "replyToUser",
-  // MCP (via specialist agent - no direct mcp__ tools)
-  "manageMCP",
+  // Delegation
   "useMCP",
-  // Agent Teams
-  "teamTask",
-  // Meetings + Voice
-  "meetingAction",
+  "useCrew",
 ];

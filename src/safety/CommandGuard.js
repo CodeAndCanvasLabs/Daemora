@@ -1,15 +1,15 @@
 /**
- * CommandGuard — blocks shell commands that could expose secrets or exfiltrate data.
+ * CommandGuard - blocks shell commands that could expose secrets or exfiltrate data.
  *
  * Called by executeCommand() before running any shell command.
- * This is defence-in-depth — it runs AFTER filesystem scoping and BEFORE SecretScanner.
+ * This is defence-in-depth - it runs AFTER filesystem scoping and BEFORE SecretScanner.
  *
  * Blocked categories:
- *   1. Environment dumping    — printenv, /proc/self/environ, etc.
- *   2. .env file access       — cat/less/head/tail .env via shell
- *   3. Targeted env access    — node -e 'process.env.KEY', python -c 'os.environ'
- *   4. Credential exfiltration — curl/wget with $API_KEY or $(printenv ...) in URL/body
- *   5. Sensitive file reads   — reading vault, tenant data, ssh keys via shell
+ *   1. Environment dumping    - printenv, /proc/self/environ, etc.
+ *   2. .env file access       - cat/less/head/tail .env via shell
+ *   3. Targeted env access    - node -e 'process.env.KEY', python -c 'os.environ'
+ *   4. Credential exfiltration - curl/wget with $API_KEY or $(printenv ...) in URL/body
+ *   5. Sensitive file reads   - reading vault, tenant data, ssh keys via shell
  */
 
 import eventBus from "../core/EventBus.js";
@@ -93,7 +93,7 @@ const BLOCKED_COMMANDS = [
     reason: "Reading private key files via shell is blocked.",
   },
   // ── 6. Daemora CLI privilege escalation ──────────────────────────────────
-  // Agent must NEVER run daemora/aegis CLI commands — they can modify tenant
+  // Agent must NEVER run daemora/aegis CLI commands - they can modify tenant
   // config, workspace paths, API keys, sandbox rules, etc.
   {
     pattern: /(?:^|[;&|`]\s*)(?:daemora|aegis)\b/,
@@ -117,7 +117,7 @@ const BLOCKED_COMMANDS = [
   {
     // config/mcp.json contains GITHUB_TOKEN, Bearer tokens, etc. in plaintext
     pattern: /\b(?:cat|less|more|head|tail|bat|jq|python|node)\b[^;|&\n]*config[\/\\]mcp\.json/i,
-    reason: "Reading config/mcp.json via shell is blocked — it may contain MCP server API keys.",
+    reason: "Reading config/mcp.json via shell is blocked - it may contain MCP server API keys.",
   },
   {
     pattern: /\b(?:cat|less|more|head|tail|bat)\b[^;|&\n]*config[\/\\]hooks\.json/i,
@@ -126,7 +126,7 @@ const BLOCKED_COMMANDS = [
   {
     // Also block direct JSON parsing of mcp.json to extract credentials
     pattern: /config[\/\\]mcp\.json[^;|&\n]*(?:\||>)/,
-    reason: "Piping or redirecting config/mcp.json is blocked — it may contain MCP server API keys.",
+    reason: "Piping or redirecting config/mcp.json is blocked - it may contain MCP server API keys.",
   },
 ];
 

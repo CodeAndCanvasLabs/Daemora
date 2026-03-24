@@ -424,9 +424,9 @@ export const models = {
     tier: "cheap",
   },
 
-  // ─── Groq (hosted models — uses GROQ_API_KEY) ──────────────────────────────
+  // ─── Groq (hosted models - uses GROQ_API_KEY) ──────────────────────────────
 
-  // groq/compound and groq/compound-mini removed — don't support custom tool calling (only Groq built-in tools)
+  // groq/compound and groq/compound-mini removed - don't support custom tool calling (only Groq built-in tools)
 
   // Meta Llama on Groq
   "groq:llama-3.1-8b-instant": {
@@ -549,7 +549,7 @@ export const models = {
 
   // ─── OpenRouter (any model via openrouter.ai) ───────────────────────────────
   // OpenRouter proxies multiple providers. Model IDs use provider/model format.
-  // Pricing varies per upstream model — these are representative defaults.
+  // Pricing varies per upstream model - these are representative defaults.
   // Any openrouter:* model not listed here works via dynamic passthrough.
 
   // Free tier models (no cost, rate-limited)
@@ -654,7 +654,7 @@ export const models = {
     tier: "cheap",
   },
 
-  // ─── Ollama (local — no cost) ────────────────────────────────────────────────
+  // ─── Ollama (local - no cost) ────────────────────────────────────────────────
 
   "ollama:llama4:scout": {
     provider: "ollama", model: "llama4:scout",

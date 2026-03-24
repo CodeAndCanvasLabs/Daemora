@@ -305,7 +305,7 @@ export async function runAgentLoop({
 
     // Final usage from result
     if (result.usage) {
-      // If onStepFinish already tracked, these may overlap — use result.usage as total
+      // If onStepFinish already tracked, these may overlap - use result.usage as total
       totalInputTokens = result.usage.inputTokens || result.usage.promptTokens || totalInputTokens;
       totalOutputTokens = result.usage.outputTokens || result.usage.completionTokens || totalOutputTokens;
     }
@@ -330,11 +330,11 @@ export async function runAgentLoop({
 
     return { text: finalText, messages: conversationMessages, cost, toolCalls: toolCallLog };
   } catch (error) {
-    // Tool call validation errors — inject error into conversation, retry the full loop
+    // Tool call validation errors - inject error into conversation, retry the full loop
     const isToolCallError = /tool call validation|not in request\.tools|failed_generation/i.test(error.message);
     if (isToolCallError && retryCount < MAX_RETRIES) {
       retryCount++;
-      console.log(`[AgentLoop] Tool call error (retry ${retryCount}/${MAX_RETRIES}) — feeding error back to model`);
+      console.log(`[AgentLoop] Tool call error (retry ${retryCount}/${MAX_RETRIES}) - feeding error back to model`);
       inputMessages.push({ role: "user", content: `[system] Tool call failed. Try again.` });
       continue; // retry the while loop with full tracking
     }
@@ -351,7 +351,7 @@ export async function runAgentLoop({
 
     console.log(`[AgentLoop] Fatal error: ${error.message}`);
 
-    // User-facing errors: billing, rate limits, auth — show to user
+    // User-facing errors: billing, rate limits, auth - show to user
     const msg = error.message || "";
     const isUserFacing = /rate.limit|quota|budget|billing|unauthorized|auth|too.large|TPM|RPM/i.test(msg);
     const userText = isUserFacing

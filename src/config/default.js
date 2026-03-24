@@ -21,7 +21,7 @@ if (!existsSync(envPath) && existsSync(examplePath)) {
 loadEnv({ path: envPath, quiet: true });
 
 // ── Config builder ────────────────────────────────────────────────────────────
-// Pure function — takes an env map (process.env or override), returns validated config.
+// Pure function - takes an env map (process.env or override), returns validated config.
 // Called on startup and again after reloadFromDb() injects SQLite config into process.env.
 
 function buildConfig(env) {
@@ -42,11 +42,11 @@ function buildConfig(env) {
     soulPath: join(ROOT_DIR, "SOUL.md"),
     memoryPath: join(ROOT_DIR, "MEMORY.md"),
 
-    // Default model (provider:model format) — resolved at runtime by ModelRouter.resolveDefaultModel()
+    // Default model (provider:model format) - resolved at runtime by ModelRouter.resolveDefaultModel()
     // if not explicitly set. This placeholder is overridden after startup.
     defaultModel: env.DEFAULT_MODEL || null,
 
-    // Sub-agent model — used for all sub-agents when no profile-specific model is set.
+    // Sub-agent model - used for all sub-agents when no profile-specific model is set.
     subAgentModel: env.SUB_AGENT_MODEL || null,
 
     // Agent loop
@@ -244,7 +244,7 @@ export const config = buildConfig(process.env);
  * Call this after vault unlock + secret injection so SQLite config values
  * (channel tokens, model settings, etc.) take effect before channels start.
  *
- * config_entries values override .env values — SQLite is the source of truth.
+ * config_entries values override .env values - SQLite is the source of truth.
  * process.env is NOT cleared first, so any .env values not in SQLite are kept.
  *
  * Uses dynamic import to avoid circular dependency with Database.js.
@@ -260,22 +260,22 @@ export async function reloadFromDb() {
     const rows = db.prepare("SELECT key, value FROM config_entries").all();
     if (rows.length === 0) return;
 
-    // Check if vault is active — if so, skip sensitive keys from config_entries
+    // Check if vault is active - if so, skip sensitive keys from config_entries
     // to prevent stale/plaintext values from overwriting decrypted vault secrets.
     let vaultActive = false;
     try {
       const vault = (await import("../safety/SecretVault.js")).default;
       vaultActive = vault.isUnlocked();
-    } catch { /* vault module not available — treat as inactive */ }
+    } catch { /* vault module not available - treat as inactive */ }
 
     let loaded = 0;
     const leaked = [];
     for (const { key, value } of rows) {
-      // Skip sensitive keys when vault is active — vault is source of truth.
+      // Skip sensitive keys when vault is active - vault is source of truth.
       // Exception: WEBHOOK_TOKEN is auto-generated config, not a vault secret.
       if (vaultActive && SENSITIVE_PATTERN.test(key) && key !== "WEBHOOK_TOKEN") {
         leaked.push(key);
-        continue; // skip — vault has the real decrypted value
+        continue; // skip - vault has the real decrypted value
       }
       process.env[key] = value;
       loaded++;

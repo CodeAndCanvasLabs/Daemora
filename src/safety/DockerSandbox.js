@@ -1,13 +1,13 @@
 /**
- * Docker Sandbox — run commands inside Docker containers for kernel-level isolation.
+ * Docker Sandbox - run commands inside Docker containers for kernel-level isolation.
  *
  * Config:
- *   SANDBOX_MODE=docker          — enable Docker isolation
- *   DOCKER_IMAGE=node:22-slim    — base image
- *   DOCKER_MEMORY=512m           — memory limit
- *   DOCKER_CPUS=0.5              — CPU limit
- *   DOCKER_NETWORK=none          — network mode (none = no network)
- *   DOCKER_SCOPE=session         — "session" (per session) | "shared" (one for all)
+ *   SANDBOX_MODE=docker          - enable Docker isolation
+ *   DOCKER_IMAGE=node:22-slim    - base image
+ *   DOCKER_MEMORY=512m           - memory limit
+ *   DOCKER_CPUS=0.5              - CPU limit
+ *   DOCKER_NETWORK=none          - network mode (none = no network)
+ *   DOCKER_SCOPE=session         - "session" (per session) | "shared" (one for all)
  */
 
 import { execSync, spawnSync } from "node:child_process";
@@ -38,7 +38,7 @@ class DockerSandbox {
 
   /**
    * Ensure a container exists for the given scope.
-   * @param {string} scopeId — session ID or "shared"
+   * @param {string} scopeId - session ID or "shared"
    * @returns {string} containerId
    */
   ensureContainer(scopeId = "shared") {
@@ -56,7 +56,7 @@ class DockerSandbox {
           return existing.containerId;
         }
       } catch {
-        // Container gone — remove from map and create new
+        // Container gone - remove from map and create new
         _containers.delete(scopeId);
       }
     }
@@ -109,7 +109,7 @@ class DockerSandbox {
    * Execute a command inside a container.
    * @param {string} scopeId
    * @param {string} command
-   * @param {object} opts — { timeout, cwd }
+   * @param {object} opts - { timeout, cwd }
    * @returns {string} command output
    */
   exec(scopeId, command, opts = {}) {

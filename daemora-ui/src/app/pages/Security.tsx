@@ -410,7 +410,7 @@ export function Security() {
             <div>
               <CardTitle className="text-white uppercase tracking-tight">Permission & Sandbox</CardTitle>
               <CardDescription className="text-gray-500 font-mono text-[10px] uppercase">
-                GLOBAL DEFAULTS — PER-TENANT OVERRIDES ON TENANTS PAGE
+                GLOBAL DEFAULTS - PER-TENANT OVERRIDES ON TENANTS PAGE
               </CardDescription>
             </div>
           </div>
@@ -444,7 +444,7 @@ export function Security() {
           <div className="p-4 bg-slate-800/30 border border-slate-800 rounded-xl space-y-4">
             <div>
               <h4 className="text-xs font-mono text-white uppercase tracking-wider">Filesystem Sandbox</h4>
-              <p className="text-[10px] text-gray-500 font-mono mt-0.5">Global path rules — tenants can override on the Tenants page</p>
+              <p className="text-[10px] text-gray-500 font-mono mt-0.5">Global path rules - tenants can override on the Tenants page</p>
             </div>
 
             {/* Allowed Paths */}

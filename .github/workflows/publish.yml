@@ -11,7 +11,7 @@ on:
           - dev
         default: main
       dry_run:
-        description: 'Dry run — show what would be published without actually publishing'
+        description: 'Dry run - show what would be published without actually publishing'
         type: boolean
         default: false
 
@@ -58,17 +58,17 @@ jobs:
           BRANCH="${{ inputs.branch }}"
 
           if [[ "$REF_TYPE" == "tag" ]]; then
-            # Explicit tag (e.g. v1.2.3 or v1.2.3-rc.1) — always publish as latest
+            # Explicit tag (e.g. v1.2.3 or v1.2.3-rc.1) - always publish as latest
             echo "npm_tag=latest"     >> $GITHUB_OUTPUT
             echo "version=$PKG_VERSION" >> $GITHUB_OUTPUT
             echo "channel=release (tag $BRANCH)" >> $GITHUB_OUTPUT
 
           elif [[ "$BRANCH" == "main" ]]; then
-            # Main branch — publish only if this version isn't on npm yet
+            # Main branch - publish only if this version isn't on npm yet
             ALREADY=$(npm view daemora@"$PKG_VERSION" version 2>/dev/null || true)
             if [[ -n "$ALREADY" ]]; then
               echo "skip=true"                                                   >> $GITHUB_OUTPUT
-              echo "skip_reason=v$PKG_VERSION is already on npm — bump package.json version to publish" >> $GITHUB_OUTPUT
+              echo "skip_reason=v$PKG_VERSION is already on npm - bump package.json version to publish" >> $GITHUB_OUTPUT
             else
               echo "npm_tag=latest"       >> $GITHUB_OUTPUT
               echo "version=$PKG_VERSION" >> $GITHUB_OUTPUT
@@ -76,7 +76,7 @@ jobs:
             fi
 
           elif [[ "$BRANCH" == "dev" || "$BRANCH" == "beta" || "$BRANCH" == "next" ]]; then
-            # Pre-release branches — append date + short SHA so every commit gets a unique version
+            # Pre-release branches - append date + short SHA so every commit gets a unique version
             SHORT_SHA=$(git rev-parse --short=7 HEAD)
             DATE=$(date -u +%Y%m%d)
             BASE="${PKG_VERSION%%-*}"          # strip any existing pre-release suffix
@@ -92,7 +92,7 @@ jobs:
 
       # ── Skip early if nothing to publish ────────────────────────────────────
 
-      - name: Skip — ${{ steps.config.outputs.skip_reason }}
+      - name: Skip - ${{ steps.config.outputs.skip_reason }}
         if: steps.config.outputs.skip == 'true'
         run: |
           echo "⏭️  ${{ steps.config.outputs.skip_reason }}"
@@ -107,7 +107,7 @@ jobs:
 
       # ── Publish ──────────────────────────────────────────────────────────────
 
-      - name: Publish to npm — ${{ steps.config.outputs.channel }}
+      - name: Publish to npm - ${{ steps.config.outputs.channel }}
         if: |
           steps.config.outputs.skip != 'true' &&
           inputs.dry_run != true
@@ -123,7 +123,7 @@ jobs:
           steps.config.outputs.skip != 'true' &&
           inputs.dry_run == true
         run: |
-          echo "🔍 Dry run — would publish:"
+          echo "🔍 Dry run - would publish:"
           echo "   Package : daemora@${{ steps.config.outputs.version }}"
           echo "   npm tag : ${{ steps.config.outputs.npm_tag }}"
           echo "   Channel : ${{ steps.config.outputs.channel }}"

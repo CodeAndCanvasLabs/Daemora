@@ -1,5 +1,5 @@
 /**
- * BackgroundReviewer — post-task background agent for memory + skill learning.
+ * BackgroundReviewer - post-task background agent for memory + skill learning.
  *
  * Pattern: Hermes Agent (exact approach, proven at scale).
  *
@@ -7,7 +7,7 @@
  * 1. AgentLoop tracks tool iterations per-task (not per-tenant)
  * 2. After task completes, check thresholds on THAT task's metrics
  * 3. If threshold met, spawn background sub-agent with full conversation messages
- * 4. Review agent has full context — decides what to save
+ * 4. Review agent has full context - decides what to save
  * 5. Saves to memory (user preferences) or skills (reusable procedures)
  * 6. Never blocks user response
  *
@@ -31,7 +31,7 @@ const MEMORY_REVIEW_PROMPT =
   `Review the conversation above and consider saving to memory if appropriate.
 
 Focus on:
-1. Has the user revealed things about themselves — their persona, desires, preferences, or personal details worth remembering?
+1. Has the user revealed things about themselves - their persona, desires, preferences, or personal details worth remembering?
 2. Has the user expressed expectations about how you should behave, their work style, or ways they want you to operate?
 
 If something stands out, save it using writeMemory with category "profile".
@@ -53,7 +53,7 @@ If nothing is worth saving, just say "Nothing to save." and stop.`;
 const COMBINED_REVIEW_PROMPT =
   `Review the conversation above and consider two things:
 
-**Memory**: Has the user revealed things about themselves — their persona, desires, preferences, or personal details? Has the user expressed expectations about how you should behave, their work style, or ways they want you to operate? If so, save using writeMemory with category "profile".
+**Memory**: Has the user revealed things about themselves - their persona, desires, preferences, or personal details? Has the user expressed expectations about how you should behave, their work style, or ways they want you to operate? If so, save using writeMemory with category "profile".
 
 **Skills**: Was a non-trivial approach used to complete a task that required trial and error, or changing course due to experiential findings along the way, or did the user expect or desire a different method or outcome? If a relevant skill already exists, update it. Otherwise, create a new one if the approach is reusable.
 
@@ -99,7 +99,7 @@ export async function maybeRunReview(task, result, options = {}) {
     }
 
     // Build history messages from the completed conversation
-    // This is the KEY difference from our old approach — full messages, not a summary
+    // This is the KEY difference from our old approach - full messages, not a summary
     const historyMessages = _buildHistoryMessages(result.messages);
     if (historyMessages.length < 2) return; // Need at least user + assistant
 
@@ -125,7 +125,7 @@ You have the full conversation history. Review it and:
 Rules:
 - Be selective. Only save genuinely useful, reusable insights.
 - For skills: only when the approach involved trial-and-error, non-obvious tool combinations, or recovery from errors.
-- For memory: only user preferences, corrections, or behavioral patterns — not task details.
+- For memory: only user preferences, corrections, or behavioral patterns - not task details.
 - If nothing is worth saving, say "Nothing to save." and stop immediately.
 - Never ask for clarification.
 - You have max 8 tool calls. Be efficient.`,
@@ -145,7 +145,7 @@ Rules:
 
 /**
  * Build clean history messages from the completed conversation.
- * Strips tool-call/tool-result internals — review agent only needs
+ * Strips tool-call/tool-result internals - review agent only needs
  * the user messages and assistant text responses.
  */
 function _buildHistoryMessages(messages) {

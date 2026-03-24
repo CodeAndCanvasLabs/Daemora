@@ -62,7 +62,7 @@ if (config.cleanupAfterDays > 0) {
   }
 }
 
-// Periodic task cleaner — purge completed/failed/cancelled tasks every 5 hours
+// Periodic task cleaner - purge completed/failed/cancelled tasks every 5 hours
 // const TASK_CLEAN_INTERVAL = 5 * 60 * 60 * 1000;
 // setInterval(() => {
 //   const deleted = cleanCompletedTasks();
@@ -71,7 +71,7 @@ if (config.cleanupAfterDays > 0) {
 //   }
 // }, TASK_CLEAN_INTERVAL);
 
-// Initialize task system (TaskRunner starts after full init — see startup sequence below)
+// Initialize task system (TaskRunner starts after full init - see startup sequence below)
 taskQueue.init();
 supervisor.start();
 auditLog.start();
@@ -80,7 +80,7 @@ heartbeat.start();
 goalPulse.start();
 
 /**
- * Hot-reload everything — call after any config/key/credential change.
+ * Hot-reload everything - call after any config/key/credential change.
  * Non-blocking, non-fatal. Each component reloads independently.
  */
 async function hotReloadAll() {
@@ -143,7 +143,7 @@ const localOnly = (req, res, next) => {
 // which we reject. Same-origin requests from our UI have no Origin or matching localhost.
 const originGuard = (req, res, next) => {
   const origin = req.headers.origin;
-  if (!origin) return next(); // Same-origin requests (no Origin header) — safe
+  if (!origin) return next(); // Same-origin requests (no Origin header) - safe
 
   // Allow only our own localhost origins
   const allowedOrigins = [
@@ -233,7 +233,7 @@ app.get("/api/tools", (req, res) => {
   res.json({ tools: Object.keys(toolFunctions).sort() });
 });
 
-// --- Chat endpoint (Async — returns taskId, client uses SSE to stream) ---
+// --- Chat endpoint (Async - returns taskId, client uses SSE to stream) ---
 app.post("/api/chat", (req, res) => {
   try {
     const { input, sessionId, model, priority, tenantId } = req.body;
@@ -293,7 +293,7 @@ app.get("/api/tasks/:id", (req, res) => {
 
 app.delete("/api/tasks/:id", (req, res) => {
   const id = req.params.id;
-  // Refuse to delete a running task — cancel it first
+  // Refuse to delete a running task - cancel it first
   if (taskQueue.active.has(id)) {
     return res.status(409).json({ error: "Cannot delete a running task. Cancel it first." });
   }
@@ -404,7 +404,7 @@ app.delete("/api/sessions/:id", (req, res) => {
 
 // --- Config endpoint ---
 app.get("/api/config", (req, res) => {
-  // Read from configStore directly — process.env may lag before reloadFromDb
+  // Read from configStore directly - process.env may lag before reloadFromDb
   const cs = (key) => process.env[key] || configStore.get(key) || "";
   res.json({
     defaultModel: config.defaultModel,
@@ -416,7 +416,7 @@ app.get("/api/config", (req, res) => {
     channels: Object.fromEntries(
       Object.entries(config.channels).map(([k, v]) => [k, { enabled: v.enabled }])
     ),
-    // Voice / meeting config — stored in config_entries via /api/settings
+    // Voice / meeting config - stored in config_entries via /api/settings
     sttModel:      cs("STT_MODEL"),
     ttsModel:      cs("TTS_MODEL"),
     ttsVoice:      cs("TTS_VOICE"),
@@ -620,7 +620,7 @@ app.get("/api/channels", (req, res) => {
   res.json({ channels: channelRegistry.list() });
 });
 
-// List known delivery destinations — channels with stored routing info
+// List known delivery destinations - channels with stored routing info
 app.get("/api/channels/destinations", async (req, res) => {
   try {
     const { queryAll } = await import("./storage/Database.js");
@@ -654,12 +654,12 @@ app.get("/api/channels/destinations", async (req, res) => {
       } catch {}
     }
 
-    // Running channels without stored meta — show as available but need first interaction
+    // Running channels without stored meta - show as available but need first interaction
     for (const ch of running) {
       if (!destinations.some(d => d.channel === ch.name)) {
         destinations.push({
           channel: ch.name,
-          label: `${ch.name} (no recent activity — send a message first)`,
+          label: `${ch.name} (no recent activity - send a message first)`,
           tenantId: null,
           channelMeta: null,
         });
@@ -958,6 +958,90 @@ app.post("/api/morning-pulse", async (req, res) => {
     const { tenantId, timezone, delivery } = req.body || {};
     const result = createMorningPulse(tenantId || null, timezone, delivery);
     res.status(result.created ? 201 : 200).json(result);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// --- Teams API ---
+app.get("/api/teams", async (req, res) => {
+  try {
+    const { listTeams, listMembers, listTasks } = await import("./teams/TeamStore.js");
+    const teams = listTeams();
+    const result = teams.map(t => ({
+      ...t,
+      members: listMembers(t.id),
+      tasks: listTasks(t.id),
+    }));
+    res.json({ teams: result });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Templates BEFORE :id (Express matches in order)
+app.get("/api/teams/templates", async (req, res) => {
+  try {
+    const { TEAM_TEMPLATES } = await import("./teams/templates.js");
+    res.json({ templates: TEAM_TEMPLATES });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get("/api/teams/:id", async (req, res) => {
+  try {
+    const { getTeam, listMembers, listTasks, messageHistory } = await import("./teams/TeamStore.js");
+    const team = getTeam(req.params.id);
+    if (!team) return res.status(404).json({ error: "Team not found" });
+    res.json({
+      ...team,
+      members: listMembers(team.id),
+      tasks: listTasks(team.id),
+      messages: messageHistory(team.id, { limit: 50 }),
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/teams", async (req, res) => {
+  try {
+    const { runTeam } = await import("./teams/TeamLeadRunner.js");
+    const { name, task, context, constraints, workers, project, projectType, projectRepo, projectStack, templateId } = req.body;
+
+    let teamConfig;
+    if (templateId) {
+      const { applyTemplate } = await import("./teams/templates.js");
+      teamConfig = applyTemplate(templateId, task);
+      if (!teamConfig) return res.status(400).json({ error: `Template "${templateId}" not found` });
+      teamConfig.context = (teamConfig.context || "") + "\n\n" + (context || "");
+    } else {
+      if (!name || !task || !workers?.length) {
+        return res.status(400).json({ error: "name, task, and workers[] required" });
+      }
+      teamConfig = { name, task, context, constraints, workers };
+    }
+
+    // Run team in background (don't block HTTP response)
+    const teamStore = await import("./teams/TeamStore.js");
+    const tenantId = null; // API calls are admin-level
+    const team = teamStore.createTeam({
+      name: teamConfig.name || name, tenantId, config: { workers: teamConfig.workers },
+      project: project || name, projectType, projectRepo, projectStack,
+      requirements: task,
+    });
+
+    // Fire-and-forget - team runs async
+    runTeam({
+      name: teamConfig.name || name,
+      leadContract: { task: teamConfig.task || task, context: teamConfig.context || context, constraints },
+      workers: teamConfig.workers || workers,
+      project: project || name, projectType, projectRepo, projectStack,
+    }).catch(err => console.log(`[API] Team failed: ${err.message}`));
+
+    res.status(202).json({ teamId: team.id, name: team.name, status: "starting", workers: (teamConfig.workers || workers).length });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post("/api/teams/:id/disband", async (req, res) => {
+  try {
+    const { updateTeamStatus, broadcastMessage } = await import("./teams/TeamStore.js");
+    updateTeamStatus(req.params.id, "disbanded");
+    broadcastMessage({ teamId: req.params.id, from: "system", msgType: "shutdown_request", content: "Team disbanded." });
+    res.json({ ok: true });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
@@ -1544,12 +1628,12 @@ app.post("/api/approvals/:id", (req, res) => {
   res.json({ message: `Approval ${req.params.id} → ${decision}` });
 });
 
-// --- Settings endpoint (read/write config — SQLite config_entries + vault) ---
+// --- Settings endpoint (read/write config - SQLite config_entries + vault) ---
 app.get("/api/settings", (req, res) => {
   // Primary source: SQLite config_entries (database)
   const dbConfig = configStore.getAll();
 
-  // Merge vault secrets (if unlocked) — vault takes priority
+  // Merge vault secrets (if unlocked) - vault takes priority
   const vaultActive = secretVault.isUnlocked();
   if (vaultActive) {
     const vaultSecrets = secretVault.getAsEnv();
@@ -1558,7 +1642,7 @@ app.get("/api/settings", (req, res) => {
     }
   }
 
-  // Mask only secret-looking keys — non-secrets sent as-is for UI state
+  // Mask only secret-looking keys - non-secrets sent as-is for UI state
   const SECRET_KEY_PATTERN = /(_KEY|_TOKEN|_SECRET|_PASSWORD|_CREDENTIAL|_AUTH|_PASSPHRASE|_API_KEY|_ACCESS_TOKEN)$/i;
   const masked = {};
   for (const [key, val] of Object.entries(dbConfig)) {
@@ -1584,7 +1668,7 @@ app.put("/api/settings", async (req, res) => {
 
   for (const [key, value] of Object.entries(updates)) {
     if (!/^[A-Z][A-Z0-9_]*$/.test(key)) continue;
-    // Skip masked values — UI sent back the placeholder, user didn't change this field
+    // Skip masked values - UI sent back the placeholder, user didn't change this field
     if (value === "••••••••") continue;
     if (vaultActive && sensitivePattern.test(key)) {
       vaultUpdates[key] = value;
@@ -1608,7 +1692,7 @@ app.put("/api/settings", async (req, res) => {
     }
   }
 
-  // Hot-reload everything — config, secrets, models, channels, MCP, scheduler
+  // Hot-reload everything - config, secrets, models, channels, MCP, scheduler
   await hotReloadAll();
 
   const stored = vaultActive
@@ -1880,7 +1964,7 @@ let _serverReady = false;
 // Gate message-processing endpoints until startup completes
 const readinessGate = (req, res, next) => {
   if (_serverReady) return next();
-  res.status(503).json({ error: "Server is starting up — loading skills, MCP, and channels. Please wait a moment and retry." });
+  res.status(503).json({ error: "Server is starting up - loading skills, MCP, and channels. Please wait a moment and retry." });
 };
 app.use("/api/chat", readinessGate);
 app.post("/api/tasks", readinessGate);
@@ -1911,7 +1995,7 @@ app.post("/voice/meeting/answer/:sessionId", express.urlencoded({ extended: fals
   res.type("text/xml").send(twiml);
 });
 
-// Twilio status callback — clean up when call ends
+// Twilio status callback - clean up when call ends
 app.post("/voice/meeting/status/:sessionId", express.urlencoded({ extended: false }), (req, res) => {
   const { CallStatus } = req.body || {};
   const { sessionId } = req.params;
@@ -1939,7 +2023,7 @@ const httpServer = app.listen(config.port, async () => {
       for (const [key, value] of Object.entries(secrets)) {
         process.env[key] = value;
       }
-      console.log(`[Startup] Vault auto-unlocked — ${Object.keys(secrets).length} secret(s) loaded`);
+      console.log(`[Startup] Vault auto-unlocked - ${Object.keys(secrets).length} secret(s) loaded`);
       secretScanner.refreshSecrets();
       egressGuard.refresh();
     } catch (e) {
@@ -1981,14 +2065,14 @@ const httpServer = app.listen(config.port, async () => {
   try {
     await skillLoader.embedSkills();
     console.log("[Startup] Skill embeddings ready");
-  } catch { /* non-fatal — TF-IDF fallback always works */ }
+  } catch { /* non-fatal - TF-IDF fallback always works */ }
 
   // ── Phase 1.5: Load crew ──
   console.log("[Startup] Loading crew...");
   try {
     const { loadCrew } = await import("./crew/PluginLoader.js");
     const crewRegistry = await loadCrew();
-    // Crew tools stay in registry — accessed via useCrew(crewId, task)
+    // Crew tools stay in registry - accessed via useCrew(crewId, task)
     // Mount crew HTTP routes
     for (const route of crewRegistry.httpRoutes) {
       app[route.method.toLowerCase()](route.path, route.handler);
@@ -2014,7 +2098,7 @@ const httpServer = app.listen(config.port, async () => {
     console.log(`[Startup] Channel start error: ${e.message}`);
   }
 
-  // ── Ready — start processing messages ──
+  // ── Ready - start processing messages ──
   taskRunner.start();
   console.log(`[Startup] Tools: ${Object.keys(toolFunctions).length}`);
   console.log(`[Startup] Task runner: active (concurrency: 2)`);
@@ -2022,7 +2106,7 @@ const httpServer = app.listen(config.port, async () => {
   console.log("[Startup] Server ready ✓\n");
 });
 
-// SIGHUP — hot-reload all components without restart
+// SIGHUP - hot-reload all components without restart
 process.on("SIGHUP", async () => {
   console.log("\n[Reload] SIGHUP received. Reloading all components...");
   try {

@@ -89,7 +89,7 @@ export function listSessions(prefix = null) {
 }
 
 /**
- * Clear a session — removes messages, tasks, cost entries, and session record.
+ * Clear a session - removes messages, tasks, cost entries, and session record.
  */
 export function clearSession(sessionId) {
   const session = queryOne("SELECT id FROM sessions WHERE id = $id", { $id: sessionId });

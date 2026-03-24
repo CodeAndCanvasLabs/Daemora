@@ -6,7 +6,7 @@ import filesystemGuard from "../../../src/safety/FilesystemGuard.js";
 // We test behavior, not absolute counts.
 
 describe("FilesystemGuard", () => {
-  describe("checkRead() — blocked patterns", () => {
+  describe("checkRead() - blocked patterns", () => {
     it("blocks .ssh directory access", () => {
       const result = filesystemGuard.checkRead("/home/user/.ssh/id_rsa");
       expect(result.allowed).toBe(false);
@@ -99,7 +99,7 @@ describe("FilesystemGuard", () => {
     });
   });
 
-  describe("checkWrite() — blocked patterns", () => {
+  describe("checkWrite() - blocked patterns", () => {
     it("blocks writing to .env", () => {
       const result = filesystemGuard.checkWrite("/app/.env");
       expect(result.allowed).toBe(false);

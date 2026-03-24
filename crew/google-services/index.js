@@ -8,13 +8,13 @@ export default {
 
   register(api) {
     api.registerTool("calendar", calendar, null,
-      "calendar(action, ...) — Google Calendar: list, create, update, delete events");
+      "calendar(action, ...) - Google Calendar: list, create, update, delete events");
 
     api.registerTool("contacts", contacts, null,
-      "contacts(action, ...) — Google Contacts: search, list, create contacts");
+      "contacts(action, ...) - Google Contacts: search, list, create contacts");
 
     api.registerTool("googlePlaces", googlePlaces, null,
-      "googlePlaces(query, ...) — Search places, get details, nearby search via Google Places API");
+      "googlePlaces(query, ...) - Search places, get details, nearby search via Google Places API");
 
     api.log.info("Registered: calendar, contacts, googlePlaces");
   },
