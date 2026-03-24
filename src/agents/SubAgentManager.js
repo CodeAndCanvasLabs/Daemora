@@ -246,23 +246,20 @@ export async function spawnSubAgent(taskDescription, options = {}) {
   }
 
   // ── Skill injection ─────────────────────────────────────────────────────
-  // Explicit skills only (parent passed skill paths/names directly).
-  // Scoped skill summaries are handled by systemPrompt.js → renderSkills() with profile tags.
-  // No duplicate semantic search here - system prompt already does it with proper scoping.
+  // Compact references only — agent reads via readFile if needed.
+  // Full skill text was bloating context by 5000+ tokens per agent.
   let skillContext = "";
   try {
     if (skills && skills.length > 0) {
-      const injectedSkills = [];
+      const refs = [];
       for (const ref of skills) {
         const skill = skillLoader.getSkill(ref);
-        if (skill) injectedSkills.push(skill);
+        if (skill) refs.push({ name: skill.name, description: skill.description, location: skill.location });
         else console.log(`[SubAgent:${agentId}] Skill not found: "${ref}"`);
       }
-      if (injectedSkills.length > 0) {
-        skillContext = injectedSkills.map(s =>
-          `\n--- Skill: ${s.name} ---\n${s.content}\n--- End Skill ---`
-        ).join("\n");
-        console.log(`[SubAgent:${agentId}] Injected ${injectedSkills.length} skill(s) (explicit): ${injectedSkills.map(s => s.name).join(", ")}`);
+      if (refs.length > 0) {
+        skillContext = `\n### SKILLS (mandatory)\nBefore starting: read the most relevant skill below with readFile and follow its workflow.\n${refs.map(s => `- ${s.name}: ${s.description} (${s.location})`).join("\n")}`;
+        console.log(`[SubAgent:${agentId}] Skill refs ${refs.length}: ${refs.map(s => s.name).join(", ")}`);
       }
     }
   } catch (e) {
