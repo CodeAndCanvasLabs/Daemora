@@ -132,6 +132,18 @@ function buildLeadTools(teamId, leadName) {
       try {
         if (!params.profile && !params.crew) return "Error: either profile or crew is required.";
 
+        // Dedup: reject if worker with same name already exists in this team
+        const existing = store.getMemberByName(teamId, params.name);
+        if (existing) {
+          return `Worker "${params.name}" already exists (status: ${existing.status}). Use a different name or check status.`;
+        }
+
+        // Cap: max 10 workers per team
+        const allMembers = store.listMembers(teamId).filter(m => m.role === "worker");
+        if (allMembers.length >= 10) {
+          return `Error: team already has ${allMembers.length} workers (max 10). Use existing workers or disband and recreate.`;
+        }
+
         const member = store.addMember({
           teamId, name: params.name, role: "worker",
           profile: params.crew || params.profile,
@@ -497,14 +509,24 @@ export async function relaunchTeam(teamId) {
   const pending = tasks.filter(t => ["pending", "assigned", "blocked", "in_progress", "plan_submitted"].includes(t.status));
   const failed = tasks.filter(t => t.status === "failed");
 
+  // Build explicit worker list from original config
+  const originalWorkers = team.config?.workers || [];
+  const completedNames = new Set(
+    completed.map(t => t.assignee).filter(Boolean)
+  );
+  const workersToCreate = originalWorkers.filter(w => !completedNames.has(w.name));
+
+  const workerInstructions = workersToCreate.length > 0
+    ? `\nCreate EXACTLY these workers (use these exact names and profiles):\n${workersToCreate.map((w, i) =>
+        `${i + 1}. name: "${w.name}", profile: "${w.crew || w.profile}", task: "${w.task}"`
+      ).join("\n")}\n\nDo NOT create any other workers. Do NOT rename them.`
+    : "\nAll workers completed. Verify results and call completeTeam.";
+
   const stateContext = [
     `RE-LAUNCHING project "${team.project || team.name}" (${teamId}).`,
-    `Completed: ${completed.length}`,
-    completed.map(t => `  ✅ "${t.title}" → ${(t.result || "done").slice(0, 80)}`).join("\n"),
-    `Pending: ${pending.length}`,
-    pending.map(t => `  ⏳ "${t.title}" [${t.status}] → ${t.assignee || "unassigned"}`).join("\n"),
+    completed.length > 0 ? `Completed: ${completed.length}\n${completed.map(t => `  ✅ "${t.title}" → ${(t.result || "done").slice(0, 80)}`).join("\n")}` : "",
     failed.length > 0 ? `Failed: ${failed.length}\n${failed.map(t => `  ❌ "${t.title}"`).join("\n")}` : "",
-    `\nResume: re-create workers for incomplete tasks. Don't redo completed work.`,
+    workerInstructions,
     team.requirements ? `\nRequirements: ${team.requirements.slice(0, 500)}` : "",
     team.projectRepo ? `Repo: ${team.projectRepo}` : "",
     team.projectStack ? `Stack: ${team.projectStack}` : "",
