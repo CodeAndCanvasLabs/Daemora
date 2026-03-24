@@ -93,11 +93,8 @@ export async function runCrewAgent(crewId, taskDescription, options = {}) {
     return `Crew member "${member.name}" is not available (status: ${member.status}). Error: ${member.error || "unknown"}`;
   }
 
-  // Get crew member's tools from registry
+  // Get crew member's custom tools from registry (may be empty for profile-only crews)
   const crewTools = registry.tools.filter(t => t.crewId === crewId);
-  if (crewTools.length === 0) {
-    return `Crew member "${member.name}" has no tools registered.`;
-  }
 
   // Build AI SDK tools from crew tool schemas (proper Zod validation)
   const crewAITools = {};
@@ -132,17 +129,20 @@ export async function runCrewAgent(crewId, taskDescription, options = {}) {
     }
   }
 
+  // Use manifest tools list if defined, otherwise fall back to base tools
+  const manifestTools = manifest.tools && manifest.tools.length > 0 ? manifest.tools : CREW_BASE_TOOLS;
+
   console.log(
-    `[CrewAgent] Spawning crew member "${member.name}" (${crewTools.length} specialist tools + ${CREW_BASE_TOOLS.length} base tools)`
+    `[CrewAgent] Spawning crew member "${member.name}" (${crewTools.length} specialist tools + ${manifestTools.length} base tools)`
   );
 
   // Spawn sub-agent:
-  //   - tools: base tools (resolved from toolFunctions via name list)
-  //   - aiToolOverrides: crew tools (pre-built AI SDK tools with Zod schemas)
+  //   - tools: manifest tools or base tools (resolved from toolFunctions via name list)
+  //   - aiToolOverrides: crew custom tools (pre-built AI SDK tools with Zod schemas) - may be empty
   const fullResult = await spawnSubAgent(taskDescription, {
     ...restOptions,
-    tools: CREW_BASE_TOOLS,
-    aiToolOverrides: crewAITools,
+    tools: manifestTools,
+    aiToolOverrides: Object.keys(crewAITools).length > 0 ? crewAITools : undefined,
     systemPromptOverride,
     skills,
     model,
@@ -170,7 +170,7 @@ export async function runCrewAgent(crewId, taskDescription, options = {}) {
  */
 export function getCrewSummaries() {
   const registry = getRegistry();
-  const loaded = registry.crew.filter(p => p.status === "loaded" && p.toolNames.length > 0);
+  const loaded = registry.crew.filter(p => p.status === "loaded");
   if (loaded.length === 0) return null;
 
   return loaded.map(p => ({
