@@ -96,7 +96,7 @@ export function listMembers(teamId) {
 }
 
 export function updateMemberStatus(id, status, agentId = null, sessionId = null) {
-  const updates = ["status = $s", "updated_at = datetime('now')"];
+  const updates = ["status = $s"];
   const params = { $s: status, $id: id };
   if (agentId) { updates.push("agent_id = $aid"); params.$aid = agentId; }
   if (sessionId) { updates.push("session_id = $sid"); params.$sid = sessionId; }
