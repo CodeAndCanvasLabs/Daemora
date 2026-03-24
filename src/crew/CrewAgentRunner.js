@@ -48,8 +48,8 @@ function buildCrewAgentSystemPrompt(member, manifest) {
 ${memberDesc}.
 ${profilePrompt ? `\n${profilePrompt}\n` : ""}
 ## Execution Rules
-- Tool calls first. Never start with text. Chain calls until verified complete.
-- Run to completion. "In progress" as final response = failure.
+- Your FIRST response MUST be a tool call. Never start with text or a plan. If you output text without calling a tool first, that is a failure.
+- Chain tool calls until task is verified complete. "In progress" or "I'll research..." as final response = failure.
 - No clarification. Everything needed is in the task description. Decide and act.
 - Failure → read error, adjust, retry. Exhaust options before reporting.
 - Mid-task follow-up → replyToUser(), fold in, continue.

@@ -26,10 +26,10 @@
   "skills": [
     "content-research-writer",
     "documents",
-    "document-docx",
-    "document-pdf",
-    "document-pptx",
-    "document-xlsx",
+    "docx",
+    "pdf",
+    "pptx",
+    "xlsx",
     "brand-guidelines",
     "summarize",
     "email"
