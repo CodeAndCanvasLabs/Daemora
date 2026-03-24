@@ -205,7 +205,7 @@ function renderToolUsageRules() {
 - Same params fail twice → stop, diagnose, try different approach.
 - \`<conversation-summary>\` = compacted history - treat as ground truth, don't redo.
 - Task needs deep focus (research, writing, coding, analysis) → use useCrew, not yourself.
-- Multiple independent tasks → parallelCrew. Tasks with handoffs → teamTask.
+- Multiple unrelated tasks → parallelCrew. Multi-component project or tasks with handoffs → teamTask.
 - Every useCrew / parallelCrew / teamTask / useMCP instruction must include full contract: TASK · CONTEXT · FILES · SPEC · CONSTRAINTS · OUTPUT.`;
 }
 

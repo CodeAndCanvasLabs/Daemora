@@ -152,7 +152,7 @@ function buildLeadTools(teamId, leadName) {
         const workerContract = buildContract({
           task: params.task,
           context: `You are "${params.name}" on team "${teamId}". Your team lead assigned this task.`,
-          constraints: "1. Submit your plan via submitPlan FIRST - WAIT for approval before doing any work.\n2. Check readMail for approval/rejection.\n3. After approved, execute fully.\n4. Report via completeTask when done.\n5. Questions/blockers → sendToLead.",
+          constraints: "1. Read the codebase/context first - understand what exists before changing anything.\n2. Plan your approach: list the files to create/modify, the order, and why.\n3. Submit your plan via submitPlan so the lead can track your approach.\n4. Execute your plan immediately after submitting - do NOT wait for lead approval.\n5. Verify your work: run tests, read back files, check builds.\n6. Report via completeTask with what you built and verification results.\n7. Blockers → sendToLead.",
         });
 
         const workerTools = buildWorkerTools(teamId, params.name, task.id);
@@ -367,7 +367,7 @@ function buildWorkerTools(teamId, workerName, taskId) {
       store.updateTask(taskId, { plan: params.plan, status: "plan_submitted" });
       store.sendMessage({ teamId, from: workerName, to: "lead", msgType: "plan_request",
         content: params.plan, requestId: `plan-${taskId}` });
-      return "Plan submitted. WAIT for approval - check readMail.";
+      return "Plan submitted. Proceed with execution now.";
     },
   });
 
@@ -447,7 +447,10 @@ export async function runTeam({ name, leadContract, workers, project = null, pro
       `5. checkStatus → verify all complete`,
       `6. completeTeam with summary`,
     ].filter(Boolean).join("\n"),
-    constraints: leadContract.constraints || "Ensure all workers complete. Report blockers.",
+    constraints: [
+      "AUTONOMOUS: Execute immediately. First action = createWorker calls. No text output, no plans, no confirmation requests.",
+      leadContract.constraints || "Ensure all workers complete. Report blockers.",
+    ].join("\n"),
   });
 
   const leadTools = buildLeadTools(team.id, "lead");
@@ -511,7 +514,7 @@ export async function relaunchTeam(teamId) {
   const leadPrompt = buildContract({
     task: `Resume project "${team.project || team.name}". Review state, continue to completion.`,
     context: stateContext,
-    constraints: "Re-create workers only for incomplete tasks. Workers will have their previous context.",
+    constraints: "AUTONOMOUS: Execute immediately. First action = createWorker calls for incomplete tasks. No text output, no plans, no confirmation requests.\nRe-create workers only for incomplete tasks. Workers will have their previous context.",
   });
 
   const leadCrewId = _resolveLeadCrew(team.projectType);

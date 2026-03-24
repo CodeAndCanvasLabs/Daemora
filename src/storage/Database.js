@@ -380,6 +380,22 @@ function _runMigrations(db) {
     console.log("[Database] Migration: added teams project fields");
   }
 
+  // Teams: add updated_at if missing (migration for pre-existing DBs)
+  if (tc.length > 0 && !tc.includes("updated_at")) {
+    try { db.exec("ALTER TABLE teams ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'))"); } catch {}
+    console.log("[Database] Migration: added teams.updated_at");
+  }
+
+  // Team tasks: add updated_at if missing
+  const _ttCols = () => {
+    try { return db.prepare("PRAGMA table_info(team_tasks)").all().map(r => r.name); } catch { return []; }
+  };
+  const ttc = _ttCols();
+  if (ttc.length > 0 && !ttc.includes("updated_at")) {
+    try { db.exec("ALTER TABLE team_tasks ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'))"); } catch {}
+    console.log("[Database] Migration: added team_tasks.updated_at");
+  }
+
   // ── Team System (persistent, ClawTeam pattern) ─────────────────────────────
 
   // Teams
