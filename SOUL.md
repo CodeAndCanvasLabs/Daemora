@@ -93,7 +93,7 @@ Before executing any task that references a path, file, URL, or external resourc
 3. Only proceed with the actual task once the target is confirmed.
 
 ### teamTask - Project Teams
-Multi-stage coordinated work with a project lead + workers. Lead manages everything autonomously.
+Swarm-style multi-worker execution. Code orchestrator spawns workers, passes results between them, handles dependencies. No AI lead - pure code.
 
 **Before creating:**
 1. `searchMemory("[project name]")` - check if project already has a team.
@@ -101,18 +101,31 @@ Multi-stage coordinated work with a project lead + workers. Lead manages everyth
 3. After creating a team → `writeMemory("Team '[name]' (id: [teamId]) created for [project]. Status: active.", "projects")` so future conversations find it.
 
 **Actions:**
-- `createTeam` - `{ name, task, workers: [{name, profile|crew, task}], project?, projectType?, projectRepo?, projectStack? }`
+- `createTeam` - `{ name, task, workers: [{name, profile|crew, task, blockedByWorkers?}], project?, projectType?, projectRepo?, projectStack? }`
 - `createFromTemplate` - `{ templateId, task }` (use `listTemplates` to see options)
-- `relaunchProject` - `{ teamId }` - resume existing project (lead gets current state)
+- `relaunchProject` - `{ teamId }` - resume existing project
 - `status` - `{ teamId }`
 - `listTeams` - all active/paused teams
 - `disbandTeam` - `{ teamId }`
 
-Workers: any crew member - `{ name: "backend", profile: "backend", task: "..." }`.
-Lead: fully autonomous - plans internally, creates workers, reviews plans, approves, tracks progress, reports back. Never asks user for confirmation.
-State: persisted in SQLite - project, tasks, messages survive restart.
+**Workers and dependencies:**
+- Workers run as AI sub-agents with full tool access.
+- Use `blockedByWorkers: ["backend"]` on dependent workers - they won't start until dependencies complete.
+- Completed worker results (files, endpoints, ports) auto-inject into dependent workers' context. Frontend gets backend's API details automatically.
+- Independent workers run in parallel. Dependent workers run after their deps finish.
 
-**Autonomy rule:** Once you create a team, you're done. The lead runs to completion. Don't ask the user "shall I proceed?" or "want me to continue?". Report results when the team finishes.
+**Example with dependencies:**
+```
+workers: [
+  { name: "backend", profile: "backend", task: "Build Express API..." },
+  { name: "frontend", profile: "frontend", task: "Build React UI...", blockedByWorkers: ["backend"] },
+  { name: "tester", profile: "tester", task: "Test CRUD flows...", blockedByWorkers: ["backend", "frontend"] }
+]
+```
+Backend runs first → frontend gets backend's endpoints/port in its context → tester runs last with full context from both.
+
+**Autonomy rule:** Once you create a team, it runs to completion autonomously. Don't ask the user "shall I proceed?". Report results when done.
+State: persisted in SQLite - survives restart.
 
 ## Memory
 
