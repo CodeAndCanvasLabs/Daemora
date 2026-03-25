@@ -41,6 +41,26 @@ Deploy once on your machine. Connect your channels. Your team messages the bot -
 
 ---
 
+## See It In Action
+
+### Demo 1 — GitHub PR + Local Tests + Health Monitoring
+> Daemora fixes a bug in a GitHub repo, opens a PR, runs the test suite
+> locally, and pings you every minute with a health check — autonomously.
+
+[![Demo 1 - GitHub PR + Tests + Health Check](https://img.youtube.com/vi/Q1RzbQK-jx4/maxresdefault.jpg)](https://youtu.be/Q1RzbQK-jx4)
+
+### Demo 2 — Research → Save File → Telegram Delivery
+> Ask Daemora to research catnip. It searches the web, synthesises a report,
+> saves it to your machine, and sends you the file directly on Telegram.
+
+[![Demo 2 - Research + Save + Telegram](https://img.youtube.com/vi/PrSM22Vr1tE/maxresdefault.jpg)](https://youtu.be/PrSM22Vr1tE)
+
+### Demo 3 — Amazon Research → Google Doc → Email
+> "Find the top 10 skipping ropes on Amazon, analyse them, create a Google Doc
+> with the results, and email it to someone." One message. Fully autonomous.
+
+[![Demo 3 - Amazon Research + Google Doc + Email](https://img.youtube.com/vi/tqt5gnHBlG4/maxresdefault.jpg)](https://youtu.be/tqt5gnHBlG4)
+
 ## Architecture
 
 <p align="center">
