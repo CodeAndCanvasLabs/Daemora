@@ -490,9 +490,8 @@ export async function webFetch(params) {
             return `HTTP Error ${response.status}: Blocked permanently, do not retry.`;
           }
           
-          const attempt = 0;
-          if (cfError.retryable && attempt === 0) {
-            const waitSeconds = cfError.retry_after || 30;
+          if (cfError.retryable) {
+            const waitSeconds = Math.min(cfError.retry_after || 30, 60); // cap at 60s
             console.log(`      [webFetch] Cloudflare rate limit. Waiting ${waitSeconds}s...`);
             await new Promise(r => setTimeout(r, waitSeconds * 1000));
             
