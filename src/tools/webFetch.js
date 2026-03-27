@@ -465,9 +465,65 @@ export async function webFetch(params) {
       if (contentType.includes("application/problem+json") || contentType.includes("application/json") || contentType.includes("text/markdown")) {
         const body = await readBodyTruncated(response);
         let errorDetails = body;
+        let cfError = {};
+        
         if (contentType.includes("json")) {
-            try { errorDetails = JSON.stringify(JSON.parse(body), null, 2); } catch {}
+          try {
+            const parsed = JSON.parse(body);
+            errorDetails = JSON.stringify(parsed, null, 2);
+            cfError = parsed.error || parsed;
+          } catch {}
+        } else if (contentType.includes("markdown")) {
+          const cloudflareErrorMatch = body.match(/cloudflare_error:\s*(true|false)/i);
+          const retryableMatch = body.match(/retryable:\s*(true|false)/i);
+          const retryAfterMatch = body.match(/retry_after:\s*(\d+)/i);
+          const ownerActionMatch = body.match(/owner_action_required:\s*(true|false)/i);
+          
+          if (cloudflareErrorMatch) cfError.cloudflare_error = cloudflareErrorMatch[1].toLowerCase() === "true";
+          if (retryableMatch) cfError.retryable = retryableMatch[1].toLowerCase() === "true";
+          if (retryAfterMatch) cfError.retry_after = parseInt(retryAfterMatch[1], 10);
+          if (ownerActionMatch) cfError.owner_action_required = ownerActionMatch[1].toLowerCase() === "true";
         }
+
+        if (cfError.cloudflare_error) {
+          if (cfError.owner_action_required) {
+            return `HTTP Error ${response.status}: Blocked permanently, do not retry.`;
+          }
+          
+          const attempt = 0;
+          if (cfError.retryable && attempt === 0) {
+            const waitSeconds = cfError.retry_after || 30;
+            console.log(`      [webFetch] Cloudflare rate limit. Waiting ${waitSeconds}s...`);
+            await new Promise(r => setTimeout(r, waitSeconds * 1000));
+            
+            const retryRes = await fetchWithRetry(url, 1);
+            if (!retryRes.ok) {
+              return `HTTP Error ${retryRes.status}: ${retryRes.statusText}\n\nCloudflare Error: Retry failed.`;
+            }
+            
+            const retryCt = retryRes.headers.get("content-type") || "";
+            let result;
+            if (retryCt.includes("text/markdown")) {
+              const rb = await readBodyTruncated(retryRes);
+              result = stripInvisibleUnicode(rb).slice(0, maxChars);
+            } else if (retryCt.includes("text/html")) {
+              const rb = await readBodyTruncated(retryRes);
+              result = await extractHtml(rb, url, selector);
+              result = result.slice(0, maxChars);
+            } else if (retryCt.includes("application/json")) {
+              const rb = await readBodyTruncated(retryRes);
+              try { result = JSON.stringify(JSON.parse(rb), null, 2).slice(0, maxChars); } 
+              catch { result = rb.slice(0, maxChars); }
+            } else {
+              const rb = await readBodyTruncated(retryRes);
+              result = stripInvisibleUnicode(rb).slice(0, maxChars);
+            }
+            if (result.length === maxChars) result += `\n\n[Content truncated at ${maxChars} chars. Use {"maxChars":100000} for more.]`;
+            setCache(cacheKey, result);
+            return result;
+          }
+        }
+        
         return `HTTP Error ${response.status}: ${response.statusText}\n\nCloudflare/Structured Error Details:\n${errorDetails}`;
       }
       return `HTTP Error ${response.status}: ${response.statusText}`;
