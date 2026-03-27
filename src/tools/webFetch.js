@@ -397,7 +397,7 @@ async function fetchWithRetry(url, attempt = 0) {
     const res = await fetch(url, {
       headers: {
         "User-Agent": UA,
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,text/markdown;q=0.8,application/problem+json;q=0.8,application/json;q=0.8,*/*;q=0.5",
         "Accept-Language": "en-US,en;q=0.5",
       },
       signal: AbortSignal.timeout(15000),
@@ -458,12 +458,20 @@ export async function webFetch(params) {
     const response = await fetchWithRetry(url);
     const elapsed = Date.now() - startTime;
 
-    if (!response.ok) {
-      return `HTTP Error ${response.status}: ${response.statusText}`;
-    }
-
     const contentType = response.headers.get("content-type") || "";
     console.log(`      [webFetch] ${response.status} | ${contentType} | ${elapsed}ms`);
+
+    if (!response.ok) {
+      if (contentType.includes("application/problem+json") || contentType.includes("application/json") || contentType.includes("text/markdown")) {
+        const body = await readBodyTruncated(response);
+        let errorDetails = body;
+        if (contentType.includes("json")) {
+            try { errorDetails = JSON.stringify(JSON.parse(body), null, 2); } catch {}
+        }
+        return `HTTP Error ${response.status}: ${response.statusText}\n\nCloudflare/Structured Error Details:\n${errorDetails}`;
+      }
+      return `HTTP Error ${response.status}: ${response.statusText}`;
+    }
 
     let result;
 
