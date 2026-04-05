@@ -210,7 +210,7 @@ export class TelegramChannel extends BaseChannel {
     const task = taskQueue.enqueue({
       input,
       channel:     "telegram",
-      channelMeta: { chatId, userName, messageId, channel: "telegram", tenantId: this.getTenantId(), instanceKey: this.getInstanceKey() },
+      channelMeta: { chatId, userName, messageId, channel: "telegram" },
       sessionId:   this.getSessionId(chatId),
       model:       this.getModel(),
     });

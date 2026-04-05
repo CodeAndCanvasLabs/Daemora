@@ -25,7 +25,6 @@ import {
   listVoices,
   deleteVoice,
   getVoice,
-  listTenantVoices,
   getVoiceSettings,
   updateVoiceSettings,
 } from "../voice/VoiceCloneManager.js";
@@ -124,12 +123,6 @@ export async function meetingAction(toolParams) {
       }
 
       case "listVoices": {
-        const { source } = params;
-        if (source === "tenant" || source === "local") {
-          const voices = listTenantVoices();
-          if (voices.length === 0) return "No cloned voices for this tenant.";
-          return voices.map(v => `  ${v.voiceId}: ${v.name} (${v.createdAt})`).join("\n");
-        }
         const voices = await listVoices();
         if (voices.length === 0) return "No voices available.";
         return voices.map(v =>
@@ -184,7 +177,7 @@ export const meetingActionDescription =
     status     - {sessionId?: "..."} → session status or list all
   Voice Cloning (ElevenLabs):
     cloneVoice    - {name: "My Voice", samplePaths: ["/path/audio.mp3"]} → create voice clone
-    listVoices    - {source?: "tenant|all"} → list voices
+    listVoices    - {} → list available voices
     deleteVoice   - {voiceId: "..."} → delete voice
     voiceInfo     - {voiceId: "..."} → voice details
     voiceSettings - {voiceId: "...", stability?: 0.5, similarityBoost?: 0.75} → get/set voice settings

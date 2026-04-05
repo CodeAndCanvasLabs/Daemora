@@ -35,7 +35,7 @@ export function saveTask(task) {
        updated_at = excluded.updated_at`,
     {
       $id: task.id,
-      $tenant_id: task.tenantId || null,
+      $tenant_id: null,
       $channel: task.channel || null,
       $session_id: task.sessionId || null,
       $type: task.type || "chat",

@@ -15,7 +15,7 @@ import filesystemGuard from "../safety/FilesystemGuard.js";
 import { checkCommand } from "../safety/CommandGuard.js";
 import execApproval from "../safety/ExecApproval.js";
 import dockerSandbox from "../safety/DockerSandbox.js";
-import tenantContext from "../tenants/TenantContext.js";
+import requestContext from "../core/RequestContext.js";
 import { mergeLegacyOptions } from "../utils/mergeToolParams.js";
 
 const DEFAULT_TIMEOUT_MS = 120_000;   // 2 minutes default
@@ -91,8 +91,8 @@ export async function executeCommand(params) {
   // ──────────────────────────────────────────────────────────────────────────
 
   // ── Filesystem scope enforcement ───────────────────────────────────────────
-  // Prefer per-tenant resolved config (set by TaskRunner), fall back to global
-  const store = tenantContext.getStore();
+  // Prefer resolved config from request context (set by TaskRunner), fall back to global
+  const store = requestContext.getStore();
   const resolvedConfig = store?.resolvedConfig;
   const allowedPaths = resolvedConfig?.allowedPaths || config.filesystem?.allowedPaths || [];
   if (allowedPaths.length > 0) {

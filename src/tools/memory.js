@@ -1,24 +1,16 @@
 import { randomUUID } from "node:crypto";
-import tenantContext from "../tenants/TenantContext.js";
 import { generateEmbedding, getEmbeddingProvider, cosineSim } from "../utils/Embeddings.js";
 import { queryAll, queryOne, run } from "../storage/Database.js";
 
 /**
  * Memory tools - read/write/search/prune persistent agent memory.
  * Upgraded: category tags, context lines in search, pruning old entries.
- * Phase 17: Per-tenant isolation - each tenant gets their own memory via tenant_id.
  *
  * Storage:
  * - memory_entries table: Long-term facts (timestamped entries with optional category)
  * - daily_logs table: Daily activity logs
  * - embeddings table: Vector embeddings for semantic search
  */
-
-// ── Per-Tenant Resolution ────────────────────────────────────────────────────
-
-function _getTenantId() {
-  return tenantContext.getStore()?.tenant?.id || null;
-}
 
 // ─── Vector / Semantic Memory ─────────────────────────────────────────────────
 
@@ -52,7 +44,7 @@ function _generateEmbedding(text) {
 }
 
 // Store a new memory entry's embedding. Called as fire-and-forget from writeMemory.
-async function _indexEntry(text, category, timestamp, tenantId) {
+async function _indexEntry(text, category, timestamp) {
   if (_isPromptInjection(text)) return;
   const vector = await _generateEmbedding(text);
   if (!vector) return;
@@ -60,17 +52,16 @@ async function _indexEntry(text, category, timestamp, tenantId) {
   const provider = getEmbeddingProvider() || "openai";
 
   // Deduplicate: skip if a very similar entry already exists (>0.92 cosine sim)
-  const existing = _loadEmbeddings(tenantId);
+  const existing = _loadEmbeddings();
   for (const e of existing) {
     const emb = e.embedding ? JSON.parse(e.embedding) : null;
     if (emb && _cosineSim(emb, vector) > 0.92) return;
   }
 
   run(
-    `INSERT INTO embeddings (tenant_id, content, embedding, source, category, provider, created_at)
-     VALUES ($tid, $content, $emb, 'memory', $cat, $prov, $ts)`,
+    `INSERT INTO embeddings (content, embedding, source, category, provider, created_at)
+     VALUES ($content, $emb, 'memory', $cat, $prov, $ts)`,
     {
-      $tid: tenantId,
       $content: text,
       $emb: JSON.stringify(vector),
       $cat: category || "general",
@@ -80,11 +71,8 @@ async function _indexEntry(text, category, timestamp, tenantId) {
   );
 }
 
-function _loadEmbeddings(tenantId) {
-  if (tenantId) {
-    return queryAll("SELECT * FROM embeddings WHERE tenant_id = $tid", { $tid: tenantId });
-  }
-  return queryAll("SELECT * FROM embeddings WHERE tenant_id IS NULL");
+function _loadEmbeddings() {
+  return queryAll("SELECT * FROM embeddings");
 }
 
 /**
@@ -94,15 +82,13 @@ function _loadEmbeddings(tenantId) {
  *
  * @param {string} taskInput
  * @param {number} topK
- * @param {string|null} tenantId - Explicit tenant ID (for callers without active TenantContext)
  */
-export async function getRelevantMemories(taskInput, topK = 5, tenantId = null) {
+export async function getRelevantMemories(taskInput, topK = 5) {
   if (!taskInput || taskInput.length < 10) return null;
   const queryVector = await _generateEmbedding(taskInput);
   if (!queryVector) return null;
 
-  const tid = tenantId ?? _getTenantId();
-  const entries = _loadEmbeddings(tid);
+  const entries = _loadEmbeddings();
   if (entries.length === 0) return null;
 
   const currentProvider = getEmbeddingProvider() || "openai";
@@ -135,20 +121,11 @@ export async function getRelevantMemories(taskInput, topK = 5, tenantId = null) 
 // ─── Exports ─────────────────────────────────────────────────────────────────
 
 export function readMemory(params) {
-  const tenantId = _getTenantId();
   console.log(`      [memory] Reading memory entries`);
 
-  let rows;
-  if (tenantId) {
-    rows = queryAll(
-      "SELECT content, category, timestamp FROM memory_entries WHERE tenant_id = $tid ORDER BY id ASC",
-      { $tid: tenantId }
-    );
-  } else {
-    rows = queryAll(
-      "SELECT content, category, timestamp FROM memory_entries WHERE tenant_id IS NULL ORDER BY id ASC"
-    );
-  }
+  const rows = queryAll(
+    "SELECT content, category, timestamp FROM memory_entries ORDER BY id ASC"
+  );
 
   if (rows.length === 0) return "(No memory entries found)";
 
@@ -162,7 +139,6 @@ export function readMemory(params) {
 export async function writeMemory(params) {
   const entry = params?.entry;
   const category = params?.category;
-  const tenantId = _getTenantId();
   console.log(`      [memory] Writing memory${category ? ` [${category}]` : ""}`);
 
   if (!entry || entry.trim().length === 0) {
@@ -179,9 +155,8 @@ export async function writeMemory(params) {
 
   const timestamp = new Date().toISOString();
   run(
-    "INSERT INTO memory_entries (tenant_id, content, category, timestamp) VALUES ($tid, $content, $cat, $ts)",
+    "INSERT INTO memory_entries (content, category, timestamp) VALUES ($content, $cat, $ts)",
     {
-      $tid: tenantId,
       $content: entry.trim(),
       $cat: (category || "general").toLowerCase().replace(/\s+/g, "-"),
       $ts: timestamp,
@@ -190,29 +165,20 @@ export async function writeMemory(params) {
   console.log(`      [memory] Entry added (${entry.length} chars)${category ? ` category=${category}` : ""}`);
 
   // Generate and store embedding in background
-  _indexEntry(entry, category, timestamp, tenantId).catch(() => {});
+  _indexEntry(entry, category, timestamp).catch(() => {});
 
   return `Memory saved${category ? ` [${category}]` : ""}: "${entry.slice(0, 80)}${entry.length > 80 ? "..." : ""}"`;
 }
 
 export function readDailyLog(params) {
   const date = params?.date;
-  const tenantId = _getTenantId();
   const d = date || new Date().toISOString().split("T")[0];
   console.log(`      [memory] Reading daily log: ${d}`);
 
-  let rows;
-  if (tenantId) {
-    rows = queryAll(
-      "SELECT entry, created_at FROM daily_logs WHERE tenant_id = $tid AND date = $date ORDER BY id ASC",
-      { $tid: tenantId, $date: d }
-    );
-  } else {
-    rows = queryAll(
-      "SELECT entry, created_at FROM daily_logs WHERE tenant_id IS NULL AND date = $date ORDER BY id ASC",
-      { $date: d }
-    );
-  }
+  const rows = queryAll(
+    "SELECT entry, created_at FROM daily_logs WHERE date = $date ORDER BY id ASC",
+    { $date: d }
+  );
 
   if (rows.length === 0) return `No daily log found for ${d}`;
 
@@ -223,7 +189,6 @@ export function readDailyLog(params) {
 
 export function writeDailyLog(params) {
   const entry = params?.entry;
-  const tenantId = _getTenantId();
   console.log(`      [memory] Writing to daily log`);
 
   if (!entry || entry.trim().length === 0) {
@@ -235,8 +200,8 @@ export function writeDailyLog(params) {
   const formatted = `**${timestamp}** - ${entry.trim()}`;
 
   run(
-    "INSERT INTO daily_logs (tenant_id, date, entry) VALUES ($tid, $date, $entry)",
-    { $tid: tenantId, $date: today, $entry: formatted }
+    "INSERT INTO daily_logs (date, entry) VALUES ($date, $entry)",
+    { $date: today, $entry: formatted }
   );
 
   console.log(`      [memory] Daily log entry added`);
@@ -245,7 +210,6 @@ export function writeDailyLog(params) {
 
 export async function searchMemory(params) {
   const query = params?.query;
-  const tenantId = _getTenantId();
   console.log(`      [memory] Searching memory for: "${query}"`);
 
   if (!query || query.trim().length === 0) {
@@ -267,7 +231,7 @@ export async function searchMemory(params) {
     const queryVector = await _generateEmbedding(query);
     if (queryVector) {
       const currentProvider = getEmbeddingProvider() || "openai";
-      let entries = _loadEmbeddings(tenantId);
+      let entries = _loadEmbeddings();
       if (filterCategory) {
         entries = entries.filter((e) => e.category === filterCategory.toLowerCase());
       }
@@ -307,17 +271,9 @@ export async function searchMemory(params) {
   const results = [];
 
   // Search memory_entries
-  let memRows;
-  if (tenantId) {
-    memRows = queryAll(
-      "SELECT content, category, timestamp FROM memory_entries WHERE tenant_id = $tid ORDER BY id DESC",
-      { $tid: tenantId }
-    );
-  } else {
-    memRows = queryAll(
-      "SELECT content, category, timestamp FROM memory_entries WHERE tenant_id IS NULL ORDER BY id DESC"
-    );
-  }
+  const memRows = queryAll(
+    "SELECT content, category, timestamp FROM memory_entries ORDER BY id DESC"
+  );
 
   for (const r of memRows) {
     if (results.length >= limit) break;
@@ -328,17 +284,9 @@ export async function searchMemory(params) {
 
   // Search daily_logs
   if (results.length < limit) {
-    let logRows;
-    if (tenantId) {
-      logRows = queryAll(
-        "SELECT date, entry FROM daily_logs WHERE tenant_id = $tid ORDER BY date DESC, id DESC LIMIT 500",
-        { $tid: tenantId }
-      );
-    } else {
-      logRows = queryAll(
-        "SELECT date, entry FROM daily_logs WHERE tenant_id IS NULL ORDER BY date DESC, id DESC LIMIT 500"
-      );
-    }
+    const logRows = queryAll(
+      "SELECT date, entry FROM daily_logs ORDER BY date DESC, id DESC LIMIT 500"
+    );
 
     for (const r of logRows) {
       if (results.length >= limit) break;
@@ -358,7 +306,6 @@ export async function searchMemory(params) {
 
 export function pruneMemory(params) {
   const maxAgeDaysStr = params?.maxAgeDays;
-  const tenantId = _getTenantId();
   const maxAgeDays = parseInt(maxAgeDaysStr || "90");
   if (isNaN(maxAgeDays) || maxAgeDays < 1) return "Error: maxAgeDays must be a positive number.";
 
@@ -368,61 +315,32 @@ export function pruneMemory(params) {
   const cutoffDate = cutoff.split("T")[0];
 
   // Prune memory_entries
-  let memResult;
-  if (tenantId) {
-    memResult = run(
-      "DELETE FROM memory_entries WHERE tenant_id = $tid AND timestamp < $cutoff",
-      { $tid: tenantId, $cutoff: cutoff }
-    );
-  } else {
-    memResult = run(
-      "DELETE FROM memory_entries WHERE tenant_id IS NULL AND timestamp < $cutoff",
-      { $cutoff: cutoff }
-    );
-  }
+  const memResult = run(
+    "DELETE FROM memory_entries WHERE timestamp < $cutoff",
+    { $cutoff: cutoff }
+  );
   const prunedMemory = memResult.changes;
 
   // Prune daily logs
-  let logResult;
-  if (tenantId) {
-    logResult = run(
-      "DELETE FROM daily_logs WHERE tenant_id = $tid AND date < $cutoff",
-      { $tid: tenantId, $cutoff: cutoffDate }
-    );
-  } else {
-    logResult = run(
-      "DELETE FROM daily_logs WHERE tenant_id IS NULL AND date < $cutoff",
-      { $cutoff: cutoffDate }
-    );
-  }
+  const logResult = run(
+    "DELETE FROM daily_logs WHERE date < $cutoff",
+    { $cutoff: cutoffDate }
+  );
   const prunedLogs = logResult.changes;
 
   // Prune old embeddings too
-  if (tenantId) {
-    run("DELETE FROM embeddings WHERE tenant_id = $tid AND created_at < $cutoff", { $tid: tenantId, $cutoff: cutoff });
-  } else {
-    run("DELETE FROM embeddings WHERE tenant_id IS NULL AND created_at < $cutoff", { $cutoff: cutoff });
-  }
+  run("DELETE FROM embeddings WHERE created_at < $cutoff", { $cutoff: cutoff });
 
   console.log(`      [memory] Pruned: ${prunedMemory} memory entries, ${prunedLogs} daily log entries`);
   return `Pruned ${prunedMemory} memory entries and ${prunedLogs} daily log entries older than ${maxAgeDays} days.`;
 }
 
 export function listMemoryCategories(params) {
-  const tenantId = _getTenantId();
   console.log(`      [memory] Listing categories`);
 
-  let rows;
-  if (tenantId) {
-    rows = queryAll(
-      "SELECT category, COUNT(*) as cnt FROM memory_entries WHERE tenant_id = $tid GROUP BY category ORDER BY cnt DESC",
-      { $tid: tenantId }
-    );
-  } else {
-    rows = queryAll(
-      "SELECT category, COUNT(*) as cnt FROM memory_entries WHERE tenant_id IS NULL GROUP BY category ORDER BY cnt DESC"
-    );
-  }
+  const rows = queryAll(
+    "SELECT category, COUNT(*) as cnt FROM memory_entries GROUP BY category ORDER BY cnt DESC"
+  );
 
   if (rows.length === 0) return "No categorized entries found.";
 

@@ -134,7 +134,7 @@ export class DiscordChannel extends BaseChannel {
       const task = taskQueue.enqueue({
         input,
         channel: "discord",
-        channelMeta: { userId, userName: message.author.username, channelId, messageId: message.id, guildId: message.guildId, channel: "discord", tenantId: this.getTenantId(), instanceKey: this.getInstanceKey() },
+        channelMeta: { userId, userName: message.author.username, channelId, messageId: message.id, guildId: message.guildId, channel: "discord" },
         sessionId: this.getSessionId(userId),
         model: this.getModel(),
       });

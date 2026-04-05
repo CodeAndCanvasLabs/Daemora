@@ -14,7 +14,6 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import filesystemGuard from "../safety/FilesystemGuard.js";
 import { getTenantTmpDir } from "./_paths.js";
-import tenantContext from "../tenants/TenantContext.js";
 import { mergeLegacyOptions as _mergeLegacyOpts } from "../utils/mergeToolParams.js";
 
 const OPENAI_CHAR_LIMIT = 4096;
@@ -28,10 +27,8 @@ export async function textToSpeech(params) {
     const opts = _mergeLegacyOpts(params, ["text"]);
     const provider = (opts.provider || "auto").toLowerCase();
 
-    const _store = tenantContext.getStore();
-    const _keys = _store?.apiKeys || {};
-    const hasOpenAI = _keys.OPENAI_API_KEY || process.env.OPENAI_API_KEY;
-    const hasElevenLabs = _keys.ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY;
+    const hasOpenAI = process.env.OPENAI_API_KEY;
+    const hasElevenLabs = process.env.ELEVENLABS_API_KEY;
 
     // Explicit provider
     if (provider === "elevenlabs") return _elevenLabs(text.trim(), opts);
@@ -42,7 +39,7 @@ export async function textToSpeech(params) {
     if (provider === "groq") return _groqTTS(text.trim(), opts);
 
     // Auto: cheapest available. Groq (free) → Edge (free) → OpenAI → ElevenLabs
-    const hasGroq = _keys.GROQ_API_KEY || process.env.GROQ_API_KEY;
+    const hasGroq = process.env.GROQ_API_KEY;
     if (hasGroq) return _groqTTS(text.trim(), opts);
     if (hasOpenAI) return _openAI(text.trim(), opts);
     if (hasElevenLabs) return _elevenLabs(text.trim(), opts);
@@ -55,9 +52,7 @@ export async function textToSpeech(params) {
 // ── OpenAI TTS ────────────────────────────────────────────────────────────────
 
 async function _openAI(text, opts) {
-  const store = tenantContext.getStore();
-  const apiKeys = store?.apiKeys || {};
-  const apiKey = apiKeys.OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return "Error: OPENAI_API_KEY required";
 
   const { default: OpenAI } = await import("openai");
@@ -96,9 +91,7 @@ async function _openAI(text, opts) {
 // ── ElevenLabs TTS ────────────────────────────────────────────────────────────
 
 async function _elevenLabs(text, opts) {
-  const store = tenantContext.getStore();
-  const tenantKeys = store?.apiKeys || {};
-  const apiKey = tenantKeys.ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY;
+  const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) return "Error: ELEVENLABS_API_KEY required";
 
   const voiceId = opts.voiceId || "21m00Tcm4TlvDq8ikWAM"; // Rachel
@@ -133,9 +126,7 @@ async function _elevenLabs(text, opts) {
 // ── Groq TTS (free tier, OpenAI-compatible) ──────────────────────────────────
 
 async function _groqTTS(text, opts) {
-  const store = tenantContext.getStore();
-  const apiKeys = store?.apiKeys || {};
-  const apiKey = apiKeys.GROQ_API_KEY || process.env.GROQ_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return "Error: GROQ_API_KEY required";
 
   const model = opts.model || process.env.TTS_GROQ_MODEL || "canopylabs/orpheus-v1-english";

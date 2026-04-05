@@ -2,7 +2,7 @@ import { resolve, sep } from "path";
 import { realpathSync } from "fs";
 import { config } from "../config/default.js";
 import eventBus from "../core/EventBus.js";
-import tenantContext from "../tenants/TenantContext.js";
+import requestContext from "../core/RequestContext.js";
 
 /**
  * Filesystem Guard - restricts file access to safe paths.
@@ -56,9 +56,6 @@ const BLOCKED_PATTERNS = [
   /^config[\/\\]mcp\.json$/,
   /[\/\\]config[\/\\]hooks\.json$/,
   /^config[\/\\]hooks\.json$/,
-  // ── Tenant data (contains AES-encrypted API keys + sensitive config) ───────
-  /[\/\\]data[\/\\]tenants[\/\\][^\/\\]+\.json$/,
-  /[\/\\]tenants\.json$/,
   // ── Audit / cost logs ──────────────────────────────────────────────────────
   /[\/\\]data[\/\\]audit[\/\\]/,
 ];
@@ -150,7 +147,7 @@ class FilesystemGuard {
     // ── Resolve per-tenant or global path config ────────────────────────────
     // resolvedConfig already has merged paths (global ∪ tenant for blocked,
     // global ∩ tenant for allowed) - computed by TenantManager.resolveTaskConfig().
-    const store = tenantContext.getStore();
+    const store = requestContext.getStore();
     const resolvedConfig = store?.resolvedConfig;
 
     // ── Layer 2: User-defined blocked paths (global ∪ tenant) ────────────────

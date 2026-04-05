@@ -4,7 +4,6 @@
  */
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import tenantContext from "../tenants/TenantContext.js";
 import filesystemGuard from "../safety/FilesystemGuard.js";
 import { getTenantTmpDir } from "./_paths.js";
 import { mergeLegacyOptions as _mergeLegacyOpts } from "../utils/mergeToolParams.js";
@@ -24,9 +23,7 @@ export async function generateImage(params) {
     outputPath = null,
   } = opts;
 
-  const store = tenantContext.getStore();
-  const apiKeys = store?.apiKeys || {};
-  const apiKey = apiKeys.OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) return "Error: OPENAI_API_KEY not configured.";
 

@@ -16,10 +16,10 @@ export function createTeam({ name, tenantId = null, config = null, project = nul
   run(
     `INSERT INTO teams (id, name, tenant_id, config, project, project_type, project_repo, project_stack, requirements)
      VALUES ($id, $name, $tid, $cfg, $proj, $ptype, $prepo, $pstack, $req)`,
-    { $id: id, $name: name, $tid: tenantId, $cfg: config ? JSON.stringify(config) : null,
+    { $id: id, $name: name, $tid: null, $cfg: config ? JSON.stringify(config) : null,
       $proj: project, $ptype: projectType, $prepo: projectRepo, $pstack: projectStack, $req: requirements }
   );
-  return { id, name, tenantId, status: "active", project };
+  return { id, name, status: "active", project };
 }
 
 export function getTeam(id) {
@@ -27,10 +27,7 @@ export function getTeam(id) {
   return row ? _rowToTeam(row) : null;
 }
 
-export function listTeams(tenantId = null) {
-  if (tenantId) {
-    return queryAll("SELECT * FROM teams WHERE tenant_id = $tid AND status = 'active' ORDER BY created_at DESC", { $tid: tenantId }).map(_rowToTeam);
-  }
+export function listTeams() {
   return queryAll("SELECT * FROM teams WHERE status = 'active' ORDER BY created_at DESC").map(_rowToTeam);
 }
 
@@ -43,12 +40,8 @@ export function setTeamLead(teamId, leadAgentId, leadSessionId) {
     { $aid: leadAgentId, $sid: leadSessionId, $id: teamId });
 }
 
-export function findTeamByProject(project, tenantId = null) {
-  const sql = tenantId
-    ? "SELECT * FROM teams WHERE project = $p AND tenant_id = $tid AND status IN ('active','paused') LIMIT 1"
-    : "SELECT * FROM teams WHERE project = $p AND status IN ('active','paused') LIMIT 1";
-  const params = tenantId ? { $p: project, $tid: tenantId } : { $p: project };
-  const row = queryOne(sql, params);
+export function findTeamByProject(project) {
+  const row = queryOne("SELECT * FROM teams WHERE project = $p AND status IN ('active','paused') LIMIT 1", { $p: project });
   return row ? _rowToTeam(row) : null;
 }
 

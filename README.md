@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>Self-hosted AI agent platform for teams - autonomous, multi-channel, multi-tenant.</strong>
+  <strong>Self-hosted AI agent platform - autonomous, multi-channel, multi-model.</strong>
 </p>
 
 <p align="center">
@@ -15,9 +15,9 @@
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-black" alt="platform" />
 </p>
 
-Deploy once on your machine. Connect your channels. Your team messages the bot - it writes code, does research, sends emails, runs cron jobs, and reports back. Each user gets isolated memory, encrypted keys, and cost caps. You own everything.
+Deploy once on your machine. Connect your channels. Message the bot - it writes code, does research, sends emails, runs cron jobs, and reports back. You own everything.
 
-59 built-in tools. 20 channels. 16 security layers. 7 AI providers. Multi-agent teams. Production-grade scheduling. Crew system with self-improving learning. MCP integration. All self-hosted - nothing leaves your infrastructure except the tokens you send to model APIs.
+59 built-in tools. 20 channels. 14 security layers. 7 AI providers. Multi-agent teams. Production-grade scheduling. Crew system with self-improving learning. MCP integration. All self-hosted - nothing leaves your infrastructure except the tokens you send to model APIs.
 
 ---
 
@@ -28,16 +28,14 @@ Deploy once on your machine. Connect your channels. Your team messages the bot -
 | **Code** | Write, edit, run, test, and debug code across multiple files. Takes screenshots of UIs to verify output. Fixes failing tests. Ships working software. |
 | **Research** | Search the web, read pages, analyse images, cross-reference sources, write reports. Spawns parallel sub-agents for speed. |
 | **Goals** | Set persistent goals - the agent works toward them autonomously on schedule. No prompting needed. Runs 24/7 with isolated sessions, auto-pauses on repeated failures. |
-| **Watchers** | Named event triggers - "when GitHub issue opens, triage and notify Telegram." Webhook-driven with pattern matching, cooldown, and per-tenant scoping. |
+| **Watchers** | Named event triggers - "when GitHub issue opens, triage and notify Telegram." Webhook-driven with pattern matching and cooldown. |
 | **Scheduler** | Production-grade scheduling (one-shot, interval, cron expressions) with overlap prevention, retry with backoff, channel delivery, failure alerts, Morning Pulse daily briefing, and run history. |
-| **Fleet Command** | One admin command → every tenant's agent executes simultaneously. Each uses their own context, memory, tools. Each reports back individually. |
 | **Communicate** | Send emails, Telegram messages, Slack posts, Discord messages - autonomously. Screenshots, files, and media sent directly back to you via `replyWithFile`. |
 | **Crew** | Self-contained specialist sub-agents - database queries, smart home control, SSH, notifications, calendars. Build your own crew member in 3 files. Community crew marketplace coming soon. |
 | **Self-Improving** | After complex tasks, a background agent reviews the conversation and auto-creates reusable skills + saves user preferences. The more you use it, the better it gets. |
 | **Tools** | Connect to any MCP server - create Notion pages, open GitHub issues, update Linear tasks, manage Shopify products, query databases. |
 | **Voice & Meetings** | Join any meeting (Google Meet, Zoom, Teams) via phone dial-in. OpenAI Realtime STT + ElevenLabs/OpenAI TTS. Voice cloning. Outbound voice calls. Auto-transcription + meeting summaries. |
 | **Multi-Agent** | Spawn parallel sub-agents (researcher + coder + writer working simultaneously). Create agent teams with shared task lists, dependencies, and inter-agent messaging. |
-| **Multi-Tenant** | Run one instance for your whole team. Per-user memory, cost caps, tool allowlists, filesystem isolation, and encrypted API keys. |
 
 ---
 
@@ -67,10 +65,10 @@ Deploy once on your machine. Connect your channels. Your team messages the bot -
   <img src="https://raw.githubusercontent.com/CodeAndCanvasLabs/Daemora/main/public/architecture.svg" alt="Daemora Architecture" width="100%" />
 </p>
 
-### Security Architecture (16 Layers)
+### Security Architecture (14 Layers)
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/CodeAndCanvasLabs/Daemora/main/public/security.svg" alt="16-Layer Security Architecture" width="100%" />
+  <img src="https://raw.githubusercontent.com/CodeAndCanvasLabs/Daemora/main/public/security.svg" alt="14-Layer Security Architecture" width="100%" />
 </p>
 
 ### Task Lifecycle - Message to Response
@@ -97,7 +95,7 @@ Deploy once on your machine. Connect your channels. Your team messages the bot -
 
 ```bash
 npm install -g daemora
-daemora setup      # interactive wizard (11 steps) - models, channels, tools, cleanup, vault, MCP, multi-tenant
+daemora setup      # interactive wizard - models, channels, tools, cleanup, vault, MCP
 daemora start      # start the agent
 ```
 
@@ -233,15 +231,6 @@ PERMISSION_TIER=standard           # minimal | standard | full
 ALLOWED_PATHS=/home/user/work      # Sandbox: restrict file access to these directories
 BLOCKED_PATHS=/home/user/.secrets  # Always block these, even inside allowed paths
 RESTRICT_COMMANDS=true             # Block shell commands referencing paths outside sandbox
-
-# Multi-tenant mode
-MULTI_TENANT_ENABLED=true          # Enable per-user isolation
-AUTO_REGISTER_TENANTS=true         # Auto-create tenants on first message
-TENANT_ISOLATE_FILESYSTEM=true     # Tenant temp files → data/tenants/{id}/workspace/
-
-# Per-tenant API key encryption (required for production multi-tenant mode)
-# Generate: openssl rand -hex 32
-DAEMORA_TENANT_KEY=
 ```
 
 ---
@@ -394,7 +383,7 @@ createTeam("feature-sprint")
 
 ### Limits
 
-- Max 5 teams per tenant
+- Max 5 teams active
 - Max 10 teammates per team
 - Max 7 concurrent sub-agents
 - Max nesting depth: 3
@@ -428,64 +417,6 @@ Always follow this order when deploying:
 
 ---
 
-## Multi-Tenant Mode
-
-Run Daemora as a shared agent serving multiple users. Each user gets isolated memory, filesystem, API keys, cost limits, per-tenant channel instances, and optionally their own model tier.
-
-```bash
-# List all tenants
-daemora tenant list
-
-# Set a per-user daily cost cap
-daemora tenant set telegram:123 maxDailyCost 2.00
-
-# Restrict which tools a tenant can use
-daemora tenant set telegram:123 tools readFile,webSearch,sendEmail
-
-# Restrict which MCP servers a tenant can access
-daemora tenant set telegram:123 mcpServers github,notion
-
-# Assign a model tier
-daemora tenant plan telegram:123 pro
-
-# Store a tenant's own OpenAI key (AES-256-GCM encrypted at rest)
-daemora tenant apikey set telegram:123 OPENAI_API_KEY sk-their-key
-
-# Per-tenant channel instances (tenant gets their own bot)
-# Configured via UI → Tenant Edit → Channel Connections
-# Each tenant can have separate Telegram, Discord, Slack, etc. bots
-# Channel identities auto-linked on first message - enables cross-channel sends
-
-# Manage per-tenant workspace paths
-daemora tenant workspace telegram:123                  # Show workspace paths
-daemora tenant workspace telegram:123 add /home/user   # Add to allowedPaths
-daemora tenant workspace telegram:123 remove /home/user
-daemora tenant workspace telegram:123 block /secrets   # Add to blockedPaths
-daemora tenant workspace telegram:123 unblock /secrets
-
-# Suspend a user
-daemora tenant suspend telegram:123 "Exceeded usage policy"
-```
-
-Per-tenant isolation:
-
-| Isolation | Mechanism |
-|---|---|
-| Memory | `data/tenants/{id}/MEMORY.md` - never shared across users |
-| Sessions | Persistent per-user sessions + per-sub-agent sessions (`userId--coder`, `userId--researcher`) |
-| Filesystem | `allowedPaths` and `blockedPaths` scoped per user. `TENANT_ISOLATE_FILESYSTEM=true` → temp files in `data/tenants/{id}/workspace/` |
-| API keys | AES-256-GCM encrypted; passed through call stack, never via `process.env` |
-| Cost tracking | Per-tenant daily cost recorded in audit log |
-| MCP servers | `mcpServers` field restricts which servers a tenant can call |
-| Tools | `tools` allowlist limits which tools the agent can use for this user |
-| Channel context | `channelMeta` auto-carried in TenantContext - tools like `replyWithFile` send files back without LLM knowing channel details |
-| Channel identity | Auto-linked routing metadata per channel - enables cross-channel sends (e.g. "send to telegram" from discord) |
-| Per-tenant channels | Each tenant can have their own channel instances (`telegram::tenantId`) with separate bot tokens |
-
-All isolation runs via `AsyncLocalStorage` - concurrent tasks from different users cannot read each other's context.
-
----
-
 ## Security
 
 ```bash
@@ -504,30 +435,24 @@ daemora doctor
 | 7 | **Comprehensive secret redaction** | ALL env secrets tracked (not just 3). Pattern + blind redaction. Live refresh on vault unlock. |
 | 8 | **Log sanitisation** | Tool params and output redacted before `console.log` - secrets never written to logs |
 | 9 | **Network egress guard** | Outbound HTTP requests and emails scanned for secret values - blocks exfiltration attempts |
-| 10 | **Crew tenant isolation** | Crew members can only access current request's tenant keys - cross-tenant access blocked and logged |
-| 11 | **A2A security** | Agent-to-agent protocol: bearer token, agent allowlist, rate limiting |
-| 12 | **Supervisor agent** | Detects runaway loops, cost overruns, `rm -rf`, `curl | bash` patterns |
-| 13 | **Input sanitisation** | User messages wrapped in `<untrusted-input>` tags; prompt injection patterns flagged |
-| 14 | **Multi-tenant isolation** | AsyncLocalStorage - no cross-tenant data leakage in concurrent requests |
-| 15 | **Secret access audit trail** | Every `resolveKey()` call logged to SQLite - caller, key name, tenant, timestamp |
-| 16 | **Tool filesystem guard** | All 19 file-touching tools enforce `checkRead`/`checkWrite` per-tenant scoping |
+| 10 | **A2A security** | Agent-to-agent protocol: bearer token, agent allowlist, rate limiting |
+| 11 | **Supervisor agent** | Detects runaway loops, cost overruns, `rm -rf`, `curl | bash` patterns |
+| 12 | **Input sanitisation** | User messages wrapped in `<untrusted-input>` tags; prompt injection patterns flagged |
+| 13 | **Secret access audit trail** | Every `resolveKey()` call logged to SQLite - caller, key name, timestamp |
+| 14 | **Tool filesystem guard** | All 19 file-touching tools enforce `checkRead`/`checkWrite` scoping |
 
 ---
 
 ## Data Storage
 
-SQLite database (`data/daemora.db`) stores configuration, sessions, tasks, tenants, cron jobs, vault secrets, and channel identities. File-based storage is used for memory, audit logs, cost tracking, and tenant workspaces.
+SQLite database (`data/daemora.db`) stores configuration, sessions, tasks, cron jobs, vault secrets, and channel identities. File-based storage is used for memory, audit logs, and cost tracking.
 
 ```
 data/
-├── daemora.db      SQLite database (config, sessions, tasks, tenants, vault, cron)
+├── daemora.db      SQLite database (config, sessions, tasks, vault, cron)
 ├── memory/         MEMORY.md + daily logs + skill embeddings
 ├── audit/          Append-only JSONL audit logs (secrets stripped)
 ├── costs/          Per-day cost tracking logs
-├── tenants/        Per-tenant memory and workspaces
-│   └── {tenantId}/
-│       ├── MEMORY.md
-│       └── workspace/
 └── skill-embeddings.json
 ```
 
@@ -579,21 +504,6 @@ daemora sandbox block <path>     Always block a path
 daemora sandbox restrict         Enable command restriction
 daemora sandbox clear            Back to unrestricted mode
 
-daemora tenant list              List all tenants
-daemora tenant show <id>         Show tenant config
-daemora tenant set <id> <k> <v>  Set a tenant config value
-daemora tenant plan <id> <plan>  Set tenant plan (free/pro/admin)
-daemora tenant suspend <id>      Suspend a tenant
-daemora tenant unsuspend <id>    Unsuspend a tenant
-daemora tenant apikey set <id> <KEY> <value>   Store per-tenant API key (encrypted)
-daemora tenant apikey delete <id> <KEY>        Remove a per-tenant API key
-daemora tenant apikey list <id>                List stored key names (values never shown)
-daemora tenant workspace <id>                  Show workspace paths (allowed + blocked)
-daemora tenant workspace <id> add <path>       Add directory to tenant's allowedPaths
-daemora tenant workspace <id> remove <path>    Remove from allowedPaths
-daemora tenant workspace <id> block <path>     Add to tenant's blockedPaths
-daemora tenant workspace <id> unblock <path>   Remove from blockedPaths
-
 daemora channels                 List all channels + setup status
 daemora channels add             Configure a new channel interactively
 daemora channels add <name>      Configure a specific channel directly
@@ -623,9 +533,6 @@ curl http://localhost:8081/tasks/{taskId}
 
 # Today's API costs
 curl http://localhost:8081/costs/today
-
-# List tenants
-curl http://localhost:8081/tenants
 
 # List MCP servers
 curl http://localhost:8081/mcp
@@ -686,7 +593,7 @@ pnpm test:unit             # Unit tests only
 pnpm test:integration      # Integration tests only
 ```
 
-97 tests covering: Task lifecycle, CostTracker (per-tenant daily budgets), SecretScanner (pattern + blind env-var redaction), FilesystemGuard (blocked patterns, path scoping), TenantManager (AES-256-GCM encryption round-trip, tamper detection), TenantContext (AsyncLocalStorage concurrent isolation), ModelRouter (task-type routing, profile resolution), and multi-tenant integration (cross-tenant filesystem + cost isolation).
+97 tests covering: Task lifecycle, CostTracker (daily budgets), SecretScanner (pattern + blind env-var redaction), FilesystemGuard (blocked patterns, path scoping), ModelRouter (task-type routing, profile resolution), and integration tests.
 
 ---
 

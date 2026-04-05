@@ -5,7 +5,6 @@ import { getRegistry } from "./PluginRegistry.js";
 import { toolFunctions } from "../tools/index.js";
 import { createSession, getSession, setMessages } from "../services/sessions.js";
 import { compactForSession } from "../utils/msgText.js";
-import tenantContext from "../tenants/TenantContext.js";
 
 /**
  * Base tools injected into every crew member alongside their specialist tools.

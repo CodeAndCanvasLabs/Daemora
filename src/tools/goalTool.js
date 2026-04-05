@@ -3,7 +3,7 @@
  *
  * Actions:
  *   create   - create a new goal
- *   list     - list goals for current tenant
+ *   list     - list goals
  *   update   - patch an existing goal
  *   delete   - remove a goal
  *   pause    - pause a goal
@@ -13,15 +13,11 @@
  */
 import { randomUUID } from "crypto";
 import { Cron } from "croner";
-import { saveGoal, loadGoal, loadGoalsByTenant, deleteGoal as removeGoal } from "../storage/GoalStore.js";
-import tenantContext from "../tenants/TenantContext.js";
-
-function _getTenantId() {
-  return tenantContext.getStore()?.tenant?.id || null;
-}
+import { saveGoal, loadGoal, loadActiveGoals, deleteGoal as removeGoal } from "../storage/GoalStore.js";
+import requestContext from "../core/RequestContext.js";
 
 function _getChannelMeta() {
-  return tenantContext.getStore()?.channelMeta || null;
+  return requestContext.getStore()?.channelMeta || null;
 }
 
 function _computeNextCheckAt(cronExpr, tz) {
@@ -35,7 +31,6 @@ export function goal(toolParams) {
   const action = toolParams?.action;
   try {
     const { action: _discard, ...params } = toolParams || {};
-    const tenantId = _getTenantId();
 
     switch (action) {
       case "create": {
@@ -52,7 +47,6 @@ export function goal(toolParams) {
 
         const goalObj = {
           id,
-          tenantId,
           title: params.title,
           description: params.description || null,
           strategy: params.strategy || null,
@@ -75,7 +69,7 @@ export function goal(toolParams) {
       }
 
       case "list": {
-        const goals = loadGoalsByTenant(tenantId);
+        const goals = loadActiveGoals();
         if (goals.length === 0) return "No goals configured.";
         return goals.map(g => {
           const delivery = g.delivery?.channel ? ` → ${g.delivery.channel}` : "";
@@ -87,7 +81,6 @@ export function goal(toolParams) {
         if (!params.id) return 'Error: id is required. Use goal("list") to see goal IDs.';
         const existing = loadGoal(params.id);
         if (!existing) return `Error: goal ${params.id} not found.`;
-        if (existing.tenantId !== tenantId) return "Error: goal belongs to a different tenant.";
 
         if (params.title !== undefined) existing.title = params.title;
         if (params.description !== undefined) existing.description = params.description;
@@ -111,7 +104,6 @@ export function goal(toolParams) {
         if (!params.id) return "Error: id is required.";
         const existing = loadGoal(params.id);
         if (!existing) return `Error: goal ${params.id} not found.`;
-        if (existing.tenantId !== tenantId) return "Error: goal belongs to a different tenant.";
         removeGoal(params.id);
         return `Goal ${params.id} removed.`;
       }
@@ -120,7 +112,6 @@ export function goal(toolParams) {
         if (!params.id) return "Error: id is required.";
         const existing = loadGoal(params.id);
         if (!existing) return `Error: goal ${params.id} not found.`;
-        if (existing.tenantId !== tenantId) return "Error: goal belongs to a different tenant.";
         existing.status = "paused";
         existing.updatedAt = new Date().toISOString();
         saveGoal(existing);
@@ -131,7 +122,6 @@ export function goal(toolParams) {
         if (!params.id) return "Error: id is required.";
         const existing = loadGoal(params.id);
         if (!existing) return `Error: goal ${params.id} not found.`;
-        if (existing.tenantId !== tenantId) return "Error: goal belongs to a different tenant.";
         existing.status = "active";
         existing.consecutiveFailures = 0;
         existing.nextCheckAt = _computeNextCheckAt(existing.checkCron, existing.checkTz);
@@ -144,7 +134,6 @@ export function goal(toolParams) {
         if (!params.id) return "Error: id is required.";
         const existing = loadGoal(params.id);
         if (!existing) return `Error: goal ${params.id} not found.`;
-        if (existing.tenantId !== tenantId) return "Error: goal belongs to a different tenant.";
 
         // Set nextCheckAt to now so GoalPulse picks it up on next tick
         existing.nextCheckAt = new Date().toISOString();
@@ -161,7 +150,6 @@ export function goal(toolParams) {
         if (!params.id) return "Error: id is required.";
         const existing = loadGoal(params.id);
         if (!existing) return `Error: goal ${params.id} not found.`;
-        if (existing.tenantId !== tenantId) return "Error: goal belongs to a different tenant.";
         existing.status = "completed";
         existing.updatedAt = new Date().toISOString();
         saveGoal(existing);

@@ -3,7 +3,7 @@
  *
  * Actions:
  *   add      - create a new watcher
- *   list     - list watchers for current tenant
+ *   list     - list watchers
  *   update   - patch an existing watcher
  *   delete   - remove a watcher
  *   enable   - enable a watcher
@@ -11,24 +11,19 @@
  */
 import { randomUUID } from "crypto";
 import {
-  saveWatcher, loadWatcher, loadWatchersByTenant,
+  saveWatcher, loadWatcher, loadAllWatchers,
   deleteWatcher as removeWatcher,
 } from "../storage/WatcherStore.js";
-import tenantContext from "../tenants/TenantContext.js";
-
-function _getTenantId() {
-  return tenantContext.getStore()?.tenant?.id || null;
-}
+import requestContext from "../core/RequestContext.js";
 
 function _getChannelMeta() {
-  return tenantContext.getStore()?.channelMeta || null;
+  return requestContext.getStore()?.channelMeta || null;
 }
 
 export function watcher(toolParams) {
   const action = toolParams?.action;
   try {
     const { action: _discard, ...params } = toolParams || {};
-    const tenantId = _getTenantId();
 
     switch (action) {
       case "add": {
@@ -58,7 +53,6 @@ export function watcher(toolParams) {
 
         const watcherObj = {
           id,
-          tenantId,
           name: params.name,
           description: params.description || null,
           triggerType: params.triggerType || "webhook",
@@ -79,7 +73,7 @@ export function watcher(toolParams) {
       }
 
       case "list": {
-        const watchers = loadWatchersByTenant(tenantId);
+        const watchers = loadAllWatchers();
         if (watchers.length === 0) return "No watchers configured.";
         return watchers.map(w => {
           const status = w.enabled ? "enabled" : "disabled";
@@ -92,7 +86,6 @@ export function watcher(toolParams) {
         if (!params.id) return 'Error: id is required. Use watcher("list") to see watcher IDs.';
         const existing = loadWatcher(params.id);
         if (!existing) return `Error: watcher ${params.id} not found.`;
-        if (existing.tenantId !== tenantId) return "Error: watcher belongs to a different tenant.";
 
         if (params.name !== undefined) existing.name = params.name;
         if (params.description !== undefined) existing.description = params.description;
@@ -116,7 +109,6 @@ export function watcher(toolParams) {
         if (!params.id) return "Error: id is required.";
         const existing = loadWatcher(params.id);
         if (!existing) return `Error: watcher ${params.id} not found.`;
-        if (existing.tenantId !== tenantId) return "Error: watcher belongs to a different tenant.";
         removeWatcher(params.id);
         return `Watcher ${params.id} removed.`;
       }
@@ -125,7 +117,6 @@ export function watcher(toolParams) {
         if (!params.id) return "Error: id is required.";
         const existing = loadWatcher(params.id);
         if (!existing) return `Error: watcher ${params.id} not found.`;
-        if (existing.tenantId !== tenantId) return "Error: watcher belongs to a different tenant.";
         existing.enabled = 1;
         existing.updatedAt = new Date().toISOString();
         saveWatcher(existing);
@@ -136,7 +127,6 @@ export function watcher(toolParams) {
         if (!params.id) return "Error: id is required.";
         const existing = loadWatcher(params.id);
         if (!existing) return `Error: watcher ${params.id} not found.`;
-        if (existing.tenantId !== tenantId) return "Error: watcher belongs to a different tenant.";
         existing.enabled = 0;
         existing.updatedAt = new Date().toISOString();
         saveWatcher(existing);

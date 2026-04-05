@@ -3,7 +3,7 @@
  *
  * Actions:
  *   status      - scheduler status (jobs, next wake, running count)
- *   list        - list all jobs (tenant-scoped if in tenant context)
+ *   list        - list all jobs
  *   add         - create a new job (cron, every, or at schedule)
  *   update      - patch an existing job
  *   enable      - re-enable a disabled job
@@ -14,15 +14,11 @@
  *   listPresets - list available delivery presets (for deliveryPreset param)
  */
 import scheduler from "../scheduler/Scheduler.js";
-import tenantContext from "../tenants/TenantContext.js";
+import requestContext from "../core/RequestContext.js";
 import { listPresets } from "../scheduler/DeliveryPresetStore.js";
 
-function _getTenantId() {
-  return tenantContext.getStore()?.tenant?.id || null;
-}
-
 function _getChannelMeta() {
-  return tenantContext.getStore()?.channelMeta || null;
+  return requestContext.getStore()?.channelMeta || null;
 }
 
 export function cron(toolParams) {
@@ -33,7 +29,6 @@ export function cron(toolParams) {
     const legacyParams = paramsJson ? JSON.parse(paramsJson) : {};
     const { params: _discard, action: _discard2, ...flatFields } = toolParams || {};
     const params = { ...legacyParams, ...flatFields };
-    const tenantId = _getTenantId();
 
     switch (action) {
       case "status": {
@@ -41,7 +36,7 @@ export function cron(toolParams) {
       }
 
       case "list": {
-        const jobs = scheduler.list(tenantId);
+        const jobs = scheduler.list();
         if (jobs.length === 0) return "No cron jobs configured.";
         return jobs.map((j) => {
           const sched = j.schedule.kind === "cron" ? j.schedule.expr
@@ -73,10 +68,7 @@ export function cron(toolParams) {
 
         if (params.staggerMs) schedule.staggerMs = params.staggerMs;
 
-        // Admin-only: delivery preset (resolves named group → preset ID)
-        const store = tenantContext.getStore();
-        const isAdmin = !tenantId || tenantId === "__global__" || store?.tenant?.globalAdmin === true;
-        const deliveryPreset = isAdmin ? (params.deliveryPreset || null) : null;
+        const deliveryPreset = params.deliveryPreset || null;
 
         // Build delivery - preset takes priority over auto-announce
         let delivery = params.delivery || { mode: "none" };
@@ -91,7 +83,6 @@ export function cron(toolParams) {
           schedule,
           taskInput: params.taskInput,
           name: params.name,
-          tenantId,
           model: params.model,
           thinking: params.thinking,
           timeoutSeconds: params.timeoutSeconds,
@@ -131,32 +122,32 @@ export function cron(toolParams) {
           delete patch.at;
         }
 
-        const job = scheduler.update(params.id, patch, tenantId);
+        const job = scheduler.update(params.id, patch);
         return `Job updated: "${job.name}" | ID: ${job.id.slice(0, 8)}`;
       }
 
       case "enable": {
         if (!params.id) return "Error: id is required.";
-        const job = scheduler.update(params.id, { enabled: true }, tenantId);
+        const job = scheduler.update(params.id, { enabled: true });
         return `Job "${job.name}" enabled - next run: ${job.nextRunAt || "computing..."}`;
       }
 
       case "disable": {
         if (!params.id) return "Error: id is required.";
-        const job = scheduler.update(params.id, { enabled: false }, tenantId);
+        const job = scheduler.update(params.id, { enabled: false });
         return `Job "${job.name}" disabled - paused, not deleted.`;
       }
 
       case "remove": {
         if (!params.id) return 'Error: id is required.';
-        scheduler.delete(params.id, tenantId);
+        scheduler.delete(params.id);
         return `Job ${params.id.slice(0, 8)} removed.`;
       }
 
       case "run": {
         if (!params.id) return "Error: id is required.";
         // Fire-and-forget - don't await, just trigger
-        scheduler.forceRun(params.id, tenantId).catch(e =>
+        scheduler.forceRun(params.id).catch(e =>
           console.log(`[cron] Force-run error: ${e.message}`)
         );
         return `Job ${params.id.slice(0, 8)} triggered. Check history for results.`;
