@@ -24,7 +24,6 @@ interface ChannelDef {
   name: string;
   label: string;
   desc: string;
-  tenantKey: string;
   envRequired: string[];
   envOptional: [string, string][];
   setup: string[];

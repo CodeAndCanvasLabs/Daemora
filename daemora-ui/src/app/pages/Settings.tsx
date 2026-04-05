@@ -1036,7 +1036,7 @@ export function Settings() {
       <Section
         icon={Zap}
         title="Global Channels"
-        subtitle="Default channel tokens - tenants can override with their own"
+        subtitle="Default channel tokens for connected platforms"
         badge={(() => {
           const channelTokens = ["TELEGRAM_BOT_TOKEN", "DISCORD_BOT_TOKEN", "SLACK_BOT_TOKEN", "TWILIO_ACCOUNT_SID", "LINE_CHANNEL_ACCESS_TOKEN"];
           const set = channelTokens.filter(k => data.vars[k]);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
-import { DollarSign, TrendingUp, AlertCircle, Loader2, Users } from "lucide-react";
+import { DollarSign, TrendingUp, AlertCircle, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Progress } from "../components/ui/progress";
 import { Badge } from "../components/ui/badge";
@@ -12,32 +12,14 @@ interface CostData {
   remaining: number;
 }
 
-interface Tenant {
-  id: string;
-  name?: string;
-  planTier: string;
-  usage: {
-    totalCost: number;
-    taskCount: number;
-  };
-}
-
 export function Costs() {
   const [cost, setCost] = useState<CostData | null>(null);
-  const [tenants, setTenants] = useState<Tenant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchData = async () => {
     try {
-      const [costRes, tenantsRes] = await Promise.all([
-        apiFetch("/api/costs/today"),
-        apiFetch("/api/tenants")
-      ]);
+      const costRes = await apiFetch("/api/costs/today");
       if (costRes.ok) setCost(await costRes.json());
-      if (tenantsRes.ok) {
-        const data = await tenantsRes.json();
-        setTenants(data.tenants || []);
-      }
     } catch (error) {
       console.error("Failed to fetch cost data", error);
     } finally {
@@ -134,82 +116,8 @@ export function Costs() {
 
         {/* Breakdown Stats */}
         <div className="space-y-6">
-          <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm shadow-xl">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-mono text-gray-500 uppercase tracking-widest">Avg Efficiency</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white font-mono uppercase">
-                ${(cost.totalCost / (tenants.reduce((sum, t) => sum + (t?.usage?.taskCount || 0), 0) || 1)).toFixed(4)}
-              </div>
-              <div className="text-[9px] text-gray-600 font-mono uppercase mt-1">Cost Per Task (Global)</div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm shadow-xl">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-mono text-gray-500 uppercase tracking-widest">Active Tenants</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-[#7C6AFF] font-mono uppercase">
-                {tenants.length}
-              </div>
-              <div className="text-[9px] text-gray-600 font-mono uppercase mt-1">Registered Tenants</div>
-            </CardContent>
-          </Card>
         </div>
       </div>
-
-      {/* Tenant Usage */}
-      <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm shadow-xl">
-        <CardHeader className="border-b border-slate-800/50">
-          <div className="flex items-center gap-3">
-            <Users className="w-6 h-6 text-[#4ECDC4]" />
-            <div>
-              <CardTitle className="text-white uppercase tracking-tight">Tenant Usage</CardTitle>
-              <CardDescription className="text-gray-500 font-mono text-[10px] uppercase">
-                COST BREAKDOWN PER TENANT
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <div className="space-y-4">
-            {tenants.length === 0 ? (
-              <div className="text-center py-12 text-gray-700 font-mono uppercase text-[10px] tracking-widest">No multi-tenant data available</div>
-            ) : (
-              tenants.map((tenant) => (
-                <div
-                  key={tenant.id}
-                  className="p-4 bg-slate-800/20 border border-slate-800/50 rounded-xl hover:border-[#00d9ff]/20 transition-colors group"
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className="font-mono text-sm text-white uppercase truncate max-w-[200px]">{tenant.name || tenant.id}</div>
-                        <Badge variant="outline" className="text-[8px] h-4 uppercase border-slate-700 text-gray-500">{tenant.planTier}</Badge>
-                      </div>
-                      <div className="text-[10px] text-gray-600 font-mono uppercase tracking-tighter">{(tenant?.usage?.taskCount || 0)} TASKS</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xl font-bold text-[#00d9ff] font-mono tracking-tighter">
-                        ${(tenant?.usage?.totalCost || 0).toFixed(3)}
-                      </div>
-                      <div className="text-[9px] text-gray-600 font-mono uppercase">
-                        {(((tenant?.usage?.totalCost || 0) / (cost.totalCost || 1)) * 100).toFixed(1)}% OF GLOBAL SPEND
-                      </div>
-                    </div>
-                  </div>
-                  <Progress
-                    value={((tenant?.usage?.totalCost || 0) / (cost.totalCost || 1)) * 100}
-                    className="h-1 bg-slate-900"
-                  />
-                </div>
-              ))
-            )}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

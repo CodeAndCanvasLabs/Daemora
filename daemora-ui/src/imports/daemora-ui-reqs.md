@@ -84,11 +84,9 @@ The UI follows a **Dark-First, Futuristic/Tech** aesthetic with high-contrast ne
     - View real-time Audit Log (security events, sensitive tool usage).
     - Localhost-only access enforcement (already implemented server-side).
 
-### 3.7 Tenant & Cost Management
-- **Endpoints:** `GET /tenants`, `GET /costs/today`
+### 3.7 Cost Management
+- **Endpoints:** `GET /costs/today`
 - **Features:**
-    - Multi-tenant dashboard (if enabled).
-    - Resource usage tracking per tenant.
     - Daily cost limit monitoring and visual progress bar.
 
 ## 4. Technical Constraints
