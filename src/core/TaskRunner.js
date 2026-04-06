@@ -6,7 +6,7 @@ import { createSession, getSession, setMessages, appendMessage } from "../servic
 import taskQueue from "./TaskQueue.js";
 import { isDailyBudgetExceeded } from "./CostTracker.js";
 import { config } from "../config/default.js";
-import { resolveDefaultModel } from "../models/ModelRouter.js";
+import { resolveDefaultModel, getModelWithFallback } from "../models/ModelRouter.js";
 import requestContext from "./RequestContext.js";
 import inputSanitizer from "../safety/InputSanitizer.js";
 import channelRegistry from "../channels/index.js";
@@ -15,6 +15,7 @@ import { msgText, compactForSession } from "../utils/msgText.js";
 import { generateEmbedding, cosineSim } from "../utils/Embeddings.js";
 import { writeDailyLog } from "../tools/memory.js";
 import { queryAll } from "../storage/Database.js";
+import { compactIfNeeded } from "./Compaction.js";
 
 /**
  * Filter out internal tool call/result JSON from messages before saving to session.
@@ -298,7 +299,13 @@ class TaskRunner {
         const previousMessages = filterCleanMessages(
           session.messages.map((m) => ({ role: m.role, content: m.content }))
         );
-        const messages = [...previousMessages, { role: "user", content: task.input }];
+        let messages = [...previousMessages, { role: "user", content: task.input }];
+
+        // Compact if session history exceeds model context window
+        try {
+          const { meta: modelMeta } = getModelWithFallback(resolvedModel);
+          messages = await compactIfNeeded(messages, modelMeta, task.id, tools);
+        } catch (e) { console.log(`[TaskRunner] Compaction check failed (non-blocking): ${e.message}`); }
 
         // Track sub-agents spawned during this task
         const subAgents = [];
