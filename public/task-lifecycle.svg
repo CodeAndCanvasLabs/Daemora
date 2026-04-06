@@ -28,9 +28,9 @@
   <rect x="245" y="174" width="100" height="52" rx="8" fill="#1a2332" stroke="#3fb950" stroke-width="1.5"/>
   <text x="295" y="204" text-anchor="middle" fill="#3fb950" font-size="12" font-weight="600">TaskQueue</text>
 
-  <!-- TenantContext -->
+  <!-- RequestContext -->
   <rect x="380" y="174" width="110" height="52" rx="8" fill="#1a2332" stroke="#8957e5" stroke-width="1.5"/>
-  <text x="435" y="198" text-anchor="middle" fill="#8957e5" font-size="11" font-weight="600">Tenant</text>
+  <text x="435" y="198" text-anchor="middle" fill="#8957e5" font-size="11" font-weight="600">Request</text>
   <text x="435" y="214" text-anchor="middle" fill="#8957e5" font-size="11" font-weight="600">Context</text>
 
   <!-- AgentLoop -->
@@ -73,5 +73,5 @@
 
   <!-- Steps legend -->
   <rect x="60" y="374" width="760" height="34" rx="6" fill="#1a2332" stroke="#30363d" stroke-width="1"/>
-  <text x="440" y="396" text-anchor="middle" fill="#8b949e" font-size="11">Message → Channel → TaskQueue → TenantContext (isolation) → AgentLoop (tool calls) → Response</text>
+  <text x="440" y="396" text-anchor="middle" fill="#8b949e" font-size="11">Message → Channel → TaskQueue → RequestContext (isolation) → AgentLoop (tool calls) → Response</text>
 </svg>

@@ -8,7 +8,7 @@
 
   <rect width="900" height="720" fill="url(#bg)" rx="12"/>
 
-  <text x="450" y="36" text-anchor="middle" fill="#e6edf3" font-size="18" font-weight="700">16-Layer Security Architecture</text>
+  <text x="450" y="36" text-anchor="middle" fill="#e6edf3" font-size="18" font-weight="700">14-Layer Security Architecture</text>
 
   <g transform="translate(40, 52)">
     <rect x="0" y="0" width="820" height="36" rx="6" fill="#1a2332" stroke="#f85149" stroke-width="1.2"/>
@@ -19,7 +19,7 @@
     <rect x="0" y="40" width="820" height="36" rx="6" fill="#1a2332" stroke="#f0883e" stroke-width="1.2"/>
     <text x="12" y="63" fill="#f0883e" font-size="11" font-weight="700">LAYER 2</text>
     <text x="90" y="63" fill="#e6edf3" font-size="12" font-weight="600">Filesystem Sandbox</text>
-    <text x="808" y="63" text-anchor="end" fill="#8b949e" font-size="11">ALLOWED_PATHS · BLOCKED_PATHS · per-tenant workspace</text>
+    <text x="808" y="63" text-anchor="end" fill="#8b949e" font-size="11">ALLOWED_PATHS · BLOCKED_PATHS · command path scanning</text>
 
     <rect x="0" y="80" width="820" height="36" rx="6" fill="#1a2332" stroke="#d29922" stroke-width="1.2"/>
     <text x="12" y="103" fill="#d29922" font-size="11" font-weight="700">LAYER 3</text>
@@ -58,8 +58,8 @@
 
     <rect x="0" y="360" width="820" height="36" rx="6" fill="#1a2332" stroke="#3fb950" stroke-width="1.2"/>
     <text x="12" y="383" fill="#3fb950" font-size="11" font-weight="700">LAYER 10</text>
-    <text x="100" y="383" fill="#e6edf3" font-size="12" font-weight="600">Plugin Tenant Isolation</text>
-    <text x="808" y="383" text-anchor="end" fill="#8b949e" font-size="11">cross-tenant key access blocked</text>
+    <text x="100" y="383" fill="#e6edf3" font-size="12" font-weight="600">Plugin Isolation</text>
+    <text x="808" y="383" text-anchor="end" fill="#8b949e" font-size="11">crew plugins sandboxed from host secrets</text>
 
     <rect x="0" y="400" width="820" height="36" rx="6" fill="#1a2332" stroke="#58a6ff" stroke-width="1.2"/>
     <text x="12" y="423" fill="#58a6ff" font-size="11" font-weight="700">LAYER 11</text>
@@ -76,19 +76,9 @@
     <text x="100" y="503" fill="#e6edf3" font-size="12" font-weight="600">Input Sanitisation</text>
     <text x="808" y="503" text-anchor="end" fill="#8b949e" font-size="11">untrusted-input wrapping · injection detection</text>
 
-    <rect x="0" y="520" width="820" height="36" rx="6" fill="#1a2332" stroke="#2f81f7" stroke-width="1.2"/>
-    <text x="12" y="543" fill="#2f81f7" font-size="11" font-weight="700">LAYER 14</text>
-    <text x="100" y="543" fill="#e6edf3" font-size="12" font-weight="600">Multi-Tenant Isolation</text>
-    <text x="808" y="543" text-anchor="end" fill="#8b949e" font-size="11">AsyncLocalStorage · zero cross-tenant leakage</text>
-
-    <rect x="0" y="560" width="820" height="36" rx="6" fill="#1a2332" stroke="#8957e5" stroke-width="1.2"/>
-    <text x="12" y="583" fill="#8957e5" font-size="11" font-weight="700">LAYER 15</text>
-    <text x="100" y="583" fill="#e6edf3" font-size="12" font-weight="600">Secret Access Audit</text>
-    <text x="808" y="583" text-anchor="end" fill="#8b949e" font-size="11">every key read logged · caller + tenant + timestamp</text>
-
-    <rect x="0" y="600" width="820" height="36" rx="6" fill="#1a2332" stroke="#f85149" stroke-width="1.2"/>
-    <text x="12" y="623" fill="#f85149" font-size="11" font-weight="700">LAYER 16</text>
-    <text x="100" y="623" fill="#e6edf3" font-size="12" font-weight="600">Tool Filesystem Guard</text>
-    <text x="808" y="623" text-anchor="end" fill="#8b949e" font-size="11">19 tools enforce checkRead/checkWrite</text>
+    <rect x="0" y="520" width="820" height="36" rx="6" fill="#1a2332" stroke="#8957e5" stroke-width="1.2"/>
+    <text x="12" y="543" fill="#8957e5" font-size="11" font-weight="700">LAYER 14</text>
+    <text x="100" y="543" fill="#e6edf3" font-size="12" font-weight="600">Secret Access Audit</text>
+    <text x="808" y="543" text-anchor="end" fill="#8b949e" font-size="11">every key read logged · caller + timestamp</text>
   </g>
 </svg>
