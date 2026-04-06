@@ -4,6 +4,7 @@ import { config } from "../config/default.js";
 import taskQueue from "../core/TaskQueue.js";
 import eventBus from "../core/EventBus.js";
 import { queryAll, queryOne } from "../storage/Database.js";
+import { runDecayCycle } from "../learning/MemoryDecay.js";
 
 /**
  * Heartbeat - proactive self-check + user-defined heartbeat instructions.
@@ -91,6 +92,9 @@ class Heartbeat {
     if ((now - this._lastProactiveAt) < this.proactiveIntervalMs) return;
 
     try {
+      // Run memory decay cycle (daily maintenance)
+      try { runDecayCycle(); } catch (e) { console.log(`[Heartbeat] Memory decay error: ${e.message}`); }
+
       const findings = [];
 
       // 1. Overdue goals - active goals that missed their check window
