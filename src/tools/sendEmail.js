@@ -1,15 +1,9 @@
 /**
  * Send Email - sends email via SMTP or Resend (nodemailer).
  *
- * Credential resolution order (first match wins):
- *   1. Per-tenant channel config  (daemora tenant channel set <id> resend_api_key ...)
- *   2. Global .env                (RESEND_API_KEY / EMAIL_USER + EMAIL_PASSWORD)
- *
- * This means each tenant can use their own email credentials without affecting others.
- * Concurrent requests are safe - tenant credentials are never written to process.env.
+ * Credential resolution: process.env (RESEND_API_KEY / EMAIL_USER + EMAIL_PASSWORD)
  */
 
-import tenantContext from "../tenants/TenantContext.js";
 import { mergeLegacyOptions as _mergeLegacyOpts } from "../utils/mergeToolParams.js";
 import egressGuard from "../safety/EgressGuard.js";
 
@@ -24,52 +18,21 @@ function parseAddressList(val) {
   return val.split(",").map((a) => a.trim()).filter(Boolean);
 }
 
-// Module-level singleton for global (non-tenant) SMTP - reused across requests for performance.
-// Tenant-specific transporters are always fresh (never cached) to avoid cross-tenant bleed.
+// Module-level singleton for SMTP - reused across requests for performance.
 let _globalTransporter = null;
 
 async function getTransporter() {
-  const store = tenantContext.getStore();
-  const ch = store?.resolvedConfig?.channelConfig || {};
-
-  // Resolve credentials: tenant config > global env
-  const resendKey  = ch.resend_api_key  || process.env.RESEND_API_KEY  || null;
-  const resendFrom = ch.resend_from     || process.env.RESEND_FROM     || null;
-  const smtpUser   = ch.email           || process.env.EMAIL_USER       || null;
-  const smtpPass   = ch.email_password  || process.env.EMAIL_PASSWORD   || null;
+  const resendKey  = process.env.RESEND_API_KEY  || null;
+  const resendFrom = process.env.RESEND_FROM     || null;
+  const smtpUser   = process.env.EMAIL_USER       || null;
+  const smtpPass   = process.env.EMAIL_PASSWORD   || null;
   const smtpHost   = process.env.EMAIL_SMTP_HOST || "smtp.gmail.com";
   const smtpPort   = parseInt(process.env.EMAIL_SMTP_PORT || "587", 10);
 
   if (!resendKey && !smtpUser) return { transporter: null, from: null };
 
   const nodemailer = await import("nodemailer");
-  const hasTenantCreds = !!(ch.resend_api_key || ch.email);
 
-  if (hasTenantCreds) {
-    // Tenant-specific: always create a fresh transporter (never cache - different per tenant)
-    if (resendKey) {
-      return {
-        transporter: nodemailer.default.createTransport({
-          host: "smtp.resend.com",
-          port: 465,
-          secure: true,
-          auth: { user: "resend", pass: resendKey },
-        }),
-        from: resendFrom || `daemora@resend.dev`,
-      };
-    }
-    return {
-      transporter: nodemailer.default.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpPort === 465,
-        auth: { user: smtpUser, pass: smtpPass },
-      }),
-      from: smtpUser,
-    };
-  }
-
-  // Global config: use singleton cache
   if (!_globalTransporter) {
     if (resendKey) {
       _globalTransporter = {
@@ -133,7 +96,7 @@ export async function sendEmail(params) {
 
   const { transporter: smtp, from } = await getTransporter();
   if (!smtp) {
-    return "Error: Email not configured. Set RESEND_API_KEY or EMAIL_USER+EMAIL_PASSWORD in .env, or use: daemora tenant channel set <id> resend_api_key <key>";
+    return "Error: Email not configured. Set RESEND_API_KEY or EMAIL_USER+EMAIL_PASSWORD in .env.";
   }
 
   try {
@@ -178,4 +141,4 @@ export async function sendEmail(params) {
 }
 
 export const sendEmailDescription =
-  'sendEmail(to: string, subject: string, body: string, optionsJson?: string) - Send email. Uses per-tenant channel config if set (daemora tenant channel set), otherwise falls back to global RESEND_API_KEY or EMAIL_USER+EMAIL_PASSWORD. optionsJson: {"cc":"a@b.com","bcc":"e@f.com","replyTo":"r@s.com","attachments":[{"filename":"report.pdf","path":"/tmp/report.pdf"}]}';
+  'sendEmail(to: string, subject: string, body: string, optionsJson?: string) - Send email. Uses RESEND_API_KEY or EMAIL_USER+EMAIL_PASSWORD from .env. optionsJson: {"cc":"a@b.com","bcc":"e@f.com","replyTo":"r@s.com","attachments":[{"filename":"report.pdf","path":"/tmp/report.pdf"}]}';

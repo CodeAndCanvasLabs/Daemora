@@ -8,7 +8,7 @@ import { CHANNEL_DEFS } from "../channels/channelDefs.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, "..", "..");
-const TOTAL_STEPS = 11;
+const TOTAL_STEPS = 10;
 const OLLAMA_EMBED_MODEL = "all-minilm";
 
 /**
@@ -867,35 +867,6 @@ export async function runSetupWizard() {
     p.log.info("Vault skipped. API keys will be stored in .env (plaintext).");
   }
 
-  // ━━━ Step 10: Multi-Tenant Mode ━━━
-  stepHeader(11, TOTAL_STEPS, "Multi-Tenant Mode");
-
-  let multiTenantMode = "personal";
-
-  p.note(
-    `  ${S.info}  Personal  - single user, global config (default)\n` +
-    `  ${S.info}  Multi-Tenant - per-user isolation, cost limits, model overrides`,
-    "Deployment mode"
-  );
-
-  const mtChoice = guard(await p.select({
-    message: "How will you use Daemora?",
-    options: [
-      { value: "personal",    label: "Personal",     hint: "Single user, no tenant isolation" },
-      { value: "multitenant", label: "Multi-Tenant",  hint: "Multiple users via channels, per-user config" },
-    ],
-  }));
-
-  if (mtChoice === "multitenant") {
-    multiTenantMode = "multitenant";
-    envConfig.MULTI_TENANT_ENABLED = "true";
-    envConfig.AUTO_REGISTER_TENANTS = "false";
-    envConfig.TENANT_ISOLATE_FILESYSTEM = "true";
-    const { randomBytes: rb } = await import("crypto");
-    envConfig.DAEMORA_TENANT_KEY = rb(16).toString("hex");
-    p.log.success(`${S.check}  Multi-tenant enabled - admin-managed tenants, filesystem isolation, encryption key generated`);
-  }
-
   // ━━━ Write Config ━━━
   const spin = p.spinner();
   spin.start("Writing configuration");
@@ -962,9 +933,6 @@ export async function runSetupWizard() {
     ["Daemon",      daemonMode ? t.success("Enabled") : t.muted("Disabled")],
     ["MCP Servers", allEnabled.length > 0 ? t.bold(allEnabled.join(", ")) : t.muted("None")],
     ["Vault",       vaultPassphrase ? t.success("Encrypted") : t.warning("Plaintext (.env)")],
-    ["Multi-Tenant", multiTenantMode === "multitenant"
-      ? (envConfig.TENANT_ISOLATE_FILESYSTEM === "true" ? t.success("Enabled (isolated)") : t.accent("Enabled"))
-      : t.muted("Disabled (personal)")],
   ]);
 
   // ━━━ Next Steps ━━━

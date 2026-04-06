@@ -154,9 +154,9 @@ const toolSchemas = {
     schema: z.object({
       filePath: str("Absolute path to file"),
       caption: optStr("File caption"),
-      channel: optStr("Target channel: 'telegram', 'discord', 'slack', etc. Cross-channel auto-resolved from tenant's linked accounts - no chat ID needed"),
+      channel: optStr("Target channel: 'telegram', 'discord', 'slack', etc."),
     }),
-    description: "Send file to user. Omit channel = current channel. Set channel = cross-channel delivery (auto-resolved, never ask user for IDs).",
+    description: "Send file to user. Omit channel = current channel.",
   },
   // replyWithFile removed - duplicate of sendFile
   broadcast: {
@@ -400,7 +400,7 @@ const toolSchemas = {
       timezone: optStr("IANA timezone: 'America/New_York'"),
       model: optStr("Model override for this job"),
       deleteAfterRun: optBool("Auto-delete after one-shot run (use with 'at')"),
-      deliveryPreset: optStr("Delivery preset name (admin only) - e.g. 'engineers', 'team-leads', 'interns'. Resolves to saved tenant/channel group."),
+      deliveryPreset: optStr("Delivery preset name - e.g. 'engineers', 'team-leads', 'interns'. Resolves to saved channel group."),
       delivery: z.object({
         mode: optStr("Delivery mode: 'announce'"),
         channel: optStr("Target channel name"),
@@ -412,7 +412,7 @@ const toolSchemas = {
         }).optional().describe("Channel routing metadata"),
       }).optional().describe("Cross-channel delivery override. Auto-set to calling channel if omitted"),
     }),
-    description: "Schedule and manage cron jobs. Delivery auto-routes to calling channel. Admin can use deliveryPreset to deliver to named tenant groups. Schedule types: cronExpression (recurring), every (interval), at (one-shot timestamp).",
+    description: "Schedule and manage cron jobs. Delivery auto-routes to calling channel. Use deliveryPreset to deliver to named groups. Schedule types: cronExpression (recurring), every (interval), at (one-shot timestamp).",
   },
 
   // ── Goals ────────────────────────────────────────────────────────────
@@ -519,7 +519,7 @@ const toolSchemas = {
       name: optStr("Voice name (required for cloneVoice)"),
       samplePaths: optStr("Audio sample file paths, comma-separated (required for cloneVoice)"),
       description: optStr("Voice description (for cloneVoice)"),
-      source: optStr("Voice list source: 'tenant' | 'all' (for listVoices)"),
+      source: optStr("Voice list source: 'local' | 'all' (for listVoices)"),
       stability: optNum("Voice stability 0-1 (for voiceSettings)"),
       similarityBoost: optNum("Voice similarity boost 0-1 (for voiceSettings)"),
       style: optNum("Voice style 0-1 (for voiceSettings)"),

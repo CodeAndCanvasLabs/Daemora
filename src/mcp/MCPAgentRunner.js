@@ -7,7 +7,7 @@ import mcpManager from "./MCPManager.js";
 import { toolFunctions } from "../tools/index.js";
 import { createSession, getSession, setMessages } from "../services/sessions.js";
 import { compactForSession } from "../utils/msgText.js";
-import tenantContext from "../tenants/TenantContext.js";
+import requestContext from "../core/RequestContext.js";
 
 /**
  * Base tools injected into every MCP specialist agent alongside their server tools.
@@ -126,23 +126,14 @@ function buildMCPAgentSystemPrompt(serverName) {
 // ── Server config resolution ──────────────────────────────────────────────────
 
 /**
- * Resolve server config from global MCPManager or tenant's private servers.
- * @returns {{ config: object, source: "global"|"tenant" } | null}
+ * Resolve server config from global MCPManager.
+ * @returns {{ config: object, source: "global" } | null}
  */
 function _getServerConfig(serverName) {
-  // Check global MCPManager config
   const mcpConfig = mcpManager.readConfig();
   if (mcpConfig.mcpServers?.[serverName]) {
     return { config: mcpConfig.mcpServers[serverName], source: "global" };
   }
-
-  // Check tenant's own private MCP server definitions
-  const store = tenantContext.getStore();
-  const ownMcpServers = store?.resolvedConfig?.ownMcpServers ?? {};
-  if (ownMcpServers[serverName]) {
-    return { config: ownMcpServers[serverName], source: "tenant" };
-  }
-
   return null;
 }
 

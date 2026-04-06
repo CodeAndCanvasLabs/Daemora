@@ -46,16 +46,8 @@ class GoalPulse {
   }
 
   async _executeGoal(goal) {
-    const tenantManager = (await import("../tenants/TenantManager.js")).default;
     const taskQueue = (await import("../core/TaskQueue.js")).default;
     const { saveGoal } = await import("../storage/GoalStore.js");
-
-    let resolvedConfig = {};
-    let tenant = null;
-    if (goal.tenantId) {
-      tenant = tenantManager.get(goal.tenantId);
-      if (tenant) resolvedConfig = tenantManager.resolveTaskConfig(tenant);
-    }
 
     // Build goal prompt
     const lines = [
@@ -74,11 +66,10 @@ class GoalPulse {
       input: lines,
       channel: goal.delivery?.channel || "goal",
       channelMeta: goal.delivery?.channelMeta || null,
-      model: resolvedConfig.model || null,
+      model: null,
       sessionId,
       priority: 3,
       type: "goal",
-      tenantId: goal.tenantId,
     });
 
     // Compute next check from cron expression

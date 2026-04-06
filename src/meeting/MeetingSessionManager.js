@@ -4,14 +4,14 @@
  * Each session tracks: state, dialIn, participants, transcript.
  * States: idle → joining → active → leaving → left → error
  *
- * Per-tenant isolation via TenantContext.
+ * Per-session isolation via RequestContext.
  */
 
 import { v4 as uuidv4 } from "uuid";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import eventBus from "../core/EventBus.js";
-import tenantContext from "../tenants/TenantContext.js";
+import requestContext from "../core/RequestContext.js";
 import { config } from "../config/default.js";
 
 const MAX_SESSIONS = 5;
@@ -60,15 +60,15 @@ function detectPlatform(url) {
 
 // ── Tenant scoping ────────────────────────────────────────────────────────
 
-function _getTenantId() {
-  return tenantContext.getStore()?.tenant?.id || "__global__";
+function _getSessionScope() {
+  return requestContext.getStore()?.sessionId || "__global__";
 }
 
 function _countActiveSessions() {
-  const tid = _getTenantId();
+  const scope = _getSessionScope();
   let count = 0;
   for (const s of sessions.values()) {
-    if (s.tenantId === tid && !["left", "error"].includes(s.state)) count++;
+    if (s.scope === scope && !["left", "error"].includes(s.state)) count++;
   }
   return count;
 }
@@ -93,7 +93,7 @@ export function createSession(dialIn, opts = {}) {
   }
 
   const id = uuidv4().slice(0, 8);
-  const tenantId = _getTenantId();
+  const scope = _getSessionScope();
   const platform = detectPlatform(opts.meetingUrl || dialIn);
 
   const session = {
@@ -102,7 +102,7 @@ export function createSession(dialIn, opts = {}) {
     meetingUrl: opts.meetingUrl || dialIn,
     platform,
     state: "idle",
-    tenantId,
+    scope,
     displayName: opts.displayName || "Daemora",
     pin: opts.pin || "",
     participants: new Map(),
@@ -126,7 +126,7 @@ export function createSession(dialIn, opts = {}) {
 export function getSession(id) {
   const session = sessions.get(id);
   if (!session) return null;
-  if (session.tenantId !== _getTenantId()) return null;
+  if (session.scope !== _getSessionScope()) return null;
   return _serialize(session);
 }
 
@@ -141,9 +141,9 @@ export function _getRawSession(id) {
  * List all active sessions for current tenant.
  */
 export function listSessions() {
-  const tid = _getTenantId();
+  const scope = _getSessionScope();
   return [...sessions.values()]
-    .filter(s => s.tenantId === tid)
+    .filter(s => s.scope === scope)
     .map(_serialize);
 }
 

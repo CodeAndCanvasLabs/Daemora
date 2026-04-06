@@ -101,13 +101,6 @@ function buildConfig(env) {
       restrictCommands: env.RESTRICT_COMMANDS === "true",
     },
 
-    // Multi-tenant configuration
-    multiTenant: {
-      enabled: env.MULTI_TENANT_ENABLED === "true",
-      autoRegister: env.AUTO_REGISTER_TENANTS !== "false",
-      isolateFilesystem: env.TENANT_ISOLATE_FILESYSTEM === "true",
-    },
-
     // Sandbox
     sandbox: {
       mode: env.SANDBOX_MODE || "process",

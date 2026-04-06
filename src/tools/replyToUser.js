@@ -1,14 +1,14 @@
 /**
  * replyToUser(message) - Send a text message to the current user mid-task.
  *
- * Reads channel + chatId from TenantContext automatically.
+ * Reads channel + chatId from RequestContext automatically.
  * Use for progress updates, acknowledgments, and intermediate responses
  * while the agent is still working on a task.
  *
  * Does NOT set directReplySent - the final response still goes through
  * the normal channel reply path. This is additive, not a replacement.
  */
-import tenantContext from "../tenants/TenantContext.js";
+import requestContext from "../core/RequestContext.js";
 import channelRegistry from "../channels/index.js";
 
 export async function replyToUser(params) {
@@ -16,7 +16,7 @@ export async function replyToUser(params) {
   try {
     if (!message) return "Error: message is required.";
 
-    const store = tenantContext.getStore();
+    const store = requestContext.getStore();
     const channelMeta = store?.channelMeta;
 
     if (!channelMeta?.channel || (!channelMeta?.chatId && !channelMeta?.channelId)) {

@@ -1,5 +1,4 @@
 import eventBus from "../core/EventBus.js";
-import tenantContext from "../tenants/TenantContext.js";
 import { run } from "../storage/Database.js";
 
 /**
@@ -111,12 +110,11 @@ class AuditLog {
   write(data) {
     if (!this.enabled) return;
     try {
-      const tenantId = tenantContext.getStore()?.tenant?.id || null;
       const { event, ...rest } = data;
       run(
         "INSERT INTO audit_log (tenant_id, event, data, created_at) VALUES ($tid, $event, $data, $ts)",
         {
-          $tid: tenantId,
+          $tid: null,
           $event: event || "unknown",
           $data: Object.keys(rest).length > 0 ? JSON.stringify(rest) : null,
           $ts: new Date().toISOString(),

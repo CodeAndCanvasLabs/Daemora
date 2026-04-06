@@ -16,6 +16,13 @@ export const models = {
     capabilities: ["text", "tools", "structured-output", "vision", "computer-use"],
     tier: "standard",
   },
+  "openai:gpt-5.4-mini": {
+    provider: "openai", model: "gpt-5.4-mini",
+    contextWindow: 1_000_000, compactAt: 700_000,
+    costPer1kInput: 0.0003, costPer1kOutput: 0.0012,
+    capabilities: ["text", "tools", "structured-output", "vision", "computer-use"],
+    tier: "cheap",
+  },
   "openai:gpt-5.4-pro": {
     provider: "openai", model: "gpt-5.4-pro",
     contextWindow: 1_000_000, compactAt: 700_000,

@@ -27,7 +27,6 @@ interface CrewMemberRecord {
   serviceIds: string[];
   cliCommands: string[];
   httpRouteCount: number;
-  tenantPlans: string[] | null;
   configSchema: Record<string, { type: string; label?: string; required?: boolean; default?: string }> | null;
 }
 
@@ -260,11 +259,6 @@ export function Crew() {
                          crewConfigStatus[member.id] && !crewConfigStatus[member.id].configured ? "needs config" :
                          "active"}
                       </Badge>
-                      {member.tenantPlans && (
-                        <Badge variant="outline" className="text-xs border-[#38bdf8]/20 text-[#38bdf8]">
-                          {member.tenantPlans.join(", ")}
-                        </Badge>
-                      )}
                     </div>
 
                     {member.description && (

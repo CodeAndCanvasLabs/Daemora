@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { createTask, startTask, completeTask, failTask } from "../core/Task.js";
 import { saveTask, loadTask, listTasks, listChildTasks } from "../storage/TaskStore.js";
-import tenantContext from "../tenants/TenantContext.js";
+import requestContext from "../core/RequestContext.js";
 
 /**
  * Task Manager - Agent-facing tool for creating and tracking tasks.
@@ -24,7 +24,7 @@ export function taskManager(toolParams) {
   const params = _mergeLegacy(toolParams);
 
   // Get current context for parentTaskId linkage
-  const store = tenantContext.getStore();
+  const store = requestContext.getStore();
 
   switch (action) {
 

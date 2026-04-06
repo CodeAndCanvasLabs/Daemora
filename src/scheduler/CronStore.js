@@ -48,7 +48,7 @@ export function saveJob(job) {
       updated_at=$updatedAt`,
     {
       $id: job.id,
-      $tenantId: job.tenantId || null,
+      $tenantId: null,
       $name: job.name,
       $desc: job.description || null,
       $enabled: job.enabled ? 1 : 0,
@@ -92,11 +92,8 @@ export function loadJob(id) {
   return row ? _rowToJob(row) : null;
 }
 
-export function loadAllJobs(tenantId = null) {
-  const rows = tenantId
-    ? queryAll("SELECT * FROM cron_jobs WHERE tenant_id = $tid ORDER BY created_at DESC", { $tid: tenantId })
-    : queryAll("SELECT * FROM cron_jobs ORDER BY created_at DESC");
-  return rows.map(_rowToJob);
+export function loadAllJobs() {
+  return queryAll("SELECT * FROM cron_jobs ORDER BY created_at DESC").map(_rowToJob);
 }
 
 export function deleteJob(id) {
@@ -114,7 +111,7 @@ export function saveRun(r) {
     ) VALUES ($jid, $tid, $start, $end, $status, $dur, $err, $preview, $taskId, $delSt, $delErr, $retry, $cost)`,
     {
       $jid: r.jobId,
-      $tid: r.tenantId || null,
+      $tid: null,
       $start: r.startedAt,
       $end: r.completedAt || null,
       $status: r.status,
@@ -143,10 +140,9 @@ export function loadRuns(jobId, { limit = 50, offset = 0, status = null } = {}) 
   );
 }
 
-export function loadAllRuns({ tenantId = null, limit = 50, offset = 0, status = null } = {}) {
+export function loadAllRuns({ limit = 50, offset = 0, status = null } = {}) {
   let where = "WHERE 1=1";
   const params = { $limit: limit, $offset: offset };
-  if (tenantId) { where += " AND tenant_id = $tid"; params.$tid = tenantId; }
   if (status) { where += " AND status = $status"; params.$status = status; }
   return queryAll(
     `SELECT * FROM cron_runs ${where} ORDER BY started_at DESC LIMIT $limit OFFSET $offset`,

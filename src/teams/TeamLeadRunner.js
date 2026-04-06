@@ -27,8 +27,6 @@ import { buildContract } from "../agents/ContractBuilder.js";
 import { getSession, createSession, setMessages } from "../services/sessions.js";
 import { compactForSession } from "../utils/msgText.js";
 import * as store from "./TeamStore.js";
-import tenantContext from "../tenants/TenantContext.js";
-
 // ── Constants ───────────────────────────────────────────────────────────────
 
 const POLL_INTERVAL_MS = 5000;
@@ -373,11 +371,8 @@ function _buildSummary(teamName, state) {
 // ── Run Team (public) ───────────────────────────────────────────────────────
 
 export async function runTeam({ name, leadContract, workers, project = null, projectType = null, projectRepo = null, projectStack = null }) {
-  const ctx = tenantContext.getStore();
-  const tenantId = ctx?.tenant?.id || null;
-
   const team = store.createTeam({
-    name, tenantId, config: { workers },
+    name, tenantId: null, config: { workers },
     project, projectType, projectRepo, projectStack,
     requirements: leadContract.task,
   });

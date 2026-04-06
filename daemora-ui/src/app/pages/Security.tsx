@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
-import { Shield, Lock, Unlock, AlertTriangle, Eye, Loader2, FolderOpen, Users, Plus, X, Save, CheckCircle } from "lucide-react";
+import { Shield, Lock, Unlock, AlertTriangle, Eye, Loader2, FolderOpen, Plus, X, Save, CheckCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -93,9 +93,6 @@ export function Security() {
   const [allowedPaths, setAllowedPaths] = useState<string[]>([]);
   const [blockedPaths, setBlockedPaths] = useState<string[]>([]);
   const [restrictCommands, setRestrictCommands] = useState(false);
-  const [multiTenantEnabled, setMultiTenantEnabled] = useState(false);
-  const [autoRegisterTenants, setAutoRegisterTenants] = useState(false);
-  const [tenantIsolateFs, setTenantIsolateFs] = useState(false);
   const [newAllowedPath, setNewAllowedPath] = useState("");
   const [newBlockedPath, setNewBlockedPath] = useState("");
   const [secDirty, setSecDirty] = useState(false);
@@ -114,9 +111,6 @@ export function Security() {
       setAllowedPaths(vars.ALLOWED_PATHS ? vars.ALLOWED_PATHS.split(",").map((s: string) => s.trim()).filter(Boolean) : []);
       setBlockedPaths(vars.BLOCKED_PATHS ? vars.BLOCKED_PATHS.split(",").map((s: string) => s.trim()).filter(Boolean) : []);
       setRestrictCommands(vars.RESTRICT_COMMANDS === "true");
-      setMultiTenantEnabled(vars.MULTI_TENANT_ENABLED === "true");
-      setAutoRegisterTenants(vars.AUTO_REGISTER_TENANTS === "true");
-      setTenantIsolateFs(vars.TENANT_ISOLATE_FILESYSTEM === "true");
     } catch (e) {
       console.error("Failed to load security settings", e);
     }
@@ -183,9 +177,6 @@ export function Security() {
         ALLOWED_PATHS: allowedPaths.join(","),
         BLOCKED_PATHS: blockedPaths.join(","),
         RESTRICT_COMMANDS: String(restrictCommands),
-        MULTI_TENANT_ENABLED: String(multiTenantEnabled),
-        AUTO_REGISTER_TENANTS: String(autoRegisterTenants),
-        TENANT_ISOLATE_FILESYSTEM: String(tenantIsolateFs),
       };
       const res = await apiFetch("/api/settings", {
         method: "PUT",
@@ -410,7 +401,7 @@ export function Security() {
             <div>
               <CardTitle className="text-white uppercase tracking-tight">Permission & Sandbox</CardTitle>
               <CardDescription className="text-gray-500 font-mono text-[10px] uppercase">
-                GLOBAL DEFAULTS - PER-TENANT OVERRIDES ON TENANTS PAGE
+                GLOBAL DEFAULTS
               </CardDescription>
             </div>
           </div>
@@ -444,7 +435,7 @@ export function Security() {
           <div className="p-4 bg-slate-800/30 border border-slate-800 rounded-xl space-y-4">
             <div>
               <h4 className="text-xs font-mono text-white uppercase tracking-wider">Filesystem Sandbox</h4>
-              <p className="text-[10px] text-gray-500 font-mono mt-0.5">Global path rules - tenants can override on the Tenants page</p>
+              <p className="text-[10px] text-gray-500 font-mono mt-0.5">Global path rules for filesystem access</p>
             </div>
 
             {/* Allowed Paths */}
@@ -507,64 +498,6 @@ export function Security() {
         </CardContent>
       </Card>
 
-      {/* Multi-Tenant Mode */}
-      <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm shadow-xl">
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <Users className="w-6 h-6 text-[#7C6AFF]" />
-            <div>
-              <CardTitle className="text-white uppercase tracking-tight">Multi-Tenant Mode</CardTitle>
-              <CardDescription className="text-gray-500 font-mono text-[10px] uppercase">
-                TENANT ISOLATION & REGISTRATION
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Multi-Tenant Toggle */}
-          <div className="flex items-center justify-between p-4 bg-slate-800/30 border border-slate-800 rounded-xl">
-            <div>
-              <h4 className="text-xs font-mono text-white uppercase tracking-wider">Multi-Tenant Enabled</h4>
-              <p className="text-[10px] text-gray-500 font-mono mt-0.5">Isolate users across channels with separate configs</p>
-            </div>
-            <Switch
-              checked={multiTenantEnabled}
-              onCheckedChange={(v) => { setMultiTenantEnabled(v); markDirty(); }}
-              className="data-[state=checked]:bg-[#7C6AFF]"
-            />
-          </div>
-
-          {multiTenantEnabled && (
-            <>
-              {/* Auto-Register */}
-              <div className="flex items-center justify-between p-4 bg-slate-800/30 border border-slate-800 rounded-xl">
-                <div>
-                  <h4 className="text-xs font-mono text-white uppercase tracking-wider">Auto-Register Tenants</h4>
-                  <p className="text-[10px] text-gray-500 font-mono mt-0.5">Create tenant on first message</p>
-                </div>
-                <Switch
-                  checked={autoRegisterTenants}
-                  onCheckedChange={(v) => { setAutoRegisterTenants(v); markDirty(); }}
-                  className="data-[state=checked]:bg-[#7C6AFF]"
-                />
-              </div>
-
-              {/* Filesystem Isolation */}
-              <div className="flex items-center justify-between p-4 bg-slate-800/30 border border-slate-800 rounded-xl">
-                <div>
-                  <h4 className="text-xs font-mono text-white uppercase tracking-wider">Filesystem Isolation</h4>
-                  <p className="text-[10px] text-gray-500 font-mono mt-0.5">Each tenant's temp files in their own workspace</p>
-                </div>
-                <Switch
-                  checked={tenantIsolateFs}
-                  onCheckedChange={(v) => { setTenantIsolateFs(v); markDirty(); }}
-                  className="data-[state=checked]:bg-[#7C6AFF]"
-                />
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
 
       {/* Global Save Button */}
       {(secDirty || secSaved) && (

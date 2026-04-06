@@ -6,7 +6,7 @@ import { getProfile } from "../config/ProfileLoader.js";
 import { config } from "../config/default.js";
 import eventBus from "../core/EventBus.js";
 import { v4 as uuidv4 } from "uuid";
-import tenantContext from "../tenants/TenantContext.js";
+import requestContext from "../core/RequestContext.js";
 import { resolveSubAgentModel } from "../models/ModelRouter.js";
 import { buildContract } from "./ContractBuilder.js";
 import { createSession, getSession, setMessages } from "../services/sessions.js";
@@ -132,7 +132,7 @@ export async function spawnSubAgent(taskDescription, options = {}) {
 
   // ── Model resolution ────────────────────────────────────────────────────
   // Priority: SUB_AGENT_MODEL (.env) → parent model → DEFAULT_MODEL
-  const store = tenantContext.getStore();
+  const store = requestContext.getStore();
   const parentModel = store?.resolvedModel || null;
   const resolvedModel = resolveSubAgentModel(parentModel);
 
@@ -142,7 +142,7 @@ export async function spawnSubAgent(taskDescription, options = {}) {
     `${C.cyan}${C.bold}${profileLabel}${C.reset}${modelLabel} "${taskDescription.slice(0, 80)}${taskDescription.length > 80 ? "…" : ""}"`);
 
 
-  const apiKeys = store?.apiKeys || {};
+  const apiKeys = {};
 
   // ── Tool set ──────────────────────────────────────────────────────────────
   // Resolution order (highest priority first):
@@ -299,7 +299,7 @@ export async function spawnSubAgent(taskDescription, options = {}) {
         channelMeta,
         signal:       abortController.signal,   // hard kill support
         steerQueue,                              // steering support
-        apiKeys,                                 // per-tenant API key overlay
+        apiKeys,
       }),
       new Promise((_, reject) =>
         setTimeout(() => {

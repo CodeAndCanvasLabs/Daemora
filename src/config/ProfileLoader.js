@@ -3,7 +3,7 @@
  *
  * Profiles define: identity (systemPrompt), tools, skill scoping, temperature, model.
  * Built-in profiles ship in src/config/profiles/*.yaml.
- * Tenant overrides: data/tenants/{safeId}/profiles/*.yaml (loaded on top).
+ * Custom overrides: data/profiles/*.yaml (loaded on top).
  *
  * Open-source friendly - contributors add profiles via PR (drop a YAML file).
  */
@@ -11,7 +11,6 @@
 import { join, basename } from "path";
 import { readdirSync, readFileSync, existsSync } from "fs";
 import { config } from "./default.js";
-import tenantContext from "../tenants/TenantContext.js";
 import { getRegistry } from "../crew/PluginRegistry.js";
 
 // ── YAML parser (no dependency - profiles are simple key-value) ──────────────
@@ -170,7 +169,7 @@ function ensureLoaded() {
   // Only loads profiles NOT already loaded from crew (crew takes priority)
   loadProfilesFromDir(BUILTIN_DIR, true);
 
-  // 3. User custom profiles (data dir - tenant overrides)
+  // 3. User custom profiles (data dir)
   const customDir = join(config.dataDir, "profiles");
   loadProfilesFromDir(customDir, false);
 
@@ -215,61 +214,14 @@ function _loadFromCrewRegistry() {
   }
 }
 
-// ── Tenant overlay ──────────────────────────────────────────────────────────
-
-function getTenantOverrides() {
-  const store = tenantContext.getStore?.();
-  const tenantId = store?.tenant?.id;
-  if (!tenantId) return null;
-
-  const safeId = tenantId.replace(/[^a-zA-Z0-9_-]/g, "_");
-  const tenantProfileDir = join(config.dataDir, "tenants", safeId, "profiles");
-  if (!existsSync(tenantProfileDir)) return null;
-
-  const overrides = new Map();
-  loadProfilesInto(tenantProfileDir, overrides);
-  return overrides.size > 0 ? overrides : null;
-}
-
-function loadProfilesInto(dir, map) {
-  if (!existsSync(dir)) return;
-  const files = readdirSync(dir).filter(f => f.endsWith(".yaml") || f.endsWith(".yml"));
-  for (const file of files) {
-    try {
-      const raw = readFileSync(join(dir, file), "utf-8");
-      const parsed = parseYaml(raw);
-      if (!parsed.id) parsed.id = basename(file, file.endsWith(".yaml") ? ".yaml" : ".yml");
-      if (!parsed.name) continue;
-      map.set(parsed.id, {
-        id: parsed.id,
-        name: parsed.name,
-        description: parsed.description || "",
-        systemPrompt: parsed.systemPrompt || "",
-        temperature: parsed.temperature ?? null,
-        model: parsed.model || null,
-        tools: Array.isArray(parsed.tools) ? parsed.tools : [],
-        skills: parsed.skills || null,
-        capabilities: Array.isArray(parsed.capabilities) ? parsed.capabilities : [],
-        isBuiltin: false,
-        source: join(dir, file),
-      });
-    } catch { /* skip bad files */ }
-  }
-}
 
 // ── Public API ──────────────────────────────────────────────────────────────
 
 /**
- * Get profile by ID. Priority: tenant override → custom (data/) → built-in.
+ * Get profile by ID. Priority: custom (data/) → built-in.
  */
 export function getProfile(id) {
   ensureLoaded();
-
-  // Tenant override
-  const overrides = getTenantOverrides();
-  if (overrides?.has(id)) return { ...overrides.get(id) };
-
-  // Global (built-in + custom)
   const profile = profileCache.get(id);
   return profile ? { ...profile } : null;
 }
@@ -279,18 +231,7 @@ export function getProfile(id) {
  */
 export function listProfiles() {
   ensureLoaded();
-
-  const merged = new Map(profileCache);
-
-  // Overlay tenant overrides
-  const overrides = getTenantOverrides();
-  if (overrides) {
-    for (const [id, profile] of overrides) {
-      merged.set(id, profile);
-    }
-  }
-
-  return [...merged.values()];
+  return [...profileCache.values()];
 }
 
 /**

@@ -56,13 +56,6 @@ export function loadGoal(id) {
   return row ? _rowToGoal(row) : null;
 }
 
-export function loadGoalsByTenant(tenantId) {
-  return queryAll(
-    "SELECT * FROM goals WHERE tenant_id = $tid ORDER BY priority DESC",
-    { $tid: tenantId }
-  ).map(_rowToGoal);
-}
-
 export function loadActiveGoals() {
   return queryAll(
     "SELECT * FROM goals WHERE status = 'active' ORDER BY next_check_at ASC"

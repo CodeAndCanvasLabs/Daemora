@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../api";
-import { Link } from "react-router";
 import { Globe, Settings as SettingsIcon, Database, Shield, Cpu, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -144,11 +143,6 @@ export function Configuration() {
             <div className="mt-6 p-4 bg-slate-950/50 border border-amber-500/20 rounded-lg">
               <p className="text-[10px] text-amber-500/70 font-mono leading-relaxed uppercase">
                 NOTICE: GLOBAL CONFIGURATION IS MANAGED VIA CLI OR .ENV.
-                FOR PER-TENANT OVERRIDES (MODELS, COSTS, TOOLS, PATHS), USE THE{" "}
-                <Link to="/tenants" className="text-[#00d9ff] underline hover:text-[#4ECDC4] transition-colors">
-                  TENANTS
-                </Link>{" "}
-                PAGE.
               </p>
             </div>
           </CardContent>

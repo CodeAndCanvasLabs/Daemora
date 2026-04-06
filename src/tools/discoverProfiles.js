@@ -2,8 +2,7 @@
  * discoverProfiles - main agent tool for finding the right sub-agent profile.
  *
  * Uses embeddings to match task description against profile descriptions.
- * Filters by tenant's enabled crew members.
- * Returns matches + disabled crew members with "not enabled" message.
+ * Returns matches sorted by relevance.
  *
  * Three-tier fallback:
  *   1. discoverProfiles(query) → top 5
@@ -12,7 +11,6 @@
  */
 
 import { listProfiles } from "../config/ProfileLoader.js";
-import tenantContext from "../tenants/TenantContext.js";
 import { getRegistry } from "../crew/PluginRegistry.js";
 
 // ── Profile embeddings cache ────────────────────────────────────────────────
@@ -82,17 +80,6 @@ function _getProfileCrew(profileId) {
   return null; // built-in profile
 }
 
-function _isCrewEnabledForTenant(crewId) {
-  const store = tenantContext.getStore();
-  const tenant = store?.tenant;
-  if (!tenant) return true; // admin/global - all enabled
-
-  // Check tenant's crew array
-  const tenantCrew = tenant.crew;
-  if (!tenantCrew || !Array.isArray(tenantCrew)) return true; // no restriction
-  return tenantCrew.includes(crewId);
-}
-
 function _cosineSimilarity(a, b) {
   if (!a || !b || a.length !== b.length) return 0;
   let dot = 0, normA = 0, normB = 0;
@@ -152,39 +139,24 @@ export async function discoverProfiles(params) {
     scored.sort((a, b) => b.score - a.score);
   }
 
-  // Split into enabled and disabled
-  const matches = [];
-  const disabled = [];
+  const matches = scored.map(p => ({
+    id: p.id,
+    name: p.name,
+    description: p.description,
+    crew: p.crew?.id || null,
+    score: Math.round(p.score * 100) / 100,
+    enabled: true,
+  }));
 
-  for (const p of scored) {
-    const entry = {
-      id: p.id,
-      name: p.name,
-      description: p.description,
-      crew: p.crew?.id || null,
-      score: Math.round(p.score * 100) / 100,
-    };
-
-    if (p.crew && !_isCrewEnabledForTenant(p.crew.id)) {
-      disabled.push({
-        ...entry,
-        enabled: false,
-        message: `Crew member '${p.crew.name}' exists but not enabled for your account`,
-      });
-    } else {
-      matches.push({ ...entry, enabled: true });
-    }
-  }
-
-  // Apply pagination to matches
+  // Apply pagination
   const paginated = matches.slice(offset, offset + limit);
   const total = matches.length;
 
-  return JSON.stringify({ matches: paginated, total, disabled }, null, 2);
+  return JSON.stringify({ matches: paginated, total, disabled: [] }, null, 2);
 }
 
 export const discoverProfilesDescription =
-  `discoverProfiles(query, {limit?, offset?, all?}) - Find the right sub-agent profile for a task. Returns matching profiles sorted by relevance. Use before spawnAgent when unsure which profile to use. Disabled crew members returned with "not enabled" message.`;
+  `discoverProfiles(query, {limit?, offset?, all?}) - Find the right sub-agent profile for a task. Returns matching profiles sorted by relevance. Use before spawnAgent when unsure which profile to use.`;
 
 export function clearProfileEmbeddingsCache() {
   _profileEmbeddings = null;

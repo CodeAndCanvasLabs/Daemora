@@ -8,7 +8,7 @@
  */
 
 import eventBus from "../core/EventBus.js";
-import tenantContext from "../tenants/TenantContext.js";
+import requestContext from "../core/RequestContext.js";
 
 // ── Registry State ──────────────────────────────────────────────────────────
 
@@ -192,33 +192,13 @@ export function createCrewApi(record, manifest, memberDir) {
       } catch {}
     },
 
-    // ── Tenant-aware access (Daemora-specific, not in OpenClaw) ─────────
-    getTenantConfig(tenantId) {
-      try {
-        // Enforce tenant isolation - crew member can only access current request's tenant
-        const store = tenantContext.getStore();
-        const currentTenantId = store?.tenant?.id;
-        if (tenantId && currentTenantId && tenantId !== currentTenantId) {
-          console.log(`[Crew:${record.id}] BLOCKED: cross-tenant config access (requested: ${tenantId}, current: ${currentTenantId})`);
-          return null;
-        }
-        const tenantManager = _getTenantManager();
-        return tenantManager.get(tenantId || currentTenantId) || null;
-      } catch { return null; }
+    // ── Request context access ──────────────────────────────────────────
+    getRequestStore() {
+      return requestContext.getStore() || {};
     },
 
-    getTenantKeys(tenantId) {
-      try {
-        // Enforce tenant isolation - crew member can only access current request's tenant keys
-        const store = tenantContext.getStore();
-        const currentTenantId = store?.tenant?.id;
-        if (tenantId && currentTenantId && tenantId !== currentTenantId) {
-          console.log(`[Crew:${record.id}] BLOCKED: cross-tenant key access (requested: ${tenantId}, current: ${currentTenantId})`);
-          return {};
-        }
-        const tenantManager = _getTenantManager();
-        return tenantManager.getDecryptedApiKeys(tenantId || currentTenantId) || {};
-      } catch { return {}; }
+    getApiKeys() {
+      return requestContext.getStore()?.apiKeys || {};
     },
 
     // ── Logger ──────────────────────────────────────────────────────────
@@ -239,16 +219,6 @@ function _diag(level, crewId, message) {
   if (level === "error") console.error(`[CrewRegistry] ${crewId}: ${message}`);
   else console.log(`[CrewRegistry] ${crewId}: ${message}`);
 }
-
-let _tenantManager = null;
-async function _getTenantManager() {
-  if (!_tenantManager) {
-    const mod = await import("../tenants/TenantManager.js");
-    _tenantManager = mod.default;
-  }
-  return _tenantManager;
-}
-
 
 let _configStore = null;
 export async function initConfigStore() {

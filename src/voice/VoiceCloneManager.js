@@ -3,14 +3,14 @@
  *
  * Upload voice samples → create instant or professional clones.
  * List, delete, and manage cloned voices.
- * Stores voice_id mappings per tenant in SQLite config_entries.
+ * Stores voice_id mappings in SQLite config_entries.
  *
  * Requires ELEVENLABS_API_KEY.
  */
 
 import { readFileSync, existsSync } from "node:fs";
 import { basename } from "node:path";
-import tenantContext from "../tenants/TenantContext.js";
+import requestContext from "../core/RequestContext.js";
 import { queryOne, run, queryAll } from "../storage/Database.js";
 
 const ELEVENLABS_API = "https://api.elevenlabs.io/v1";
@@ -20,15 +20,15 @@ const ALLOWED_AUDIO_EXTENSIONS = [".mp3", ".wav", ".ogg", ".flac", ".m4a", ".web
 // ── API key resolution ────────────────────────────────────────────────────
 
 function _getApiKey() {
-  const store = tenantContext.getStore();
+  const store = requestContext.getStore();
   const tenantKeys = store?.apiKeys || {};
   const key = tenantKeys.ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY;
   if (!key) throw new Error("ELEVENLABS_API_KEY is required for voice cloning");
   return key;
 }
 
-function _getTenantId() {
-  return tenantContext.getStore()?.tenant?.id || null;
+function _getSessionId() {
+  return requestContext.getStore()?.sessionId || null;
 }
 
 // ── Voice CRUD ────────────────────────────────────────────────────────────
@@ -240,7 +240,7 @@ export async function getVoice(voiceId) {
  * @returns {Array<{voiceId: string, name: string}>}
  */
 export function listTenantVoices() {
-  const tenantId = _getTenantId();
+  const tenantId = _getSessionId();
   const key = tenantId ? `voice_clones:${tenantId}` : "voice_clones";
 
   const row = queryOne("SELECT value FROM config_entries WHERE key = $key", { $key: key });
@@ -256,7 +256,7 @@ export function listTenantVoices() {
 // ── Internal helpers ──────────────────────────────────────────────────────
 
 function _storeVoiceMapping(voiceId, name) {
-  const tenantId = _getTenantId();
+  const tenantId = _getSessionId();
   const key = tenantId ? `voice_clones:${tenantId}` : "voice_clones";
 
   const existing = listTenantVoices();
@@ -269,7 +269,7 @@ function _storeVoiceMapping(voiceId, name) {
 }
 
 function _removeVoiceMapping(voiceId) {
-  const tenantId = _getTenantId();
+  const tenantId = _getSessionId();
   const key = tenantId ? `voice_clones:${tenantId}` : "voice_clones";
 
   const existing = listTenantVoices();

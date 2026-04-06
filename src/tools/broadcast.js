@@ -2,11 +2,9 @@
  * broadcast(preset, text?, filePath?, channels?) - Send content to delivery preset targets or specific channels.
  *
  * General-purpose delivery tool. Works in any context: cron, chat, sub-agent, API.
- * Resolves routing metadata from tenant_channels at send time (always fresh).
+ * Resolves routing metadata from presets at send time.
  */
 import channelRegistry from "../channels/index.js";
-import tenantManager from "../tenants/TenantManager.js";
-import tenantContext from "../tenants/TenantContext.js";
 import { loadPresetByName, loadPreset } from "../scheduler/DeliveryPresetStore.js";
 import { existsSync, statSync } from "node:fs";
 import filesystemGuard from "../safety/FilesystemGuard.js";
@@ -17,12 +15,6 @@ export async function broadcast(params) {
   const { preset, text, filePath, channels } = params || {};
 
   try {
-    // ── Admin-only check ───────────────────────────────────────────────────
-    const store = tenantContext.getStore();
-    const tenant = store?.tenant;
-    const isAdmin = !tenant || tenant.globalAdmin === true;
-    if (!isAdmin) return "Error: broadcast is admin-only.";
-
     // ── Validate inputs ────────────────────────────────────────────────────
     if (!text && !filePath) return "Error: text or filePath required.";
 
@@ -51,8 +43,8 @@ export async function broadcast(params) {
         targets = targets.filter(t => filter.includes(t.channel?.toLowerCase()));
         if (targets.length === 0) return `Error: No targets match channels: ${filter.join(", ")}`;
       } else {
-        // No preset - build targets from channel names (global channels)
-        targets = filter.map(ch => ({ channel: ch, tenantId: null, userId: null }));
+        // No preset - build targets from channel names
+        targets = filter.map(ch => ({ channel: ch }));
       }
     }
 
@@ -79,19 +71,15 @@ export async function broadcast(params) {
 }
 
 /**
- * Send to a single target - resolves fresh routing meta, finds channel instance, sends.
+ * Send to a single target - finds channel instance, sends.
  */
 async function _sendToTarget(target, text, filePath) {
-  const { channel: channelType, tenantId, userId } = target;
+  const { channel: channelType } = target;
   if (!channelType) return { ok: false, error: "No channel type" };
 
-  // Resolve routing metadata from tenant_channels
-  const meta = _resolveMeta(channelType, tenantId, userId, target.channelMeta);
-  if (!meta) return { ok: false, error: `No routing metadata for ${channelType}${tenantId ? `:${tenantId}` : ""}` };
+  const meta = target.channelMeta || null;
 
-  // Find channel instance - tenant-specific first, then global
-  const instanceKey = meta.instanceKey || (tenantId ? `${channelType}::${tenantId}` : null);
-  const ch = channelRegistry.get(channelType, instanceKey) || channelRegistry.get(channelType);
+  const ch = channelRegistry.get(channelType);
   if (!ch || !ch.running) return { ok: false, error: `Channel "${channelType}" not running` };
 
   // Send file if provided
@@ -109,28 +97,7 @@ async function _sendToTarget(target, text, filePath) {
   return { ok: false, error: "Nothing to send" };
 }
 
-/**
- * Resolve fresh routing metadata from tenant_channels.
- */
-function _resolveMeta(channelType, tenantId, userId, fallback) {
-  if (!tenantId) return fallback || null;
-  try {
-    const channels = tenantManager.getChannels(tenantId);
-    const match = channels.find(c =>
-      c.channel === channelType && (!userId || c.user_id === userId)
-    );
-    if (!match?.meta) return fallback || null;
-    // Add instanceKey for tenant channel routing
-    const instanceKey = `${channelType}::${tenantId}`;
-    const instance = channelRegistry.get(channelType, instanceKey);
-    return instance ? { ...match.meta, instanceKey } : match.meta;
-  } catch {
-    return fallback || null;
-  }
-}
-
 export const broadcastDescription =
-  "broadcast(preset, text?, filePath?, channels?) - Fleet Command: send text or file to all targets in a delivery preset. " +
+  "broadcast(preset, text?, filePath?, channels?) - Send text or file to all targets in a delivery preset. " +
   "preset: preset name (required unless channels specified). " +
-  "channels: optional comma-separated filter. " +
-  "Admin-only.";
+  "channels: optional comma-separated filter.";

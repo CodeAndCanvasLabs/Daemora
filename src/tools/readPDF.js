@@ -5,7 +5,6 @@
 import { execSync } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
 import filesystemGuard from "../safety/FilesystemGuard.js";
-import tenantContext from "../tenants/TenantContext.js";
 import { mergeLegacyOptions as _mergeLegacyOpts } from "../utils/mergeToolParams.js";
 
 export async function readPDF(params) {
@@ -32,8 +31,7 @@ export async function readPDF(params) {
 
   // Method 2: OpenAI vision API - works without pdftotext installed
   if (method === "auto" || method === "vision") {
-    const store = tenantContext.getStore();
-    const apiKey = store?.apiKeys?.OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) return "Error: pdftotext not found and OPENAI_API_KEY not set. Install poppler-utils or set OPENAI_API_KEY.";
 
     try {

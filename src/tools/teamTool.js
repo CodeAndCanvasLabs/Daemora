@@ -14,7 +14,6 @@
 import { runTeam, relaunchTeam } from "../teams/TeamLeadRunner.js";
 import * as store from "../teams/TeamStore.js";
 import { applyTemplate, TEAM_TEMPLATES } from "../teams/templates.js";
-import tenantContext from "../tenants/TenantContext.js";
 import { writeMemory } from "./memory.js";
 
 export async function teamTask(params) {
@@ -44,15 +43,13 @@ export async function teamTask(params) {
         }
       }
 
-      const tid = tenantContext.getStore()?.tenant?.id || null;
-
       // Check if project already has a team
-      const existingProject = store.findTeamByProject(project, tid);
+      const existingProject = store.findTeamByProject(project);
       if (existingProject) {
         return `Project "${project}" already has team "${existingProject.name}" (${existingProject.id}, status: ${existingProject.status}). Use relaunchProject to resume it, or disbandTeam first.`;
       }
 
-      const existing = store.listTeams(tid);
+      const existing = store.listTeams();
       if (existing.length >= 5) {
         return `Error: maximum 5 active teams. Disband one first. Active: ${existing.map(t => t.name).join(", ")}`;
       }
@@ -90,8 +87,7 @@ export async function teamTask(params) {
     }
 
     case "listTeams": {
-      const tid = tenantContext.getStore()?.tenant?.id || null;
-      const teams = store.listTeams(tid);
+      const teams = store.listTeams();
       if (teams.length === 0) return "No active teams.";
       return teams.map(t => `${t.id} "${t.name}" - ${t.status} (created: ${t.createdAt})`).join("\n");
     }
@@ -134,8 +130,7 @@ export async function teamTask(params) {
       if (!teamConfig) return `Error: template "${templateId}" not found. Use listTemplates to see options.`;
 
       // Check team limit
-      const tid = tenantContext.getStore()?.tenant?.id || null;
-      const existing = store.listTeams(tid);
+      const existing = store.listTeams();
       if (existing.length >= 5) {
         return `Error: maximum 5 active teams. Disband one first.`;
       }

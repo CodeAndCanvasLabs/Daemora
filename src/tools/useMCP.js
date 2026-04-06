@@ -1,5 +1,5 @@
 import { runMCPAgent } from "../mcp/MCPAgentRunner.js";
-import tenantContext from "../tenants/TenantContext.js";
+import requestContext from "../core/RequestContext.js";
 
 /**
  * useMCP - delegate a task to a specialist agent for a specific MCP server.
@@ -14,22 +14,8 @@ import tenantContext from "../tenants/TenantContext.js";
 export async function useMCP(params) {
   const serverName = params?.serverName;
   const taskDescription = params?.taskDescription;
-  // Enforce per-tenant MCP server allowlist.
-  // Access is allowed if:
-  //   - allowlist is null (all global servers permitted), OR
-  //   - serverName is in the global allowlist, OR
-  //   - serverName is in the tenant's own private servers
-  const store = tenantContext.getStore();
-  const resolvedConfig = store?.resolvedConfig;
-  const allowedMcpServers = resolvedConfig?.mcpServers ?? null;
-  const ownMcpServers = resolvedConfig?.ownMcpServers ?? {};
-  const isAllowed = allowedMcpServers === null
-    || allowedMcpServers.includes(serverName)
-    || serverName in ownMcpServers;
-  if (!isAllowed) {
-    return `Access denied: MCP server "${serverName}" is not in your allowed list. Contact the operator.`;
-  }
 
+  const store = requestContext.getStore();
   const mainSessionId = store?.sessionId || null;
   const parentTaskId = store?.currentTaskId || null;
   return runMCPAgent(serverName, taskDescription, { mainSessionId, parentTaskId });

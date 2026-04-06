@@ -1,5 +1,5 @@
 import { runCrewAgent } from "../crew/CrewAgentRunner.js";
-import tenantContext from "../tenants/TenantContext.js";
+import requestContext from "../core/RequestContext.js";
 
 /**
  * useCrew - delegate a task to a specialist crew member.
@@ -17,7 +17,7 @@ export async function useCrew(params) {
   if (!crewId) return "crewId is required.";
   if (!taskDescription) return "taskDescription is required.";
 
-  const store = tenantContext.getStore();
+  const store = requestContext.getStore();
   const mainSessionId = store?.sessionId || null;
   const parentTaskId = store?.currentTaskId || null;
 

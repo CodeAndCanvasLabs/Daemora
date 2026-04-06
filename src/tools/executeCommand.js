@@ -15,7 +15,7 @@ import filesystemGuard from "../safety/FilesystemGuard.js";
 import { checkCommand } from "../safety/CommandGuard.js";
 import execApproval from "../safety/ExecApproval.js";
 import dockerSandbox from "../safety/DockerSandbox.js";
-import tenantContext from "../tenants/TenantContext.js";
+import requestContext from "../core/RequestContext.js";
 import { mergeLegacyOptions } from "../utils/mergeToolParams.js";
 
 const DEFAULT_TIMEOUT_MS = 120_000;   // 2 minutes default
@@ -91,29 +91,27 @@ export async function executeCommand(params) {
   // ──────────────────────────────────────────────────────────────────────────
 
   // ── Filesystem scope enforcement ───────────────────────────────────────────
-  // Prefer per-tenant resolved config (set by TaskRunner), fall back to global
-  const store = tenantContext.getStore();
+  // Prefer resolved config from request context (set by TaskRunner), fall back to global
+  const store = requestContext.getStore();
   const resolvedConfig = store?.resolvedConfig;
   const allowedPaths = resolvedConfig?.allowedPaths || config.filesystem?.allowedPaths || [];
-  if (allowedPaths.length > 0) {
-    // Always check that the cwd is inside an allowed directory
+  const blockedPaths = resolvedConfig?.blockedPaths || config.filesystem?.blockedPaths || [];
+  const hasScope = allowedPaths.length > 0 || blockedPaths.length > 0;
+
+  if (hasScope) {
+    // Check that the cwd is permitted (respects both allowed + blocked)
     const cwdGuard = filesystemGuard.checkRead(cwd);
     if (!cwdGuard.allowed) {
-      return `Access denied: Working directory "${cwd}" is outside the allowed paths. ` +
-        `Allowed: ${allowedPaths.join(", ")}`;
+      return `Access denied: Working directory "${cwd}" is not permitted. ${cwdGuard.reason}`;
     }
 
-    // When RESTRICT_COMMANDS=true, also scan command string for absolute path references
-    if (config.filesystem?.restrictCommands) {
-      // Extract absolute paths from the command (Unix + Windows style)
-      const absPathPattern = /(\/[^\s'";|&><$]+|[A-Za-z]:\\[^\s'";|&><$]+)/g;
-      const matches = [...cmd.matchAll(absPathPattern)].map((m) => m[1]);
-      for (const p of matches) {
-        const check = filesystemGuard.checkRead(p);
-        if (!check.allowed) {
-          return `Access denied: Command references a path outside allowed directories: "${p}". ` +
-            `Allowed: ${allowedPaths.join(", ")}`;
-        }
+    // Scan command string for absolute path references — always when paths are configured
+    const absPathPattern = /(\/[^\s'";|&><$]+|[A-Za-z]:\\[^\s'";|&><$]+)/g;
+    const matches = [...cmd.matchAll(absPathPattern)].map((m) => m[1]);
+    for (const p of matches) {
+      const check = filesystemGuard.checkRead(p);
+      if (!check.allowed) {
+        return `Access denied: Command references a blocked path: "${p}". ${check.reason}`;
       }
     }
   }

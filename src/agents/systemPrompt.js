@@ -3,7 +3,7 @@ import { join } from "path";
 import { config } from "../config/default.js";
 import skillLoader from "../skills/SkillLoader.js";
 import mcpManager from "../mcp/MCPManager.js";
-import tenantContext from "../tenants/TenantContext.js";
+import requestContext from "../core/RequestContext.js";
 import { queryAll } from "../storage/Database.js";
 import { getRegistry } from "../crew/PluginRegistry.js";
 
@@ -18,9 +18,7 @@ const TOOL_REQUIRED_KEYS = {
 };
 
 function _getConfiguredKeys() {
-  const store = tenantContext.getStore();
-  const tenantKeys = store?.apiKeys || {};
-  return { ...process.env, ...tenantKeys };
+  return { ...process.env };
 }
 
 function _isToolConfigured(toolName) {
@@ -110,25 +108,17 @@ export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeM
   };
 }
 
-// ── Tenant-aware path resolution ─────────────────────────────────────────────
+// ── Path resolution ─────────────────────────────────────────────────────────
 
 function _getContextMemoryPaths() {
-  const store = tenantContext.getStore();
-  const tenantId = store?.tenant?.id;
-  if (tenantId) {
-    const safeId = tenantId.replace(/[^a-zA-Z0-9_-]/g, "_");
-    const tenantDir = join(config.dataDir, "tenants", safeId);
-    return { memoryPath: join(tenantDir, "MEMORY.md"), memoryDir: join(tenantDir, "memory"), tenantId };
-  }
-  return { memoryPath: config.memoryPath, memoryDir: config.memoryDir, tenantId: null };
+  return { memoryPath: config.memoryPath, memoryDir: config.memoryDir };
 }
 
 async function renderSemanticRecall(taskInput) {
   if (!taskInput || taskInput.length < 10) return null;
   try {
     const { getRelevantMemories } = await import("../tools/memory.js");
-    const { tenantId } = _getContextMemoryPaths();
-    return await getRelevantMemories(taskInput, 5, tenantId);
+    return await getRelevantMemories(taskInput, 5);
   } catch {
     return null;
   }
@@ -144,15 +134,7 @@ function renderSoul() {
 }
 
 function renderUserProfile() {
-  const store = tenantContext.getStore();
-  const tenantId = store?.tenant?.id;
-  let profilePath;
-  if (tenantId) {
-    const safeId = tenantId.replace(/[^a-zA-Z0-9_-]/g, "_");
-    profilePath = join(config.dataDir, "tenants", safeId, "user-profile.json");
-  } else {
-    profilePath = join(config.dataDir, "user-profile.json");
-  }
+  const profilePath = join(config.dataDir, "user-profile.json");
   if (!existsSync(profilePath)) return null;
   try {
     const profile = JSON.parse(readFileSync(profilePath, "utf-8"));
@@ -179,7 +161,7 @@ const CHANNEL_FORMAT = {
 };
 
 function renderResponseFormat() {
-  const store = tenantContext.getStore();
+  const store = requestContext.getStore();
   const channel = store?.channelMeta?.channel || "http";
   const hint = CHANNEL_FORMAT[channel];
   if (!hint) return null;
@@ -293,18 +275,9 @@ If one clearly applies → readFile its location, follow it. Skip "confirm with 
 
 /** Memory section — only if memory entries exist */
 function renderMemorySection() {
-  const { tenantId } = _getContextMemoryPaths();
-  let rows;
-  if (tenantId) {
-    rows = queryAll(
-      "SELECT content, category, timestamp FROM memory_entries WHERE tenant_id = $tid ORDER BY id ASC",
-      { $tid: tenantId }
-    );
-  } else {
-    rows = queryAll(
-      "SELECT content, category, timestamp FROM memory_entries WHERE tenant_id IS NULL ORDER BY id ASC"
-    );
-  }
+  const rows = queryAll(
+    "SELECT content, category, timestamp FROM memory_entries WHERE tenant_id IS NULL ORDER BY id ASC"
+  );
   if (rows.length === 0) return null;
   const memory = rows.map(r => {
     const catTag = r.category && r.category !== "general" ? ` [${r.category}]` : "";
@@ -314,20 +287,11 @@ function renderMemorySection() {
 }
 
 function renderDailyLog() {
-  const { tenantId } = _getContextMemoryPaths();
   const today = new Date().toISOString().split("T")[0];
-  let rows;
-  if (tenantId) {
-    rows = queryAll(
-      "SELECT entry FROM daily_logs WHERE tenant_id = $tid AND date = $date ORDER BY id ASC",
-      { $tid: tenantId, $date: today }
-    );
-  } else {
-    rows = queryAll(
-      "SELECT entry FROM daily_logs WHERE tenant_id IS NULL AND date = $date ORDER BY id ASC",
-      { $date: today }
-    );
-  }
+  const rows = queryAll(
+    "SELECT entry FROM daily_logs WHERE tenant_id IS NULL AND date = $date ORDER BY id ASC",
+    { $date: today }
+  );
   if (rows.length === 0) return null;
   return `## Today's Log (${today})\n\n${rows.map(r => `- ${r.entry}`).join("\n")}`;
 }

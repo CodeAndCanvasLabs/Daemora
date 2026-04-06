@@ -148,7 +148,7 @@ export class WhatsAppChannel extends BaseChannel {
     const task = taskQueue.enqueue({
       input,
       channel: "whatsapp",
-      channelMeta: { phone, from, userName: from || phone, channel: "whatsapp", tenantId: this.getTenantId(), instanceKey: this.getInstanceKey() },
+      channelMeta: { phone, from, userName: from || phone, channel: "whatsapp" },
       sessionId: this.getSessionId(phone),
       model: this.getModel(),
     });

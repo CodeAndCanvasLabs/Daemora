@@ -12,28 +12,22 @@
  *     makeVoiceCall("speak",    sessionId, {"message":"..."}) ← agent says something
  *     makeVoiceCall("end",      sessionId)                   ← hang up
  *
- * Credential resolution order (first match wins):
- *   1. Per-tenant channel config  (daemora tenant channel set <id> twilio_account_sid ...)
- *   2. Global .env                (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_PHONE_FROM)
+ * Credentials: TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_PHONE_FROM from .env
  *
  * Required env for interactive mode:
  *   VOICE_WEBHOOK_BASE_URL=https://your-public-url.com  (Twilio must reach this URL)
  */
 
-import tenantContext from "../tenants/TenantContext.js";
 import voiceSessionManager from "../voice/VoiceSessionManager.js";
 
 const TWILIO_API = "https://api.twilio.com/2010-04-01";
 
-/** Resolve Twilio credentials: tenant config first, then global env */
+/** Resolve Twilio credentials from process.env */
 function _getCreds() {
-  const store = tenantContext.getStore();
-  const ch = store?.resolvedConfig?.channelConfig || {};
-
   return {
-    accountSid: ch.twilio_account_sid || process.env.TWILIO_ACCOUNT_SID || null,
-    authToken:  ch.twilio_auth_token  || process.env.TWILIO_AUTH_TOKEN  || null,
-    fromNumber: ch.twilio_phone_from  || process.env.TWILIO_PHONE_FROM  || null,
+    accountSid: process.env.TWILIO_ACCOUNT_SID || null,
+    authToken:  process.env.TWILIO_AUTH_TOKEN  || null,
+    fromNumber: process.env.TWILIO_PHONE_FROM  || null,
   };
 }
 
@@ -141,7 +135,7 @@ export async function makeVoiceCall(params) {
   // ── Twilio API actions - credentials required ────────────────────────────────
 
   if (!accountSid || !authToken) {
-    return "Error: Twilio not configured. Set TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN in .env, or: daemora tenant channel set <id> twilio_account_sid <sid>";
+    return "Error: Twilio not configured. Set TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN in .env.";
   }
 
   const opts = _mergedOpts;

@@ -8,8 +8,6 @@
 import { v4 as uuidv4 } from "uuid";
 import taskQueue from "../core/TaskQueue.js";
 import eventBus from "../core/EventBus.js";
-import tenantContext from "../tenants/TenantContext.js";
-import tenantManager from "../tenants/TenantManager.js";
 import channelRegistry from "../channels/index.js";
 import { saveRun, pruneRuns, saveJob } from "./CronStore.js";
 
@@ -30,7 +28,7 @@ export async function executeJob(job, { isRetry = false, retryAttempt = 0, onCom
     if (stuckMs < timeoutMs) {
       console.log(`[CronExecutor] Skipping "${job.name}" - already running since ${job.runningSince}`);
       saveRun({
-        jobId: job.id, tenantId: job.tenantId, startedAt: new Date().toISOString(),
+        jobId: job.id, startedAt: new Date().toISOString(),
         completedAt: new Date().toISOString(), status: "skipped",
         error: "Skipped: previous run still active", retryAttempt,
       });
@@ -53,19 +51,6 @@ export async function executeJob(job, { isRetry = false, retryAttempt = 0, onCom
   console.log(`[CronExecutor] Running "${job.name}"${isRetry ? ` (retry #${retryAttempt})` : ""}`);
 
   try {
-    // ── Resolve tenant context ────────────────────────────────────────────
-    let resolvedConfig = {};
-    let tenant = null;
-    let apiKeys = {};
-
-    if (job.tenantId) {
-      tenant = tenantManager.get(job.tenantId);
-      if (tenant) {
-        resolvedConfig = tenantManager.resolveTaskConfig(tenant);
-        apiKeys = resolvedConfig.apiKeys || {};
-      }
-    }
-
     // ── Build cron input with context ──────────────────────────────────────
     const cronLines = [
       "[Scheduled Task] You are running autonomously as a cron job. No user present.",
@@ -88,11 +73,10 @@ export async function executeJob(job, { isRetry = false, retryAttempt = 0, onCom
       input: cronInput,
       channel: job.delivery?.channel || "cron",
       channelMeta: job.delivery?.channelMeta || null,
-      model: job.model || resolvedConfig.model || null,
+      model: job.model || null,
       sessionId,
       priority: 3,
       type: "cron",
-      tenantId: job.tenantId,
     });
     taskId = enqueuedTask.id;
 
@@ -123,7 +107,7 @@ export async function executeJob(job, { isRetry = false, retryAttempt = 0, onCom
     saveJob(job);
 
     saveRun({
-      jobId: job.id, tenantId: job.tenantId, startedAt, completedAt,
+      jobId: job.id, startedAt, completedAt,
       status: "ok", durationMs, resultPreview: preview, taskId,
       retryAttempt,
     });
@@ -153,7 +137,7 @@ export async function executeJob(job, { isRetry = false, retryAttempt = 0, onCom
     saveJob(job);
 
     saveRun({
-      jobId: job.id, tenantId: job.tenantId, startedAt, completedAt,
+      jobId: job.id, startedAt, completedAt,
       status: "error", durationMs, error: error.message, taskId, retryAttempt,
     });
 
@@ -224,7 +208,7 @@ function _recordFailure(job, errorMsg, retryAttempt) {
   saveJob(job);
 
   saveRun({
-    jobId: job.id, tenantId: job.tenantId, startedAt: now, completedAt: now,
+    jobId: job.id, startedAt: now, completedAt: now,
     status: "timeout", error: errorMsg, retryAttempt,
   });
 }

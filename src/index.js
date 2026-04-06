@@ -28,7 +28,6 @@ import { mountA2AServer } from "./a2a/A2AServer.js";
 import voiceWebhook from "./voice/VoiceWebhook.js";
 import daemonManager from "./daemon/DaemonManager.js";
 import secretVault from "./safety/SecretVault.js";
-import tenantManager from "./tenants/TenantManager.js";
 import { runCleanup, cleanCompletedTasks } from "./services/cleanup.js";
 import webhookHandler from "./webhooks/WebhookHandler.js";
 import execApproval from "./safety/ExecApproval.js";
@@ -89,7 +88,7 @@ async function hotReloadAll() {
   try { secretScanner.refreshSecrets(); egressGuard.refresh(); } catch {}
   try { clearProviderCache(); } catch {}
   try { config.defaultModel = resolveDefaultModel(); } catch {}
-  try { await channelRegistry.stopAll(); await channelRegistry.startAll(); await channelRegistry.loadTenantChannels(); } catch {}
+  try { await channelRegistry.stopAll(); await channelRegistry.startAll(); } catch {}
   try { await mcpManager.init(); } catch {}
   try { scheduler.stop(); await scheduler.start(); } catch {}
   console.log(`[HotReload] Complete in ${Date.now() - start}ms`);
@@ -236,14 +235,13 @@ app.get("/api/tools", (req, res) => {
 // --- Chat endpoint (Async - returns taskId, client uses SSE to stream) ---
 app.post("/api/chat", (req, res) => {
   try {
-    const { input, sessionId, model, priority, tenantId } = req.body;
+    const { input, sessionId, model, priority } = req.body;
     if (!input) return res.status(400).json({ error: "input is required" });
 
     const task = taskQueue.enqueue({
       input,
       channel: "http",
       sessionId: sessionId || "local-user",
-      tenantId: tenantId || "http:local",
       model,
       priority: priority || 5,
       type: "chat",
@@ -624,31 +622,24 @@ app.get("/api/channels", (req, res) => {
 app.get("/api/channels/destinations", async (req, res) => {
   try {
     const { queryAll } = await import("./storage/Database.js");
-    // Read from channel_routing (global) + tenant_channels (per-tenant)
-    const globalRows = queryAll(
-      `SELECT channel, user_id, meta, tenant_id FROM channel_routing ORDER BY updated_at DESC`
-    );
-    const tenantRows = queryAll(
-      `SELECT channel, user_id, meta, tenant_id FROM tenant_channels WHERE meta IS NOT NULL ORDER BY linked_at DESC`
+    const rows = queryAll(
+      `SELECT channel, user_id, meta FROM channel_routing ORDER BY updated_at DESC`
     );
 
     const running = channelRegistry.list().filter(c => c.running);
     const destinations = [];
     const seen = new Set();
 
-    // Global + tenant stored destinations
-    for (const row of [...globalRows, ...tenantRows]) {
+    for (const row of rows) {
       const key = `${row.channel}:${row.user_id}`;
       if (seen.has(key)) continue;
       seen.add(key);
       try {
         const meta = JSON.parse(row.meta);
         const label = meta.userName || meta.userId || meta.chatId || row.user_id;
-        const scope = row.tenant_id && row.tenant_id !== "__global__" ? ` (${row.tenant_id})` : "";
         destinations.push({
           channel: row.channel,
-          label: `${row.channel} → ${label}${scope}`,
-          tenantId: row.tenant_id,
+          label: `${row.channel} → ${label}`,
           channelMeta: { ...meta, channel: row.channel },
         });
       } catch {}
@@ -660,7 +651,6 @@ app.get("/api/channels/destinations", async (req, res) => {
         destinations.push({
           channel: ch.name,
           label: `${ch.name} (no recent activity - send a message first)`,
-          tenantId: null,
           channelMeta: null,
         });
       }
@@ -678,7 +668,6 @@ app.get("/api/channels/defs", (req, res) => {
       name: ch.name,
       label: ch.label,
       desc: ch.desc,
-      tenantKey: ch.tenantKey,
       envRequired: ch.envRequired,
       envOptional: ch.envOptional,
       setup: ch.setup,
@@ -726,8 +715,7 @@ app.get("/api/cron/status", (req, res) => {
 });
 
 app.get("/api/cron/jobs", (req, res) => {
-  const tenantId = req.query.tenantId || null;
-  res.json({ jobs: scheduler.list(tenantId) });
+  res.json({ jobs: scheduler.list() });
 });
 
 app.post("/api/cron/jobs", (req, res) => {
@@ -793,7 +781,6 @@ app.get("/api/cron/jobs/:id/runs", (req, res) => {
 app.get("/api/cron/runs", (req, res) => {
   try {
     const runs = scheduler.getAllHistory({
-      tenantId: req.query.tenantId || null,
       limit: parseInt(req.query.limit) || 50,
       offset: parseInt(req.query.offset) || 0,
       status: req.query.status || null,
@@ -807,25 +794,11 @@ app.get("/api/cron/runs", (req, res) => {
 // --- Delivery Presets ---
 app.get("/api/cron/delivery-targets", (req, res) => {
   try {
-    const tenants = tenantManager.list()
-      .filter(t => !t.suspended)
-      .map(t => ({
-        id: t.id,
-        name: t.name || t.id,
-        channels: tenantManager.getChannels(t.id).map(ch => ({
-          channel: ch.channel,
-          userId: ch.user_id,
-          meta: ch.meta,
-        })),
-      }))
-      .filter(t => t.channels.length > 0);
-
-    // Global channels (admin's own running channels, excluding tenant instances)
     const globalChannels = channelRegistry.list()
-      .filter(ch => ch.running && !ch.tenantId)
+      .filter(ch => ch.running)
       .map(ch => ({ channel: ch.name, userId: null, meta: null }));
 
-    res.json({ tenants, globalChannels });
+    res.json({ globalChannels });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -873,9 +846,8 @@ app.delete("/api/cron/presets/:id", async (req, res) => {
 // --- Goals API ---
 app.get("/api/goals", async (req, res) => {
   try {
-    const { loadGoalsByTenant, loadActiveGoals } = await import("./storage/GoalStore.js");
-    const tenantId = req.query.tenantId || null;
-    const goals = tenantId ? loadGoalsByTenant(tenantId) : loadActiveGoals();
+    const { loadActiveGoals } = await import("./storage/GoalStore.js");
+    const goals = loadActiveGoals();
     res.json({ goals });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -900,7 +872,6 @@ app.post("/api/goals", async (req, res) => {
     const nextRun = cronInstance.nextRun();
     const goal = {
       id,
-      tenantId: req.body.tenantId || null,
       title: req.body.title,
       description: req.body.description || null,
       strategy: req.body.strategy || null,
@@ -955,8 +926,8 @@ app.post("/api/goals/:id/check", async (req, res) => {
 app.post("/api/morning-pulse", async (req, res) => {
   try {
     const { createMorningPulse } = await import("./scheduler/MorningPulse.js");
-    const { tenantId, timezone, delivery } = req.body || {};
-    const result = createMorningPulse(tenantId || null, timezone, delivery);
+    const { timezone, delivery } = req.body || {};
+    const result = createMorningPulse(null, timezone, delivery);
     res.status(result.created ? 201 : 200).json(result);
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
@@ -1017,9 +988,8 @@ app.post("/api/teams", async (req, res) => {
 
     // Run team in background (don't block HTTP response)
     const teamStore = await import("./teams/TeamStore.js");
-    const tenantId = null; // API calls are admin-level
     const team = teamStore.createTeam({
-      name: teamConfig.name || name, tenantId, config: { workers: teamConfig.workers },
+      name: teamConfig.name || name, config: { workers: teamConfig.workers },
       project: project || name, projectType, projectRepo, projectStack,
       requirements: task,
     });
@@ -1055,9 +1025,8 @@ app.get("/api/watchers/templates", async (req, res) => {
 
 app.get("/api/watchers", async (req, res) => {
   try {
-    const { loadWatchersByTenant, loadAllWatchers } = await import("./storage/WatcherStore.js");
-    const tenantId = req.query.tenantId || null;
-    const watchers = tenantId ? loadWatchersByTenant(tenantId) : loadAllWatchers();
+    const { loadAllWatchers } = await import("./storage/WatcherStore.js");
+    const watchers = loadAllWatchers();
     res.json({ watchers });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -1068,7 +1037,6 @@ app.post("/api/watchers", async (req, res) => {
     const { v4: uuidv4 } = await import("uuid");
     const watcher = {
       id: uuidv4().slice(0, 8),
-      tenantId: req.body.tenantId || null,
       name: req.body.name,
       description: req.body.description || null,
       triggerType: req.body.triggerType || "webhook",
@@ -1415,204 +1383,6 @@ app.post("/api/vault/lock", (req, res) => {
   res.json({ message: "Vault locked" });
 });
 
-// --- Tenant endpoints ---
-app.get("/api/tenants", (req, res) => {
-  const tenants = tenantManager.list().map(t => ({
-    ...t,
-    channels: tenantManager.getChannels(t.id),
-  }));
-  res.json({ tenants, stats: tenantManager.stats() });
-});
-
-app.post("/api/tenants", (req, res) => {
-  const { name, id: rawId, plan, notes } = req.body || {};
-  const input = rawId?.trim() || name?.trim();
-  if (!input) return res.status(400).json({ error: "name or id is required" });
-  const id = input.toLowerCase().replace(/[^a-z0-9_:.@-]/g, "-").replace(/-+/g, "-");
-  if (!id) return res.status(400).json({ error: "Invalid tenant name" });
-  const existing = tenantManager.get(id);
-  if (existing) return res.status(409).json({ error: "Tenant already exists" });
-  tenantManager.set(id, { plan: plan || "free", notes: notes || "" });
-  return res.json({ tenant: { id, ...tenantManager.get(id) }, created: true });
-});
-
-app.get("/api/tenants/:id", (req, res) => {
-  const id = decodeURIComponent(req.params.id);
-  const tenant = tenantManager.get(id);
-  if (!tenant) return res.status(404).json({ error: "Tenant not found" });
-  // Enrich with linked channels and API key names
-  tenant.channels = tenantManager.getChannels(id);
-  tenant.apiKeyNames = tenantManager.listApiKeyNames(id);
-  tenant.channelConfigKeys = tenantManager.listChannelConfigKeys(id);
-  res.json(tenant);
-});
-
-app.patch("/api/tenants/:id", (req, res) => {
-  const id = decodeURIComponent(req.params.id);
-  try {
-    const updated = tenantManager.set(id, req.body);
-    res.json(updated);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-app.post("/api/tenants/:id/suspend", (req, res) => {
-  const id = decodeURIComponent(req.params.id);
-  const { reason } = req.body;
-  const updated = tenantManager.suspend(id, reason || "");
-  if (!updated) return res.status(404).json({ error: "Tenant not found" });
-  res.json(updated);
-});
-
-app.post("/api/tenants/:id/unsuspend", (req, res) => {
-  const id = decodeURIComponent(req.params.id);
-  const updated = tenantManager.unsuspend(id);
-  if (!updated) return res.status(404).json({ error: "Tenant not found" });
-  res.json(updated);
-});
-
-app.post("/api/tenants/:id/reset", (req, res) => {
-  const id = decodeURIComponent(req.params.id);
-  const updated = tenantManager.reset(id);
-  if (!updated) return res.status(404).json({ error: "Tenant not found" });
-  res.json(updated);
-});
-
-app.delete("/api/tenants/:id", (req, res) => {
-  const id = decodeURIComponent(req.params.id);
-  const deleted = tenantManager.delete(id);
-  if (!deleted) return res.status(404).json({ error: "Tenant not found" });
-  res.json({ message: "Tenant deleted" });
-});
-
-// --- Tenant API keys ---
-app.get("/api/tenants/:id/apikeys", (req, res) => {
-  const id = decodeURIComponent(req.params.id);
-  const keys = tenantManager.listApiKeyNames(id);
-  res.json({ keys });
-});
-
-app.put("/api/tenants/:id/apikeys/:keyName", (req, res) => {
-  const id = decodeURIComponent(req.params.id);
-  const keyName = decodeURIComponent(req.params.keyName);
-  const { value } = req.body || {};
-  if (!value || typeof value !== "string" || value.length < 4) {
-    return res.status(400).json({ error: "value is required (min 4 chars)" });
-  }
-  tenantManager.setApiKey(id, keyName, value);
-  // Track new secret value for redaction
-  try { secretScanner.addKnownSecrets([value]); egressGuard.addSecrets([value]); } catch {}
-  res.json({ message: `API key ${keyName} saved` });
-});
-
-app.delete("/api/tenants/:id/apikeys/:keyName", (req, res) => {
-  const id = decodeURIComponent(req.params.id);
-  const keyName = decodeURIComponent(req.params.keyName);
-  const deleted = tenantManager.deleteApiKey(id, keyName);
-  if (!deleted) return res.status(404).json({ error: "Key not found" });
-  res.json({ message: `API key ${keyName} deleted` });
-});
-
-// --- Tenant channel identities ---
-app.get("/api/tenants/:id/channels", (req, res) => {
-  const id = decodeURIComponent(req.params.id);
-  if (!tenantManager.get(id)) return res.status(404).json({ error: "Tenant not found" });
-  res.json({ channels: tenantManager.getChannels(id) });
-});
-
-app.post("/api/tenants/:id/channels", (req, res) => {
-  const id = decodeURIComponent(req.params.id);
-  const { channel, userId } = req.body || {};
-  if (!channel || !userId) return res.status(400).json({ error: "channel and userId are required" });
-  try {
-    tenantManager.linkChannel(id, channel, userId);
-    res.json({ message: `Linked ${channel}:${userId} to tenant ${id}` });
-  } catch (err) {
-    const status = err.message.includes("not found") ? 404 : 409;
-    res.status(status).json({ error: err.message });
-  }
-});
-
-app.delete("/api/tenants/:id/channels/:channel/:userId", (req, res) => {
-  const id = decodeURIComponent(req.params.id);
-  const channel = req.params.channel;
-  const userId = decodeURIComponent(req.params.userId);
-  try {
-    tenantManager.unlinkChannel(id, channel, userId);
-    res.json({ message: `Unlinked ${channel}:${userId} from tenant ${id}` });
-  } catch (err) {
-    const status = err.message.includes("last channel") ? 400 : 404;
-    res.status(status).json({ error: err.message });
-  }
-});
-
-// --- Tenant-owned MCP servers ---
-
-app.get("/api/tenants/:id/mcp-servers", (req, res) => {
-  const id = decodeURIComponent(req.params.id);
-  if (!tenantManager.get(id)) return res.status(404).json({ error: "Tenant not found" });
-  res.json({ mcpServers: tenantManager.getOwnMcpServers(id) });
-});
-
-app.post("/api/tenants/:id/mcp-servers", (req, res) => {
-  const id = decodeURIComponent(req.params.id);
-  const { name, serverConfig } = req.body || {};
-  if (!name) return res.status(400).json({ error: "name is required" });
-  if (!serverConfig || (!serverConfig.command && !serverConfig.url)) {
-    return res.status(400).json({ error: "serverConfig must have 'command' (stdio) or 'url' (http/sse)" });
-  }
-  try {
-    const result = tenantManager.addOwnMcpServer(id, name, serverConfig);
-    res.json(result);
-  } catch (err) {
-    const status = err.message.includes("not found") ? 404 : 400;
-    res.status(status).json({ error: err.message });
-  }
-});
-
-app.delete("/api/tenants/:id/mcp-servers/:name", (req, res) => {
-  const id = decodeURIComponent(req.params.id);
-  const name = req.params.name;
-  const removed = tenantManager.removeOwnMcpServer(id, name);
-  if (!removed) return res.status(404).json({ error: `Server "${name}" not found for tenant` });
-  res.json({ message: `Removed MCP server "${name}" from tenant ${id}` });
-});
-
-// --- Per-tenant channel credentials ---
-
-app.get("/api/tenants/:id/channel-config", (req, res) => {
-  const id = decodeURIComponent(req.params.id);
-  if (!tenantManager.get(id)) return res.status(404).json({ error: "Tenant not found" });
-  const keys = tenantManager.listChannelConfigKeys(id);
-  res.json({ keys });
-});
-
-app.put("/api/tenants/:id/channel-config/:key", async (req, res) => {
-  const id = decodeURIComponent(req.params.id);
-  const key = req.params.key;
-  const { value } = req.body || {};
-  if (!value) return res.status(400).json({ error: "value is required" });
-  if (!tenantManager.get(id)) return res.status(404).json({ error: "Tenant not found" });
-  tenantManager.setChannelConfig(id, key, value);
-  // Live-reload channels for this tenant
-  const creds = tenantManager.getDecryptedChannelConfig(id);
-  await channelRegistry.reloadTenantChannels(id, creds);
-  res.json({ ok: true, key });
-});
-
-app.delete("/api/tenants/:id/channel-config/:key", async (req, res) => {
-  const id = decodeURIComponent(req.params.id);
-  const key = req.params.key;
-  if (!tenantManager.get(id)) return res.status(404).json({ error: "Tenant not found" });
-  const removed = tenantManager.deleteChannelConfig(id, key);
-  if (!removed) return res.status(404).json({ error: `Credential "${key}" not found` });
-  // Live-reload channels for this tenant
-  const creds = tenantManager.getDecryptedChannelConfig(id);
-  await channelRegistry.reloadTenantChannels(id, creds);
-  res.json({ ok: true });
-});
-
 // --- Exec approvals ---
 app.get("/api/approvals", (req, res) => {
   res.json({ approvals: execApproval.listPending(), mode: execApproval.mode });
@@ -1797,7 +1567,7 @@ import { listProfiles as listYamlProfiles, getProfile as getYamlProfile } from "
 import { defaultSubAgentTools } from "./config/agentProfiles.js";
 import { createSession as createMeetingSession, getSession as getMeetingSession, listSessions as listMeetingSessions } from "./meeting/MeetingSessionManager.js";
 import { joinMeeting, leaveMeeting } from "./meeting/PhoneMeetingBot.js";
-import { createClone, listVoices, deleteVoice, listTenantVoices } from "./voice/VoiceCloneManager.js";
+import { createClone, listVoices, deleteVoice } from "./voice/VoiceCloneManager.js";
 
 app.get("/api/agent-profiles", (req, res) => {
   try {
@@ -1856,12 +1626,7 @@ app.get("/api/meetings/:id/transcript", (req, res) => {
 // --- Voice clone endpoints ---
 app.get("/api/voices", async (req, res) => {
   try {
-    const source = req.query.source;
-    if (source === "tenant") {
-      res.json(listTenantVoices());
-    } else {
-      res.json(await listVoices());
-    }
+    res.json(await listVoices());
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

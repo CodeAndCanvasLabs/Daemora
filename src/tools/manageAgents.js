@@ -7,7 +7,7 @@ import {
   steerAgent,
 } from "../agents/SubAgentManager.js";
 import { listSessions, getSession, clearSession } from "../services/sessions.js";
-import tenantContext from "../tenants/TenantContext.js";
+import requestContext from "../core/RequestContext.js";
 import { msgText } from "../utils/msgText.js";
 import { mergeLegacyParams as _mergeLegacy } from "../utils/mergeToolParams.js";
 
@@ -41,7 +41,7 @@ export function manageAgents(toolParams) {
 
       // ── Persistent sub-agent session management ──────────────────────────
       case "sessions": {
-        const store = tenantContext.getStore();
+        const store = requestContext.getStore();
         const mainSessionId = store?.sessionId;
         if (!mainSessionId) return "No active session context.";
 
@@ -77,7 +77,7 @@ export function manageAgents(toolParams) {
       }
 
       case "session_clear_all": {
-        const store = tenantContext.getStore();
+        const store = requestContext.getStore();
         const mainSessionId = store?.sessionId;
         if (!mainSessionId) return "No active session context.";
         const subSessions = listSessions(mainSessionId);

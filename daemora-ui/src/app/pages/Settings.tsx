@@ -723,23 +723,6 @@ export function Settings() {
             </div>
           </div>
 
-          {/* Channel Status */}
-          {globalConfig.channels && (
-            <div>
-              <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider flex items-center gap-1.5">
-                <Zap className="w-3.5 h-3.5" /> Active Channels
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(globalConfig.channels as Record<string, { enabled: boolean }>).map(([ch, cfg]) => (
-                  <span key={ch} className={`text-[10px] font-mono px-2.5 py-1 rounded-lg border ${cfg.enabled ? "text-[#00ff88] bg-[#00ff88]/8 border-[#00ff88]/20" : "text-gray-600 bg-slate-800/30 border-slate-800"}`}>
-                    {ch}
-                  </span>
-                ))}
-              </div>
-              <p className="text-[10px] font-mono text-gray-600 mt-1.5">Enable/disable channels via environment variables or CLI</p>
-            </div>
-          )}
-
           {globalConfig.daemonMode !== undefined && (
             <div className="flex items-center gap-3 p-3 bg-slate-800/20 rounded-xl border border-slate-800/40">
               <span className={`w-2 h-2 rounded-full ${globalConfig.daemonMode ? "bg-[#00ff88]" : "bg-gray-600"}`} />
@@ -1025,71 +1008,6 @@ export function Settings() {
                       {visibleKeys.has(key) ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </Section>
-
-      {/* ── Global Channels ──────────────────────────────────────────── */}
-      <Section
-        icon={Zap}
-        title="Global Channels"
-        subtitle="Default channel tokens - tenants can override with their own"
-        badge={(() => {
-          const channelTokens = ["TELEGRAM_BOT_TOKEN", "DISCORD_BOT_TOKEN", "SLACK_BOT_TOKEN", "TWILIO_ACCOUNT_SID", "LINE_CHANNEL_ACCESS_TOKEN"];
-          const set = channelTokens.filter(k => data.vars[k]);
-          return set.length > 0 ? (
-            <span className="text-[9px] font-mono text-[#00ff88] bg-[#00ff88]/10 px-2 py-0.5 rounded-md border border-[#00ff88]/20">
-              {set.length} connected
-            </span>
-          ) : null;
-        })()}
-        actions={<SaveBtn dirty={dirty} saving={saving} saved={saved} onSave={handleSave} />}
-      >
-        <div className="space-y-3">
-          {[
-            { name: "Telegram", icon: FaTelegram, color: "#29B6F6", keys: [{ key: "TELEGRAM_BOT_TOKEN", label: "Bot Token" }] },
-            { name: "Discord", icon: FaDiscord, color: "#5865F2", keys: [{ key: "DISCORD_BOT_TOKEN", label: "Bot Token" }] },
-            { name: "Slack", icon: FaSlack, color: "#E01E5A", keys: [{ key: "SLACK_BOT_TOKEN", label: "Bot Token" }, { key: "SLACK_APP_TOKEN", label: "App Token" }] },
-            { name: "WhatsApp", icon: FaWhatsapp, color: "#25D366", keys: [{ key: "TWILIO_ACCOUNT_SID", label: "Account SID" }, { key: "TWILIO_AUTH_TOKEN", label: "Auth Token" }, { key: "TWILIO_WHATSAPP_FROM", label: "From Number" }] },
-            { name: "LINE", icon: FaLine, color: "#00B900", keys: [{ key: "LINE_CHANNEL_ACCESS_TOKEN", label: "Access Token" }, { key: "LINE_CHANNEL_SECRET", label: "Channel Secret" }] },
-            { name: "Email", icon: MdEmail, color: "#a78bfa", keys: [{ key: "RESEND_API_KEY", label: "Resend API Key" }, { key: "RESEND_FROM", label: "From Address" }] },
-            { name: "Signal", icon: SiSignal, color: "#3a76f0", keys: [{ key: "SIGNAL_CLI_URL", label: "CLI URL" }, { key: "SIGNAL_PHONE_NUMBER", label: "Phone Number" }] },
-            { name: "Teams", icon: BsMicrosoftTeams, color: "#6264A7", keys: [{ key: "TEAMS_APP_ID", label: "App ID" }, { key: "TEAMS_APP_PASSWORD", label: "App Password" }] },
-            { name: "Google Chat", icon: SiGooglechat, color: "#00AC47", keys: [{ key: "GOOGLE_CHAT_SERVICE_ACCOUNT", label: "Service Account" }, { key: "GOOGLE_CHAT_PROJECT_NUMBER", label: "Project Number" }] },
-          ].map(({ name, icon: Icon, color, keys }) => {
-            const tokenKey = keys[0].key;
-            const isConnected = !!data.vars[tokenKey];
-            return (
-              <div key={name} className="p-4 bg-slate-800/20 rounded-xl border border-slate-800/40">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2.5">
-                    <Icon className="w-5 h-5" style={{ color }} />
-                    <span className="text-[13px] font-mono font-medium text-white">{name}</span>
-                  </div>
-                  {isConnected && <span className="text-[8px] font-mono text-[#00ff88] bg-[#00ff88]/8 px-2 py-0.5 rounded border border-[#00ff88]/15">CONNECTED</span>}
-                </div>
-                <div className="space-y-2">
-                  {keys.map(({ key, label }) => {
-                    const isSet = !!data.vars[key];
-                    const hasEdit = editValues[key] !== undefined;
-                    return (
-                      <div key={key}>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] font-mono text-gray-500">{label}</span>
-                          {isSet && !hasEdit && <span className="text-[7px] font-mono text-[#00ff88]/60">set</span>}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input type={visibleKeys.has(key) ? "text" : "password"} placeholder={isSet ? data.vars[key] : "Not set"} value={editValues[key] ?? ""} onChange={(e) => handleChange(key, e.target.value)} className={inputClass + " !py-2 !text-xs"} />
-                          <button onClick={() => toggleVisible(key)} className="p-2 text-gray-600 hover:text-[#00d9ff] transition-colors">
-                            {visibleKeys.has(key) ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
                 </div>
               </div>
             );

@@ -12,7 +12,6 @@ import { createReadStream, writeFileSync, existsSync } from "node:fs";
 import { join, extname } from "node:path";
 import filesystemGuard from "../safety/FilesystemGuard.js";
 import { getTenantTmpDir } from "./_paths.js";
-import tenantContext from "../tenants/TenantContext.js";
 
 const SUPPORTED_EXTENSIONS = new Set([
   ".mp3", ".mp4", ".mpeg", ".mpga", ".m4a", ".wav", ".webm", ".ogg", ".oga", ".flac"
@@ -29,12 +28,9 @@ export async function transcribeAudio(params) {
   try {
     if (!audioPath) return "Error: audioPath is required";
 
-    const _store = tenantContext.getStore();
-    const _keys = _store?.apiKeys || {};
-
     // Resolve provider: explicit > auto-detect cheapest
-    const groqKey = _keys.GROQ_API_KEY || process.env.GROQ_API_KEY;
-    const openaiKey = _keys.OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    const groqKey = process.env.GROQ_API_KEY;
+    const openaiKey = process.env.OPENAI_API_KEY;
 
     let provider = providerOverride;
     if (!provider) {

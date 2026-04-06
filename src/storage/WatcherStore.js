@@ -62,13 +62,6 @@ export function loadWatcherByName(name) {
   return row ? _rowToWatcher(row) : null;
 }
 
-export function loadWatchersByTenant(tenantId) {
-  return queryAll(
-    "SELECT * FROM watchers WHERE tenant_id = $tid ORDER BY created_at DESC",
-    { $tid: tenantId }
-  ).map(_rowToWatcher);
-}
-
 export function loadEnabledWatchers() {
   return queryAll(
     "SELECT * FROM watchers WHERE enabled = 1 ORDER BY name ASC"

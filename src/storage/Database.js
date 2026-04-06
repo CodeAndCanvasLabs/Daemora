@@ -95,24 +95,6 @@ function _initTables(db) {
     CREATE INDEX IF NOT EXISTS idx_tasks_tenant ON tasks(tenant_id);
     CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id);
 
-    CREATE TABLE IF NOT EXISTS tenants (
-      id TEXT PRIMARY KEY,
-      config TEXT NOT NULL DEFAULT '{}',
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      last_seen_at TEXT,
-      suspended INTEGER DEFAULT 0,
-      suspend_reason TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS tenant_channels (
-      channel  TEXT NOT NULL,
-      user_id  TEXT NOT NULL,
-      tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-      linked_at TEXT NOT NULL DEFAULT (datetime('now')),
-      PRIMARY KEY (channel, user_id)
-    );
-    CREATE INDEX IF NOT EXISTS idx_tenant_channels_tenant ON tenant_channels(tenant_id);
-
     CREATE TABLE IF NOT EXISTS vault_entries (
       key        TEXT PRIMARY KEY,
       value      TEXT NOT NULL,
@@ -264,13 +246,6 @@ function _runMigrations(db) {
   _addCol("tool_calls", "TEXT");
   _addCol("sub_agents", "TEXT");
   _addCol("cost", "TEXT");
-
-  // Add meta column to tenant_channels for storing full routing metadata (chatId, channelId, phone, etc.)
-  const _tcCols = () => db.prepare("PRAGMA table_info(tenant_channels)").all().map(r => r.name);
-  if (!_tcCols().includes("meta")) {
-    db.exec("ALTER TABLE tenant_channels ADD COLUMN meta TEXT");
-    console.log("[Database] Migration: added tenant_channels.meta");
-  }
 
   // Watchers: add destinations column (JSON array of {channel, channelMeta})
   const _watcherCols = () => db.prepare("PRAGMA table_info(watchers)").all().map(r => r.name);
@@ -487,18 +462,6 @@ function _runMigrations(db) {
     CREATE INDEX IF NOT EXISTS idx_secret_access_ts ON secret_access_log(timestamp);
   `);
 
-  // Backfill tenant_channels from existing "channel:userId" tenant IDs (idempotent)
-  const tenants = db.prepare("SELECT id FROM tenants").all();
-  for (const { id } of tenants) {
-    const colonIdx = id.indexOf(":");
-    if (colonIdx === -1) continue;
-    const channel = id.slice(0, colonIdx);
-    const userId  = id.slice(colonIdx + 1);
-    if (!channel || !userId) continue;
-    db.prepare(
-      "INSERT OR IGNORE INTO tenant_channels (channel, user_id, tenant_id) VALUES (?, ?, ?)"
-    ).run(channel, userId, id);
-  }
 }
 
 // ── Flat File Migration ──────────────────────────────────────────────────────
@@ -512,7 +475,6 @@ function _migrateFromFlatFiles() {
 
   _migrateSessions();
   _migrateTasks();
-  _migrateTenants();
   _migrateCosts();
   _migrateAudit();
   _migrateMemory();
@@ -616,39 +578,6 @@ function _migrateTasks() {
   console.log(`[Database] Tasks migrated.`);
 }
 
-function _migrateTenants() {
-  const tenantsPath = join(config.dataDir, "tenants", "tenants.json");
-  if (!existsSync(tenantsPath)) return;
-
-  const existing = queryOne("SELECT COUNT(*) as cnt FROM tenants");
-  if (existing.cnt > 0) return;
-
-  console.log(`[Database] Migrating tenants.json to SQLite...`);
-  try {
-    const tenants = JSON.parse(readFileSync(tenantsPath, "utf-8"));
-    transaction(() => {
-      for (const [id, t] of Object.entries(tenants)) {
-        run(
-          `INSERT OR IGNORE INTO tenants (id, config, created_at, last_seen_at, suspended, suspend_reason)
-           VALUES ($id, $config, $created_at, $last_seen_at, $suspended, $suspend_reason)`,
-          {
-            $id: id,
-            $config: JSON.stringify(t),
-            $created_at: t.createdAt || new Date().toISOString(),
-            $last_seen_at: t.lastSeenAt || null,
-            $suspended: t.suspended ? 1 : 0,
-            $suspend_reason: t.suspendReason || null,
-          }
-        );
-      }
-    });
-    _safeBak(tenantsPath);
-    console.log(`[Database] Tenants migrated.`);
-  } catch (err) {
-    console.log(`[Database] Tenant migration error: ${err.message}`);
-  }
-}
-
 function _migrateCosts() {
   const dir = config.costsDir;
   if (!existsSync(dir)) return;
@@ -731,21 +660,6 @@ function _migrateAudit() {
 
 function _migrateMemory() {
   _migrateMemoryDir(null, config.memoryPath, config.memoryDir);
-
-  // Migrate per-tenant memory
-  const tenantsDir = join(config.dataDir, "tenants");
-  if (!existsSync(tenantsDir)) return;
-  try {
-    const tenantDirs = readdirSync(tenantsDir).filter(d => {
-      try { return statSync(join(tenantsDir, d)).isDirectory(); } catch { return false; }
-    });
-    for (const safeId of tenantDirs) {
-      const tenantMemoryPath = join(tenantsDir, safeId, "MEMORY.md");
-      const tenantMemoryDir = join(tenantsDir, safeId, "memory");
-      const tenantId = safeId.replace(/_/g, ":");  // rough reverse of safe encoding
-      _migrateMemoryDir(tenantId, tenantMemoryPath, tenantMemoryDir);
-    }
-  } catch {}
 }
 
 const ENTRY_REGEX_MIG = /<!--\s*\[([^\]]+)\](?:\s*\[CATEGORY:([^\]]+)\])?\s*([\s\S]*?)\s*-->/g;

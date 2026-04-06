@@ -5,7 +5,7 @@
  *   name        - internal key (matches channel registry)
  *   label       - display name
  *   desc        - short description
- *   tenantKey   - tenant ID prefix
+ *
  *   envRequired - env vars that MUST be set (entries like "KEY=value" mean literal match)
  *   envOptional - [KEY, description] pairs
  *   setup       - setup instruction lines
@@ -17,7 +17,7 @@
 export const CHANNEL_DEFS = [
   {
     name: "telegram", label: "Telegram", desc: "Bot via @BotFather",
-    tenantKey: "telegram",
+
     envRequired: ["TELEGRAM_BOT_TOKEN"],
     envOptional: [
       ["TELEGRAM_ALLOWLIST",  "Comma-separated chat IDs allowed to message the bot. Empty = open."],
@@ -34,7 +34,7 @@ export const CHANNEL_DEFS = [
   },
   {
     name: "whatsapp", label: "WhatsApp", desc: "Via Twilio (sandbox or dedicated number)",
-    tenantKey: "whatsapp",
+
     envRequired: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"],
     envOptional: [
       ["TWILIO_WHATSAPP_FROM",  "Sending number (default: whatsapp:+14155238886 sandbox)"],
@@ -63,7 +63,7 @@ export const CHANNEL_DEFS = [
   },
   {
     name: "discord", label: "Discord", desc: "Bot via Discord Developer Portal",
-    tenantKey: "discord",
+
     envRequired: ["DISCORD_BOT_TOKEN"],
     envOptional: [
       ["DISCORD_ALLOWLIST", "Comma-separated Discord user snowflake IDs"],
@@ -82,7 +82,7 @@ export const CHANNEL_DEFS = [
   },
   {
     name: "slack", label: "Slack", desc: "Socket Mode bot",
-    tenantKey: "slack",
+
     envRequired: ["SLACK_BOT_TOKEN", "SLACK_APP_TOKEN"],
     envOptional: [
       ["SLACK_ALLOWLIST", "Comma-separated Slack user IDs (Uxxxxxxxxx)"],
@@ -101,7 +101,7 @@ export const CHANNEL_DEFS = [
   },
   {
     name: "email", label: "Email", desc: "Gmail IMAP/SMTP (reads + sends)",
-    tenantKey: "email",
+
     envRequired: ["EMAIL_USER", "EMAIL_PASSWORD"],
     envOptional: [
       ["EMAIL_IMAP_HOST",  "IMAP host (default: imap.gmail.com)"],
@@ -134,7 +134,7 @@ export const CHANNEL_DEFS = [
   },
   {
     name: "line", label: "LINE", desc: "LINE Messaging API",
-    tenantKey: "line",
+
     envRequired: ["LINE_CHANNEL_ACCESS_TOKEN", "LINE_CHANNEL_SECRET"],
     envOptional: [
       ["LINE_ALLOWLIST", "Comma-separated LINE user IDs (Uxxxxxxxxxx)"],
@@ -153,7 +153,7 @@ export const CHANNEL_DEFS = [
   },
   {
     name: "signal", label: "Signal", desc: "signal-cli REST daemon",
-    tenantKey: "signal",
+
     envRequired: ["SIGNAL_CLI_URL", "SIGNAL_PHONE_NUMBER"],
     envOptional: [
       ["SIGNAL_ALLOWLIST", "Comma-separated phone numbers (+1234567890)"],
@@ -172,7 +172,7 @@ export const CHANNEL_DEFS = [
   },
   {
     name: "teams", label: "Microsoft Teams", desc: "Azure Bot Framework",
-    tenantKey: "teams",
+
     envRequired: ["TEAMS_APP_ID", "TEAMS_APP_PASSWORD"],
     envOptional: [
       ["TEAMS_ALLOWLIST", "Comma-separated Teams user IDs or AAD object IDs"],
@@ -191,7 +191,7 @@ export const CHANNEL_DEFS = [
   },
   {
     name: "googlechat", label: "Google Chat", desc: "Google Cloud service account",
-    tenantKey: "googlechat",
+
     envRequired: ["GOOGLE_CHAT_SERVICE_ACCOUNT"],
     envOptional: [
       ["GOOGLE_CHAT_PROJECT_NUMBER", "GCP project number"],
@@ -211,7 +211,7 @@ export const CHANNEL_DEFS = [
   },
   {
     name: "matrix", label: "Matrix", desc: "Element / matrix.org protocol",
-    tenantKey: "matrix",
+
     envRequired: ["MATRIX_HOMESERVER_URL", "MATRIX_ACCESS_TOKEN"],
     envOptional: [
       ["MATRIX_BOT_USER_ID", "Bot user ID (e.g. @daemora:matrix.org)"],
@@ -231,7 +231,7 @@ export const CHANNEL_DEFS = [
   },
   {
     name: "mattermost", label: "Mattermost", desc: "WebSocket bot",
-    tenantKey: "mattermost",
+
     envRequired: ["MATTERMOST_URL", "MATTERMOST_TOKEN"],
     envOptional: [
       ["MATTERMOST_BOT_USER_ID",  "Bot user ID"],
@@ -251,7 +251,7 @@ export const CHANNEL_DEFS = [
   },
   {
     name: "twitch", label: "Twitch", desc: "Chat commands (!ask prefix)",
-    tenantKey: "twitch",
+
     envRequired: ["TWITCH_BOT_USERNAME", "TWITCH_OAUTH_TOKEN", "TWITCH_CHANNEL"],
     envOptional: [
       ["TWITCH_COMMAND_PREFIX", "Command prefix (default: !ask)"],
@@ -269,7 +269,7 @@ export const CHANNEL_DEFS = [
   },
   {
     name: "irc", label: "IRC", desc: "Any IRC network - no external packages",
-    tenantKey: "irc",
+
     envRequired: ["IRC_SERVER", "IRC_NICK"],
     envOptional: [
       ["IRC_PORT",     "Port (default: 6667)"],
@@ -290,7 +290,7 @@ export const CHANNEL_DEFS = [
   },
   {
     name: "imessage", label: "iMessage", desc: "macOS only - AppleScript polling",
-    tenantKey: "imessage",
+
     envRequired: ["IMESSAGE_ENABLED=true"],
     envOptional: [
       ["IMESSAGE_POLL_INTERVAL_MS", "Poll interval in ms (default: 5000)"],
@@ -309,7 +309,7 @@ export const CHANNEL_DEFS = [
   },
   {
     name: "feishu", label: "Feishu / Lark", desc: "Bytedance enterprise messaging",
-    tenantKey: "feishu",
+
     envRequired: ["FEISHU_APP_ID", "FEISHU_APP_SECRET"],
     envOptional: [
       ["FEISHU_VERIFICATION_TOKEN", "Webhook verification token"],
@@ -330,7 +330,7 @@ export const CHANNEL_DEFS = [
   },
   {
     name: "zalo", label: "Zalo", desc: "Vietnam - 75M+ users",
-    tenantKey: "zalo",
+
     envRequired: ["ZALO_APP_ID", "ZALO_ACCESS_TOKEN"],
     envOptional: [
       ["ZALO_APP_SECRET", "Zalo App Secret"],
@@ -350,7 +350,7 @@ export const CHANNEL_DEFS = [
   },
   {
     name: "nextcloud", label: "Nextcloud Talk", desc: "Self-hosted collaboration",
-    tenantKey: "nextcloud",
+
     envRequired: ["NEXTCLOUD_URL", "NEXTCLOUD_USER", "NEXTCLOUD_PASSWORD"],
     envOptional: [
       ["NEXTCLOUD_ROOM_TOKEN", "Talk room token (from /call/<token> in URL)"],
@@ -369,7 +369,7 @@ export const CHANNEL_DEFS = [
   },
   {
     name: "bluebubbles", label: "BlueBubbles", desc: "iMessage relay server (Mac required)",
-    tenantKey: "bluebubbles",
+
     envRequired: ["BLUEBUBBLES_URL", "BLUEBUBBLES_PASSWORD"],
     envOptional: [],
     setup: [
@@ -384,7 +384,7 @@ export const CHANNEL_DEFS = [
   },
   {
     name: "nostr", label: "Nostr", desc: "Decentralized protocol - NIP-04 encrypted DMs",
-    tenantKey: "nostr",
+
     envRequired: ["NOSTR_PRIVATE_KEY"],
     envOptional: [
       ["NOSTR_RELAYS", "Comma-separated relay WSS URLs"],

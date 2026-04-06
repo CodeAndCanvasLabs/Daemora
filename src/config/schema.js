@@ -88,12 +88,6 @@ export const ConfigSchema = z.object({
     restrictCommands: z.boolean().default(false),
   }).strict().default({}),
 
-  // Multi-tenant
-  multiTenant: z.object({
-    enabled:            z.boolean().default(false),
-    autoRegister:       z.boolean().default(true),
-    isolateFilesystem:  z.boolean().default(false),
-  }).strict().default({}),
 
   // Sandbox
   sandbox: z.object({

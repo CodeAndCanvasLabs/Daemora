@@ -314,12 +314,11 @@ async function _resolveDefaultChannelMeta(channelName) {
 
     // Check for a default/fallback channel ID from config or recent activity
     // Discord: look for DISCORD_DEFAULT_CHANNEL_ID or first guild text channel
-    // Telegram: look for the admin chat ID from tenant_channels
+    // Look for cached routing meta from channel_routing
     const { queryOne } = await import("../storage/Database.js");
 
-    // Find most recent channelMeta for this channel from tenant_channels
     const row = queryOne(
-      "SELECT meta FROM tenant_channels WHERE channel = $ch ORDER BY rowid DESC LIMIT 1",
+      "SELECT meta FROM channel_routing WHERE channel = $ch ORDER BY rowid DESC LIMIT 1",
       { $ch: channelName }
     );
     if (row?.meta) {
