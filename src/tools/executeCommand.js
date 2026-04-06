@@ -95,25 +95,23 @@ export async function executeCommand(params) {
   const store = requestContext.getStore();
   const resolvedConfig = store?.resolvedConfig;
   const allowedPaths = resolvedConfig?.allowedPaths || config.filesystem?.allowedPaths || [];
-  if (allowedPaths.length > 0) {
-    // Always check that the cwd is inside an allowed directory
+  const blockedPaths = resolvedConfig?.blockedPaths || config.filesystem?.blockedPaths || [];
+  const hasScope = allowedPaths.length > 0 || blockedPaths.length > 0;
+
+  if (hasScope) {
+    // Check that the cwd is permitted (respects both allowed + blocked)
     const cwdGuard = filesystemGuard.checkRead(cwd);
     if (!cwdGuard.allowed) {
-      return `Access denied: Working directory "${cwd}" is outside the allowed paths. ` +
-        `Allowed: ${allowedPaths.join(", ")}`;
+      return `Access denied: Working directory "${cwd}" is not permitted. ${cwdGuard.reason}`;
     }
 
-    // When RESTRICT_COMMANDS=true, also scan command string for absolute path references
-    if (config.filesystem?.restrictCommands) {
-      // Extract absolute paths from the command (Unix + Windows style)
-      const absPathPattern = /(\/[^\s'";|&><$]+|[A-Za-z]:\\[^\s'";|&><$]+)/g;
-      const matches = [...cmd.matchAll(absPathPattern)].map((m) => m[1]);
-      for (const p of matches) {
-        const check = filesystemGuard.checkRead(p);
-        if (!check.allowed) {
-          return `Access denied: Command references a path outside allowed directories: "${p}". ` +
-            `Allowed: ${allowedPaths.join(", ")}`;
-        }
+    // Scan command string for absolute path references — always when paths are configured
+    const absPathPattern = /(\/[^\s'";|&><$]+|[A-Za-z]:\\[^\s'";|&><$]+)/g;
+    const matches = [...cmd.matchAll(absPathPattern)].map((m) => m[1]);
+    for (const p of matches) {
+      const check = filesystemGuard.checkRead(p);
+      if (!check.allowed) {
+        return `Access denied: Command references a blocked path: "${p}". ${check.reason}`;
       }
     }
   }
