@@ -248,15 +248,22 @@ function _runMigrations(db) {
   _addCol("cost", "TEXT");
 
   // Watchers: add destinations column (JSON array of {channel, channelMeta})
-  const _watcherCols = () => db.prepare("PRAGMA table_info(watchers)").all().map(r => r.name);
-  if (!_watcherCols().includes("destinations")) {
-    db.exec("ALTER TABLE watchers ADD COLUMN destinations TEXT");
-    console.log("[Database] Migration: added watchers.destinations");
-  }
+  // Guard: table may not exist if DB was created by an older version
+  const _tableExists = (name) => {
+    const row = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(name);
+    return !!row;
+  };
 
-  if (!_watcherCols().includes("context")) {
-    db.exec("ALTER TABLE watchers ADD COLUMN context TEXT");
-    console.log("[Database] Migration: added watchers.context");
+  if (_tableExists("watchers")) {
+    const _watcherCols = () => db.prepare("PRAGMA table_info(watchers)").all().map(r => r.name);
+    if (!_watcherCols().includes("destinations")) {
+      db.exec("ALTER TABLE watchers ADD COLUMN destinations TEXT");
+      console.log("[Database] Migration: added watchers.destinations");
+    }
+    if (!_watcherCols().includes("context")) {
+      db.exec("ALTER TABLE watchers ADD COLUMN context TEXT");
+      console.log("[Database] Migration: added watchers.context");
+    }
   }
 
   // Cron: add delivery_targets + delivery_preset_id columns
