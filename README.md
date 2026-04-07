@@ -17,7 +17,7 @@
 
 Deploy once on your machine. Connect your channels. Message the bot - it writes code, does research, sends emails, runs cron jobs, and reports back. You own everything.
 
-59 built-in tools. 20 channels. 14 security layers. 7 AI providers. Multi-agent teams. Production-grade scheduling. Crew system with self-improving learning. MCP integration. All self-hosted - nothing leaves your infrastructure except the tokens you send to model APIs.
+59 built-in tools. 20 channels. 14 security layers. 7 AI providers. Multi-agent teams. Production-grade scheduling. Continuous brain with three-layer memory. Crew system. MCP integration. All self-hosted - nothing leaves your infrastructure except the tokens you send to model APIs.
 
 ---
 
@@ -32,7 +32,7 @@ Deploy once on your machine. Connect your channels. Message the bot - it writes 
 | **Scheduler** | Production-grade scheduling (one-shot, interval, cron expressions) with overlap prevention, retry with backoff, channel delivery, failure alerts, Morning Pulse daily briefing, and run history. |
 | **Communicate** | Send emails, Telegram messages, Slack posts, Discord messages - autonomously. Screenshots, files, and media sent directly back to you via `replyWithFile`. |
 | **Crew** | Self-contained specialist sub-agents - database queries, smart home control, SSH, notifications, calendars. Build your own crew member in 3 files. Community crew marketplace coming soon. |
-| **Self-Improving** | After complex tasks, a background agent reviews the conversation and auto-creates reusable skills + saves user preferences. The more you use it, the better it gets. |
+| **Continuous Brain** | Three-layer memory (semantic/episodic/procedural) with automatic extraction, composite-scored recall, confidence decay, and context pruning. Learns from every task - no manual saving needed. Unified session across all channels. |
 | **Tools** | Connect to any MCP server - create Notion pages, open GitHub issues, update Linear tasks, manage Shopify products, query databases. |
 | **Voice & Meetings** | Join any meeting (Google Meet, Zoom, Teams) via phone dial-in. OpenAI Realtime STT + ElevenLabs/OpenAI TTS. Voice cloning. Outbound voice calls. Auto-transcription + meeting summaries. |
 | **Multi-Agent** | Spawn parallel sub-agents (researcher + coder + writer working simultaneously). Create agent teams with shared task lists, dependencies, and inter-agent messaging. |
@@ -445,12 +445,11 @@ daemora doctor
 
 ## Data Storage
 
-SQLite database (`data/daemora.db`) stores configuration, sessions, tasks, cron jobs, vault secrets, and channel identities. File-based storage is used for memory, audit logs, and cost tracking.
+SQLite database (`data/daemora.db`) stores configuration, sessions, tasks, cron jobs, vault secrets, channel identities, and three-layer memory (semantic/episodic/procedural). File-based storage is used for audit logs and cost tracking.
 
 ```
 data/
-├── daemora.db      SQLite database (config, sessions, tasks, vault, cron)
-├── memory/         MEMORY.md + daily logs + skill embeddings
+├── daemora.db      SQLite database (config, sessions, tasks, vault, cron, memory, learning_log)
 ├── audit/          Append-only JSONL audit logs (secrets stripped)
 ├── costs/          Per-day cost tracking logs
 └── skill-embeddings.json

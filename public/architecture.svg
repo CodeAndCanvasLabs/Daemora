@@ -45,7 +45,7 @@
   <!-- Agent Loop -->
   <rect x="60" y="328" width="780" height="68" rx="8" fill="#1a2332" stroke="#58a6ff" stroke-width="1.5"/>
   <text x="450" y="352" text-anchor="middle" fill="#58a6ff" font-size="13" font-weight="700">AGENT LOOP (Vercel AI SDK)</text>
-  <text x="450" y="372" text-anchor="middle" fill="#8b949e" font-size="10">generateText + native tool calling · SOUL.md + memory + skills · 9 providers · Thinking support · Self-improving (BackgroundReviewer)</text>
+  <text x="450" y="372" text-anchor="middle" fill="#8b949e" font-size="10">generateText + native tool calling · SOUL.md + smart recall + skills · 9 providers · Thinking support · Continuous Brain (3-layer memory + context pruning)</text>
 
   <!-- Arrows to bottom row -->
   <line x1="170" y1="396" x2="170" y2="430" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrowCyan)"/>
