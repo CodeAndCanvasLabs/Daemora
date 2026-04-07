@@ -71,6 +71,7 @@ const TOOL_SUMMARIES = {
   writeDailyLog: "Log task completion to daily log",
   replyToUser: "Send mid-task progress update to user",
   gitTool: "Git operations (status, diff, log, commit)",
+  createPoll: "Create a poll in the user's active channel",
   broadcast: "Send message to all channels",
   manageAgents: "List, steer, or kill sub-agents",
   meetingAction: "Join/manage phone meetings",

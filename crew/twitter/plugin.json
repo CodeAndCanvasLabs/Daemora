@@ -1,0 +1,18 @@
+{
+  "id": "twitter",
+  "name": "X (Twitter)",
+  "version": "1.0.0",
+  "description": "Post tweets, read timeline, search, reply, like, and manage X/Twitter account",
+  "config": {
+    "X_BEARER_TOKEN": { "type": "secret", "required": true, "label": "X Bearer Token" },
+    "X_API_KEY": { "type": "secret", "label": "X API Key (for write ops)" },
+    "X_API_SECRET": { "type": "secret", "label": "X API Secret" },
+    "X_ACCESS_TOKEN": { "type": "secret", "label": "X Access Token" },
+    "X_ACCESS_SECRET": { "type": "secret", "label": "X Access Token Secret" }
+  },
+  "profile": {
+    "systemPrompt": "You are an X/Twitter specialist. You post tweets, read timelines, search for topics, reply to conversations, and manage social presence. Keep tweets under 280 chars. Use threads for longer content. Be concise and engaging. Never post sensitive information.",
+    "temperature": 0.5
+  },
+  "skills": ["content-research-writer"]
+}

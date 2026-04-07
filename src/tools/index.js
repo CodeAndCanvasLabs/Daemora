@@ -42,6 +42,7 @@ import { generateVideo } from "./generateVideo.js";
 import { generateMusic } from "./generateMusic.js";
 import { imageOps } from "./imageOps.js";
 import { readPDF } from "./readPDF.js";
+import { createPoll } from "./pollTool.js";
 import { gitTool } from "./gitTool.js";
 import { clipboard } from "./clipboard.js";
 // Crew tools NOT imported here - crew members are self-contained sub-agents.
@@ -92,7 +93,7 @@ export const toolFunctions = {
   makeVoiceCall,
   teamTask,
   meetingAction,
-  generateImage, generateVideo, generateMusic, imageOps, readPDF,
+  generateImage, generateVideo, generateMusic, imageOps, readPDF, createPoll,
   gitTool, clipboard,
   discoverCrew,
   broadcast,

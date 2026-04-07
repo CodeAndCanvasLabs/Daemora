@@ -96,6 +96,19 @@ export class BaseChannel {
   }
 
   /**
+   * Create a poll in the channel (optional feature).
+   * @param {object} channelMeta - Channel-specific metadata
+   * @param {string} question - Poll question
+   * @param {string[]} options - Answer options
+   * @param {number} duration - Duration in hours (default: 24)
+   */
+  async sendPoll(channelMeta, question, options, duration = 24) {
+    // Default: format as text (channels that support native polls override this)
+    const formatted = `📊 **${question}**\n${options.map((o, i) => `${i + 1}. ${o}`).join("\n")}`;
+    return this.sendReply(channelMeta, formatted);
+  }
+
+  /**
    * Check whether a user is allowed to send tasks on this channel.
    *
    * If config.allowlist is empty or not set → everyone is allowed (open channel).

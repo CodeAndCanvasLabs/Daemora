@@ -316,6 +316,16 @@ export class TelegramChannel extends BaseChannel {
     try { await this.bot.api.sendChatAction(channelMeta.chatId, "typing"); } catch (_) {}
   }
 
+  async sendPoll(channelMeta, question, options, duration = 24) {
+    if (!this.bot || !channelMeta?.chatId) return;
+    try {
+      await this.bot.api.sendPoll(channelMeta.chatId, question, options, {
+        is_anonymous: false,
+        open_period: Math.min(duration * 3600, 600), // Telegram max: 600 seconds for open_period
+      });
+    } catch (err) { console.log(`[Channel:Telegram] sendPoll error: ${err.message}`); }
+  }
+
   async editMessage(channelMeta, messageId, newText) {
     if (!this.bot || !channelMeta?.chatId) return;
     try { await this.bot.api.editMessageText(channelMeta.chatId, parseInt(messageId), newText); } catch (err) {

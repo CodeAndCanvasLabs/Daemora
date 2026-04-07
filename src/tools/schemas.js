@@ -568,6 +568,16 @@ const toolSchemas = {
     description: "Join meetings via phone dial-in (Twilio). join={dialIn, pin} dials meeting number. wait=blocks until call ends, returns full transcript. Bot converses autonomously via OpenAI Realtime STT + TTS. Voice cloning via ElevenLabs.",
   },
 
+  // ── Polls ────────────────────────────────────────────────────────────────
+  createPoll: {
+    schema: z.object({
+      question: str("Poll question"),
+      options: z.array(z.string()).describe("Answer options (2-10 items)"),
+      duration: optNum("Duration in hours (default: 24)"),
+    }),
+    description: "Create a poll in the user's active channel",
+  },
+
   // ── Git ──────────────────────────────────────────────────────────────────
   gitTool: {
     schema: z.object({
