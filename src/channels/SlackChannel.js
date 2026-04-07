@@ -237,6 +237,27 @@ export class SlackChannel extends BaseChannel {
     await this._addReaction(channelMeta.channelId, channelMeta.messageTs, name);
   }
 
+  async editMessage(channelMeta, messageId, newText) {
+    try {
+      await this.app.client.chat.update({
+        token: this.config.botToken,
+        channel: channelMeta.channelId,
+        ts: messageId,
+        text: newText,
+      });
+    } catch (err) { console.log(`[Channel:Slack] editMessage error: ${err.message}`); }
+  }
+
+  async deleteMessage(channelMeta, messageId) {
+    try {
+      await this.app.client.chat.delete({
+        token: this.config.botToken,
+        channel: channelMeta.channelId,
+        ts: messageId,
+      });
+    } catch (err) { console.log(`[Channel:Slack] deleteMessage error: ${err.message}`); }
+  }
+
   async _addReaction(channelId, timestamp, name) {
     try {
       await this.app.client.reactions.add({

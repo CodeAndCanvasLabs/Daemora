@@ -214,6 +214,33 @@ export class DiscordChannel extends BaseChannel {
     }
   }
 
+  async editMessage(channelMeta, messageId, newText) {
+    if (!this.client) return;
+    try {
+      const channel = await this.client.channels.fetch(channelMeta.channelId);
+      const msg = await channel.messages.fetch(messageId);
+      if (msg) await msg.edit(newText);
+    } catch (err) { console.log(`[Channel:Discord] editMessage error: ${err.message}`); }
+  }
+
+  async deleteMessage(channelMeta, messageId) {
+    if (!this.client) return;
+    try {
+      const channel = await this.client.channels.fetch(channelMeta.channelId);
+      const msg = await channel.messages.fetch(messageId);
+      if (msg) await msg.delete();
+    } catch (err) { console.log(`[Channel:Discord] deleteMessage error: ${err.message}`); }
+  }
+
+  async sendThreadReply(channelMeta, text) {
+    if (!this.client) return;
+    try {
+      const msg = channelMeta?.message;
+      if (msg) await msg.reply(text);
+      else await this.sendReply(channelMeta, text);
+    } catch (err) { await this.sendReply(channelMeta, text); }
+  }
+
   async sendTyping(channelMeta) {
     try {
       const msg = channelMeta?.message;

@@ -15,6 +15,8 @@ const TOOL_REQUIRED_KEYS = {
   transcribeAudio: ["OPENAI_API_KEY"],
   textToSpeech:    ["OPENAI_API_KEY", "ELEVENLABS_API_KEY"],
   generateImage:   ["OPENAI_API_KEY"],
+  generateVideo:   ["OPENAI_API_KEY"],
+  generateMusic:   ["OPENAI_API_KEY", "SUNO_API_KEY"],
   meetingAction:   ["TWILIO_ACCOUNT_SID"],
 };
 
@@ -48,6 +50,9 @@ const TOOL_SUMMARIES = {
   textToSpeech: "Convert text to audio (OpenAI/ElevenLabs)",
   transcribeAudio: "Transcribe audio file to text",
   generateImage: "Generate image from text prompt (DALL-E)",
+  generateVideo: "Generate video from text prompt (async, returns file path)",
+  generateMusic: "Generate music/audio from text description",
+  imageOps: "Process images locally: resize, compress, convert, crop, rotate, blur, grayscale",
   imageAnalysis: "Analyze image with vision model",
   readPDF: "Extract text from PDF files",
   createDocument: "Create formatted documents (docx, pdf, pptx, xlsx)",

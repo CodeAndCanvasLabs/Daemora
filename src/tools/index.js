@@ -38,6 +38,9 @@ import { teamTask } from "./teamTool.js";
 import { meetingAction } from "./meetingTool.js";
 import { replyToUser } from "./replyToUser.js";
 import { generateImage } from "./generateImage.js";
+import { generateVideo } from "./generateVideo.js";
+import { generateMusic } from "./generateMusic.js";
+import { imageOps } from "./imageOps.js";
 import { readPDF } from "./readPDF.js";
 import { gitTool } from "./gitTool.js";
 import { clipboard } from "./clipboard.js";
@@ -89,7 +92,7 @@ export const toolFunctions = {
   makeVoiceCall,
   teamTask,
   meetingAction,
-  generateImage, readPDF,
+  generateImage, generateVideo, generateMusic, imageOps, readPDF,
   gitTool, clipboard,
   discoverCrew,
   broadcast,

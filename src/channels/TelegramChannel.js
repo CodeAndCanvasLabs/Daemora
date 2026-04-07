@@ -316,6 +316,20 @@ export class TelegramChannel extends BaseChannel {
     try { await this.bot.api.sendChatAction(channelMeta.chatId, "typing"); } catch (_) {}
   }
 
+  async editMessage(channelMeta, messageId, newText) {
+    if (!this.bot || !channelMeta?.chatId) return;
+    try { await this.bot.api.editMessageText(channelMeta.chatId, parseInt(messageId), newText); } catch (err) {
+      console.log(`[Channel:Telegram] editMessage error: ${err.message}`);
+    }
+  }
+
+  async deleteMessage(channelMeta, messageId) {
+    if (!this.bot || !channelMeta?.chatId) return;
+    try { await this.bot.api.deleteMessage(channelMeta.chatId, parseInt(messageId)); } catch (err) {
+      console.log(`[Channel:Telegram] deleteMessage error: ${err.message}`);
+    }
+  }
+
   async sendReaction(channelMeta, emoji) {
     if (!this.bot || !channelMeta.messageId) return;
     try {

@@ -67,6 +67,35 @@ export class BaseChannel {
   }
 
   /**
+   * Edit a previously sent message (optional feature).
+   * @param {object} channelMeta - Channel-specific metadata
+   * @param {string} messageId - ID of the message to edit
+   * @param {string} newText - New message content
+   */
+  async editMessage(channelMeta, messageId, newText) {
+    // Default no-op - channels that support editing override this
+  }
+
+  /**
+   * Delete a previously sent message (optional feature).
+   * @param {object} channelMeta - Channel-specific metadata
+   * @param {string} messageId - ID of the message to delete
+   */
+  async deleteMessage(channelMeta, messageId) {
+    // Default no-op - channels that support deletion override this
+  }
+
+  /**
+   * Reply in a thread (optional feature).
+   * Falls back to sendReply if threading not supported.
+   * @param {object} channelMeta - Channel-specific metadata
+   * @param {string} text - Reply text
+   */
+  async sendThreadReply(channelMeta, text) {
+    return this.sendReply(channelMeta, text);
+  }
+
+  /**
    * Check whether a user is allowed to send tasks on this channel.
    *
    * If config.allowlist is empty or not set → everyone is allowed (open channel).
