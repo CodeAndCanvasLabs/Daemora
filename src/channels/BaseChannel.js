@@ -102,6 +102,23 @@ export class BaseChannel {
    * @param {string[]} options - Answer options
    * @param {number} duration - Duration in hours (default: 24)
    */
+  /**
+   * Send a rich embed/card to the channel (optional feature).
+   * @param {object} channelMeta - Channel-specific metadata
+   * @param {object} embed - { title, description, color, fields: [{name, value}], imageUrl, footerText }
+   */
+  async sendEmbed(channelMeta, embed) {
+    // Default: format as markdown text
+    const lines = [];
+    if (embed.title) lines.push(`**${embed.title}**`);
+    if (embed.description) lines.push(embed.description);
+    if (embed.fields?.length > 0) {
+      for (const f of embed.fields) lines.push(`**${f.name}:** ${f.value}`);
+    }
+    if (embed.footerText) lines.push(`_${embed.footerText}_`);
+    return this.sendReply(channelMeta, lines.join("\n"));
+  }
+
   async sendPoll(channelMeta, question, options, duration = 24) {
     // Default: format as text (channels that support native polls override this)
     const formatted = `📊 **${question}**\n${options.map((o, i) => `${i + 1}. ${o}`).join("\n")}`;

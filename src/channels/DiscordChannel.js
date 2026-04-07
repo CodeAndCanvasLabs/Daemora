@@ -214,6 +214,22 @@ export class DiscordChannel extends BaseChannel {
     }
   }
 
+  async sendEmbed(channelMeta, embed) {
+    if (!this.client) return;
+    try {
+      const { EmbedBuilder } = await import("discord.js");
+      const channel = await this.client.channels.fetch(channelMeta.channelId);
+      const eb = new EmbedBuilder();
+      if (embed.title) eb.setTitle(embed.title);
+      if (embed.description) eb.setDescription(embed.description);
+      if (embed.color) eb.setColor(embed.color);
+      if (embed.fields?.length > 0) eb.addFields(embed.fields);
+      if (embed.imageUrl) eb.setImage(embed.imageUrl);
+      if (embed.footerText) eb.setFooter({ text: embed.footerText });
+      await channel.send({ embeds: [eb] });
+    } catch (err) { console.log(`[Channel:Discord] sendEmbed error: ${err.message}`); }
+  }
+
   async editMessage(channelMeta, messageId, newText) {
     if (!this.client) return;
     try {

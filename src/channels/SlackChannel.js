@@ -237,6 +237,31 @@ export class SlackChannel extends BaseChannel {
     await this._addReaction(channelMeta.channelId, channelMeta.messageTs, name);
   }
 
+  async sendEmbed(channelMeta, embed) {
+    try {
+      const blocks = [];
+      if (embed.title) blocks.push({ type: "header", text: { type: "plain_text", text: embed.title } });
+      if (embed.description) blocks.push({ type: "section", text: { type: "mrkdwn", text: embed.description } });
+      if (embed.fields?.length > 0) {
+        const fieldBlocks = embed.fields.map(f => ({ type: "mrkdwn", text: `*${f.name}*\n${f.value}` }));
+        // Slack allows max 10 fields per section, 2 columns
+        for (let i = 0; i < fieldBlocks.length; i += 2) {
+          blocks.push({ type: "section", fields: fieldBlocks.slice(i, i + 2) });
+        }
+      }
+      if (embed.imageUrl) blocks.push({ type: "image", image_url: embed.imageUrl, alt_text: embed.title || "image" });
+      if (embed.footerText) blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: embed.footerText }] });
+
+      await this.app.client.chat.postMessage({
+        token: this.config.botToken,
+        channel: channelMeta.channelId,
+        blocks,
+        text: embed.title || embed.description || "",
+        ...(channelMeta.threadTs ? { thread_ts: channelMeta.threadTs } : {}),
+      });
+    } catch (err) { console.log(`[Channel:Slack] sendEmbed error: ${err.message}`); }
+  }
+
   async editMessage(channelMeta, messageId, newText) {
     try {
       await this.app.client.chat.update({
