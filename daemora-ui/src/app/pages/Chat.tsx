@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { apiFetch, apiStreamUrl } from "../api";
-import { Send, User, Loader2, Terminal, ArrowUp, Wrench, Brain, Bot } from "lucide-react";
+import { User, Loader2, Terminal, ArrowUp, Wrench, Brain, Bot, Download, Image as ImageIcon } from "lucide-react";
 import { Textarea } from "../components/ui/textarea";
 import { ScrollArea } from "../components/ui/scroll-area";
 import ReactMarkdown from "react-markdown";
@@ -243,6 +243,33 @@ export function Chat() {
     return isNaN(d.getTime()) ? new Date().toLocaleTimeString() : d.toLocaleTimeString();
   };
 
+  // Extract file paths from message content and determine type
+  const IMAGE_EXT = /\.(png|jpg|jpeg|gif|webp|svg|avif|bmp)$/i;
+  const VIDEO_EXT = /\.(mp4|webm|mov|avi|mkv)$/i;
+  const AUDIO_EXT = /\.(mp3|wav|ogg|flac|m4a|aac)$/i;
+  const FILE_PATH_RE = /(?:^|[\s:])(\/?(?:[\w.-]+\/)*[\w.-]+\.(?:png|jpg|jpeg|gif|webp|svg|avif|mp4|webm|mov|mp3|wav|ogg|flac|m4a|pdf|docx|xlsx|pptx|txt|csv|zip))\b/gi;
+
+  function extractFiles(content: string): { path: string; type: "image" | "video" | "audio" | "file" }[] {
+    const matches = content.match(FILE_PATH_RE);
+    if (!matches) return [];
+    const seen = new Set<string>();
+    return matches
+      .map(m => m.trim().replace(/^[:\s]+/, ""))
+      .filter(p => p.includes("/") && !seen.has(p) && (seen.add(p), true))
+      .map(path => ({
+        path,
+        type: IMAGE_EXT.test(path) ? "image" as const
+            : VIDEO_EXT.test(path) ? "video" as const
+            : AUDIO_EXT.test(path) ? "audio" as const
+            : "file" as const,
+      }));
+  }
+
+  function fileUrl(path: string): string {
+    const token = document.querySelector('meta[name="api-token"]')?.getAttribute("content") || "";
+    return `/api/file?path=${encodeURIComponent(path)}&token=${encodeURIComponent(token)}`;
+  }
+
   const getStatusIcon = () => {
     if (!streamStatus) return null;
     if (streamStatus.startsWith("Using ")) return <Wrench className="w-3 h-3 text-[#00d9ff] animate-pulse" />;
@@ -309,10 +336,47 @@ export function Chat() {
                         }`}
                       >
                         {message.role === "assistant" ? (
-                          <div className="prose prose-invert prose-sm max-w-none font-mono leading-relaxed text-[13px]">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                              {message.content}
-                            </ReactMarkdown>
+                          <div className="space-y-3">
+                            <div className="prose prose-invert prose-sm max-w-none font-mono leading-relaxed text-[13px]">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {message.content}
+                              </ReactMarkdown>
+                            </div>
+                            {/* Render detected images/media inline */}
+                            {extractFiles(message.content).map((f, fi) => (
+                              <div key={fi} className="mt-2">
+                                {f.type === "image" && (
+                                  <a href={fileUrl(f.path)} target="_blank" rel="noopener noreferrer">
+                                    <img
+                                      src={fileUrl(f.path)}
+                                      alt={f.path.split("/").pop()}
+                                      className="rounded-lg border border-slate-700/50 max-w-full max-h-[400px] object-contain shadow-lg hover:opacity-90 transition-opacity cursor-pointer"
+                                      onError={(e) => (e.currentTarget.style.display = "none")}
+                                    />
+                                  </a>
+                                )}
+                                {f.type === "video" && (
+                                  <video
+                                    src={fileUrl(f.path)}
+                                    controls
+                                    className="rounded-lg border border-slate-700/50 max-w-full max-h-[400px] shadow-lg"
+                                  />
+                                )}
+                                {f.type === "audio" && (
+                                  <audio src={fileUrl(f.path)} controls className="w-full" />
+                                )}
+                                {f.type === "file" && (
+                                  <a
+                                    href={fileUrl(f.path)}
+                                    download
+                                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700/50 text-[11px] font-mono text-[#00d9ff] hover:bg-slate-700/50 transition-colors"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                    {f.path.split("/").pop()}
+                                  </a>
+                                )}
+                              </div>
+                            ))}
                           </div>
                         ) : (
                           <p className="whitespace-pre-wrap font-sans text-[14px] leading-relaxed tracking-tight">{message.content}</p>

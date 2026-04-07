@@ -1717,6 +1717,22 @@ app.get("/api/costs/today", (req, res) => {
   });
 });
 
+// --- Media file serving (images, videos, audio) ---
+// Serve any local file by absolute path (for generated images/videos)
+app.get("/api/file", (req, res) => {
+  const filePath = req.query.path;
+  if (!filePath || typeof filePath !== "string") return res.status(400).json({ error: "path required" });
+  if (filePath.includes("..")) return res.status(400).json({ error: "Invalid path" });
+  if (!existsSync(filePath)) return res.status(404).json({ error: "File not found" });
+
+  // Only serve files from allowed directories (data/, /tmp/, cwd)
+  const allowed = [config.dataDir, "/tmp", process.cwd()];
+  const isAllowed = allowed.some(dir => filePath.startsWith(dir));
+  if (!isAllowed) return res.status(403).json({ error: "Access denied" });
+
+  res.sendFile(filePath);
+});
+
 // --- Static UI (with auth token injection) ---
 const uiPath = join(__dirname, "..", "daemora-ui", "dist");
 if (existsSync(uiPath)) {
