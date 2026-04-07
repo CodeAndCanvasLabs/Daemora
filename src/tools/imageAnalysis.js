@@ -78,17 +78,20 @@ export async function imageAnalysis(params) {
       imageData = buffer.toString("base64");
     }
 
-    // Try to get a vision-capable model
+    // Use the configured default model first (it's vision-capable in most cases),
+    // then fall back to the preference list
     let selectedModel = null;
-    for (const modelId of VISION_MODEL_PREFERENCE) {
-      try {
-        const { model } = getModelWithFallback(modelId);
-        if (model) { selectedModel = model; break; }
-      } catch {}
-    }
-    if (!selectedModel) {
+    try {
       const { model } = getModelWithFallback(null);
-      selectedModel = model;
+      if (model) selectedModel = model;
+    } catch {}
+    if (!selectedModel) {
+      for (const modelId of VISION_MODEL_PREFERENCE) {
+        try {
+          const { model } = getModelWithFallback(modelId);
+          if (model) { selectedModel = model; break; }
+        } catch {}
+      }
     }
 
     const response = await generateText({
