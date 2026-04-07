@@ -3,7 +3,7 @@ import taskQueue from "../core/TaskQueue.js";
 import { transcribeAudio } from "../tools/transcribeAudio.js";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join, extname } from "node:path";
-import { tmpdir } from "node:os";
+import { getTenantTmpDir } from "../tools/_paths.js";
 
 /**
  * Telegram Channel - receives messages via Telegram Bot API (grammy).
@@ -255,7 +255,7 @@ export class TelegramChannel extends BaseChannel {
       if (!res.ok) return null;
 
       const buffer   = await res.arrayBuffer();
-      const tmpDir   = join(tmpdir(), "daemora-tg");
+      const tmpDir   = getTenantTmpDir("telegram");
       mkdirSync(tmpDir, { recursive: true });
       const filePath = join(tmpDir, `${fileId}${extension}`);
       writeFileSync(filePath, Buffer.from(buffer));

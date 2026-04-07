@@ -4,7 +4,7 @@ import eventBus from "../core/EventBus.js";
 import { transcribeAudio } from "../tools/transcribeAudio.js";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join, extname, basename } from "node:path";
-import { tmpdir } from "node:os";
+import { getTenantTmpDir } from "../tools/_paths.js";
 
 /**
  * Discord Channel - receives messages via Discord Bot API.
@@ -306,7 +306,7 @@ export class DiscordChannel extends BaseChannel {
   async _downloadAttachment(attachment) {
     try {
       const ext = extname(attachment.name || attachment.url || "").split("?")[0] || "";
-      const tmpDir = join(tmpdir(), "daemora-discord");
+      const tmpDir = getTenantTmpDir("discord");
       mkdirSync(tmpDir, { recursive: true });
       const filePath = join(tmpDir, `${attachment.id}${ext}`);
 

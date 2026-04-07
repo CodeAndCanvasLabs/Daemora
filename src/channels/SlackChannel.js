@@ -4,7 +4,7 @@ import eventBus from "../core/EventBus.js";
 import { transcribeAudio } from "../tools/transcribeAudio.js";
 import { createReadStream, writeFileSync, mkdirSync } from "node:fs";
 import { join, extname, basename } from "node:path";
-import { tmpdir } from "node:os";
+import { getTenantTmpDir } from "../tools/_paths.js";
 
 /**
  * Slack Channel - receives messages via Slack Bolt + Socket Mode.
@@ -332,7 +332,7 @@ export class SlackChannel extends BaseChannel {
       if (!url) return null;
 
       const ext = extname(file.name || file.title || "").split("?")[0] || "";
-      const tmpDir = join(tmpdir(), "daemora-slack");
+      const tmpDir = getTenantTmpDir("slack");
       mkdirSync(tmpDir, { recursive: true });
       const filePath = join(tmpDir, `${file.id}${ext}`);
 

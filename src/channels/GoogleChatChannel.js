@@ -3,7 +3,7 @@ import taskQueue from "../core/TaskQueue.js";
 import { transcribeAudio } from "../tools/transcribeAudio.js";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join, extname } from "node:path";
-import { tmpdir } from "node:os";
+import { getTenantTmpDir } from "../tools/_paths.js";
 
 /**
  * Google Chat Channel - receives messages via Chat App webhook.
@@ -279,7 +279,7 @@ export class GoogleChatChannel extends BaseChannel {
       if (!res.ok) return null;
 
       const ext    = _extFromMime(att.contentType || "") || extname(att.contentName || "");
-      const tmpDir = join(tmpdir(), "daemora-googlechat");
+      const tmpDir = getTenantTmpDir("googlechat");
       mkdirSync(tmpDir, { recursive: true });
       const filePath = join(tmpDir, `att-${Date.now()}${ext}`);
       writeFileSync(filePath, Buffer.from(await res.arrayBuffer()));

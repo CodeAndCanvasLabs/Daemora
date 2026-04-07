@@ -3,7 +3,7 @@ import taskQueue from "../core/TaskQueue.js";
 import { transcribeAudio } from "../tools/transcribeAudio.js";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join, basename } from "node:path";
-import { tmpdir } from "node:os";
+import { getTenantTmpDir } from "../tools/_paths.js";
 
 /**
  * WhatsApp Channel - receives messages via Twilio webhook.
@@ -220,7 +220,7 @@ export class WhatsAppChannel extends BaseChannel {
   async _downloadMedia(mediaUrl, contentType) {
     try {
       const ext = _mimeToExt(contentType) || "";
-      const tmpDir  = join(tmpdir(), "daemora-whatsapp");
+      const tmpDir  = getTenantTmpDir("whatsapp");
       mkdirSync(tmpDir, { recursive: true });
       const fileName = `media-${Date.now()}${ext}`;
       const filePath = join(tmpDir, fileName);

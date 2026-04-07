@@ -3,7 +3,7 @@ import taskQueue from "../core/TaskQueue.js";
 import { transcribeAudio } from "../tools/transcribeAudio.js";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join, extname } from "node:path";
-import { tmpdir } from "node:os";
+import { getTenantTmpDir } from "../tools/_paths.js";
 
 /**
  * Microsoft Teams Channel - receives messages via Bot Framework v4 (CloudAdapter).
@@ -231,7 +231,7 @@ export class TeamsChannel extends BaseChannel {
       }
       const res = await fetch(url, { headers, signal: AbortSignal.timeout(30000) });
       if (!res.ok) return null;
-      const tmpDir = join(tmpdir(), "daemora-teams");
+      const tmpDir = getTenantTmpDir("teams");
       mkdirSync(tmpDir, { recursive: true });
       const filePath = join(tmpDir, `att-${Date.now()}${ext}`);
       writeFileSync(filePath, Buffer.from(await res.arrayBuffer()));

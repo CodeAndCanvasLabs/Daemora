@@ -1,17 +1,20 @@
 /**
- * Temp/workspace directory helper.
- * Uses os.tmpdir() as base. Auto-creates the directory.
+ * Media/workspace directory helper.
+ * Uses data/media/ as base for persistent storage (survives reboots).
+ * Falls back to os.tmpdir() if data dir is not writable.
  */
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
+import { config } from "../config/default.js";
 
 /**
- * @param {string} [subdir] - e.g. "daemora-images", "daemora-tts"
+ * Get a persistent media directory under data/media/.
+ * @param {string} [subdir] - e.g. "images", "tts", "videos", "music", "captures"
  * @returns {string} absolute directory path (already created)
  */
 export function getTenantTmpDir(subdir) {
-  const dir = subdir ? join(tmpdir(), subdir) : tmpdir();
-  if (subdir) mkdirSync(dir, { recursive: true });
+  const base = join(config.dataDir, "media");
+  const dir = subdir ? join(base, subdir) : base;
+  mkdirSync(dir, { recursive: true });
   return dir;
 }
