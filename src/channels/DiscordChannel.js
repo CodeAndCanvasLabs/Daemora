@@ -164,6 +164,9 @@ export class DiscordChannel extends BaseChannel {
         await this._removeReaction(message, "⏳");
         await this.sendReaction({ message }, failed ? "❌" : "✅");
 
+        // Update last-seen after every processed message (crash-safe)
+        this._saveLastSeen();
+
         // Discord message limit: 2000 chars
         const chunks = splitMessage(response, 1990);
         await message.reply(chunks[0]).catch(() => {});
@@ -200,10 +203,8 @@ export class DiscordChannel extends BaseChannel {
   }
 
   async stop() {
-    try {
-      const { configStore } = await import("../config/ConfigStore.js");
-      configStore.set("DISCORD_LAST_SEEN", new Date().toISOString());
-    } catch {}
+    // Save last-seen BEFORE destroying client (sync write, no dynamic import race)
+    this._saveLastSeen();
     if (this.client) {
       await this.client.destroy();
       this.running = false;
@@ -211,14 +212,37 @@ export class DiscordChannel extends BaseChannel {
     }
   }
 
+  _saveLastSeen() {
+    try {
+      const { configStore } = require("../config/ConfigStore.js");
+      configStore.set("DISCORD_LAST_SEEN", new Date().toISOString());
+    } catch {
+      try {
+        // Fallback: write directly to SQLite
+        const { run } = require("../storage/Database.js");
+        run(
+          "INSERT OR REPLACE INTO config_store (key, value, updated_at) VALUES ($k, $v, datetime('now'))",
+          { $k: "DISCORD_LAST_SEEN", $v: new Date().toISOString() }
+        );
+      } catch {}
+    }
+  }
+
   /**
    * Catch up on DMs missed while the bot was offline.
-   * Fetches recent messages after DISCORD_LAST_SEEN timestamp.
+   * Uses Discord API to fetch the bot's recent DM channels, then scans for unprocessed messages.
    */
   async _catchUpMissedMessages() {
-    const { configStore } = await import("../config/ConfigStore.js");
-    const lastSeen = configStore.get("DISCORD_LAST_SEEN");
-    if (!lastSeen) return;
+    let lastSeen;
+    try {
+      const { configStore } = await import("../config/ConfigStore.js");
+      lastSeen = configStore.get("DISCORD_LAST_SEEN");
+    } catch {}
+    if (!lastSeen) {
+      // First run — set timestamp and skip
+      this._saveLastSeen();
+      return;
+    }
 
     const cutoff = new Date(lastSeen);
     const now = new Date();
@@ -226,24 +250,45 @@ export class DiscordChannel extends BaseChannel {
 
     if (offlineMs > 86400000) {
       console.log(`[Channel:Discord] Offline > 24h — skipping catch-up`);
-      configStore.set("DISCORD_LAST_SEEN", now.toISOString());
+      this._saveLastSeen();
       return;
     }
+
+    if (offlineMs < 5000) return; // Just restarted, no gap
 
     console.log(`[Channel:Discord] Catching up on messages since ${lastSeen} (${Math.round(offlineMs / 60000)}min offline)`);
     let caught = 0;
 
     try {
-      const dmChannels = this.client.channels.cache.filter(c => c.type === 1);
-      for (const [, channel] of dmChannels) {
+      // Fetch the bot's DM channels via REST API (cache is empty on fresh connect)
+      const dmChannels = await this.client.channels.fetch().catch(() => null);
+      const channels = dmChannels
+        ? [...dmChannels.values()].filter(c => c.type === 1)
+        : [...this.client.channels.cache.values()].filter(c => c.type === 1);
+
+      // Also check allowlisted users' DMs directly
+      if (channels.length === 0 && this.config.allowlist?.length > 0) {
+        for (const userId of this.config.allowlist) {
+          try {
+            const user = await this.client.users.fetch(String(userId));
+            if (user) {
+              const dm = await user.createDM();
+              if (dm) channels.push(dm);
+            }
+          } catch {}
+        }
+      }
+
+      const DISCORD_EPOCH = 1420070400000n;
+      const afterSnowflake = ((BigInt(cutoff.getTime()) - DISCORD_EPOCH) << 22n).toString();
+
+      for (const channel of channels) {
         try {
-          const DISCORD_EPOCH = 1420070400000n;
-          const afterSnowflake = ((BigInt(cutoff.getTime()) - DISCORD_EPOCH) << 22n).toString();
           const messages = await channel.messages.fetch({ limit: 20, after: afterSnowflake });
           for (const [, msg] of messages) {
             if (msg.author.bot) continue;
             if (!this.isAllowed(msg.author.id)) continue;
-            const text = msg.content?.replace(/<@!?\d+>/g, "").trim();
+            const text = msg.content?.replace(/<@[!&]?\d+>/g, "").trim();
             if (!text && msg.attachments.size === 0) continue;
             console.log(`[Channel:Discord] Catch-up: "${text?.slice(0, 60)}" from ${msg.author.username}`);
             this.client.emit("messageCreate", msg);
@@ -251,9 +296,11 @@ export class DiscordChannel extends BaseChannel {
           }
         } catch {}
       }
-    } catch {}
+    } catch (e) {
+      console.log(`[Channel:Discord] Catch-up scan error: ${e.message}`);
+    }
 
-    configStore.set("DISCORD_LAST_SEEN", now.toISOString());
+    this._saveLastSeen();
     if (caught > 0) console.log(`[Channel:Discord] Caught up ${caught} missed message(s)`);
     else console.log(`[Channel:Discord] No missed messages`);
   }
