@@ -54,7 +54,7 @@ export class DiscordChannel extends BaseChannel {
     });
 
     this._readyPromise = new Promise(resolve => {
-      this.client.once("ready", (c) => {
+      this.client.once("ready", async (c) => {
         this.botUserId = c.user.id;
         this.running = true;
         console.log(`[Channel:Discord] Logged in as ${c.user.tag}`);
@@ -62,6 +62,11 @@ export class DiscordChannel extends BaseChannel {
           console.log(`[Channel:Discord] Allowlist active - ${this.config.allowlist.length} authorized user(s)`);
         }
         resolve();
+
+        // Catch up on messages missed while offline
+        try { await this._catchUpMissedMessages(); } catch (e) {
+          console.log(`[Channel:Discord] Catch-up failed (non-fatal): ${e.message}`);
+        }
       });
     });
 
@@ -194,11 +199,62 @@ export class DiscordChannel extends BaseChannel {
   }
 
   async stop() {
+    try {
+      const { configStore } = await import("../config/ConfigStore.js");
+      configStore.set("DISCORD_LAST_SEEN", new Date().toISOString());
+    } catch {}
     if (this.client) {
       await this.client.destroy();
       this.running = false;
       console.log(`[Channel:Discord] Stopped`);
     }
+  }
+
+  /**
+   * Catch up on DMs missed while the bot was offline.
+   * Fetches recent messages after DISCORD_LAST_SEEN timestamp.
+   */
+  async _catchUpMissedMessages() {
+    const { configStore } = await import("../config/ConfigStore.js");
+    const lastSeen = configStore.get("DISCORD_LAST_SEEN");
+    if (!lastSeen) return;
+
+    const cutoff = new Date(lastSeen);
+    const now = new Date();
+    const offlineMs = now - cutoff;
+
+    if (offlineMs > 86400000) {
+      console.log(`[Channel:Discord] Offline > 24h — skipping catch-up`);
+      configStore.set("DISCORD_LAST_SEEN", now.toISOString());
+      return;
+    }
+
+    console.log(`[Channel:Discord] Catching up on messages since ${lastSeen} (${Math.round(offlineMs / 60000)}min offline)`);
+    let caught = 0;
+
+    try {
+      const dmChannels = this.client.channels.cache.filter(c => c.type === 1);
+      for (const [, channel] of dmChannels) {
+        try {
+          const DISCORD_EPOCH = 1420070400000n;
+          const afterSnowflake = ((BigInt(cutoff.getTime()) - DISCORD_EPOCH) << 22n).toString();
+          const messages = await channel.messages.fetch({ limit: 20, after: afterSnowflake });
+          for (const [, msg] of messages) {
+            if (msg.author.bot) continue;
+            if (!this.isAllowed(msg.author.id)) continue;
+            const text = msg.content?.replace(/<@!?\d+>/g, "").trim();
+            if (!text && msg.attachments.size === 0) continue;
+            console.log(`[Channel:Discord] Catch-up: "${text?.slice(0, 60)}" from ${msg.author.username}`);
+            this.client.emit("messageCreate", msg);
+            caught++;
+          }
+        } catch {}
+      }
+    } catch {}
+
+    configStore.set("DISCORD_LAST_SEEN", now.toISOString());
+    if (caught > 0) console.log(`[Channel:Discord] Caught up ${caught} missed message(s)`);
+    else console.log(`[Channel:Discord] No missed messages`);
   }
 
   async sendReply(channelMeta, text) {
