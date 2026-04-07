@@ -87,7 +87,7 @@ export class BaseChannel {
    * @returns {string} Session ID
    */
   getSessionId(userId) {
-    return `${this.name}-${userId}`;
+    return "main";
   }
 
   /**

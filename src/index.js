@@ -241,7 +241,7 @@ app.post("/api/chat", (req, res) => {
     const task = taskQueue.enqueue({
       input,
       channel: "http",
-      sessionId: sessionId || "local-user",
+      sessionId: sessionId || "main",
       model,
       priority: priority || 5,
       type: "chat",
@@ -266,7 +266,7 @@ app.post("/api/tasks", (req, res) => {
     const task = taskQueue.enqueue({
       input,
       channel: "http",
-      sessionId: sessionId || "local-user",
+      sessionId: sessionId || "main",
       model,
       priority: priority || 5,
     });
@@ -1670,6 +1670,39 @@ app.put("/api/memory", (req, res) => {
   if (content === undefined) return res.status(400).json({ error: "content is required" });
   writeFileSync(config.memoryPath, content, "utf-8");
   res.json({ message: "Memory saved" });
+});
+
+// --- Brain endpoints (memory + learning observability) ---
+app.get("/api/brain/memories", async (req, res) => {
+  try {
+    const { queryAll } = await import("./storage/Database.js");
+    const { layer, project, category, limit: lim } = req.query;
+    let sql = "SELECT id, content, category, memory_type, confidence, project, access_count, last_accessed, created_at, superseded_by FROM memory_entries WHERE 1=1";
+    const params = {};
+    if (layer) { sql += " AND memory_type = $layer"; params.$layer = layer; }
+    if (project) { sql += " AND project = $project"; params.$project = project; }
+    if (category) { sql += " AND category = $category"; params.$category = category; }
+    sql += " ORDER BY id DESC LIMIT $limit";
+    params.$limit = parseInt(lim) || 100;
+    const rows = queryAll(sql, params);
+    res.json({ memories: rows, total: rows.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete("/api/brain/memories/:id", async (req, res) => {
+  try {
+    const { run } = await import("./storage/Database.js");
+    run("DELETE FROM memory_entries WHERE id = $id", { $id: req.params.id });
+    res.json({ deleted: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get("/api/brain/stats", async (req, res) => {
+  try {
+    const { getStats, getLearningReport } = await import("./learning/LearningStats.js");
+    const days = parseInt(req.query.days) || 7;
+    res.json({ counters: getStats(), report: getLearningReport(days) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // --- Costs endpoint ---

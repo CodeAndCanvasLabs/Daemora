@@ -7,10 +7,11 @@ import { config } from "../config/default.js";
 import eventBus from "../core/EventBus.js";
 import { v4 as uuidv4 } from "uuid";
 import requestContext from "../core/RequestContext.js";
-import { resolveSubAgentModel } from "../models/ModelRouter.js";
+import { resolveSubAgentModel, getModelWithFallback } from "../models/ModelRouter.js";
 import { buildContract } from "./ContractBuilder.js";
 import { createSession, getSession, setMessages } from "../services/sessions.js";
 import { compactForSession } from "../utils/msgText.js";
+import { compactIfNeeded } from "../core/Compaction.js";
 import skillLoader from "../skills/SkillLoader.js";
 
 /**
@@ -267,7 +268,7 @@ export async function spawnSubAgent(taskDescription, options = {}) {
   }
 
   // ── Build initial messages (include history + structured contract) ──
-  const initialMessages = [...historyMessages];
+  let initialMessages = [...historyMessages];
 
   const contract = buildContract({
     task: taskDescription,
@@ -276,6 +277,12 @@ export async function spawnSubAgent(taskDescription, options = {}) {
   });
 
   initialMessages.push({ role: "user", content: contract });
+
+  // ── Compact if session history is too large ──
+  try {
+    const { meta: modelMeta } = getModelWithFallback(resolvedModel);
+    initialMessages = await compactIfNeeded(initialMessages, modelMeta, taskId);
+  } catch (e) { console.log(`[SubAgent:${agentId}] Compaction failed (non-blocking): ${e.message}`); }
 
   // ── Run with timeout and abort signal ─────────────────────────────────────
   const startedAt = activeSubAgents.get(agentId).startedAt;

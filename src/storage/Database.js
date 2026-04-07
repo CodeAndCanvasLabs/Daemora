@@ -247,6 +247,33 @@ function _runMigrations(db) {
   _addCol("sub_agents", "TEXT");
   _addCol("cost", "TEXT");
 
+  // Messages: add channel column for unified session support
+  const _msgCols = () => db.prepare("PRAGMA table_info(messages)").all().map(r => r.name);
+  if (!_msgCols().includes("channel")) {
+    db.exec("ALTER TABLE messages ADD COLUMN channel TEXT DEFAULT 'http'");
+    console.log("[Database] Migration: added messages.channel");
+  }
+
+  // Unified session: merge per-channel sessions into "main"
+  // Moves messages from telegram-*, discord-*, etc. sessions into one "main" session
+  const oldSessions = db.prepare("SELECT id FROM sessions WHERE id != 'main' AND id LIKE '%-%' AND id NOT LIKE '%--%'").all();
+  if (oldSessions.length > 0) {
+    const mainExists = db.prepare("SELECT id FROM sessions WHERE id = 'main'").get();
+    if (!mainExists) {
+      db.exec("INSERT OR IGNORE INTO sessions (id, created_at, updated_at) VALUES ('main', datetime('now'), datetime('now'))");
+    }
+    for (const { id } of oldSessions) {
+      const channelName = id.split("-")[0]; // "telegram-123" → "telegram"
+      db.prepare("UPDATE messages SET session_id = 'main', channel = $ch WHERE session_id = $sid")
+        .run({ $ch: channelName, $sid: id });
+    }
+    // Remove old session shells (messages already moved)
+    for (const { id } of oldSessions) {
+      db.prepare("DELETE FROM sessions WHERE id = $id").run({ $id: id });
+    }
+    console.log(`[Database] Migration: merged ${oldSessions.length} channel session(s) into unified "main" session`);
+  }
+
   // Watchers: add destinations column (JSON array of {channel, channelMeta})
   // Guard: table may not exist if DB was created by an older version
   const _tableExists = (name) => {
@@ -467,6 +494,49 @@ function _runMigrations(db) {
       source TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_secret_access_ts ON secret_access_log(timestamp);
+  `);
+
+  // ── Learning System ─────────────────────────────────────────────────────────
+
+  // memory_entries: add learning-related columns
+  const _memCols = () => db.prepare("PRAGMA table_info(memory_entries)").all().map(r => r.name);
+  const memCols = _memCols();
+  const memColsToAdd = [
+    ["memory_type", "TEXT DEFAULT 'semantic'"],
+    ["confidence", "REAL DEFAULT 1.0"],
+    ["project", "TEXT"],
+    ["access_count", "INTEGER DEFAULT 0"],
+    ["last_accessed", "TEXT"],
+    ["superseded_by", "INTEGER"],
+    ["source_task_id", "TEXT"],
+    ["metadata", "TEXT"],
+  ];
+  for (const [col, type] of memColsToAdd) {
+    if (!memCols.includes(col)) {
+      try {
+        db.exec(`ALTER TABLE memory_entries ADD COLUMN ${col} ${type}`);
+        console.log(`[Database] Migration: added memory_entries.${col}`);
+      } catch {}
+    }
+  }
+
+  // learning_log table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS learning_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id TEXT,
+      type TEXT NOT NULL,
+      action TEXT NOT NULL,
+      memory_id INTEGER,
+      details TEXT,
+      model TEXT,
+      tokens_in INTEGER,
+      tokens_out INTEGER,
+      latency_ms INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_learning_log_task ON learning_log(task_id);
+    CREATE INDEX IF NOT EXISTS idx_learning_log_date ON learning_log(created_at);
   `);
 
 }

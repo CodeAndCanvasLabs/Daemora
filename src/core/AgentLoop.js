@@ -13,6 +13,7 @@ import { validateToolParams, getSchemaToolNames, getToolDescription } from "../t
 import toolSchemas from "../tools/schemas.js";
 import channelRegistry from "../channels/index.js";
 import { msgText } from "../utils/msgText.js";
+import { pruneContext } from "./ContextPruner.js";
 
 /**
  * Core agent loop - uses Vercel AI SDK native tool calling.
@@ -232,6 +233,10 @@ export async function runAgentLoop({
       });
     }
   }
+
+  // ── Prune tool results before sending to model (OpenClaw pattern) ──
+  const tokenBudget = meta.contextWindow ? Math.floor(meta.contextWindow * 0.85) : 100_000;
+  pruneContext(inputMessages, tokenBudget);
 
   let totalInputTokens = 0;
   let totalOutputTokens = 0;

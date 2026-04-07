@@ -6,6 +6,7 @@ import mcpManager from "../mcp/MCPManager.js";
 import requestContext from "../core/RequestContext.js";
 import { queryAll } from "../storage/Database.js";
 import { getRegistry } from "../crew/PluginRegistry.js";
+import { recallMemories } from "../learning/SmartRecall.js";
 
 // ── Tool → required env keys mapping ──────────────────────────────────────────
 const TOOL_REQUIRED_KEYS = {
@@ -94,8 +95,7 @@ export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeM
         renderCrewSection(),
         renderToolRules(),
         renderSkills(taskInput),
-        renderMemorySection(),
-        renderSemanticRecall(taskInput),
+        renderSmartMemory(taskInput),
         renderDailyLog(),
       ]);
 
@@ -273,8 +273,18 @@ If one clearly applies → readFile its location, follow it. Skip "confirm with 
   return `## Skills (mandatory)\n\n${preamble}\n\n<available_skills>\n${items.join("\n")}${dirHint}\n</available_skills>`;
 }
 
-/** Memory section — only if memory entries exist */
-function renderMemorySection() {
+/** Smart memory — composite scoring, type-aware, project-filtered */
+async function renderSmartMemory(taskInput) {
+  try {
+    return await recallMemories(taskInput);
+  } catch {
+    // Fallback to legacy flat memory dump
+    return _renderMemoryFallback();
+  }
+}
+
+/** Legacy fallback — flat dump of all memory entries */
+function _renderMemoryFallback() {
   const rows = queryAll(
     "SELECT content, category, timestamp FROM memory_entries WHERE tenant_id IS NULL ORDER BY id ASC"
   );
