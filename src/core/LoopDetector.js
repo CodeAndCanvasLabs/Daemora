@@ -108,6 +108,7 @@ class LoopDetector {
 const VALUE_SENSITIVE_TOOLS = new Set([
   "readFile", "writeFile", "editFile", "listDirectory", "glob", "grep",
   "executeCommand", "webFetch", "webSearch", "useCrew", "useMCP",
+  "imageAnalysis", "imageOps", "generateImage", "generateMusic", "generateVideo",
 ]);
 
 /** Hash tool name + param structure for semantic comparison.
