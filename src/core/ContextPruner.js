@@ -5,22 +5,25 @@
  * 1. Estimate token count of messages
  * 2. If under budget → do nothing
  * 3. If over → prune tool results:
- *    - Soft-trim: results > 4000 chars → keep first 1500 + "\n...\n" + last 1500
- *    - Hard-clear: results > 50KB → replace with "[Tool result cleared — was N chars]"
+ *    - Soft-trim: results > 1000 tokens → keep first 375 + last 375 tokens (~750 kept)
+ *    - Hard-clear: results > 12500 tokens → replace with "[Tool result cleared — was N tokens]"
  *    - Protect last 3 assistant responses
  *    - Never prune user messages
  * 4. Return pruned messages (original array mutated in-place for efficiency)
  */
 
-const SOFT_TRIM_THRESHOLD = 4000;      // chars
-const SOFT_TRIM_HEAD = 1500;           // chars to keep from start
-const SOFT_TRIM_TAIL = 1500;           // chars to keep from end
-const HARD_CLEAR_THRESHOLD = 50_000;   // 50KB
+const SOFT_TRIM_THRESHOLD = 1000;     // tokens — trim results larger than this
+const SOFT_TRIM_HEAD = 375;           // tokens to keep from start
+const SOFT_TRIM_TAIL = 375;           // tokens to keep from end
+const HARD_CLEAR_THRESHOLD = 12500;   // tokens — nuke results larger than this
 const PROTECT_LAST_ASSISTANTS = 3;
+const CHARS_PER_TOKEN = 4;            // rough estimate: 1 token ≈ 4 chars
 
-// Rough token estimate: 1 token ≈ 4 chars
+function toTokens(chars) { return Math.ceil(chars / CHARS_PER_TOKEN); }
+function toChars(tokens) { return tokens * CHARS_PER_TOKEN; }
+
 function estimateTokens(text) {
-  return Math.ceil((text?.length || 0) / 4);
+  return Math.ceil((text?.length || 0) / CHARS_PER_TOKEN);
 }
 
 function estimateMessageTokens(messages) {
@@ -65,20 +68,23 @@ export function pruneContext(messages, tokenBudget) {
       : JSON.stringify(messages[i].content);
 
     if (!content) continue;
-    const len = content.length;
+    const tokenLen = estimateTokens(content);
 
     // Hard-clear very large results
-    if (len > HARD_CLEAR_THRESHOLD) {
-      messages[i].content = `[Tool result cleared — was ${len.toLocaleString()} chars]`;
+    if (tokenLen > HARD_CLEAR_THRESHOLD) {
+      messages[i].content = `[Tool result cleared — was ${tokenLen.toLocaleString()} tokens]`;
       hardCleared++;
       continue;
     }
 
     // Soft-trim medium results
-    if (len > SOFT_TRIM_THRESHOLD) {
-      const head = content.slice(0, SOFT_TRIM_HEAD);
-      const tail = content.slice(-SOFT_TRIM_TAIL);
-      messages[i].content = `${head}\n...[${(len - SOFT_TRIM_HEAD - SOFT_TRIM_TAIL).toLocaleString()} chars trimmed]...\n${tail}`;
+    if (tokenLen > SOFT_TRIM_THRESHOLD) {
+      const headChars = toChars(SOFT_TRIM_HEAD);
+      const tailChars = toChars(SOFT_TRIM_TAIL);
+      const head = content.slice(0, headChars);
+      const tail = content.slice(-tailChars);
+      const trimmedTokens = tokenLen - SOFT_TRIM_HEAD - SOFT_TRIM_TAIL;
+      messages[i].content = `${head}\n...[${trimmedTokens.toLocaleString()} tokens trimmed]...\n${tail}`;
       softTrimmed++;
     }
 
