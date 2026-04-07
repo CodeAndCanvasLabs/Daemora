@@ -14,6 +14,7 @@ import toolSchemas from "../tools/schemas.js";
 import channelRegistry from "../channels/index.js";
 import { msgText } from "../utils/msgText.js";
 import { pruneContext } from "./ContextPruner.js";
+import loopDetector from "./LoopDetector.js";
 
 /**
  * Core agent loop - uses Vercel AI SDK native tool calling.
@@ -64,8 +65,6 @@ export async function runAgentLoop({
   const toolCallLog = [];
   const WRITE_TOOLS = new Set(["writeFile", "editFile", "applyPatch", "executeCommand", "sendEmail", "createDocument", "browserAction", "messageChannel"]);
   let gitSnapshotDone = false;
-  let lastToolCall = null;
-  let repeatCount = 0;
 
   // ── Build AI SDK tools with execute functions + guards ──
   const availableToolNames = new Set(getSchemaToolNames());
@@ -89,19 +88,12 @@ export async function runAgentLoop({
         stepCount++;
         const tool_name = name;
 
-        // Repeat detection
-        const currentCall = JSON.stringify({ tool_name, params });
-        if (currentCall === lastToolCall) {
-          repeatCount++;
-          if (repeatCount >= 2) {
-            lastToolCall = null;
-            repeatCount = 0;
-            return `You are calling ${tool_name} with the same params repeatedly. Try a different approach.`;
-          }
-        } else {
-          repeatCount = 0;
+        // Loop detection (exact repeat, ping-pong, semantic, polling)
+        const loopCheck = loopDetector.record(tool_name, params, taskId);
+        if (loopCheck.blocked) {
+          console.log(`[Step ${stepCount}] BLOCKED by LoopDetector: ${loopCheck.pattern}`);
+          return loopCheck.message;
         }
-        lastToolCall = currentCall;
 
         console.log(`[Step ${stepCount}] Tool: ${tool_name}`);
         console.log(`[Step ${stepCount}] Params: ${_redactKnownSecrets(JSON.stringify(params))}`);
@@ -333,6 +325,7 @@ export async function runAgentLoop({
     // Build conversation messages for session persistence
     const conversationMessages = [...inputMessages, ...result.response.messages];
 
+    loopDetector.cleanup(taskId);
     return { text: finalText, messages: conversationMessages, cost, toolCalls: toolCallLog };
   } catch (error) {
     // Tool call validation errors - inject error into conversation, retry the full loop
