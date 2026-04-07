@@ -6,7 +6,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { extname } from "node:path";
 import { generateText } from "ai";
-import { getModelWithFallback } from "../models/ModelRouter.js";
+import { getModelWithFallback, resolveDefaultModel } from "../models/ModelRouter.js";
 
 const MIME_MAP = {
   ".png": "image/png",
@@ -18,13 +18,6 @@ const MIME_MAP = {
   ".bmp": "image/bmp",
 };
 
-// Vision-capable models to prefer (in order)
-const VISION_MODEL_PREFERENCE = [
-  "google:gemini-2.0-flash",
-  "openai:gpt-4.1",
-  "openai:gpt-4.1-mini",
-  "anthropic:claude-sonnet-4-6",
-];
 
 export async function imageAnalysis(params) {
   const imagePath = params?.imagePath;
@@ -78,21 +71,9 @@ export async function imageAnalysis(params) {
       imageData = buffer.toString("base64");
     }
 
-    // Use the configured default model first (it's vision-capable in most cases),
-    // then fall back to the preference list
-    let selectedModel = null;
-    try {
-      const { model } = getModelWithFallback(null);
-      if (model) selectedModel = model;
-    } catch {}
-    if (!selectedModel) {
-      for (const modelId of VISION_MODEL_PREFERENCE) {
-        try {
-          const { model } = getModelWithFallback(modelId);
-          if (model) { selectedModel = model; break; }
-        } catch {}
-      }
-    }
+    // Always use the configured default model (same as main agent)
+    const defaultModelId = resolveDefaultModel();
+    const { model: selectedModel } = getModelWithFallback(defaultModelId);
 
     const response = await generateText({
       model: selectedModel,

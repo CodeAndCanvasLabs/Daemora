@@ -50,16 +50,25 @@ class LoopDetector {
     }
 
     // 2. Ping-pong (A→B→A→B pattern)
+    // Skip if both tools are value-sensitive with different params (legitimate verify-fix cycles)
     if (hist.length >= 4) {
       const recent = hist.slice(-PING_PONG_WINDOW);
       const pingPong = _detectPingPong(recent);
       if (pingPong) {
-        this._emit(toolName, "ping_pong", taskId);
-        return {
-          blocked: true,
-          pattern: "ping_pong",
-          message: `Detected ping-pong loop: ${pingPong}. You're alternating between the same tools without progress. Stop and try a completely different approach.`,
-        };
+        const last4 = recent.slice(-4);
+        const toolsInPair = new Set(last4.map(h => h.tool));
+        const allValueSensitive = [...toolsInPair].every(t => VALUE_SENSITIVE_TOOLS.has(t));
+        const hasDistinctParams = new Set(last4.map(h => h.hash)).size > 2;
+        if (allValueSensitive && hasDistinctParams) {
+          // Different params each time — legitimate workflow, not a loop
+        } else {
+          this._emit(toolName, "ping_pong", taskId);
+          return {
+            blocked: true,
+            pattern: "ping_pong",
+            message: `Detected ping-pong loop: ${pingPong}. You're alternating between the same tools without progress. Stop and try a completely different approach.`,
+          };
+        }
       }
     }
 
