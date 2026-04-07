@@ -249,8 +249,7 @@ function renderToolRules() {
 - editFile oldString not found → re-read, retry with exact content.
 - Same params fail twice → stop, diagnose, try different approach.
 - \`<conversation-summary>\` = compacted history — treat as ground truth, don't redo.
-- Single tool call (generateImage, generateVideo, generateMusic, webFetch, etc.) → call directly, never delegate.
-- Deep-focus task (multi-step research, long-form writing, complex coding) → useCrew.
+- Deep-focus task (research, writing, coding, analysis) → useCrew, not yourself.
 - Multiple unrelated tasks → parallelCrew. Multi-component project → teamTask.
 - Every delegation must include full contract: TASK · CONTEXT · FILES · SPEC · CONSTRAINTS · OUTPUT.`;
 }
