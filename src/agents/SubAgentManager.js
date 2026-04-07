@@ -4,6 +4,7 @@ import { toolFunctions } from "../tools/index.js";
 import { defaultSubAgentTools } from "../config/agentProfiles.js";
 import { getProfile } from "../config/ProfileLoader.js";
 import { config } from "../config/default.js";
+import { join } from "node:path";
 import eventBus from "../core/EventBus.js";
 import { v4 as uuidv4 } from "uuid";
 import requestContext from "../core/RequestContext.js";
@@ -255,7 +256,7 @@ export async function spawnSubAgent(taskDescription, options = {}) {
       const refs = [];
       for (const ref of skills) {
         const skill = skillLoader.getSkill(ref);
-        if (skill) refs.push({ name: skill.name, description: skill.description, location: skill.filePath || `skills/${skill.name}.md` });
+        if (skill) refs.push({ name: skill.name, description: skill.description, location: skill.filePath || join(config.skillsDir, `${skill.name}.md`) });
         else console.log(`[SubAgent:${agentId}] Skill not found: "${ref}"`);
       }
       if (refs.length > 0) {
