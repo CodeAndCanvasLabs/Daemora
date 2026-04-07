@@ -239,9 +239,7 @@ function renderCrewSection() {
       return `- **${p.id}**: ${p.description || p.name}${capabilities}`;
     }).join("\n");
 
-    const section = `## Crew Members (Specialist Agents)\n\nEach crew member is a specialist agent with specific tools. Pick the crew whose description and capabilities match the task. Use useCrew(crewId, taskDescription) to delegate — crew has ZERO context, include everything.\n\n${list}`;
-    console.log(`[SystemPrompt] Crew section:\n${list}`);
-    return section;
+    return `## Crew Members (Specialist Agents)\n\nEach crew member is a specialist agent with specific tools. Pick the crew whose description and capabilities match the task. Use useCrew(crewId, taskDescription) to delegate — crew has ZERO context, include everything.\n\n${list}`;
   } catch {
     return null;
   }
