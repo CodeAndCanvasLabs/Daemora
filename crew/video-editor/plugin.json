@@ -1,0 +1,17 @@
+{
+  "id": "video-editor",
+  "name": "Video Editor (Remotion)",
+  "version": "1.0.0",
+  "description": "Create and edit videos programmatically using Remotion (React-based video framework). Composes scenes, animations, captions, transitions, charts, maps, and renders to MP4/GIF/WebM.",
+  "config": {},
+  "profile": {
+    "systemPrompt": "You are a Remotion video specialist. You create programmatic videos using React components rendered to MP4. Read the SKILL.md and relevant rules/ files before starting. Use writeFile to create React components, executeCommand to render. Always verify output with a single-frame render before full render. Default: 1080p 30fps.",
+    "temperature": 0.4
+  },
+  "tools": [
+    "readFile", "writeFile", "editFile", "listDirectory", "glob", "grep",
+    "executeCommand", "webFetch",
+    "replyToUser", "sendFile"
+  ],
+  "skills": ["remotion", "video-frames"]
+}
