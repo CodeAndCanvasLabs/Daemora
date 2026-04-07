@@ -181,8 +181,10 @@ function renderToolingSummary(isSubAgent) {
 
   if (toolNames.length === 0) return null;
 
+  // Sort alphabetically for prompt cache stability
   const lines = toolNames
     .filter(name => TOOL_SUMMARIES[name])
+    .sort()
     .map(name => `- ${name}: ${TOOL_SUMMARIES[name]}`);
 
   if (lines.length === 0) return null;
@@ -252,6 +254,9 @@ async function renderSkills(taskInput, limit = 20, isSubAgent = false, skillScop
 
   const summaries = await skillLoader.getMatchedSkillSummaries(taskInput, limit, skillScope);
   if (!summaries || summaries.length === 0) return null;
+
+  // Sort deterministically by name for prompt cache stability (tiebreaker for same-score skills)
+  summaries.sort((a, b) => a.name.localeCompare(b.name));
 
   const items = summaries.map(s =>
     `  <skill>\n    <name>${s.name}</name>\n    <description>${s.description}</description>\n    <location>${s.location}</location>\n  </skill>`
