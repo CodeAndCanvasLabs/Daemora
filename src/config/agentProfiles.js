@@ -124,10 +124,8 @@ export const CORE_TOOLS = [
   "taskManager", "cron", "goal", "watcher",
   // MCP + Crew
   "useMCP", "useCrew",
-  // Media generation + processing
-  "generateImage", "generateVideo", "generateMusic",
-  "textToSpeech", "transcribeAudio",
-  "imageOps", "imageAnalysis",
+  // Image processing (local, no API key)
+  "imageOps",
 ];
 
 export const defaultSubAgentTools = [

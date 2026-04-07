@@ -230,7 +230,11 @@ function renderCrewSection() {
     if (loaded.length === 0) return null;
 
     const list = loaded.map(p => {
-      const tools = (p.toolNames || []).length > 0 ? ` Tools: ${p.toolNames.join(", ")}` : "";
+      // Show both specialist tools (registered via api) and plugin.json tools
+      const specialist = p.toolNames || [];
+      const pluginTools = p.manifest?.tools || [];
+      const allTools = [...new Set([...specialist, ...pluginTools])];
+      const tools = allTools.length > 0 ? ` [${allTools.join(", ")}]` : "";
       return `- ${p.id}: ${p.description || p.name}${tools}`;
     }).join("\n");
 
