@@ -76,9 +76,10 @@ class LoopDetector {
       }
     }
 
-    // 4. Polling (same tool 5+ times in window regardless of params)
+    // 4. Polling (same tool 8+ times in window regardless of params)
+    // High threshold — tools like readFile/executeCommand are naturally called often
     const toolCount = hist.filter(h => h.tool === toolName).length;
-    if (toolCount >= 5) {
+    if (toolCount >= 8) {
       this._emit(toolName, "polling", taskId);
       return {
         blocked: true,
@@ -103,9 +104,24 @@ class LoopDetector {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Hash tool name + sorted param keys (ignoring values) for semantic comparison. */
+// Tools where different param VALUES mean genuinely different operations (not loops)
+const VALUE_SENSITIVE_TOOLS = new Set([
+  "readFile", "writeFile", "editFile", "listDirectory", "glob", "grep",
+  "executeCommand", "webFetch", "webSearch", "useCrew", "useMCP",
+]);
+
+/** Hash tool name + param structure for semantic comparison.
+ *  Value-sensitive tools include param values (so readFile("/a") ≠ readFile("/b")).
+ *  Other tools only hash keys (so retrying with tweaked values still gets detected). */
 function _hashParams(toolName, params) {
-  const keys = params && typeof params === "object" ? Object.keys(params).sort().join(",") : "";
+  if (!params || typeof params !== "object") return `${toolName}:`;
+  if (VALUE_SENSITIVE_TOOLS.has(toolName)) {
+    // Include values — different files/commands = different operations
+    const sorted = Object.keys(params).sort().map(k => `${k}=${String(params[k]).slice(0, 80)}`).join(",");
+    return `${toolName}:${sorted}`;
+  }
+  // Default: keys only (catches retries with slightly different values)
+  const keys = Object.keys(params).sort().join(",");
   return `${toolName}:${keys}`;
 }
 
