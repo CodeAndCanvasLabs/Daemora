@@ -17,7 +17,7 @@
 
 Deploy once on your machine. Connect your channels. Message the bot - it writes code, does research, sends emails, runs cron jobs, and reports back. You own everything.
 
-59 built-in tools. 20 channels. 14 security layers. 7 AI providers. Multi-agent teams. Production-grade scheduling. Continuous brain with three-layer memory. Crew system. MCP integration. All self-hosted - nothing leaves your infrastructure except the tokens you send to model APIs.
+52 built-in tools. 20 channels. 14 security layers. 7 AI providers. Multi-agent teams. Production-grade scheduling. Continuous brain with three-layer memory. Crew system with Media Studio. MCP integration. Provider failover. Smart loop detection. All self-hosted - nothing leaves your infrastructure except the tokens you send to model APIs.
 
 ---
 
@@ -31,7 +31,11 @@ Deploy once on your machine. Connect your channels. Message the bot - it writes 
 | **Watchers** | Named event triggers - "when GitHub issue opens, triage and notify Telegram." Webhook-driven with pattern matching and cooldown. |
 | **Scheduler** | Production-grade scheduling (one-shot, interval, cron expressions) with overlap prevention, retry with backoff, channel delivery, failure alerts, Morning Pulse daily briefing, and run history. |
 | **Communicate** | Send emails, Telegram messages, Slack posts, Discord messages - autonomously. Screenshots, files, and media sent directly back to you via `replyWithFile`. |
-| **Crew** | Self-contained specialist sub-agents - database queries, smart home control, SSH, notifications, calendars. Build your own crew member in 3 files. Community crew marketplace coming soon. |
+| **Crew** | Self-contained specialist sub-agents - Media Studio (video editing, image/music generation), database queries, smart home control, SSH, notifications, calendars. Build your own crew member in 3 files. |
+| **Media Studio** | Generate AI images, videos, and music. Edit existing videos with Remotion (React-based) - add music, captions, transitions, effects, titles. 38 Remotion rule files for comprehensive video production. |
+| **Provider Failover** | Automatic retry with exponential backoff on transient errors (429, 503). Permanent errors (401, 404) cooldown the provider and switch to fallback. |
+| **Loop Detection** | Prevents agents from burning tokens in repetitive patterns - exact repeat, ping-pong, semantic repeat, and polling detection with smart exclusions for legitimate workflows. |
+| **Live Status** | Typing indicators on Discord/Telegram while processing. Status reactions track task progress (queued → thinking → working → done). |
 | **Continuous Brain** | Three-layer memory (semantic/episodic/procedural) with automatic extraction, composite-scored recall, confidence decay, and context pruning. Learns from every task - no manual saving needed. Unified session across all channels. |
 | **Tools** | Connect to any MCP server - create Notion pages, open GitHub issues, update Linear tasks, manage Shopify products, query databases. |
 | **Voice & Meetings** | Join any meeting (Google Meet, Zoom, Teams) via phone dial-in. OpenAI Realtime STT + ElevenLabs/OpenAI TTS. Voice cloning. Outbound voice calls. Auto-transcription + meeting summaries. |
@@ -280,6 +284,7 @@ Crew members are self-contained specialist sub-agents. Each has its own tools, p
 
 | Crew Member | Tools | Description |
 |---|---|---|
+| **video-editor** (Media Studio) | generateImage, generateVideo, generateMusic, textToSpeech, transcribeAudio, imageOps | Video editing via Remotion + AI media generation. 38 rule files. |
 | **google-services** | calendar, contacts, googlePlaces | Google Calendar, Contacts, Places |
 | **database-connector** | database | PostgreSQL, MySQL, SQLite queries |
 | **smart-home** | philipsHue, sonos | Philips Hue lights, Sonos speakers |
@@ -287,6 +292,8 @@ Crew members are self-contained specialist sub-agents. Each has its own tools, p
 | **notifications** | notification | Desktop, ntfy, Pushover push notifications |
 | **imessage** | iMessageTool | Send/read iMessages (macOS) |
 | **system-monitor** | systemInfo | CPU, memory, disk, processes, network |
+| **notion** | useMCP | Notion pages, databases, views via MCP |
+| **twitter** | X API v2 | Post, read timeline, search, reply, like |
 
 ### Install from npm
 
@@ -321,7 +328,7 @@ daemora crew reload        # Hot-reload all crew members
 
 ## Built-in Tools
 
-57 tools the agent uses autonomously:
+52 tools the agent uses autonomously:
 
 | Category | Tools |
 |---|---|
@@ -338,7 +345,7 @@ daemora crew reload        # Hot-reload all crew members
 | **Scheduling** | cron, goal, watcher, broadcast (Fleet Command) |
 | **Tracking** | projectTracker, taskManager |
 | **Dev Tools** | gitTool (status, diff, commit, branch, log, stash) |
-| **Media** | generateImage (DALL-E / Stable Diffusion) |
+| **Media** | generateImage, generateVideo, generateMusic, imageOps (resize/crop/convert), textToSpeech, transcribeAudio |
 | **System** | clipboard |
 | **Admin** | reload (config, models, vault, caches) |
 
@@ -413,7 +420,7 @@ Always follow this order when deploying:
 6. Notify the user with the live URL
 ```
 
-**52 built-in skills** cover: coding, research, email, weather, Spotify, Obsidian, Apple Notes, Apple Reminders, Things, Trello, Tmux, PDF, image generation, video frames, health checks, GIF search, webcam capture, documents (PDF/DOCX/XLSX/PPTX), data analysis, DevOps, API development, browser automation, meeting attendance, planning, orchestration, and more.
+**60 built-in skills** cover: coding, research, email, weather, Spotify, Obsidian, Apple Notes, Apple Reminders, Things, Trello, Tmux, PDF, image generation, video editing (Remotion), video frames, music generation, health checks, GIF search, webcam capture, documents (PDF/DOCX/XLSX/PPTX), data analysis, DevOps, API development, browser automation, meeting attendance, planning, orchestration, GitHub, Discord ops, Slack ops, Google Workspace, macOS automation, and more.
 
 ---
 
