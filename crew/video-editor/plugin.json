@@ -11,6 +11,8 @@
   "tools": [
     "readFile", "writeFile", "editFile", "listDirectory", "glob", "grep",
     "executeCommand", "webFetch",
+    "generateImage", "generateMusic", "textToSpeech", "transcribeAudio",
+    "imageOps", "imageAnalysis",
     "replyToUser", "sendFile"
   ],
   "skills": ["remotion", "video-frames"]

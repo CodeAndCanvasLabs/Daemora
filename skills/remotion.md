@@ -1,58 +1,109 @@
 ---
 name: remotion
 description: Create videos programmatically with Remotion — React components rendered to MP4/WebM/GIF. Supports animations, captions, charts, 3D, transitions, audio, maps.
-triggers: remotion, video edit, video creation, animation, render video, create video, mp4, motion graphics, animated, react video, compose video, video editor
+triggers: remotion, video edit, video creation, animation, render video, create video, mp4, motion graphics, animated, react video, compose video, video editor, add music, add audio, add captions, background music, voiceover, sound effects, edit video
 ---
 
-## How It Works
+## When to use
 
-Remotion = React components → rendered to video frames → encoded to MP4/GIF/WebM.
-You write React code, Remotion renders each frame, ffmpeg encodes the output.
+Use this skills whenever you are dealing with Remotion code to obtain the domain-specific knowledge.
 
-## Before Starting
+## Important: Project Setup
 
-1. Read the master skill file: `readFile("SKILL.md")` — contains index of all rules
-2. Read the relevant rule file for your task from `rules/` directory
-3. Key rules to read first:
-   - `rules/compositions.md` — how to define video compositions
-   - `rules/animations.md` — interpolate, spring, easing
-   - `rules/sequencing.md` — Sequence, timing, delays
-   - `rules/text-animations.md` — text effects, typewriter, word-by-word
+- ALWAYS create a fresh Remotion project for each video task: `npx create-video@latest <name> --blank`
+- NEVER use the cloned Remotion repo at `agents/remotion/` — that is the source code of Remotion itself, not a video project.
+- Work in a dedicated directory (e.g. `data/video-projects/<name>/`)
+- Copy source media files into the project's `public/` folder before referencing them with `staticFile()`
+- Rule files are at `crew/video-editor/rules/` — always use this path prefix when reading rules
 
-## Quick Reference
+## Optional: one-frame render check
 
-- Init project: `executeCommand("npx create-video@latest my-video --blank")`
-- Preview: `executeCommand("npx remotion preview")`
-- Render: `executeCommand("npx remotion render CompositionId out/video.mp4")`
-- Single frame check: `executeCommand("npx remotion still CompositionId --frame=30 --scale=0.25")`
+You can render a single frame with the CLI to sanity-check layout, colors, or timing.
+Skip it for trivial edits, pure refactors, or when you already have enough confidence from Studio or prior renders.
 
-## Available Rules (read as needed)
+```bash
+npx remotion still [composition-id] --scale=0.25 --frame=30
+```
 
-| Rule | When to read |
-|---|---|
-| `rules/animations.md` | Any animation work |
-| `rules/subtitles.md` | Captions, subtitles |
-| `rules/audio.md` | Background music, sound |
-| `rules/voiceover.md` | AI voiceover (ElevenLabs) |
-| `rules/transitions.md` | Scene transitions |
-| `rules/charts.md` | Data visualization |
-| `rules/3d.md` | Three.js 3D content |
-| `rules/maps.md` | Mapbox animated maps |
-| `rules/fonts.md` | Google Fonts, custom fonts |
-| `rules/tailwind.md` | TailwindCSS styling |
-| `rules/images.md` | Embed images |
-| `rules/videos.md` | Embed video clips |
-| `rules/gifs.md` | GIF support |
-| `rules/lottie.md` | Lottie animations |
-| `rules/light-leaks.md` | Light leak effects |
-| `rules/ffmpeg.md` | FFmpeg operations |
-| `rules/silence-detection.md` | Detect/trim silence |
+At 30 fps, `--frame=30` is the one-second mark (`--frame` is zero-based).
 
-## Workflow
+## Captions
 
-1. Read SKILL.md + relevant rules
-2. `writeFile` — create React components for each scene
-3. `writeFile` — register compositions in Root.tsx
-4. `executeCommand("npx remotion still ...")` — verify single frame
-5. `executeCommand("npx remotion render ...")` — full render
-6. `sendFile` — deliver result to user
+When dealing with captions or subtitles, load the `crew/video-editor/rules/subtitles.md` file for more information.
+
+## Using FFmpeg
+
+For some video operations, such as trimming videos or detecting silence, FFmpeg should be used. Load the `crew/video-editor/rules/ffmpeg.md` file for more information.
+
+## Silence detection
+
+When needing to detect and trim silent segments from video or audio files, load the `crew/video-editor/rules/silence-detection.md` file.
+
+## Audio visualization
+
+When needing to visualize audio (spectrum bars, waveforms, bass-reactive effects), load the `crew/video-editor/rules/audio-visualization.md` file for more information.
+
+## Sound effects
+
+When needing to use sound effects, load the `crew/video-editor/rules/sfx.md` file for more information.
+
+## Editing existing videos
+
+To edit an existing video (add music, captions, effects, overlays, trim):
+1. Load `crew/video-editor/rules/videos.md` — embed the source video as a layer: `<Video src={staticFile("input.mp4")}>`
+2. Load `crew/video-editor/rules/audio.md` — layer background music: `<Audio src={staticFile("music.mp3")} volume={0.3}>`
+3. Load `crew/video-editor/rules/display-captions.md` — overlay TikTok-style captions with word highlighting
+4. Load `crew/video-editor/rules/transitions.md` — add scene transitions between segments
+5. Load `crew/video-editor/rules/trimming.md` — cut start/end of clips
+6. Source video = base layer. Text, images, audio, effects = additional layers on top via `<Sequence>`.
+
+## Generating assets with AI tools
+
+When the user needs assets that don't exist yet:
+- `generateMusic(prompt, duration)` — AI-generated background music or soundtracks
+- `generateImage(prompt)` — AI-generated scene backgrounds, thumbnails, overlays
+- `textToSpeech(text)` — generate narration audio for voiceover scenes
+- `transcribeAudio(audioPath)` — generate captions from speech audio
+- `imageOps(inputPath, operation)` — resize, crop, convert images for scene assets
+
+## How to use
+
+Read individual rule files for detailed explanations and code examples:
+
+- `crew/video-editor/rules/3d.md` - 3D content in Remotion using Three.js and React Three Fiber
+- `crew/video-editor/rules/animations.md` - Fundamental animation skills for Remotion
+- `crew/video-editor/rules/assets.md` - Importing images, videos, audio, and fonts into Remotion
+- `crew/video-editor/rules/audio.md` - Using audio and sound in Remotion - importing, trimming, volume, speed, pitch
+- `crew/video-editor/rules/audio-visualization.md` - Audio visualization patterns - spectrum bars, waveforms, bass-reactive effects
+- `crew/video-editor/rules/calculate-metadata.md` - Dynamically set composition duration, dimensions, and props
+- `crew/video-editor/rules/can-decode.md` - Check if a video can be decoded by the browser using Mediabunny
+- `crew/video-editor/rules/charts.md` - Chart and data visualization patterns for Remotion (bar, pie, line, stock charts)
+- `crew/video-editor/rules/compositions.md` - Defining compositions, stills, folders, default props and dynamic metadata
+- `crew/video-editor/rules/display-captions.md` - Displaying captions with TikTok-style pages and word highlighting
+- `crew/video-editor/rules/extract-frames.md` - Extract frames from videos at specific timestamps using Mediabunny
+- `crew/video-editor/rules/fonts.md` - Loading Google Fonts and local fonts in Remotion
+- `crew/video-editor/rules/get-audio-duration.md` - Getting the duration of an audio file in seconds with Mediabunny
+- `crew/video-editor/rules/get-video-dimensions.md` - Getting the width and height of a video file with Mediabunny
+- `crew/video-editor/rules/get-video-duration.md` - Getting the duration of a video file in seconds with Mediabunny
+- `crew/video-editor/rules/gifs.md` - Displaying GIFs synchronized with Remotion's timeline
+- `crew/video-editor/rules/images.md` - Embedding images in Remotion using the Img component
+- `crew/video-editor/rules/import-srt-captions.md` - Import SRT subtitle files into Remotion
+- `crew/video-editor/rules/light-leaks.md` - Light leak overlay effects using @remotion/light-leaks
+- `crew/video-editor/rules/lottie.md` - Embedding Lottie animations in Remotion
+- `crew/video-editor/rules/maps.md` - Add a map using Mapbox and animate it
+- `crew/video-editor/rules/measuring-dom-nodes.md` - Measuring DOM element dimensions in Remotion
+- `crew/video-editor/rules/measuring-text.md` - Measuring text dimensions, fitting text to containers, and checking overflow
+- `crew/video-editor/rules/parameters.md` - Make a video parametrizable by adding a Zod schema
+- `crew/video-editor/rules/sequencing.md` - Sequencing patterns for Remotion - delay, trim, limit duration of items
+- `crew/video-editor/rules/sfx.md` - Including sound effects (whoosh, click, ding, vine boom)
+- `crew/video-editor/rules/silence-detection.md` - Adaptive silence detection using FFmpeg loudnorm and silencedetect
+- `crew/video-editor/rules/subtitles.md` - General subtitle rendering
+- `crew/video-editor/rules/tailwind.md` - Using TailwindCSS in Remotion
+- `crew/video-editor/rules/text-animations.md` - Typography and text animation patterns for Remotion
+- `crew/video-editor/rules/timing.md` - Timing with interpolate and Bezier easing, springs
+- `crew/video-editor/rules/transitions.md` - Scene transition patterns for Remotion
+- `crew/video-editor/rules/transparent-videos.md` - Rendering out a video with transparency
+- `crew/video-editor/rules/transcribe-captions.md` - Generate captions from audio via Whisper
+- `crew/video-editor/rules/trimming.md` - Trimming patterns for Remotion - cut the beginning or end of animations
+- `crew/video-editor/rules/videos.md` - Embedding videos in Remotion - trimming, volume, speed, looping, pitch
+- `crew/video-editor/rules/voiceover.md` - Adding AI-generated voiceover to Remotion compositions using ElevenLabs TTS
