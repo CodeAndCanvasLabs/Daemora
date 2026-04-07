@@ -273,11 +273,15 @@ async function renderSkills(taskInput, limit = 20, isSubAgent = false, skillScop
 
   const preamble = isSubAgent
     ? `Before acting: scan <available_skills> descriptions.
-If one clearly applies → readFile its location, follow it. Skip "confirm with user" steps. If multiple → pick most specific. If none → proceed.`
+- If exactly one skill clearly applies: readFile its location, then follow it. Skip "confirm with user" steps.
+- If multiple could apply: choose the most specific one, then readFile and follow it.
+- If none clearly apply: do not read any skill.
+- Never read more than one skill up front. Read only after selecting.
+- Skills driving external API writes: assume rate limits. Prefer batch writes. Respect 429/Retry-After.`
     : `Before replying: scan <available_skills> descriptions.
-- If exactly one skill applies: readFile its location, follow it.
-- If multiple could apply: choose most specific, then read/follow.
-- If none apply: do not read any skill.
+- If exactly one skill clearly applies: readFile its location, then follow it.
+- If multiple could apply: choose the most specific one, then readFile and follow it.
+- If none clearly apply: do not read any skill.
 - Never read more than one skill up front. Read only after selecting.
 - Skills driving external API writes: assume rate limits. Prefer batch writes. Respect 429/Retry-After.`;
 

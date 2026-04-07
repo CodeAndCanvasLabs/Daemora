@@ -259,7 +259,8 @@ export async function spawnSubAgent(taskDescription, options = {}) {
         else console.log(`[SubAgent:${agentId}] Skill not found: "${ref}"`);
       }
       if (refs.length > 0) {
-        skillContext = `\n### SKILLS (mandatory)\nBefore starting: read the most relevant skill below with readFile and follow its workflow.\n${refs.map(s => `- ${s.name}: ${s.description} (${s.location})`).join("\n")}`;
+        const skillList = refs.map(s => `  <skill>\n    <name>${s.name}</name>\n    <description>${s.description}</description>\n    <location>${s.location}</location>\n  </skill>`).join("\n");
+        skillContext = `\n## Skills (mandatory)\n\nBefore acting: scan <available_skills> descriptions.\n- If exactly one skill clearly applies: readFile its location, then follow it. Skip "confirm with user" steps.\n- If multiple could apply: choose the most specific one, then readFile and follow it.\n- If none clearly apply: do not read any skill.\n- Never read more than one skill up front. Read only after selecting.\n- Skills driving external API writes: assume rate limits. Prefer batch writes. Respect 429/Retry-After.\n\n<available_skills>\n${skillList}\n</available_skills>`;
         console.log(`[SubAgent:${agentId}] Skill refs ${refs.length}: ${refs.map(s => s.name).join(", ")}`);
       }
     }
