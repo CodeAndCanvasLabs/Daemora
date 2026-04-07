@@ -143,6 +143,10 @@ export const defaultSubAgentTools = [
   // Documents + Vision
   "createDocument",
   "imageAnalysis",
+  // Media generation (gated by TOOL_REQUIRED_KEYS)
+  "generateImage", "generateVideo", "generateMusic",
+  // Image processing (local)
+  "imageOps",
   // Memory
   "readMemory", "writeMemory", "readDailyLog", "writeDailyLog",
   "searchMemory", "pruneMemory", "listMemoryCategories",
