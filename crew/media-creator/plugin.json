@@ -10,8 +10,8 @@
   },
   "tools": [
     "generateImage", "generateVideo", "generateMusic", "imageOps",
-    "readFile", "writeFile", "listDirectory", "webFetch",
-    "replyToUser", "sendFile"
+    "readFile", "writeFile", "editFile", "listDirectory", "executeCommand",
+    "webFetch", "replyToUser", "sendFile"
   ],
-  "skills": ["image-gen"]
+  "skills": ["image-gen", "remotion", "video-frames"]
 }
