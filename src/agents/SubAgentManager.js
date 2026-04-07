@@ -255,7 +255,7 @@ export async function spawnSubAgent(taskDescription, options = {}) {
       const refs = [];
       for (const ref of skills) {
         const skill = skillLoader.getSkill(ref);
-        if (skill) refs.push({ name: skill.name, description: skill.description, location: skill.location });
+        if (skill) refs.push({ name: skill.name, description: skill.description, location: skill.filePath || `skills/${skill.name}.md` });
         else console.log(`[SubAgent:${agentId}] Skill not found: "${ref}"`);
       }
       if (refs.length > 0) {
