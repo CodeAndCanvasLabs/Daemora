@@ -39,6 +39,7 @@ export const permissionTiers = {
       "sendFile", "replyToUser",
       // Media
       "transcribeAudio", "textToSpeech",
+      "generateImage", "generateVideo", "generateMusic", "imageOps",
       // Documents
       "createDocument",
       // Vision & screen
@@ -88,8 +89,10 @@ export const permissionTiers = {
       "cron", "broadcast", "goal", "watcher",
       // Voice & Meetings
       "makeVoiceCall", "meetingAction",
-      // Phase 24
-      "generateImage", "readPDF", "gitTool", "clipboard",
+      // Media generation
+      "generateImage", "generateVideo", "generateMusic", "imageOps",
+      // Documents & tools
+      "readPDF", "gitTool", "clipboard", "createPoll",
     ],
   },
 };

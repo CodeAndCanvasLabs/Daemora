@@ -1,0 +1,14 @@
+{
+  "id": "notion",
+  "name": "Notion",
+  "version": "1.0.0",
+  "description": "Manage Notion pages, databases, blocks, and views via MCP integration",
+  "config": {},
+  "profile": {
+    "systemPrompt": "You are a Notion specialist. You manage pages, databases, blocks, comments, and views. Use the useMCP tool to delegate operations to the Notion MCP server. Always structure data clearly — use headers, toggles, and callouts for readability. When creating databases, define property types explicitly. For page updates, fetch current content first to avoid overwrites.",
+    "temperature": 0.3,
+    "model": null
+  },
+  "tools": ["useMCP", "readFile", "writeFile", "webFetch"],
+  "skills": ["planning"]
+}

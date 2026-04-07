@@ -22,6 +22,7 @@ import mcpManager from "./mcp/MCPManager.js";
 import auditLog from "./safety/AuditLog.js";
 import scheduler from "./scheduler/Scheduler.js";
 import heartbeat from "./scheduler/Heartbeat.js";
+import statusReactor from "./core/StatusReactor.js";
 import goalPulse from "./scheduler/GoalPulse.js";
 import { mountAgentCard } from "./a2a/AgentCard.js";
 import { mountA2AServer } from "./a2a/A2AServer.js";
@@ -73,6 +74,7 @@ if (config.cleanupAfterDays > 0) {
 // Initialize task system (TaskRunner starts after full init - see startup sequence below)
 taskQueue.init();
 supervisor.start();
+statusReactor.start();
 auditLog.start();
 scheduler.start().catch(e => console.log(`[Scheduler] Start error: ${e.message}`));
 heartbeat.start();
@@ -1713,6 +1715,22 @@ app.get("/api/costs/today", (req, res) => {
     dailyLimit: config.maxDailyCost,
     remaining: Math.max(0, config.maxDailyCost - getTodayCost()),
   });
+});
+
+// --- Media file serving (images, videos, audio) ---
+// Serve any local file by absolute path (for generated images/videos)
+app.get("/api/file", (req, res) => {
+  const filePath = req.query.path;
+  if (!filePath || typeof filePath !== "string") return res.status(400).json({ error: "path required" });
+  if (filePath.includes("..")) return res.status(400).json({ error: "Invalid path" });
+  if (!existsSync(filePath)) return res.status(404).json({ error: "File not found" });
+
+  // Only serve files from allowed directories (data/, /tmp/, cwd)
+  const allowed = [config.dataDir, "/tmp", process.cwd()];
+  const isAllowed = allowed.some(dir => filePath.startsWith(dir));
+  if (!isAllowed) return res.status(403).json({ error: "Access denied" });
+
+  res.sendFile(filePath);
 });
 
 // --- Static UI (with auth token injection) ---

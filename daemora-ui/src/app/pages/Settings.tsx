@@ -1021,7 +1021,7 @@ export function Settings() {
         title="Tool Config"
         subtitle="API keys and settings for built-in tools"
         badge={(() => {
-          const toolKeys = ["ELEVENLABS_API_KEY"];
+          const toolKeys = ["ELEVENLABS_API_KEY", "SUNO_API_KEY"];
           const set = toolKeys.filter(k => data.vars[k]);
           return set.length > 0 ? (
             <span className="text-[9px] font-mono text-[#00ff88] bg-[#00ff88]/10 px-2 py-0.5 rounded-md border border-[#00ff88]/20">
@@ -1034,6 +1034,7 @@ export function Settings() {
         <div className="space-y-3">
           {[
             { name: "Text-to-Speech (ElevenLabs)", color: "#f0883e", keys: [{ key: "ELEVENLABS_API_KEY", label: "API Key" }] },
+            { name: "Music Generation (Suno)", color: "#8b5cf6", keys: [{ key: "SUNO_API_KEY", label: "API Key" }] },
           ].map(({ name, color, keys }) => {
             const anySet = keys.some(k => data.vars[k.key]);
             return (

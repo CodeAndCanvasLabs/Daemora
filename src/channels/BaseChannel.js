@@ -58,6 +58,74 @@ export class BaseChannel {
   }
 
   /**
+   * Send a typing indicator on this channel (optional feature).
+   * Called periodically while the agent is processing.
+   * @param {object} channelMeta - Channel-specific metadata
+   */
+  async sendTyping(channelMeta) {
+    // Default no-op - channels that support typing override this
+  }
+
+  /**
+   * Edit a previously sent message (optional feature).
+   * @param {object} channelMeta - Channel-specific metadata
+   * @param {string} messageId - ID of the message to edit
+   * @param {string} newText - New message content
+   */
+  async editMessage(channelMeta, messageId, newText) {
+    // Default no-op - channels that support editing override this
+  }
+
+  /**
+   * Delete a previously sent message (optional feature).
+   * @param {object} channelMeta - Channel-specific metadata
+   * @param {string} messageId - ID of the message to delete
+   */
+  async deleteMessage(channelMeta, messageId) {
+    // Default no-op - channels that support deletion override this
+  }
+
+  /**
+   * Reply in a thread (optional feature).
+   * Falls back to sendReply if threading not supported.
+   * @param {object} channelMeta - Channel-specific metadata
+   * @param {string} text - Reply text
+   */
+  async sendThreadReply(channelMeta, text) {
+    return this.sendReply(channelMeta, text);
+  }
+
+  /**
+   * Create a poll in the channel (optional feature).
+   * @param {object} channelMeta - Channel-specific metadata
+   * @param {string} question - Poll question
+   * @param {string[]} options - Answer options
+   * @param {number} duration - Duration in hours (default: 24)
+   */
+  /**
+   * Send a rich embed/card to the channel (optional feature).
+   * @param {object} channelMeta - Channel-specific metadata
+   * @param {object} embed - { title, description, color, fields: [{name, value}], imageUrl, footerText }
+   */
+  async sendEmbed(channelMeta, embed) {
+    // Default: format as markdown text
+    const lines = [];
+    if (embed.title) lines.push(`**${embed.title}**`);
+    if (embed.description) lines.push(embed.description);
+    if (embed.fields?.length > 0) {
+      for (const f of embed.fields) lines.push(`**${f.name}:** ${f.value}`);
+    }
+    if (embed.footerText) lines.push(`_${embed.footerText}_`);
+    return this.sendReply(channelMeta, lines.join("\n"));
+  }
+
+  async sendPoll(channelMeta, question, options, duration = 24) {
+    // Default: format as text (channels that support native polls override this)
+    const formatted = `📊 **${question}**\n${options.map((o, i) => `${i + 1}. ${o}`).join("\n")}`;
+    return this.sendReply(channelMeta, formatted);
+  }
+
+  /**
    * Check whether a user is allowed to send tasks on this channel.
    *
    * If config.allowlist is empty or not set → everyone is allowed (open channel).

@@ -307,3 +307,78 @@ export function resolveThinkingConfig(modelId, level = "auto") {
 export function resolveSubAgentModel(parentModel = null, apiKeys = {}) {
   return process.env.SUB_AGENT_MODEL || parentModel || resolveDefaultModel(apiKeys);
 }
+
+// ── Error Classification + Provider Cooldown ─────────────────────────────────
+
+const TRANSIENT_PATTERNS = /429|503|overloaded|rate.limit|capacity|try.again|too.many.requests|server.error|temporarily|timeout|ECONNRESET|ETIMEDOUT/i;
+const PERMANENT_PATTERNS = /401|403|404|invalid.api.key|model.not.found|billing|insufficient.quota|deprecated|unsupported|does.not.exist/i;
+
+const providerCooldowns = new Map(); // provider → { until: Date.now() + ms }
+
+/**
+ * Classify an API error as transient (retryable) or permanent (skip to fallback).
+ * @param {Error} error
+ * @returns {{ type: "transient"|"permanent"|"unknown", retryAfterMs: number|null }}
+ */
+export function classifyError(error) {
+  const msg = error?.message || "";
+  const status = error?.status || error?.statusCode || error?.data?.status || 0;
+
+  // Check HTTP status first
+  if (status === 429 || status === 503 || status === 502 || status === 500) {
+    const retryAfter = error?.headers?.["retry-after"];
+    const retryMs = retryAfter ? parseInt(retryAfter) * 1000 : null;
+    return { type: "transient", retryAfterMs: retryMs || 5000 };
+  }
+  if (status === 401 || status === 403 || status === 404) {
+    return { type: "permanent", retryAfterMs: null };
+  }
+
+  // Check message patterns
+  if (TRANSIENT_PATTERNS.test(msg)) return { type: "transient", retryAfterMs: 5000 };
+  if (PERMANENT_PATTERNS.test(msg)) return { type: "permanent", retryAfterMs: null };
+
+  return { type: "unknown", retryAfterMs: null };
+}
+
+/**
+ * Mark a provider as temporarily unavailable.
+ */
+export function cooldownProvider(modelId, durationMs = 60000) {
+  const provider = modelId.split(":")[0];
+  providerCooldowns.set(provider, { until: Date.now() + durationMs });
+  console.log(`[ModelRouter] Provider "${provider}" cooled down for ${durationMs / 1000}s`);
+}
+
+/**
+ * Get a runtime fallback model, skipping cooled-down providers.
+ * @param {string} currentModelId - The model that just failed
+ * @param {object} apiKeys
+ * @returns {{ model, meta, modelId } | null}
+ */
+export function getRuntimeFallback(currentModelId, apiKeys = {}) {
+  const currentProvider = currentModelId.split(":")[0];
+  const meta = models[currentModelId];
+  const tier = meta?.tier || "cheap";
+  const chain = fallbackChains[tier] || fallbackChains.cheap;
+  const now = Date.now();
+
+  for (const fallbackId of chain) {
+    if (fallbackId === currentModelId) continue;
+    const fbProvider = fallbackId.split(":")[0];
+
+    // Skip same provider (it's probably down too)
+    if (fbProvider === currentProvider) continue;
+
+    // Skip cooled-down providers
+    const cooldown = providerCooldowns.get(fbProvider);
+    if (cooldown && cooldown.until > now) continue;
+
+    try {
+      const result = getModel(fallbackId, apiKeys);
+      console.log(`[ModelRouter] Runtime fallback: ${currentModelId} → ${fallbackId}`);
+      return { ...result, modelId: fallbackId };
+    } catch { continue; }
+  }
+  return null;
+}

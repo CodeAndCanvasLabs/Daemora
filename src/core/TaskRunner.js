@@ -16,6 +16,7 @@ import { generateEmbedding, cosineSim } from "../utils/Embeddings.js";
 import { writeDailyLog } from "../tools/memory.js";
 import { queryAll } from "../storage/Database.js";
 import { compactIfNeeded } from "./Compaction.js";
+import statusReactor from "./StatusReactor.js";
 
 /**
  * Filter out internal tool call/result JSON from messages before saving to session.
@@ -336,6 +337,9 @@ class TaskRunner {
         appendMessage(session.sessionId, "user", task.input);
 
 
+        // Register for live typing indicators
+        statusReactor.registerTask(task.id, task.channel, task.channelMeta);
+
         // Run agent loop with resolved model, cost limits, and per-tenant API keys.
         // steerQueue lets follow-up messages from the same user be injected live
         // between tool calls instead of spawning a competing agent loop.
@@ -357,6 +361,9 @@ class TaskRunner {
             }
           },
         });
+
+        // Stop typing indicators
+        statusReactor.unregisterTask(task.id);
 
         // Clean up event listeners
         eventBus.removeListener("agent:spawned", onSpawn);

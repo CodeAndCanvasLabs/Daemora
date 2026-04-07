@@ -3,7 +3,7 @@ import taskQueue from "../core/TaskQueue.js";
 import { transcribeAudio } from "../tools/transcribeAudio.js";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join, extname } from "node:path";
-import { tmpdir } from "node:os";
+import { getTenantTmpDir } from "../tools/_paths.js";
 
 /**
  * Telegram Channel - receives messages via Telegram Bot API (grammy).
@@ -255,7 +255,7 @@ export class TelegramChannel extends BaseChannel {
       if (!res.ok) return null;
 
       const buffer   = await res.arrayBuffer();
-      const tmpDir   = join(tmpdir(), "daemora-tg");
+      const tmpDir   = getTenantTmpDir("telegram");
       mkdirSync(tmpDir, { recursive: true });
       const filePath = join(tmpDir, `${fileId}${extension}`);
       writeFileSync(filePath, Buffer.from(buffer));
@@ -311,10 +311,35 @@ export class TelegramChannel extends BaseChannel {
     }
   }
 
-  /**
-   * Set a native Telegram emoji reaction on a message.
-   * Uses setMessageReaction (Bot API 7.0+). Silent failure if not supported.
-   */
+  async sendTyping(channelMeta) {
+    if (!this.bot || !channelMeta?.chatId) return;
+    try { await this.bot.api.sendChatAction(channelMeta.chatId, "typing"); } catch (_) {}
+  }
+
+  async sendPoll(channelMeta, question, options, duration = 24) {
+    if (!this.bot || !channelMeta?.chatId) return;
+    try {
+      await this.bot.api.sendPoll(channelMeta.chatId, question, options, {
+        is_anonymous: false,
+        open_period: Math.min(duration * 3600, 600), // Telegram max: 600 seconds for open_period
+      });
+    } catch (err) { console.log(`[Channel:Telegram] sendPoll error: ${err.message}`); }
+  }
+
+  async editMessage(channelMeta, messageId, newText) {
+    if (!this.bot || !channelMeta?.chatId) return;
+    try { await this.bot.api.editMessageText(channelMeta.chatId, parseInt(messageId), newText); } catch (err) {
+      console.log(`[Channel:Telegram] editMessage error: ${err.message}`);
+    }
+  }
+
+  async deleteMessage(channelMeta, messageId) {
+    if (!this.bot || !channelMeta?.chatId) return;
+    try { await this.bot.api.deleteMessage(channelMeta.chatId, parseInt(messageId)); } catch (err) {
+      console.log(`[Channel:Telegram] deleteMessage error: ${err.message}`);
+    }
+  }
+
   async sendReaction(channelMeta, emoji) {
     if (!this.bot || !channelMeta.messageId) return;
     try {

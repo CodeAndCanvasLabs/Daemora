@@ -4,7 +4,7 @@ import eventBus from "../core/EventBus.js";
 import { transcribeAudio } from "../tools/transcribeAudio.js";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join, extname, basename } from "node:path";
-import { tmpdir } from "node:os";
+import { getTenantTmpDir } from "../tools/_paths.js";
 
 /**
  * Discord Channel - receives messages via Discord Bot API.
@@ -54,7 +54,7 @@ export class DiscordChannel extends BaseChannel {
     });
 
     this._readyPromise = new Promise(resolve => {
-      this.client.once("ready", (c) => {
+      this.client.once("ready", async (c) => {
         this.botUserId = c.user.id;
         this.running = true;
         console.log(`[Channel:Discord] Logged in as ${c.user.tag}`);
@@ -62,6 +62,11 @@ export class DiscordChannel extends BaseChannel {
           console.log(`[Channel:Discord] Allowlist active - ${this.config.allowlist.length} authorized user(s)`);
         }
         resolve();
+
+        // Catch up on messages missed while offline
+        try { await this._catchUpMissedMessages(); } catch (e) {
+          console.log(`[Channel:Discord] Catch-up failed (non-fatal): ${e.message}`);
+        }
       });
     });
 
@@ -70,9 +75,10 @@ export class DiscordChannel extends BaseChannel {
       if (message.author.bot) return;
 
       const isDM = message.channel.type === 1; // DM_CHANNEL = 1
-      const isMention = this.botUserId && message.mentions.has(this.botUserId);
+      // Only direct @user mentions — ignore role mentions (@&roleId), @everyone, @here
+      const isMention = this.botUserId && message.mentions.users.has(this.botUserId);
 
-      // Only respond to DMs or direct @mentions
+      // Only respond to DMs or direct @bot mentions
       if (!isDM && !isMention) return;
 
       const userId = message.author.id;
@@ -84,9 +90,9 @@ export class DiscordChannel extends BaseChannel {
         return;
       }
 
-      // Strip the @mention from the message content
+      // Strip user mentions (@user) and role mentions (@&role) from content
       const text = message.content
-        .replace(/<@!?\d+>/g, "")
+        .replace(/<@[!&]?\d+>/g, "")
         .trim();
 
       const hasAttachments = message.attachments.size > 0;
@@ -158,6 +164,9 @@ export class DiscordChannel extends BaseChannel {
         await this._removeReaction(message, "⏳");
         await this.sendReaction({ message }, failed ? "❌" : "✅");
 
+        // Update last-seen after every processed message (crash-safe)
+        this._saveLastSeen();
+
         // Discord message limit: 2000 chars
         const chunks = splitMessage(response, 1990);
         await message.reply(chunks[0]).catch(() => {});
@@ -194,11 +203,106 @@ export class DiscordChannel extends BaseChannel {
   }
 
   async stop() {
+    // Save last-seen BEFORE destroying client (sync write, no dynamic import race)
+    this._saveLastSeen();
     if (this.client) {
       await this.client.destroy();
       this.running = false;
       console.log(`[Channel:Discord] Stopped`);
     }
+  }
+
+  _saveLastSeen() {
+    try {
+      const { configStore } = require("../config/ConfigStore.js");
+      configStore.set("DISCORD_LAST_SEEN", new Date().toISOString());
+    } catch {
+      try {
+        // Fallback: write directly to SQLite
+        const { run } = require("../storage/Database.js");
+        run(
+          "INSERT OR REPLACE INTO config_store (key, value, updated_at) VALUES ($k, $v, datetime('now'))",
+          { $k: "DISCORD_LAST_SEEN", $v: new Date().toISOString() }
+        );
+      } catch {}
+    }
+  }
+
+  /**
+   * Catch up on DMs missed while the bot was offline.
+   * Uses Discord API to fetch the bot's recent DM channels, then scans for unprocessed messages.
+   */
+  async _catchUpMissedMessages() {
+    let lastSeen;
+    try {
+      const { configStore } = await import("../config/ConfigStore.js");
+      lastSeen = configStore.get("DISCORD_LAST_SEEN");
+    } catch {}
+    if (!lastSeen) {
+      // First run — set timestamp and skip
+      this._saveLastSeen();
+      return;
+    }
+
+    const cutoff = new Date(lastSeen);
+    const now = new Date();
+    const offlineMs = now - cutoff;
+
+    if (offlineMs > 86400000) {
+      console.log(`[Channel:Discord] Offline > 24h — skipping catch-up`);
+      this._saveLastSeen();
+      return;
+    }
+
+    if (offlineMs < 5000) return; // Just restarted, no gap
+
+    console.log(`[Channel:Discord] Catching up on messages since ${lastSeen} (${Math.round(offlineMs / 60000)}min offline)`);
+    let caught = 0;
+
+    try {
+      // Fetch the bot's DM channels via REST API (cache is empty on fresh connect)
+      const dmChannels = await this.client.channels.fetch().catch(() => null);
+      const channels = dmChannels
+        ? [...dmChannels.values()].filter(c => c.type === 1)
+        : [...this.client.channels.cache.values()].filter(c => c.type === 1);
+
+      // Also check allowlisted users' DMs directly
+      if (channels.length === 0 && this.config.allowlist?.length > 0) {
+        for (const userId of this.config.allowlist) {
+          try {
+            const user = await this.client.users.fetch(String(userId));
+            if (user) {
+              const dm = await user.createDM();
+              if (dm) channels.push(dm);
+            }
+          } catch {}
+        }
+      }
+
+      const DISCORD_EPOCH = 1420070400000n;
+      const afterSnowflake = ((BigInt(cutoff.getTime()) - DISCORD_EPOCH) << 22n).toString();
+
+      for (const channel of channels) {
+        try {
+          const messages = await channel.messages.fetch({ limit: 20, after: afterSnowflake });
+          for (const [, msg] of messages) {
+            if (msg.author.bot) continue;
+            if (!this.isAllowed(msg.author.id)) continue;
+            const text = msg.content?.replace(/<@[!&]?\d+>/g, "").trim();
+            if (!text && msg.attachments.size === 0) continue;
+            console.log(`[Channel:Discord] Catch-up: "${text?.slice(0, 60)}" from ${msg.author.username}`);
+            this.client.emit("messageCreate", msg);
+            caught++;
+          }
+        } catch {}
+      }
+    } catch (e) {
+      console.log(`[Channel:Discord] Catch-up scan error: ${e.message}`);
+    }
+
+    this._saveLastSeen();
+    if (caught > 0) console.log(`[Channel:Discord] Caught up ${caught} missed message(s)`);
+    else console.log(`[Channel:Discord] No missed messages`);
   }
 
   async sendReply(channelMeta, text) {
@@ -214,11 +318,60 @@ export class DiscordChannel extends BaseChannel {
     }
   }
 
-  /**
-   * React to a Discord message with an emoji.
-   * @param {{ message }} channelMeta - Must include the original Discord Message object
-   * @param {string} emoji
-   */
+  async sendEmbed(channelMeta, embed) {
+    if (!this.client) return;
+    try {
+      const { EmbedBuilder } = await import("discord.js");
+      const channel = await this.client.channels.fetch(channelMeta.channelId);
+      const eb = new EmbedBuilder();
+      if (embed.title) eb.setTitle(embed.title);
+      if (embed.description) eb.setDescription(embed.description);
+      if (embed.color) eb.setColor(embed.color);
+      if (embed.fields?.length > 0) eb.addFields(embed.fields);
+      if (embed.imageUrl) eb.setImage(embed.imageUrl);
+      if (embed.footerText) eb.setFooter({ text: embed.footerText });
+      await channel.send({ embeds: [eb] });
+    } catch (err) { console.log(`[Channel:Discord] sendEmbed error: ${err.message}`); }
+  }
+
+  async editMessage(channelMeta, messageId, newText) {
+    if (!this.client) return;
+    try {
+      const channel = await this.client.channels.fetch(channelMeta.channelId);
+      const msg = await channel.messages.fetch(messageId);
+      if (msg) await msg.edit(newText);
+    } catch (err) { console.log(`[Channel:Discord] editMessage error: ${err.message}`); }
+  }
+
+  async deleteMessage(channelMeta, messageId) {
+    if (!this.client) return;
+    try {
+      const channel = await this.client.channels.fetch(channelMeta.channelId);
+      const msg = await channel.messages.fetch(messageId);
+      if (msg) await msg.delete();
+    } catch (err) { console.log(`[Channel:Discord] deleteMessage error: ${err.message}`); }
+  }
+
+  async sendThreadReply(channelMeta, text) {
+    if (!this.client) return;
+    try {
+      const msg = channelMeta?.message;
+      if (msg) await msg.reply(text);
+      else await this.sendReply(channelMeta, text);
+    } catch (err) { await this.sendReply(channelMeta, text); }
+  }
+
+  async sendTyping(channelMeta) {
+    try {
+      const msg = channelMeta?.message;
+      if (msg?.channel) await msg.channel.sendTyping();
+      else if (channelMeta?.channelId) {
+        const ch = await this.client.channels.fetch(channelMeta.channelId);
+        if (ch) await ch.sendTyping();
+      }
+    } catch (_) {}
+  }
+
   async sendReaction(channelMeta, emoji) {
     const msg = channelMeta?.message;
     if (!msg) return;
@@ -257,7 +410,7 @@ export class DiscordChannel extends BaseChannel {
   async _downloadAttachment(attachment) {
     try {
       const ext = extname(attachment.name || attachment.url || "").split("?")[0] || "";
-      const tmpDir = join(tmpdir(), "daemora-discord");
+      const tmpDir = getTenantTmpDir("discord");
       mkdirSync(tmpDir, { recursive: true });
       const filePath = join(tmpDir, `${attachment.id}${ext}`);
 

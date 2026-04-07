@@ -4,7 +4,7 @@ import eventBus from "../core/EventBus.js";
 import { transcribeAudio } from "../tools/transcribeAudio.js";
 import { createReadStream, writeFileSync, mkdirSync } from "node:fs";
 import { join, extname, basename } from "node:path";
-import { tmpdir } from "node:os";
+import { getTenantTmpDir } from "../tools/_paths.js";
 
 /**
  * Slack Channel - receives messages via Slack Bolt + Socket Mode.
@@ -237,6 +237,52 @@ export class SlackChannel extends BaseChannel {
     await this._addReaction(channelMeta.channelId, channelMeta.messageTs, name);
   }
 
+  async sendEmbed(channelMeta, embed) {
+    try {
+      const blocks = [];
+      if (embed.title) blocks.push({ type: "header", text: { type: "plain_text", text: embed.title } });
+      if (embed.description) blocks.push({ type: "section", text: { type: "mrkdwn", text: embed.description } });
+      if (embed.fields?.length > 0) {
+        const fieldBlocks = embed.fields.map(f => ({ type: "mrkdwn", text: `*${f.name}*\n${f.value}` }));
+        // Slack allows max 10 fields per section, 2 columns
+        for (let i = 0; i < fieldBlocks.length; i += 2) {
+          blocks.push({ type: "section", fields: fieldBlocks.slice(i, i + 2) });
+        }
+      }
+      if (embed.imageUrl) blocks.push({ type: "image", image_url: embed.imageUrl, alt_text: embed.title || "image" });
+      if (embed.footerText) blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: embed.footerText }] });
+
+      await this.app.client.chat.postMessage({
+        token: this.config.botToken,
+        channel: channelMeta.channelId,
+        blocks,
+        text: embed.title || embed.description || "",
+        ...(channelMeta.threadTs ? { thread_ts: channelMeta.threadTs } : {}),
+      });
+    } catch (err) { console.log(`[Channel:Slack] sendEmbed error: ${err.message}`); }
+  }
+
+  async editMessage(channelMeta, messageId, newText) {
+    try {
+      await this.app.client.chat.update({
+        token: this.config.botToken,
+        channel: channelMeta.channelId,
+        ts: messageId,
+        text: newText,
+      });
+    } catch (err) { console.log(`[Channel:Slack] editMessage error: ${err.message}`); }
+  }
+
+  async deleteMessage(channelMeta, messageId) {
+    try {
+      await this.app.client.chat.delete({
+        token: this.config.botToken,
+        channel: channelMeta.channelId,
+        ts: messageId,
+      });
+    } catch (err) { console.log(`[Channel:Slack] deleteMessage error: ${err.message}`); }
+  }
+
   async _addReaction(channelId, timestamp, name) {
     try {
       await this.app.client.reactions.add({
@@ -286,7 +332,7 @@ export class SlackChannel extends BaseChannel {
       if (!url) return null;
 
       const ext = extname(file.name || file.title || "").split("?")[0] || "";
-      const tmpDir = join(tmpdir(), "daemora-slack");
+      const tmpDir = getTenantTmpDir("slack");
       mkdirSync(tmpDir, { recursive: true });
       const filePath = join(tmpDir, `${file.id}${ext}`);
 

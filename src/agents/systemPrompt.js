@@ -15,6 +15,8 @@ const TOOL_REQUIRED_KEYS = {
   transcribeAudio: ["OPENAI_API_KEY"],
   textToSpeech:    ["OPENAI_API_KEY", "ELEVENLABS_API_KEY"],
   generateImage:   ["OPENAI_API_KEY"],
+  generateVideo:   ["OPENAI_API_KEY"],
+  generateMusic:   ["OPENAI_API_KEY", "SUNO_API_KEY"],
   meetingAction:   ["TWILIO_ACCOUNT_SID"],
 };
 
@@ -48,6 +50,9 @@ const TOOL_SUMMARIES = {
   textToSpeech: "Convert text to audio (OpenAI/ElevenLabs)",
   transcribeAudio: "Transcribe audio file to text",
   generateImage: "Generate image from text prompt (DALL-E)",
+  generateVideo: "Generate video from text prompt (async, returns file path)",
+  generateMusic: "Generate music/audio from text description",
+  imageOps: "Process images locally: resize, compress, convert, crop, rotate, blur, grayscale",
   imageAnalysis: "Analyze image with vision model",
   readPDF: "Extract text from PDF files",
   createDocument: "Create formatted documents (docx, pdf, pptx, xlsx)",
@@ -66,6 +71,7 @@ const TOOL_SUMMARIES = {
   writeDailyLog: "Log task completion to daily log",
   replyToUser: "Send mid-task progress update to user",
   gitTool: "Git operations (status, diff, log, commit)",
+  createPoll: "Create a poll in the user's active channel",
   broadcast: "Send message to all channels",
   manageAgents: "List, steer, or kill sub-agents",
   meetingAction: "Join/manage phone meetings",
@@ -181,8 +187,10 @@ function renderToolingSummary(isSubAgent) {
 
   if (toolNames.length === 0) return null;
 
+  // Sort alphabetically for prompt cache stability
   const lines = toolNames
     .filter(name => TOOL_SUMMARIES[name])
+    .sort()
     .map(name => `- ${name}: ${TOOL_SUMMARIES[name]}`);
 
   if (lines.length === 0) return null;
@@ -222,11 +230,16 @@ function renderCrewSection() {
     if (loaded.length === 0) return null;
 
     const list = loaded.map(p => {
-      const tools = (p.toolNames || []).length > 0 ? ` Tools: ${p.toolNames.join(", ")}` : "";
-      return `- ${p.id}: ${p.description || p.name}${tools}`;
+      const specialistTools = (p.toolNames || []);
+      // Show key plugin tools that differentiate this crew (skip common tools like readFile, writeFile)
+      const commonTools = new Set(["readFile", "writeFile", "editFile", "listDirectory", "glob", "grep", "executeCommand", "webFetch", "webSearch", "replyToUser", "sendFile"]);
+      const pluginTools = (p.manifest?.tools || []).filter(t => !commonTools.has(t));
+      const allKey = [...new Set([...specialistTools, ...pluginTools])];
+      const capabilities = allKey.length > 0 ? ` | Can: ${allKey.join(", ")}` : "";
+      return `- **${p.id}**: ${p.description || p.name}${capabilities}`;
     }).join("\n");
 
-    return `## Crew Members\n\nUse useCrew(crewId, taskDescription) to delegate. Crew member has ZERO context — include everything.\n${list}`;
+    return `## Crew Members (Specialist Agents)\n\nEach crew member is a specialist agent with specific tools. Pick the crew whose description and capabilities match the task. Use useCrew(crewId, taskDescription) to delegate — crew has ZERO context, include everything.\n\n${list}`;
   } catch {
     return null;
   }
@@ -253,6 +266,9 @@ async function renderSkills(taskInput, limit = 20, isSubAgent = false, skillScop
   const summaries = await skillLoader.getMatchedSkillSummaries(taskInput, limit, skillScope);
   if (!summaries || summaries.length === 0) return null;
 
+  // Sort deterministically by name for prompt cache stability (tiebreaker for same-score skills)
+  summaries.sort((a, b) => a.name.localeCompare(b.name));
+
   const items = summaries.map(s =>
     `  <skill>\n    <name>${s.name}</name>\n    <description>${s.description}</description>\n    <location>${s.location}</location>\n  </skill>`
   );
@@ -262,11 +278,15 @@ async function renderSkills(taskInput, limit = 20, isSubAgent = false, skillScop
 
   const preamble = isSubAgent
     ? `Before acting: scan <available_skills> descriptions.
-If one clearly applies → readFile its location, follow it. Skip "confirm with user" steps. If multiple → pick most specific. If none → proceed.`
+- If exactly one skill clearly applies: readFile its location, then follow it. Skip "confirm with user" steps.
+- If multiple could apply: choose the most specific one, then readFile and follow it.
+- If none clearly apply: do not read any skill.
+- Never read more than one skill up front. Read only after selecting.
+- Skills driving external API writes: assume rate limits. Prefer batch writes. Respect 429/Retry-After.`
     : `Before replying: scan <available_skills> descriptions.
-- If exactly one skill applies: readFile its location, follow it.
-- If multiple could apply: choose most specific, then read/follow.
-- If none apply: do not read any skill.
+- If exactly one skill clearly applies: readFile its location, then follow it.
+- If multiple could apply: choose the most specific one, then readFile and follow it.
+- If none clearly apply: do not read any skill.
 - Never read more than one skill up front. Read only after selecting.
 - Skills driving external API writes: assume rate limits. Prefer batch writes. Respect 429/Retry-After.`;
 

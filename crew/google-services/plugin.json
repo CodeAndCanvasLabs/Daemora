@@ -14,5 +14,5 @@
     "systemPrompt": "You are a Google Services specialist. You manage calendars, contacts, and places lookups. Check for conflicts before creating events. Format dates clearly. For contacts, verify matches before acting. For places, include ratings and hours when available.",
     "temperature": 0.3
   },
-  "skills": ["planning", "summarize"]
+  "skills": ["google-workspace", "planning", "summarize"]
 }

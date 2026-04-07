@@ -226,6 +226,46 @@ const toolSchemas = {
     description: "Generate image with DALL-E",
   },
 
+  generateVideo: {
+    schema: z.object({
+      prompt: str("Video description"),
+      duration: optNum("Duration in seconds (default: 5)"),
+      size: optStr("Resolution: '1080p' | '720p' | '480p' (default: 1080p)"),
+      style: optStr("Style: 'natural' | 'cinematic' | 'animated' (default: natural)"),
+      outputPath: optStr("Custom output file path"),
+    }),
+    description: "Generate video from text prompt",
+  },
+  generateMusic: {
+    schema: z.object({
+      prompt: str("Music description (mood, tempo, instruments)"),
+      duration: optNum("Duration in seconds (default: 30)"),
+      style: optStr("Style hint (e.g. ambient, upbeat, classical)"),
+      genre: optStr("Genre (e.g. electronic, jazz, rock)"),
+      instrumental: optBool("Instrumental only, no vocals (default: true)"),
+      lyrics: optStr("Lyrics text (only if instrumental=false)"),
+      format: optStr("Output format: 'mp3' | 'wav' (default: mp3)"),
+      outputPath: optStr("Custom output file path"),
+    }),
+    description: "Generate music/audio from text prompt",
+  },
+  imageOps: {
+    schema: z.object({
+      inputPath: str("Input image file path"),
+      operation: str("Operation: resize | compress | convert | crop | rotate | blur | grayscale | metadata"),
+      width: optNum("Width (for resize/crop)"),
+      height: optNum("Height (for resize/crop)"),
+      left: optNum("Left offset (for crop)"),
+      top: optNum("Top offset (for crop)"),
+      quality: optNum("Quality 1-100 (for compress)"),
+      format: optStr("Target format (for convert/compress): jpeg | png | webp | avif"),
+      angle: optNum("Rotation angle in degrees (for rotate)"),
+      sigma: optNum("Blur sigma (for blur, default: 5)"),
+      outputPath: optStr("Custom output file path"),
+    }),
+    description: "Process images locally: resize, compress, convert, crop, rotate, blur, grayscale",
+  },
+
   // ── Documents ────────────────────────────────────────────────────────────
   createDocument: {
     schema: z.object({
@@ -526,6 +566,16 @@ const toolSchemas = {
       useSpeakerBoost: optBool("Use speaker boost (for voiceSettings)"),
     }),
     description: "Join meetings via phone dial-in (Twilio). join={dialIn, pin} dials meeting number. wait=blocks until call ends, returns full transcript. Bot converses autonomously via OpenAI Realtime STT + TTS. Voice cloning via ElevenLabs.",
+  },
+
+  // ── Polls ────────────────────────────────────────────────────────────────
+  createPoll: {
+    schema: z.object({
+      question: str("Poll question"),
+      options: z.array(z.string()).describe("Answer options (2-10 items)"),
+      duration: optNum("Duration in hours (default: 24)"),
+    }),
+    description: "Create a poll in the user's active channel",
   },
 
   // ── Git ──────────────────────────────────────────────────────────────────

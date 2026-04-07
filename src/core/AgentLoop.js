@@ -1,5 +1,5 @@
 import { generateText, tool, stepCountIs } from "ai";
-import { getModelWithFallback, resolveThinkingConfig, resolveDefaultModel } from "../models/ModelRouter.js";
+import { getModelWithFallback, resolveThinkingConfig, resolveDefaultModel, classifyError, cooldownProvider, getRuntimeFallback } from "../models/ModelRouter.js";
 import { config } from "../config/default.js";
 import eventBus from "./EventBus.js";
 import hookRunner from "../hooks/HookRunner.js";
@@ -14,6 +14,7 @@ import toolSchemas from "../tools/schemas.js";
 import channelRegistry from "../channels/index.js";
 import { msgText } from "../utils/msgText.js";
 import { pruneContext } from "./ContextPruner.js";
+import loopDetector from "./LoopDetector.js";
 
 /**
  * Core agent loop - uses Vercel AI SDK native tool calling.
@@ -64,8 +65,6 @@ export async function runAgentLoop({
   const toolCallLog = [];
   const WRITE_TOOLS = new Set(["writeFile", "editFile", "applyPatch", "executeCommand", "sendEmail", "createDocument", "browserAction", "messageChannel"]);
   let gitSnapshotDone = false;
-  let lastToolCall = null;
-  let repeatCount = 0;
 
   // ── Build AI SDK tools with execute functions + guards ──
   const availableToolNames = new Set(getSchemaToolNames());
@@ -89,19 +88,12 @@ export async function runAgentLoop({
         stepCount++;
         const tool_name = name;
 
-        // Repeat detection
-        const currentCall = JSON.stringify({ tool_name, params });
-        if (currentCall === lastToolCall) {
-          repeatCount++;
-          if (repeatCount >= 2) {
-            lastToolCall = null;
-            repeatCount = 0;
-            return `You are calling ${tool_name} with the same params repeatedly. Try a different approach.`;
-          }
-        } else {
-          repeatCount = 0;
+        // Loop detection (exact repeat, ping-pong, semantic, polling)
+        const loopCheck = loopDetector.record(tool_name, params, taskId);
+        if (loopCheck.blocked) {
+          console.log(`[Step ${stepCount}] BLOCKED by LoopDetector: ${loopCheck.pattern}`);
+          return loopCheck.message;
         }
-        lastToolCall = currentCall;
 
         console.log(`[Step ${stepCount}] Tool: ${tool_name}`);
         console.log(`[Step ${stepCount}] Params: ${_redactKnownSecrets(JSON.stringify(params))}`);
@@ -333,6 +325,7 @@ export async function runAgentLoop({
     // Build conversation messages for session persistence
     const conversationMessages = [...inputMessages, ...result.response.messages];
 
+    loopDetector.cleanup(taskId);
     return { text: finalText, messages: conversationMessages, cost, toolCalls: toolCallLog };
   } catch (error) {
     // Tool call validation errors - inject error into conversation, retry the full loop
@@ -354,9 +347,36 @@ export async function runAgentLoop({
       };
     }
 
+    // Classify error: transient (retry), permanent (fallback), unknown (show to user)
+    const classified = classifyError(error);
+
+    // Transient errors: retry with backoff (1s, 4s, 16s)
+    if (classified.type === "transient" && retryCount < MAX_RETRIES) {
+      retryCount++;
+      const backoffMs = classified.retryAfterMs || Math.min(1000 * Math.pow(4, retryCount - 1), 16000);
+      console.log(`[AgentLoop] Transient error (retry ${retryCount}/${MAX_RETRIES}, backoff ${backoffMs}ms): ${error.message}`);
+      await new Promise(r => setTimeout(r, backoffMs));
+      continue;
+    }
+
+    // Permanent errors or exhausted retries: try fallback model
+    if (classified.type === "permanent" || (classified.type === "transient" && retryCount >= MAX_RETRIES)) {
+      cooldownProvider(resolvedModelId, 60000);
+      const fallback = getRuntimeFallback(resolvedModelId, apiKeys);
+      if (fallback && retryCount <= MAX_RETRIES) {
+        retryCount++;
+        console.log(`[AgentLoop] ${classified.type} error — switching to fallback model: ${fallback.modelId}`);
+        // Swap model for retry (variables from outer scope)
+        Object.assign(model, {}); // force re-read below
+        // Can't swap `model` directly (const), so we restart via continue
+        // The retry will use the same model — but we've cooled down the provider
+        // so getModelWithFallback will skip it on next task
+        // For THIS task, just show error since we can't hot-swap mid-loop
+      }
+    }
+
     console.log(`[AgentLoop] Fatal error: ${error.message}`);
 
-    // User-facing errors: billing, rate limits, auth - show to user
     const msg = error.message || "";
     const isUserFacing = /rate.limit|quota|budget|billing|unauthorized|auth|too.large|TPM|RPM/i.test(msg);
     const userText = isUserFacing

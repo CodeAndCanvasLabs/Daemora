@@ -92,6 +92,14 @@ class CircuitBreaker {
   }
 
   /**
+   * Record a loop detection as a tool failure (counts as 2 failures).
+   */
+  recordLoopDetection(toolName) {
+    this.recordToolFailure(toolName);
+    this.recordToolFailure(toolName);
+  }
+
+  /**
    * Check if a tool is currently disabled.
    */
   isToolDisabled(toolName) {
