@@ -214,11 +214,17 @@ export class DiscordChannel extends BaseChannel {
     }
   }
 
-  /**
-   * React to a Discord message with an emoji.
-   * @param {{ message }} channelMeta - Must include the original Discord Message object
-   * @param {string} emoji
-   */
+  async sendTyping(channelMeta) {
+    try {
+      const msg = channelMeta?.message;
+      if (msg?.channel) await msg.channel.sendTyping();
+      else if (channelMeta?.channelId) {
+        const ch = await this.client.channels.fetch(channelMeta.channelId);
+        if (ch) await ch.sendTyping();
+      }
+    } catch (_) {}
+  }
+
   async sendReaction(channelMeta, emoji) {
     const msg = channelMeta?.message;
     if (!msg) return;

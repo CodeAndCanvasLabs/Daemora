@@ -22,6 +22,7 @@ import mcpManager from "./mcp/MCPManager.js";
 import auditLog from "./safety/AuditLog.js";
 import scheduler from "./scheduler/Scheduler.js";
 import heartbeat from "./scheduler/Heartbeat.js";
+import statusReactor from "./core/StatusReactor.js";
 import goalPulse from "./scheduler/GoalPulse.js";
 import { mountAgentCard } from "./a2a/AgentCard.js";
 import { mountA2AServer } from "./a2a/A2AServer.js";
@@ -73,6 +74,7 @@ if (config.cleanupAfterDays > 0) {
 // Initialize task system (TaskRunner starts after full init - see startup sequence below)
 taskQueue.init();
 supervisor.start();
+statusReactor.start();
 auditLog.start();
 scheduler.start().catch(e => console.log(`[Scheduler] Start error: ${e.message}`));
 heartbeat.start();

@@ -58,6 +58,15 @@ export class BaseChannel {
   }
 
   /**
+   * Send a typing indicator on this channel (optional feature).
+   * Called periodically while the agent is processing.
+   * @param {object} channelMeta - Channel-specific metadata
+   */
+  async sendTyping(channelMeta) {
+    // Default no-op - channels that support typing override this
+  }
+
+  /**
    * Check whether a user is allowed to send tasks on this channel.
    *
    * If config.allowlist is empty or not set → everyone is allowed (open channel).

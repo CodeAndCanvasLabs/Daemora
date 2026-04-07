@@ -311,10 +311,11 @@ export class TelegramChannel extends BaseChannel {
     }
   }
 
-  /**
-   * Set a native Telegram emoji reaction on a message.
-   * Uses setMessageReaction (Bot API 7.0+). Silent failure if not supported.
-   */
+  async sendTyping(channelMeta) {
+    if (!this.bot || !channelMeta?.chatId) return;
+    try { await this.bot.api.sendChatAction(channelMeta.chatId, "typing"); } catch (_) {}
+  }
+
   async sendReaction(channelMeta, emoji) {
     if (!this.bot || !channelMeta.messageId) return;
     try {
