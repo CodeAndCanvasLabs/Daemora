@@ -75,9 +75,10 @@ export class DiscordChannel extends BaseChannel {
       if (message.author.bot) return;
 
       const isDM = message.channel.type === 1; // DM_CHANNEL = 1
-      const isMention = this.botUserId && message.mentions.has(this.botUserId);
+      // Only direct @user mentions — ignore role mentions (@&roleId), @everyone, @here
+      const isMention = this.botUserId && message.mentions.users.has(this.botUserId);
 
-      // Only respond to DMs or direct @mentions
+      // Only respond to DMs or direct @bot mentions
       if (!isDM && !isMention) return;
 
       const userId = message.author.id;
@@ -89,9 +90,9 @@ export class DiscordChannel extends BaseChannel {
         return;
       }
 
-      // Strip the @mention from the message content
+      // Strip user mentions (@user) and role mentions (@&role) from content
       const text = message.content
-        .replace(/<@!?\d+>/g, "")
+        .replace(/<@[!&]?\d+>/g, "")
         .trim();
 
       const hasAttachments = message.attachments.size > 0;
