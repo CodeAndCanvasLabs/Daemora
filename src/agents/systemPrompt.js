@@ -230,11 +230,16 @@ function renderCrewSection() {
     if (loaded.length === 0) return null;
 
     const list = loaded.map(p => {
-      const tools = (p.toolNames || []).length > 0 ? ` Tools: ${p.toolNames.join(", ")}` : "";
-      return `- ${p.id}: ${p.description || p.name}${tools}`;
+      const specialistTools = (p.toolNames || []);
+      // Show key plugin tools that differentiate this crew (skip common tools like readFile, writeFile)
+      const commonTools = new Set(["readFile", "writeFile", "editFile", "listDirectory", "glob", "grep", "executeCommand", "webFetch", "webSearch", "replyToUser", "sendFile"]);
+      const pluginTools = (p.manifest?.tools || []).filter(t => !commonTools.has(t));
+      const allKey = [...new Set([...specialistTools, ...pluginTools])];
+      const capabilities = allKey.length > 0 ? ` | Can: ${allKey.join(", ")}` : "";
+      return `- **${p.id}**: ${p.description || p.name}${capabilities}`;
     }).join("\n");
 
-    return `## Crew Members\n\nUse useCrew(crewId, taskDescription) to delegate. Crew member has ZERO context — include everything.\n${list}`;
+    return `## Crew Members (Specialist Agents)\n\nEach crew member is a specialist agent with specific tools. Pick the crew whose description and capabilities match the task. Use useCrew(crewId, taskDescription) to delegate — crew has ZERO context, include everything.\n\n${list}`;
   } catch {
     return null;
   }
