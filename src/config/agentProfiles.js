@@ -124,8 +124,6 @@ export const CORE_TOOLS = [
   "taskManager", "cron", "goal", "watcher",
   // MCP + Crew
   "useMCP", "useCrew",
-  // Media (gated by TOOL_REQUIRED_KEYS — hidden if no API key)
-  "generateImage", "generateVideo", "generateMusic",
   // Image processing (local, no API key)
   "imageOps",
 ];
@@ -143,10 +141,6 @@ export const defaultSubAgentTools = [
   // Documents + Vision
   "createDocument",
   "imageAnalysis",
-  // Media generation (gated by TOOL_REQUIRED_KEYS)
-  "generateImage", "generateVideo", "generateMusic",
-  // Image processing (local)
-  "imageOps",
   // Memory
   "readMemory", "writeMemory", "readDailyLog", "writeDailyLog",
   "searchMemory", "pruneMemory", "listMemoryCategories",
