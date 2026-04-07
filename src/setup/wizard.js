@@ -382,7 +382,8 @@ export async function runSetupWizard() {
       "Some tools and plugins need their own API keys to work.",
       "You can skip this now and configure later via Settings UI or: daemora config set <KEY> <value>",
       "",
-      `  ${S.info}  generateImage / textToSpeech / transcribeAudio → OPENAI_API_KEY`,
+      `  ${S.info}  generateImage / generateVideo / textToSpeech / transcribeAudio → OPENAI_API_KEY`,
+      `  ${S.info}  generateMusic → SUNO_API_KEY (or OPENAI_API_KEY)`,
       `  ${S.info}  textToSpeech (premium voices) → ELEVENLABS_API_KEY`,
       `  ${S.info}  Plugins (Google, Database, SSH, etc.) → configure in Settings → Plugins`,
     ].join("\n"),
@@ -393,8 +394,9 @@ export async function runSetupWizard() {
     message: "Configure tool API keys?  (space = toggle, enter = confirm)",
     required: false,
     options: [
-      { value: "openai_tools",  label: "OpenAI (images, TTS, transcription)", hint: "OPENAI_API_KEY - skip if already set as main provider" },
-      { value: "elevenlabs",    label: "ElevenLabs TTS",                      hint: "Premium voice synthesis" },
+      { value: "openai_tools",  label: "OpenAI (images, video, TTS, transcription)", hint: "OPENAI_API_KEY - skip if already set as main provider" },
+      { value: "suno",          label: "Suno (music generation)",                  hint: "AI music creation - SUNO_API_KEY" },
+      { value: "elevenlabs",    label: "ElevenLabs TTS",                           hint: "Premium voice synthesis" },
       { value: "brave_search",  label: "Brave Search",                        hint: "Web search API - BRAVE_API_KEY" },
       { value: "tavily",        label: "Tavily",                              hint: "AI-powered web search - TAVILY_API_KEY" },
       { value: "perplexity",    label: "Perplexity",                          hint: "Research search - PERPLEXITY_API_KEY" },
@@ -406,6 +408,11 @@ export async function runSetupWizard() {
   if (toolKeys.includes("openai_tools") && !envConfig.OPENAI_API_KEY) {
     const key = guard(await p.password({ message: "OpenAI API key (for images, TTS, transcription)" }));
     if (key) envConfig.OPENAI_API_KEY = key;
+  }
+
+  if (toolKeys.includes("suno")) {
+    const key = guard(await p.password({ message: "Suno API key (for music generation)" }));
+    if (key) envConfig.SUNO_API_KEY = key;
   }
 
   if (toolKeys.includes("elevenlabs")) {
@@ -838,7 +845,8 @@ export async function runSetupWizard() {
         // Email
         "EMAIL_PASSWORD", "RESEND_API_KEY",
         // Tool API keys
-        "ELEVENLABS_API_KEY", "GOOGLE_PLACES_API_KEY", "GOOGLE_CALENDAR_API_KEY",
+        "ELEVENLABS_API_KEY", "SUNO_API_KEY",
+        "GOOGLE_PLACES_API_KEY", "GOOGLE_CALENDAR_API_KEY",
         // Web search/fetch
         "BRAVE_API_KEY", "TAVILY_API_KEY", "PERPLEXITY_API_KEY", "FIRECRAWL_API_KEY",
         "DATABASE_URL", "MYSQL_URL",
