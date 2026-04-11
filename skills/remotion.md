@@ -120,3 +120,7 @@ Read individual rule files for detailed explanations and code examples:
 - [crew/video-editor/rules/trimming.md](../crew/video-editor/rules/trimming.md) - Trimming patterns for Remotion - cut the beginning or end of animations
 - [crew/video-editor/rules/videos.md](../crew/video-editor/rules/videos.md) - Embedding videos in Remotion - trimming, volume, speed, looping, pitch
 - [crew/video-editor/rules/voiceover.md](../crew/video-editor/rules/voiceover.md) - Adding AI-generated voiceover to Remotion compositions using ElevenLabs TTS
+- [crew/video-editor/rules/cursor-and-clicks.md](../crew/video-editor/rules/cursor-and-clicks.md) - Animated cursor pointer, travel paths, and click feedback for product demo videos
+- [crew/video-editor/rules/focus-zoom.md](../crew/video-editor/rules/focus-zoom.md) - Zoom into a specific UI element and back for product demo emphasis
+- [crew/video-editor/rules/theme-switching.md](../crew/video-editor/rules/theme-switching.md) - Dark/light theme toggle animations with in-place cross-fade
+- [crew/video-editor/rules/ui-chrome.md](../crew/video-editor/rules/ui-chrome.md) - Rendering realistic device frames (macbook, phone, browser) with 3D perspective and inner screens

@@ -1,4 +1,4 @@
-import { generateText, tool, stepCountIs } from "ai";
+import { generateText, streamText, tool, stepCountIs } from "ai";
 import { getModelWithFallback, resolveThinkingConfig, resolveDefaultModel, classifyError, cooldownProvider, getRuntimeFallback } from "../models/ModelRouter.js";
 import { config } from "../config/default.js";
 import eventBus from "./EventBus.js";
@@ -35,6 +35,7 @@ export async function runAgentLoop({
   steerQueue = null,
   apiKeys = {},
   onStepPersist = null,
+  streaming = false,
 }) {
   const selectedModelId = modelId || config.defaultModel || resolveDefaultModel(apiKeys);
   const { model, meta, modelId: resolvedModelId } = getModelWithFallback(selectedModelId, apiKeys);
@@ -240,14 +241,30 @@ export async function runAgentLoop({
 
   while (retryCount <= MAX_RETRIES) {
   try {
-    const result = await generateText({
+    // Compose stop condition: stop at max steps OR when a follow-up arrives.
+    // generateText checks this between steps, so a follow-up sent mid-task
+    // will cause graceful stop after the current step. Completed steps are
+    // preserved in result.response.messages — we then re-enter the loop
+    // with the follow-up appended.
+    const maxStepsStop = stepCountIs(config.maxLoops || 30);
+    const stopForFollowUp = ({ steps }) => {
+      if (steerQueue?.length > 0) {
+        console.log(`[AgentLoop] Follow-up detected mid-task — stopping current step to inject (${steps.length} steps done)`);
+        return true;
+      }
+      return false;
+    };
+    const composedStop = ({ steps }) => maxStepsStop({ steps }) || stopForFollowUp({ steps });
+
+    // Shared options for both generateText and streamText (identical API).
+    const callOpts = {
       model,
       tools: aiTools,
       system: systemPrompt.content,
       messages: inputMessages,
       maxTokens: 8192,
       abortSignal: signal || undefined,
-      stopWhen: stepCountIs(config.maxLoops || 30),
+      stopWhen: composedStop,
       ...thinkingParams,
       onStepFinish({ stepNumber, text, toolCalls, toolResults, finishReason, usage }) {
         totalSteps = stepNumber + 1;
@@ -283,22 +300,49 @@ export async function runAgentLoop({
           } catch (_) { /* never block the loop on persist errors */ }
         }
 
-        // Drain steer queue between steps
-        if (steerQueue?.length > 0) {
-          while (steerQueue.length > 0) {
-            const item = steerQueue.shift();
-            console.log(`[AgentLoop] Steering received (step ${stepNumber}): ${JSON.stringify(item).slice(0, 80)}`);
-          }
-        }
+        // Note: don't drain steerQueue here. We can't inject mid-generateText call —
+        // the queue is read at the START of each generateText invocation. After this
+        // call finishes, the post-loop check below will detect queued items and
+        // re-enter generateText with them appended to the conversation.
 
         // Check supervisor kill
         if (supervisor.isKilled(taskId)) {
           console.log(`[AgentLoop] Task ${taskId?.slice(0, 8)} killed by Supervisor.`);
         }
       },
-    });
+    };
 
-    const elapsed = Date.now() - startTime;
+    // Streaming path: emit text:delta events as tokens arrive.
+    // Channels with supportsStreaming=true subscribe to these events
+    // (HTTP/SSE forwards them; future Discord/Slack/Telegram can buffer-and-edit).
+    let result;
+    if (streaming) {
+      const streamHandle = streamText(callOpts);
+      // Drain the text stream — emit delta events tagged with taskId so
+      // listeners can filter (e.g. SSE endpoint forwards only matching task).
+      try {
+        for await (const delta of streamHandle.textStream) {
+          if (delta) {
+            eventBus.emitEvent("text:delta", { taskId, delta });
+          }
+        }
+      } catch (streamErr) {
+        // Stream errors throw on the iterator; rethrow to outer try/catch
+        // so retry/fallback logic still works.
+        throw streamErr;
+      }
+      // After the stream completes, resolve the same fields as generateText.
+      result = {
+        text: await streamHandle.text,
+        usage: await streamHandle.usage,
+        response: await streamHandle.response,
+        finishReason: await streamHandle.finishReason,
+      };
+      // Signal end-of-stream for downstream consumers.
+      eventBus.emitEvent("text:end", { taskId, finalText: result.text || "" });
+    } else {
+      result = await generateText(callOpts);
+    }
 
     // Final usage from result
     if (result.usage) {
@@ -318,12 +362,45 @@ export async function runAgentLoop({
       model: resolvedModelId,
     };
 
+    // Build conversation messages from this iteration
+    const conversationMessages = [...inputMessages, ...result.response.messages];
+
+    // ── Mid-task follow-up: if user sent more messages while we were generating,
+    //    append them and continue the loop instead of returning. ──
+    if (steerQueue?.length > 0) {
+      const userFollowUps = [];
+      const steeringMessages = [];
+      while (steerQueue.length > 0) {
+        const item = steerQueue.shift();
+        if (item && typeof item === "object" && item.type === "user") {
+          userFollowUps.push(item.content);
+        } else {
+          steeringMessages.push(typeof item === "string" ? item : JSON.stringify(item));
+        }
+      }
+      console.log(`[AgentLoop] Mid-task follow-up received (${userFollowUps.length} user, ${steeringMessages.length} system) — continuing loop`);
+
+      // Replace inputMessages with the full conversation + follow-ups, restart the loop
+      inputMessages.length = 0;
+      inputMessages.push(...conversationMessages);
+      for (const text of steeringMessages) {
+        inputMessages.push({ role: "user", content: `[Supervisor instruction]: ${text}` });
+      }
+      if (userFollowUps.length > 0) {
+        inputMessages.push({
+          role: "user",
+          content: `[User follow-up while you were working. Acknowledge and continue.]\n\n${userFollowUps.join("\n\n")}`,
+        });
+      }
+      pruneContext(inputMessages, tokenBudget);
+      retryCount = 0;
+      continue;
+    }
+
+    const elapsed = Date.now() - startTime;
     console.log(`\n--- AGENT LOOP FINISHED ---`);
     console.log(`Stats: ${totalSteps + 1} steps | ${stepCount} tool calls | ${elapsed}ms | ~$${cost.estimatedCost.toFixed(4)}`);
     console.log(`Response: "${finalText.slice(0, 150)}${finalText.length > 150 ? "..." : ""}"`);
-
-    // Build conversation messages for session persistence
-    const conversationMessages = [...inputMessages, ...result.response.messages];
 
     loopDetector.cleanup(taskId);
     return { text: finalText, messages: conversationMessages, cost, toolCalls: toolCallLog };

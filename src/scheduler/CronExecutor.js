@@ -45,7 +45,9 @@ export async function executeJob(job, { isRetry = false, retryAttempt = 0, onCom
   job.runningSince = startedAt;
   saveJob(job);
 
-  const sessionId = `cron:${job.id.slice(0, 8)}:${runId.slice(0, 8)}`;
+  // Use the main session so cron runs are part of continuous chat history,
+  // not isolated per-job sessions.
+  const sessionId = "main";
   let taskId = null;
 
   console.log(`[CronExecutor] Running "${job.name}"${isRetry ? ` (retry #${retryAttempt})` : ""}`);

@@ -343,6 +343,10 @@ class TaskRunner {
         // Run agent loop with resolved model, cost limits, and per-tenant API keys.
         // steerQueue lets follow-up messages from the same user be injected live
         // between tool calls instead of spawning a competing agent loop.
+        // streaming: enabled when the originating channel supports it (text:delta events).
+        const channelInstance = task.channel ? channelRegistry.get(task.channel) : null;
+        const channelStreaming = !!(channelInstance && channelInstance.supportsStreaming);
+
         const result = await runAgentLoop({
           messages,
           systemPrompt,
@@ -354,6 +358,7 @@ class TaskRunner {
           maxCostPerTask: resolvedConfig.maxCostPerTask,
           apiKeys,
           steerQueue,
+          streaming: channelStreaming,
           onStepPersist: (stepMessages) => {
             for (const msg of stepMessages) {
               const compacted = compactForSession([msg])[0];
