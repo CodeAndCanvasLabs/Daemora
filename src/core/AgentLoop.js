@@ -240,6 +240,21 @@ export async function runAgentLoop({
 
   while (retryCount <= MAX_RETRIES) {
   try {
+    // Compose stop condition: stop at max steps OR when a follow-up arrives.
+    // generateText checks this between steps, so a follow-up sent mid-task
+    // will cause graceful stop after the current step. Completed steps are
+    // preserved in result.response.messages — we then re-enter the loop
+    // with the follow-up appended.
+    const maxStepsStop = stepCountIs(config.maxLoops || 30);
+    const stopForFollowUp = ({ steps }) => {
+      if (steerQueue?.length > 0) {
+        console.log(`[AgentLoop] Follow-up detected mid-task — stopping current step to inject (${steps.length} steps done)`);
+        return true;
+      }
+      return false;
+    };
+    const composedStop = ({ steps }) => maxStepsStop({ steps }) || stopForFollowUp({ steps });
+
     const result = await generateText({
       model,
       tools: aiTools,
@@ -247,7 +262,7 @@ export async function runAgentLoop({
       messages: inputMessages,
       maxTokens: 8192,
       abortSignal: signal || undefined,
-      stopWhen: stepCountIs(config.maxLoops || 30),
+      stopWhen: composedStop,
       ...thinkingParams,
       onStepFinish({ stepNumber, text, toolCalls, toolResults, finishReason, usage }) {
         totalSteps = stepNumber + 1;
