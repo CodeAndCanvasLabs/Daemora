@@ -432,7 +432,13 @@ class SkillLoader {
 
     // Strip path prefixes and .md extension for matching
     // Handles full absolute paths on any OS: /Users/.../skills/coding.md or C:\...\skills\coding.md → "coding"
+    // For subdirectory skills (.../foo/SKILL.md), use the parent directory name
     let normalized = basename(nameOrPath).replace(/\.md$/i, "");
+    if (normalized === "SKILL") {
+      // Use parent directory name instead (e.g. skills/discord/SKILL.md → "discord")
+      const parts = nameOrPath.split(/[/\\]/);
+      if (parts.length >= 2) normalized = parts[parts.length - 2];
+    }
 
     if (this.skills.has(normalized)) return this.skills.get(normalized);
 
