@@ -21,6 +21,16 @@ Deploy once on your machine. Connect your channels. Message the bot - it writes 
 
 ---
 
+## Watch Daemora In Action
+
+
+
+https://github.com/user-attachments/assets/be0fadad-c307-4487-a4fd-2adc0f967421
+
+
+
+---
+
 ## What Daemora Can Do
 
 | Capability | Description |
@@ -40,16 +50,6 @@ Deploy once on your machine. Connect your channels. Message the bot - it writes 
 | **Tools** | Connect to any MCP server - create Notion pages, open GitHub issues, update Linear tasks, manage Shopify products, query databases. |
 | **Voice & Meetings** | Join any meeting (Google Meet, Zoom, Teams) via phone dial-in. OpenAI Realtime STT + ElevenLabs/OpenAI TTS. Voice cloning. Outbound voice calls. Auto-transcription + meeting summaries. |
 | **Multi-Agent** | Spawn parallel sub-agents (researcher + coder + writer working simultaneously). Create agent teams with shared task lists, dependencies, and inter-agent messaging. |
-
----
-
-## Watch Daemora In Action
-
-
-
-https://github.com/user-attachments/assets/be0fadad-c307-4487-a4fd-2adc0f967421
-
-
 
 ---
 
