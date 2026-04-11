@@ -1,4 +1,4 @@
-import { generateText, tool, stepCountIs } from "ai";
+import { generateText, streamText, tool, stepCountIs } from "ai";
 import { getModelWithFallback, resolveThinkingConfig, resolveDefaultModel, classifyError, cooldownProvider, getRuntimeFallback } from "../models/ModelRouter.js";
 import { config } from "../config/default.js";
 import eventBus from "./EventBus.js";
@@ -35,6 +35,7 @@ export async function runAgentLoop({
   steerQueue = null,
   apiKeys = {},
   onStepPersist = null,
+  streaming = false,
 }) {
   const selectedModelId = modelId || config.defaultModel || resolveDefaultModel(apiKeys);
   const { model, meta, modelId: resolvedModelId } = getModelWithFallback(selectedModelId, apiKeys);
@@ -255,7 +256,8 @@ export async function runAgentLoop({
     };
     const composedStop = ({ steps }) => maxStepsStop({ steps }) || stopForFollowUp({ steps });
 
-    const result = await generateText({
+    // Shared options for both generateText and streamText (identical API).
+    const callOpts = {
       model,
       tools: aiTools,
       system: systemPrompt.content,
@@ -308,7 +310,39 @@ export async function runAgentLoop({
           console.log(`[AgentLoop] Task ${taskId?.slice(0, 8)} killed by Supervisor.`);
         }
       },
-    });
+    };
+
+    // Streaming path: emit text:delta events as tokens arrive.
+    // Channels with supportsStreaming=true subscribe to these events
+    // (HTTP/SSE forwards them; future Discord/Slack/Telegram can buffer-and-edit).
+    let result;
+    if (streaming) {
+      const streamHandle = streamText(callOpts);
+      // Drain the text stream — emit delta events tagged with taskId so
+      // listeners can filter (e.g. SSE endpoint forwards only matching task).
+      try {
+        for await (const delta of streamHandle.textStream) {
+          if (delta) {
+            eventBus.emitEvent("text:delta", { taskId, delta });
+          }
+        }
+      } catch (streamErr) {
+        // Stream errors throw on the iterator; rethrow to outer try/catch
+        // so retry/fallback logic still works.
+        throw streamErr;
+      }
+      // After the stream completes, resolve the same fields as generateText.
+      result = {
+        text: await streamHandle.text,
+        usage: await streamHandle.usage,
+        response: await streamHandle.response,
+        finishReason: await streamHandle.finishReason,
+      };
+      // Signal end-of-stream for downstream consumers.
+      eventBus.emitEvent("text:end", { taskId, finalText: result.text || "" });
+    } else {
+      result = await generateText(callOpts);
+    }
 
     // Final usage from result
     if (result.usage) {

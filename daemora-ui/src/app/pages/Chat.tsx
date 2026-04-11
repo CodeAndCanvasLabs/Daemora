@@ -110,8 +110,9 @@ export function Chat() {
   }, []);
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim()) return;
 
+    const isFollowUp = isLoading;
     const userMessage: Message = {
       role: "user",
       content: input,
@@ -121,8 +122,13 @@ export function Chat() {
     setMessages((prev) => [...prev, userMessage]);
     const currentInput = input;
     setInput("");
-    setIsLoading(true);
-    setStreamStatus("Queuing...");
+
+    if (!isFollowUp) {
+      setIsLoading(true);
+      setStreamStatus("Queuing...");
+    } else {
+      setStreamStatus("Follow-up sent — agent will pick it up between steps");
+    }
 
     try {
       const response = await apiFetch("/api/chat", {
@@ -134,6 +140,10 @@ export function Chat() {
       if (!response.ok) throw new Error(`Error: ${response.statusText}`);
 
       const data = await response.json();
+
+      // Follow-up: backend will inject into the running task's steerQueue.
+      // We don't need to connect to a new stream — the existing one stays.
+      if (isFollowUp) return;
 
       if (data.taskId) {
         connectToStream(data.taskId);
@@ -154,8 +164,10 @@ export function Chat() {
         timestamp: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, errorMessage]);
-      setIsLoading(false);
-      setStreamStatus(null);
+      if (!isFollowUp) {
+        setIsLoading(false);
+        setStreamStatus(null);
+      }
     }
   };
 
@@ -222,6 +234,41 @@ export function Chat() {
 
     es.addEventListener("agent:finished", () => {
       setStreamStatus("Sub-agent completed, continuing...");
+    });
+
+    // Token-level streaming: append deltas to a placeholder assistant message.
+    // First delta creates the message, subsequent deltas append.
+    let streamingActive = false;
+    es.addEventListener("text:delta", (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        const delta = data.delta || "";
+        if (!delta) return;
+        setStreamStatus(null);
+        setMessages((prev) => {
+          if (!streamingActive) {
+            streamingActive = true;
+            return [...prev, {
+              role: "assistant",
+              content: delta,
+              timestamp: new Date().toISOString(),
+            }];
+          }
+          // Append to the last assistant message
+          const next = [...prev];
+          const last = next[next.length - 1];
+          if (last && last.role === "assistant") {
+            next[next.length - 1] = { ...last, content: last.content + delta };
+          }
+          return next;
+        });
+      } catch { /* ignore */ }
+    });
+
+    es.addEventListener("text:end", () => {
+      // Stream ended; final reload from session will replace the streamed
+      // placeholder with the persisted version (handles formatting/cleanup).
+      streamingActive = false;
     });
 
     es.addEventListener("task:completed", (e) => {
@@ -467,21 +514,42 @@ export function Chat() {
                 ))
               )}
 
-              {isLoading && (
-                <div className="flex gap-3 animate-pulse">
-                  <div className="w-7 h-7 rounded-lg bg-slate-950 border border-slate-800/80 p-1 flex-shrink-0 flex items-center justify-center">
-                    <Logo size={18} />
-                  </div>
-                  <div className="max-w-[88%]">
-                    <div className="rounded-lg p-4 bg-slate-800/30 border border-slate-800 flex items-center gap-3">
+              {isLoading && (() => {
+                // Don't render the status bubble if the last message is a streaming
+                // assistant message — that would create a duplicate floating pill
+                // below the live message. In that case, show a tiny inline cursor instead.
+                const lastMsg = messages[messages.length - 1];
+                const isStreamingActive = lastMsg?.role === "assistant" && lastMsg?.content;
+
+                if (isStreamingActive) {
+                  // Tiny inline status — only show if there's actual status text (e.g. tool call)
+                  if (!streamStatus) return null;
+                  return (
+                    <div className="flex items-center gap-2 pl-10 -mt-2 mb-2 opacity-60">
                       {getStatusIcon()}
-                      <span className="text-[9px] text-[#00d9ff] font-mono tracking-[0.2em] uppercase">
-                        {streamStatus || "Processing..."}
+                      <span className="text-[9px] text-[#00d9ff]/70 font-mono tracking-[0.2em] uppercase">
+                        {streamStatus}
                       </span>
                     </div>
+                  );
+                }
+
+                return (
+                  <div className="flex gap-3 animate-pulse">
+                    <div className="w-7 h-7 rounded-lg bg-slate-950 border border-slate-800/80 p-1 flex-shrink-0 flex items-center justify-center">
+                      <Logo size={18} />
+                    </div>
+                    <div className="max-w-[88%]">
+                      <div className="rounded-lg p-4 bg-slate-800/30 border border-slate-800 flex items-center gap-3">
+                        {getStatusIcon()}
+                        <span className="text-[9px] text-[#00d9ff] font-mono tracking-[0.2em] uppercase">
+                          {streamStatus || "Processing..."}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
               <div ref={messagesEndRef} />
             </div>
           </ScrollArea>
@@ -500,24 +568,19 @@ export function Chat() {
                       handleSend();
                     }
                   }}
-                  placeholder="Ask anything..."
+                  placeholder={isLoading ? "Send a follow-up..." : "Ask anything..."}
                   className="flex-1 min-h-[36px] max-h-[120px] bg-transparent border-0 text-white placeholder:text-gray-600 focus-visible:ring-0 focus-visible:ring-offset-0 font-mono text-sm px-3 py-2 resize-none shadow-none"
-                  disabled={isLoading}
                 />
                 <button
                   onClick={handleSend}
-                  disabled={!input.trim() || isLoading}
+                  disabled={!input.trim()}
                   className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-                    input.trim() && !isLoading
+                    input.trim()
                       ? "bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] text-slate-950 shadow-[0_0_15px_rgba(0,217,255,0.3)]"
                       : "bg-slate-700/50 text-gray-600"
                   }`}
                 >
-                  {isLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <ArrowUp className="w-4 h-4" />
-                  )}
+                  <ArrowUp className="w-4 h-4" />
                 </button>
               </div>
               <div className="text-center mt-1.5">

@@ -9,10 +9,16 @@ export class HttpChannel extends BaseChannel {
     super("http", config);
   }
 
+  // HTTP supports token streaming via the existing SSE endpoint
+  // (/api/tasks/:id/stream forwards `text:delta` events to EventSource).
+  get supportsStreaming() {
+    return true;
+  }
+
   async start() {
     // HTTP routes are set up in index.js directly
     this.running = true;
-    console.log(`[Channel:HTTP] Active (routes handled by Express)`);
+    console.log(`[Channel:HTTP] Active (routes handled by Express, streaming enabled)`);
   }
 
   async stop() {

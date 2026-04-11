@@ -510,6 +510,12 @@ app.get("/api/tasks/:id/stream", (req, res) => {
   const onModel = (evt) => {
     if (evt.taskId === taskId || evt.taskId?.startsWith("subagent-")) send("model:called", evt);
   };
+  const onTextDelta = (evt) => {
+    if (evt.taskId === taskId) send("text:delta", evt);
+  };
+  const onTextEnd = (evt) => {
+    if (evt.taskId === taskId) send("text:end", evt);
+  };
   const onAgentSpawn = (evt) => {
     if (evt.parentTaskId === taskId) send("agent:spawned", evt);
   };
@@ -534,6 +540,8 @@ app.get("/api/tasks/:id/stream", (req, res) => {
 
   eventBus.on("tool:after", onTool);
   eventBus.on("model:called", onModel);
+  eventBus.on("text:delta", onTextDelta);
+  eventBus.on("text:end", onTextEnd);
   eventBus.on("agent:spawned", onAgentSpawn);
   eventBus.on("agent:finished", onAgentDone);
   eventBus.on("task:completed", onComplete);
@@ -542,6 +550,8 @@ app.get("/api/tasks/:id/stream", (req, res) => {
   const cleanup = () => {
     eventBus.removeListener("tool:after", onTool);
     eventBus.removeListener("model:called", onModel);
+    eventBus.removeListener("text:delta", onTextDelta);
+    eventBus.removeListener("text:end", onTextEnd);
     eventBus.removeListener("agent:spawned", onAgentSpawn);
     eventBus.removeListener("agent:finished", onAgentDone);
     eventBus.removeListener("task:completed", onComplete);
