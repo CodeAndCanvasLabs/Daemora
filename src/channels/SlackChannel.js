@@ -1,4 +1,5 @@
 import { BaseChannel } from "./BaseChannel.js";
+import { createStreamingLoop } from "./StreamingEditor.js";
 import taskQueue from "../core/TaskQueue.js";
 import eventBus from "../core/EventBus.js";
 import { transcribeAudio } from "../tools/transcribeAudio.js";
@@ -39,6 +40,12 @@ export class SlackChannel extends BaseChannel {
     super("slack", config);
     this.app = null;
     this.botUserId = null;
+  }
+
+  // Slack supports streaming via chat.update.
+  // ~1s throttle — Slack allows ~1 update/sec per message.
+  get supportsStreaming() {
+    return true;
   }
 
   async start() {
@@ -171,8 +178,64 @@ export class SlackChannel extends BaseChannel {
       model: this.getModel(),
     });
 
+    // ── Streaming setup (OpenClaw draft-stream-loop port) ───────────────
+    let streamMsgRef = null;
+    let streamBuffer = "";
+    let streamStopped = false;
+    let streamFailed = false;
+    const streamLoop = createStreamingLoop({
+      throttleMs: 1000,
+      isStopped: () => streamStopped,
+      sendOrEditStreamMessage: async (text) => {
+        if (text.length > 3800) { streamFailed = true; return false; }
+        try {
+          if (!streamMsgRef) {
+            const res = await this.app.client.chat.postMessage({
+              token: this.config.botToken,
+              channel: channelId,
+              text,
+              thread_ts: threadTs,
+            });
+            if (!res?.ts) { streamFailed = true; return false; }
+            streamMsgRef = { channel: channelId, ts: res.ts };
+          } else {
+            await this.app.client.chat.update({
+              token: this.config.botToken,
+              channel: streamMsgRef.channel,
+              ts: streamMsgRef.ts,
+              text,
+            });
+          }
+          return true;
+        } catch (err) {
+          streamFailed = true;
+          return false;
+        }
+      },
+    });
+    const onDelta = (e) => {
+      if (e?.taskId !== task.id || streamStopped || streamFailed) return;
+      streamBuffer += e.delta || "";
+      streamLoop.update(streamBuffer);
+    };
+    const onEnd = (e) => {
+      if (e?.taskId !== task.id || streamStopped) return;
+      if (e.finalText && e.finalText.length >= streamBuffer.length) {
+        streamBuffer = e.finalText;
+      }
+      streamLoop.update(streamBuffer);
+    };
+    eventBus.on("text:delta", onDelta);
+    eventBus.on("text:end", onEnd);
+
     try {
       const completedTask = await taskQueue.waitForCompletion(task.id);
+
+      eventBus.removeListener("text:delta", onDelta);
+      eventBus.removeListener("text:end", onEnd);
+      try { await streamLoop.flush(); } catch { /* ignore */ }
+      streamStopped = true;
+      streamLoop.stop();
 
       // Absorbed into a concurrent session - response already sent via original task
       if (this.isTaskMerged(completedTask)) {
@@ -190,12 +253,19 @@ export class SlackChannel extends BaseChannel {
       await this._removeReaction(channelId, messageTs, "hourglass_flowing_sand");
       await this._addReaction(channelId, messageTs, failed ? "x" : "white_check_mark");
 
+      // The streamed message IS the final delivery — never send a duplicate.
+      if (!failed && streamMsgRef && !streamFailed) return;
+
       // Reply in thread to keep conversations clean
       const chunks = splitMessage(response, 3800);
       for (const chunk of chunks) {
         await say({ text: chunk, thread_ts: threadTs });
       }
     } catch (error) {
+      eventBus.removeListener("text:delta", onDelta);
+      eventBus.removeListener("text:end", onEnd);
+      streamStopped = true;
+      streamLoop.stop();
       console.error(`[Channel:Slack] Error:`, error.message);
       await this._removeReaction(channelId, messageTs, "hourglass_flowing_sand");
       await this._addReaction(channelId, messageTs, "x");

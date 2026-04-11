@@ -26,11 +26,6 @@ export class BaseChannel {
    * Whether this channel can stream agent responses token-by-token.
    * Channels that override this to true will receive `text:delta` events
    * during the agent loop. Default: false (waits for full response).
-   *
-   * To enable for a new channel:
-   *   1. Set `get supportsStreaming() { return true; }`
-   *   2. Subscribe to `text:delta` events on EventBus (filter by taskId)
-   *   3. Buffer + send/edit messages using channel API (OpenClaw pattern: 1-1.2s throttle)
    */
   get supportsStreaming() {
     return false;

@@ -343,7 +343,7 @@ class TaskRunner {
         // Run agent loop with resolved model, cost limits, and per-tenant API keys.
         // steerQueue lets follow-up messages from the same user be injected live
         // between tool calls instead of spawning a competing agent loop.
-        // streaming: enabled when the originating channel supports it (text:delta events).
+        // streaming: enabled when the originating channel supports it (HTTP/UI only).
         const channelInstance = task.channel ? channelRegistry.get(task.channel) : null;
         const channelStreaming = !!(channelInstance && channelInstance.supportsStreaming);
 

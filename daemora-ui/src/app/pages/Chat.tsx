@@ -266,8 +266,6 @@ export function Chat() {
     });
 
     es.addEventListener("text:end", () => {
-      // Stream ended; final reload from session will replace the streamed
-      // placeholder with the persisted version (handles formatting/cleanup).
       streamingActive = false;
     });
 

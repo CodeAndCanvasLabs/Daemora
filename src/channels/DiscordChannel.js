@@ -1,4 +1,5 @@
 import { BaseChannel } from "./BaseChannel.js";
+import { createStreamingLoop } from "./StreamingEditor.js";
 import taskQueue from "../core/TaskQueue.js";
 import eventBus from "../core/EventBus.js";
 import { transcribeAudio } from "../tools/transcribeAudio.js";
@@ -30,6 +31,12 @@ export class DiscordChannel extends BaseChannel {
     super("discord", config);
     this.client = null;
     this.botUserId = null;
+  }
+
+  // Discord supports streaming via REST message edits.
+  // ~1.2s throttle to respect Discord's 10 edits / 10s rate limit.
+  get supportsStreaming() {
+    return true;
   }
 
   async start() {
@@ -145,8 +152,57 @@ export class DiscordChannel extends BaseChannel {
         model: this.getModel(),
       });
 
+      // ── Streaming setup (OpenClaw draft-stream-loop port) ─────────────
+      // First send creates a reply; subsequent edits update it in place.
+      // Throttled to ~1.2s for Discord's edit rate limit. Falls back to
+      // chunked delivery if streaming fails or text overflows 1990 chars.
+      let streamMsgRef = null;
+      let streamBuffer = "";
+      let streamStopped = false;
+      let streamFailed = false;
+      const streamLoop = createStreamingLoop({
+        throttleMs: 1200,
+        isStopped: () => streamStopped,
+        sendOrEditStreamMessage: async (text) => {
+          if (text.length > 1990) { streamFailed = true; return false; }
+          try {
+            if (!streamMsgRef) {
+              streamMsgRef = await message.reply(text);
+              if (!streamMsgRef) { streamFailed = true; return false; }
+            } else {
+              await streamMsgRef.edit(text);
+            }
+            return true;
+          } catch (err) {
+            streamFailed = true;
+            return false;
+          }
+        },
+      });
+      const onDelta = (e) => {
+        if (e?.taskId !== task.id || streamStopped || streamFailed) return;
+        streamBuffer += e.delta || "";
+        streamLoop.update(streamBuffer);
+      };
+      const onEnd = (e) => {
+        if (e?.taskId !== task.id || streamStopped) return;
+        if (e.finalText && e.finalText.length >= streamBuffer.length) {
+          streamBuffer = e.finalText;
+        }
+        streamLoop.update(streamBuffer);
+      };
+      eventBus.on("text:delta", onDelta);
+      eventBus.on("text:end", onEnd);
+
       try {
         const completedTask = await taskQueue.waitForCompletion(task.id);
+
+        // Drain pending stream updates and stop the loop.
+        eventBus.removeListener("text:delta", onDelta);
+        eventBus.removeListener("text:end", onEnd);
+        try { await streamLoop.flush(); } catch { /* ignore */ }
+        streamStopped = true;
+        streamLoop.stop();
 
         // Absorbed into a concurrent session - response already sent via original task
         if (this.isTaskMerged(completedTask)) {
@@ -167,6 +223,10 @@ export class DiscordChannel extends BaseChannel {
         // Update last-seen after every processed message (crash-safe)
         this._saveLastSeen();
 
+        // The streamed message IS the final delivery — never send a duplicate.
+        // Only fall back to chunked delivery if streaming actually failed.
+        if (!failed && streamMsgRef && !streamFailed) return;
+
         // Discord message limit: 2000 chars
         const chunks = splitMessage(response, 1990);
         await message.reply(chunks[0]).catch(() => {});
@@ -174,6 +234,10 @@ export class DiscordChannel extends BaseChannel {
           await message.channel.send(chunks[i]).catch(() => {});
         }
       } catch (error) {
+        eventBus.removeListener("text:delta", onDelta);
+        eventBus.removeListener("text:end", onEnd);
+        streamStopped = true;
+        streamLoop.stop();
         console.error(`[Channel:Discord] Error:`, error.message);
         await this._removeReaction(message, "⏳");
         await this.sendReaction({ message }, "❌");
