@@ -1,4 +1,6 @@
 import { BaseChannel } from "./BaseChannel.js";
+import { createStreamingLoop } from "./StreamingEditor.js";
+import eventBus from "../core/EventBus.js";
 import taskQueue from "../core/TaskQueue.js";
 import { transcribeAudio } from "../tools/transcribeAudio.js";
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -31,6 +33,12 @@ export class TelegramChannel extends BaseChannel {
   constructor(config) {
     super("telegram", config);
     this.bot = null;
+  }
+
+  // Telegram supports streaming via editMessageText.
+  // ~1s throttle — Telegram allows ~30 edits/min per chat.
+  get supportsStreaming() {
+    return true;
   }
 
   async start() {
@@ -215,8 +223,53 @@ export class TelegramChannel extends BaseChannel {
       model:       this.getModel(),
     });
 
+    // ── Streaming setup (OpenClaw draft-stream-loop port) ───────────────
+    let streamMsgRef = null;
+    let streamBuffer = "";
+    let streamStopped = false;
+    let streamFailed = false;
+    const streamLoop = createStreamingLoop({
+      throttleMs: 1000,
+      isStopped: () => streamStopped,
+      sendOrEditStreamMessage: async (text) => {
+        if (text.length > 4090) { streamFailed = true; return false; }
+        try {
+          if (!streamMsgRef) {
+            streamMsgRef = await this.bot.api.sendMessage(chatId, text);
+            if (!streamMsgRef) { streamFailed = true; return false; }
+          } else {
+            await this.bot.api.editMessageText(chatId, streamMsgRef.message_id, text);
+          }
+          return true;
+        } catch (err) {
+          streamFailed = true;
+          return false;
+        }
+      },
+    });
+    const onDelta = (e) => {
+      if (e?.taskId !== task.id || streamStopped || streamFailed) return;
+      streamBuffer += e.delta || "";
+      streamLoop.update(streamBuffer);
+    };
+    const onEnd = (e) => {
+      if (e?.taskId !== task.id || streamStopped) return;
+      if (e.finalText && e.finalText.length >= streamBuffer.length) {
+        streamBuffer = e.finalText;
+      }
+      streamLoop.update(streamBuffer);
+    };
+    eventBus.on("text:delta", onDelta);
+    eventBus.on("text:end", onEnd);
+
     try {
       const completedTask = await taskQueue.waitForCompletion(task.id);
+
+      eventBus.removeListener("text:delta", onDelta);
+      eventBus.removeListener("text:end", onEnd);
+      try { await streamLoop.flush(); } catch { /* ignore */ }
+      streamStopped = true;
+      streamLoop.stop();
 
       // Task was absorbed into a concurrent agent session - response already sent
       if (this.isTaskMerged(completedTask)) {
@@ -234,11 +287,18 @@ export class TelegramChannel extends BaseChannel {
         ? `Sorry, I encountered an error: ${completedTask.error}`
         : completedTask.result || "Done.";
 
+      // The streamed message IS the final delivery — never send a duplicate.
+      if (!failed && streamMsgRef && !streamFailed) return;
+
       const chunks = splitMessage(response, 4096);
       for (const chunk of chunks) {
         await ctx.reply(chunk).catch(() => {});
       }
     } catch (error) {
+      eventBus.removeListener("text:delta", onDelta);
+      eventBus.removeListener("text:end", onEnd);
+      streamStopped = true;
+      streamLoop.stop();
       console.error(`[Channel:Telegram] Error:`, error.message);
       await this.sendReaction({ chatId, messageId }, "❌");
       await ctx.reply("Sorry, something went wrong. Please try again.").catch(() => {});

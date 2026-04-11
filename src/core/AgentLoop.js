@@ -256,7 +256,6 @@ export async function runAgentLoop({
     };
     const composedStop = ({ steps }) => maxStepsStop({ steps }) || stopForFollowUp({ steps });
 
-    // Shared options for both generateText and streamText (identical API).
     const callOpts = {
       model,
       tools: aiTools,
@@ -312,33 +311,24 @@ export async function runAgentLoop({
       },
     };
 
-    // Streaming path: emit text:delta events as tokens arrive.
-    // Channels with supportsStreaming=true subscribe to these events
-    // (HTTP/SSE forwards them; future Discord/Slack/Telegram can buffer-and-edit).
+    // Streaming path: emit text:delta events as tokens arrive (HTTP/SSE only).
+    // Other channels (Discord/Telegram/Slack) keep the standard generateText path.
     let result;
     if (streaming) {
       const streamHandle = streamText(callOpts);
-      // Drain the text stream — emit delta events tagged with taskId so
-      // listeners can filter (e.g. SSE endpoint forwards only matching task).
       try {
         for await (const delta of streamHandle.textStream) {
-          if (delta) {
-            eventBus.emitEvent("text:delta", { taskId, delta });
-          }
+          if (delta) eventBus.emitEvent("text:delta", { taskId, delta });
         }
       } catch (streamErr) {
-        // Stream errors throw on the iterator; rethrow to outer try/catch
-        // so retry/fallback logic still works.
         throw streamErr;
       }
-      // After the stream completes, resolve the same fields as generateText.
       result = {
         text: await streamHandle.text,
         usage: await streamHandle.usage,
         response: await streamHandle.response,
         finishReason: await streamHandle.finishReason,
       };
-      // Signal end-of-stream for downstream consumers.
       eventBus.emitEvent("text:end", { taskId, finalText: result.text || "" });
     } else {
       result = await generateText(callOpts);

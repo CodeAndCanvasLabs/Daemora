@@ -1,5 +1,5 @@
 import express from "express";
-import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from "fs";
+import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, unlinkSync, statSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { randomBytes } from "crypto";
@@ -1747,25 +1747,42 @@ app.get("/api/file", (req, res) => {
 const uiPath = join(__dirname, "..", "daemora-ui", "dist");
 if (existsSync(uiPath)) {
   const indexHtmlPath = join(uiPath, "index.html");
-  let indexHtml = existsSync(indexHtmlPath) ? readFileSync(indexHtmlPath, "utf-8") : "";
-
-  // Inject auth token as a <meta> tag so the UI can read it without a login flow.
-  // Safe because the HTML is only served to localhost (localOnly middleware).
+  // Read + cache index.html with mtime check so a UI rebuild (which produces
+  // new asset hashes) doesn't require a server restart. The previous behavior
+  // cached on module load and broke whenever the dist files were rebuilt.
   const tokenMeta = `<meta name="api-token" content="${API_TOKEN}" />`;
-  if (indexHtml && !indexHtml.includes('name="api-token"')) {
-    indexHtml = indexHtml.replace("</head>", `    ${tokenMeta}\n  </head>`);
-  }
+  let cachedIndexHtml = "";
+  let cachedIndexMtimeMs = 0;
+  const _readIndexHtml = () => {
+    if (!existsSync(indexHtmlPath)) return cachedIndexHtml || "";
+    try {
+      const stat = statSync(indexHtmlPath);
+      if (stat.mtimeMs === cachedIndexMtimeMs && cachedIndexHtml) return cachedIndexHtml;
+      let html = readFileSync(indexHtmlPath, "utf-8");
+      if (html && !html.includes('name="api-token"')) {
+        html = html.replace("</head>", `    ${tokenMeta}\n  </head>`);
+      }
+      cachedIndexHtml = html;
+      cachedIndexMtimeMs = stat.mtimeMs;
+      return html;
+    } catch {
+      return cachedIndexHtml || "";
+    }
+  };
+  // Prime cache at startup so the first request is fast
+  _readIndexHtml();
 
   // Serve static assets normally
   app.use(express.static(uiPath, { index: false })); // index:false so we handle index.html ourselves
 
-  // Serve token-injected index.html for all UI routes
+  // Serve token-injected index.html for all UI routes (re-reads on disk
+  // change so UI rebuilds are picked up live without restart).
   app.get(/.*/, (req, res, next) => {
     if (req.path.startsWith("/api/") || req.path.startsWith("/webhooks/") || req.path.startsWith("/voice/") || req.path.startsWith("/a2a/") || req.path.startsWith("/hooks/") || req.path.startsWith("/v1/")) {
       return next();
     }
     res.setHeader("Content-Type", "text/html");
-    res.send(indexHtml);
+    res.send(_readIndexHtml());
   });
   console.log(`[Server] Serving UI from ${uiPath}`);
 }

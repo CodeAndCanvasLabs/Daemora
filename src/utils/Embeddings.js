@@ -19,7 +19,7 @@
  * and skip vectors that don't match the current provider.
  */
 
-import { embed } from "ai";
+import { embed, embedMany } from "ai";
 
 let _ollamaAutoDetected = null; // null = untested, true/false = tested
 let _ollamaModelReady = false;  // true once we've confirmed the embed model exists
@@ -316,6 +316,61 @@ export async function generateEmbedding(text, forceProvider = null) {
     // API provider failed - fall back to TF-IDF
     const tfidfVec = tfidfEmbed(text);
     if (tfidfVec) return tfidfVec;
+    return null;
+  }
+}
+
+/**
+ * Batched version of generateEmbedding — submits an array of texts in a
+ * single API call. OpenAI/Google/Ollama all accept multi-input embedding
+ * requests via Vercel AI SDK's embedMany. Returns an array of vectors
+ * (same order as input). Returns null on failure (caller can fall back
+ * to per-text generateEmbedding).
+ *
+ * For TF-IDF (no network), maps over inputs synchronously.
+ *
+ * @param {string[]} texts
+ * @param {string|null} forceProvider
+ * @returns {Promise<number[][] | null>}
+ */
+export async function generateEmbeddings(texts, forceProvider = null) {
+  if (!Array.isArray(texts) || texts.length === 0) return [];
+  const provider = forceProvider || await getEmbeddingProviderAsync();
+  if (!provider) return null;
+
+  // Built-in TF-IDF - no API call, embed each text directly
+  if (provider === "tfidf") {
+    return texts.map(t => tfidfEmbed(t));
+  }
+
+  try {
+    let model;
+
+    if (provider === "openai") {
+      const { createOpenAI } = await import("@ai-sdk/openai");
+      const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      model = openai.embedding("text-embedding-3-small", { dimensions: 512 });
+
+    } else if (provider === "google") {
+      const { createGoogleGenerativeAI } = await import("@ai-sdk/google");
+      const google = createGoogleGenerativeAI({ apiKey: process.env.GOOGLE_AI_API_KEY });
+      model = google.textEmbeddingModel("text-embedding-004");
+
+    } else if (provider === "ollama") {
+      const { ollama } = await import("ollama-ai-provider");
+      const modelName = process.env.OLLAMA_EMBED_MODEL || "all-minilm";
+      model = ollama.embedding(modelName);
+    }
+
+    if (!model) return null;
+
+    // Truncate inputs (some providers cap at 8K chars)
+    const values = texts.map(t => (t || "").slice(0, 8000));
+    const { embeddings } = await embedMany({ model, values });
+    return embeddings;
+
+  } catch {
+    // Batch failed - return null so caller can fall back to per-text or tfidf
     return null;
   }
 }

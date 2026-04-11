@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, statSy
 import { join, basename, delimiter } from "path";
 import { createHash } from "node:crypto";
 import { config } from "../config/default.js";
-import { generateEmbedding, getEmbeddingProvider, buildTfidfVocab } from "../utils/Embeddings.js";
+import { generateEmbedding, generateEmbeddings, getEmbeddingProvider, buildTfidfVocab } from "../utils/Embeddings.js";
 
 /**
  * Skill Loader - auto-discovers .md skill files from the skills/ directory.
@@ -217,6 +217,10 @@ class SkillLoader {
 
     let changed = false;
 
+    // Collect all skills that need (re-)embedding into a single batch.
+    // OpenAI / Google / Ollama all accept multi-input embedding requests
+    // via Vercel AI SDK's embedMany — one HTTP round trip instead of N.
+    const pending = [];
     for (const [name, skill] of this.skills) {
       const hash = this._contentHash(skill);
       if (this._skillVectors[name]?.hash === hash) continue;
@@ -228,12 +232,44 @@ class SkillLoader {
         `Triggers: ${skill.triggers.join(", ")}`,
         skill.content.slice(0, 500),
       ].join("\n");
+      pending.push({ name, hash, text });
+    }
 
-      const vector = await this._generateEmbedding(text);
-      if (vector) {
-        this._skillVectors[name] = { hash, vector, provider };
-        changed = true;
-        console.log(`[SkillLoader] Embedded skill: ${name}`);
+    if (pending.length > 0) {
+      console.log(`[SkillLoader] Embedding ${pending.length} skill${pending.length === 1 ? "" : "s"} via ${provider}...`);
+      const t0 = Date.now();
+      const vectors = await generateEmbeddings(pending.map(p => p.text), provider);
+
+      if (vectors && vectors.length === pending.length) {
+        // Batch succeeded — record all vectors
+        for (let i = 0; i < pending.length; i++) {
+          const { name, hash } = pending[i];
+          const vector = vectors[i];
+          if (vector) {
+            this._skillVectors[name] = { hash, vector, provider };
+            changed = true;
+          }
+        }
+        console.log(`[SkillLoader] Embedded ${pending.length} skills in ${Date.now() - t0}ms`);
+      } else {
+        // Batch failed (provider down, network error) — fall back to per-skill
+        // requests run in parallel with a small concurrency cap.
+        console.log(`[SkillLoader] Batch embedding failed, falling back to parallel per-skill (concurrency 8)`);
+        const CONCURRENCY = 8;
+        let cursor = 0;
+        const workers = Array.from({ length: Math.min(CONCURRENCY, pending.length) }, async () => {
+          while (cursor < pending.length) {
+            const idx = cursor++;
+            const { name, hash, text } = pending[idx];
+            const vector = await this._generateEmbedding(text);
+            if (vector) {
+              this._skillVectors[name] = { hash, vector, provider };
+              changed = true;
+            }
+          }
+        });
+        await Promise.all(workers);
+        console.log(`[SkillLoader] Embedded ${pending.length} skills in ${Date.now() - t0}ms`);
       }
     }
 
