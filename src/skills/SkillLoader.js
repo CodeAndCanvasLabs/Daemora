@@ -62,10 +62,15 @@ class SkillLoader {
    * Parse a skill file with YAML frontmatter.
    */
   parseSkill(content, filename) {
+    // Derive default name: for "foo/SKILL.md" use "foo"; for "bar.md" use "bar"
+    const defaultName = filename.endsWith("/SKILL.md")
+      ? filename.replace(/\/SKILL\.md$/, "")
+      : filename.replace(/\.md$/, "");
+
     const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/);
     if (!fmMatch) {
       return {
-        name: filename.replace(".md", ""),
+        name: defaultName,
         description: "",
         triggers: [],
         content: content.trim(),
@@ -87,7 +92,7 @@ class SkillLoader {
     }
 
     return {
-      name: meta.name || filename.replace(".md", ""),
+      name: meta.name || defaultName,
       description: meta.description || "",
       triggers: meta.triggers
         ? meta.triggers.split(",").map((t) => t.trim().toLowerCase())
