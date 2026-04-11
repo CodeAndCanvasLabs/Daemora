@@ -3,6 +3,16 @@ import { apiFetch, apiStreamUrl } from "../api";
 import { User, Loader2, Terminal, ArrowUp, Wrench, Brain, Bot, Download, Image as ImageIcon, Trash2 } from "lucide-react";
 import { Textarea } from "../components/ui/textarea";
 import { ScrollArea } from "../components/ui/scroll-area";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../components/ui/alert-dialog";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Logo } from "../components/ui/Logo";
@@ -22,6 +32,7 @@ export function Chat() {
   const [isLoading, setIsLoading] = useState(false);
   const [streamStatus, setStreamStatus] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -50,7 +61,7 @@ export function Chat() {
   };
 
   const clearHistory = async () => {
-    if (!confirm("Delete all chat history? This cannot be undone.")) return;
+    setClearDialogOpen(false);
     try {
       // Delete the session, then recreate it fresh
       await apiFetch(`/api/sessions/${SESSION_ID}`, { method: "DELETE" });
@@ -315,7 +326,7 @@ export function Chat() {
           </div>
           <div className="flex-1 flex justify-end">
             <button
-              onClick={clearHistory}
+              onClick={() => setClearDialogOpen(true)}
               disabled={isLoading || messages.length === 0}
               title="Delete chat history"
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-mono uppercase tracking-wider text-gray-400 hover:text-red-400 hover:bg-red-500/10 border border-slate-800/60 hover:border-red-500/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-gray-400 disabled:hover:bg-transparent disabled:hover:border-slate-800/60"
@@ -325,6 +336,32 @@ export function Chat() {
             </button>
           </div>
         </div>
+
+        {/* Clear history confirmation dialog */}
+        <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
+          <AlertDialogContent className="bg-slate-950 border-slate-800/80 text-gray-200 font-mono">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-white tracking-tight flex items-center gap-2">
+                <Trash2 className="w-4 h-4 text-red-400" />
+                Clear chat history
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-gray-400 text-sm leading-relaxed">
+                This will permanently delete all messages in the current session. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="bg-slate-900 border-slate-800 text-gray-300 hover:bg-slate-800 hover:text-white">
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={clearHistory}
+                className="bg-red-600 hover:bg-red-500 text-white border border-red-500/40"
+              >
+                Delete history
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Messages Area */}
         <div className="flex-1 min-h-0 relative z-10 flex flex-col">
