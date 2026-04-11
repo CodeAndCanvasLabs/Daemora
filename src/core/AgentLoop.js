@@ -283,13 +283,10 @@ export async function runAgentLoop({
           } catch (_) { /* never block the loop on persist errors */ }
         }
 
-        // Drain steer queue between steps
-        if (steerQueue?.length > 0) {
-          while (steerQueue.length > 0) {
-            const item = steerQueue.shift();
-            console.log(`[AgentLoop] Steering received (step ${stepNumber}): ${JSON.stringify(item).slice(0, 80)}`);
-          }
-        }
+        // Note: don't drain steerQueue here. We can't inject mid-generateText call —
+        // the queue is read at the START of each generateText invocation. After this
+        // call finishes, the post-loop check below will detect queued items and
+        // re-enter generateText with them appended to the conversation.
 
         // Check supervisor kill
         if (supervisor.isKilled(taskId)) {
@@ -297,8 +294,6 @@ export async function runAgentLoop({
         }
       },
     });
-
-    const elapsed = Date.now() - startTime;
 
     // Final usage from result
     if (result.usage) {
@@ -318,12 +313,45 @@ export async function runAgentLoop({
       model: resolvedModelId,
     };
 
+    // Build conversation messages from this iteration
+    const conversationMessages = [...inputMessages, ...result.response.messages];
+
+    // ── Mid-task follow-up: if user sent more messages while we were generating,
+    //    append them and continue the loop instead of returning. ──
+    if (steerQueue?.length > 0) {
+      const userFollowUps = [];
+      const steeringMessages = [];
+      while (steerQueue.length > 0) {
+        const item = steerQueue.shift();
+        if (item && typeof item === "object" && item.type === "user") {
+          userFollowUps.push(item.content);
+        } else {
+          steeringMessages.push(typeof item === "string" ? item : JSON.stringify(item));
+        }
+      }
+      console.log(`[AgentLoop] Mid-task follow-up received (${userFollowUps.length} user, ${steeringMessages.length} system) — continuing loop`);
+
+      // Replace inputMessages with the full conversation + follow-ups, restart the loop
+      inputMessages.length = 0;
+      inputMessages.push(...conversationMessages);
+      for (const text of steeringMessages) {
+        inputMessages.push({ role: "user", content: `[Supervisor instruction]: ${text}` });
+      }
+      if (userFollowUps.length > 0) {
+        inputMessages.push({
+          role: "user",
+          content: `[User follow-up while you were working. Acknowledge and continue.]\n\n${userFollowUps.join("\n\n")}`,
+        });
+      }
+      pruneContext(inputMessages, tokenBudget);
+      retryCount = 0;
+      continue;
+    }
+
+    const elapsed = Date.now() - startTime;
     console.log(`\n--- AGENT LOOP FINISHED ---`);
     console.log(`Stats: ${totalSteps + 1} steps | ${stepCount} tool calls | ${elapsed}ms | ~$${cost.estimatedCost.toFixed(4)}`);
     console.log(`Response: "${finalText.slice(0, 150)}${finalText.length > 150 ? "..." : ""}"`);
-
-    // Build conversation messages for session persistence
-    const conversationMessages = [...inputMessages, ...result.response.messages];
 
     loopDetector.cleanup(taskId);
     return { text: finalText, messages: conversationMessages, cost, toolCalls: toolCallLog };
