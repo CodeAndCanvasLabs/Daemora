@@ -1,8 +1,23 @@
 /**
  * clipboard - Read from or write to the system clipboard.
  * macOS: pbpaste/pbcopy. Linux: xclip/xsel. Windows: clip/powershell.
+ *
+ * Writes use spawnSync (no shell) to prevent command injection from clipboard text.
  */
-import { execSync, execFileSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
+
+/** Write `text` to a process's stdin via spawnSync (no shell, injection-safe). */
+function pipeToProcess(cmd, args, text, timeout = 5000) {
+  const result = spawnSync(cmd, args, {
+    input: text,
+    encoding: "utf-8",
+    timeout,
+    shell: false,
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(result.stderr || `${cmd} exited with ${result.status}`);
+  return result;
+}
 
 function platform() {
   return process.platform;
@@ -35,17 +50,17 @@ export async function clipboard(params) {
     }
 
     if (action === "write") {
-      if (!text) return "Error: text is required for write.";
+      if (text == null) return "Error: text is required for write.";
       if (platform() === "darwin") {
-        execSync(`echo ${JSON.stringify(text)} | pbcopy`, { timeout: 5000 });
+        pipeToProcess("pbcopy", [], text);
       } else if (platform() === "linux") {
         try {
-          execSync(`echo ${JSON.stringify(text)} | xclip -selection clipboard`, { timeout: 5000 });
+          pipeToProcess("xclip", ["-selection", "clipboard"], text);
         } catch {
-          execSync(`echo ${JSON.stringify(text)} | xsel --clipboard --input`, { timeout: 5000 });
+          pipeToProcess("xsel", ["--clipboard", "--input"], text);
         }
       } else if (platform() === "win32") {
-        execSync(`echo ${text} | clip`, { timeout: 5000 });
+        pipeToProcess("clip", [], text);
       } else {
         return "Error: clipboard write not supported on this platform.";
       }
@@ -54,7 +69,7 @@ export async function clipboard(params) {
     }
 
     if (action === "clear") {
-      return await clipboard("write", "");
+      return await clipboard({ action: "write", text: "" });
     }
 
     return `Unknown action: "${action}". Valid: read, write, clear`;

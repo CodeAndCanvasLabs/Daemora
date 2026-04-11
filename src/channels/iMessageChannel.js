@@ -1,6 +1,19 @@
 import { BaseChannel } from "./BaseChannel.js";
 import taskQueue from "../core/TaskQueue.js";
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
+
+/** Run an AppleScript via osascript stdin (no shell, injection-safe). */
+function runOsascript(script, opts = {}) {
+  const result = spawnSync("osascript", ["-"], {
+    input: script,
+    encoding: "utf-8",
+    timeout: opts.timeout || 10000,
+    shell: false,
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(result.stderr || `osascript exited with ${result.status}`);
+  return result.stdout;
+}
 
 /**
  * iMessage Channel - send/receive iMessages on macOS via AppleScript.
@@ -74,9 +87,7 @@ export class iMessageChannel extends BaseChannel {
 
       let raw;
       try {
-        raw = execSync(`osascript -e '${script.replace(/'/g, "\\'")}'`, {
-          encoding: "utf-8", timeout: 10000
-        });
+        raw = runOsascript(script, { timeout: 10000 });
       } catch { return; }
 
       this.lastChecked = new Date();
@@ -141,7 +152,7 @@ export class iMessageChannel extends BaseChannel {
         end tell
       `;
       try {
-        execSync(`osascript -e '${script.replace(/'/g, "\\'")}'`, { timeout: 10000 });
+        runOsascript(script, { timeout: 10000 });
       } catch (err) {
         console.log(`[Channel:iMessage] Send error: ${err.message}`);
       }

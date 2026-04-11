@@ -298,7 +298,9 @@ async function handleDaemon(action) {
     case "logs": {
       const stdoutLog = join(daemonManager.logsDir, "daemon-stdout.log");
       const stderrLog = join(daemonManager.logsDir, "daemon-stderr.log");
-      const lines = process.argv[4] || "50";
+      // Validate lines as integer to prevent command injection
+      const linesArg = process.argv[4] || "50";
+      const lines = String(parseInt(linesArg, 10) || 50);
       console.log(header);
       console.log(`  ${S.bar}  ${t.muted(stdoutLog)}\n`);
       try {

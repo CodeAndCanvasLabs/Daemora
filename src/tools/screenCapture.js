@@ -43,7 +43,11 @@ export function screenCapture(params) {
 
       if (os === "darwin") {
         if (region) {
-          const { x = 0, y = 0, width = 800, height = 600 } = region;
+          // Coerce to integers to prevent command injection via region params
+          const x = parseInt(region.x, 10) || 0;
+          const y = parseInt(region.y, 10) || 0;
+          const width = parseInt(region.width, 10) || 800;
+          const height = parseInt(region.height, 10) || 600;
           execSync(`screencapture -x -R ${x},${y},${width},${height} "${outputPath}"`, { timeout: 10000 });
         } else {
           execSync(`screencapture -x "${outputPath}"`, { timeout: 10000 });
@@ -85,19 +89,21 @@ export function screenCapture(params) {
 
     // ── Video mode ────────────────────────────────────────────────────────────
     if (mode === "video") {
-      if (duration < 1 || duration > 300) {
+      // Coerce to integer to prevent command injection
+      const dur = parseInt(duration, 10);
+      if (!Number.isFinite(dur) || dur < 1 || dur > 300) {
         return "Error: duration must be between 1 and 300 seconds.";
       }
       const outputPath = join(outputDir, `video-${timestamp}.mp4`);
-      const timeoutMs  = (duration + 30) * 1000;
+      const timeoutMs  = (dur + 30) * 1000;
 
       if (os === "darwin") {
         // screencapture -V records video. Available macOS 10.15+.
-        execSync(`screencapture -V ${duration} "${outputPath}"`, { timeout: timeoutMs });
+        execSync(`screencapture -V ${dur} "${outputPath}"`, { timeout: timeoutMs });
       } else if (os === "linux") {
         // Try ffmpeg first (most capable), then recordmydesktop
-        const ffmpegCmd = `ffmpeg -y -f x11grab -t ${duration} -i :0.0 -c:v libx264 -preset fast "${outputPath}" 2>/dev/null`;
-        const rmdCmd    = `recordmydesktop --no-sound --fps 15 -o "${outputPath}" & sleep ${duration} && kill %1`;
+        const ffmpegCmd = `ffmpeg -y -f x11grab -t ${dur} -i :0.0 -c:v libx264 -preset fast "${outputPath}" 2>/dev/null`;
+        const rmdCmd    = `recordmydesktop --no-sound --fps 15 -o "${outputPath}" & sleep ${dur} && kill %1`;
 
         let recorded = false;
         for (const cmd of [ffmpegCmd, rmdCmd]) {
@@ -113,7 +119,7 @@ export function screenCapture(params) {
       if (!existsSync(outputPath)) {
         return "Error: Video recording ran but no file was created.";
       }
-      return `Video saved to: ${outputPath} (${duration}s)`;
+      return `Video saved to: ${outputPath} (${dur}s)`;
     }
 
     return `Error: Unknown mode "${mode}". Use "screenshot" or "video".`;

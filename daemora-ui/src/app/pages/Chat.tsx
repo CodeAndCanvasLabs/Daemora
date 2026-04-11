@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { apiFetch, apiStreamUrl } from "../api";
-import { User, Loader2, Terminal, ArrowUp, Wrench, Brain, Bot, Download, Image as ImageIcon } from "lucide-react";
+import { User, Loader2, Terminal, ArrowUp, Wrench, Brain, Bot, Download, Image as ImageIcon, Trash2 } from "lucide-react";
 import { Textarea } from "../components/ui/textarea";
 import { ScrollArea } from "../components/ui/scroll-area";
 import ReactMarkdown from "react-markdown";
@@ -46,6 +46,25 @@ export function Chat() {
       console.error("Failed to load session", error);
     } finally {
       setInitialized(true);
+    }
+  };
+
+  const clearHistory = async () => {
+    if (!confirm("Delete all chat history? This cannot be undone.")) return;
+    try {
+      // Delete the session, then recreate it fresh
+      await apiFetch(`/api/sessions/${SESSION_ID}`, { method: "DELETE" });
+      await apiFetch("/api/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: SESSION_ID }),
+      });
+      setMessages([]);
+      sessionStorage.removeItem("daemora_active_task");
+      toast.success("Chat history cleared");
+    } catch (error) {
+      console.error("Failed to clear history", error);
+      toast.error("Failed to clear history");
     }
   };
 
@@ -285,13 +304,25 @@ export function Chat() {
 
         {/* Header */}
         <div className="flex items-center px-4 py-3 border-b border-slate-800/50 bg-slate-900/40 backdrop-blur-md z-10 h-14 gap-3">
-          <div className="flex items-center gap-2.5 flex-1 justify-center">
+          <div className="flex-1" />
+          <div className="flex items-center gap-2.5">
             <div className="animate-[bounce-slow_2s_ease-in-out_infinite]">
               <Logo size={28} />
             </div>
             <h2 className="text-base font-bold bg-gradient-to-r from-white via-[#00d9ff] to-[#4ECDC4] bg-clip-text text-transparent tracking-tight">
               Daemora
             </h2>
+          </div>
+          <div className="flex-1 flex justify-end">
+            <button
+              onClick={clearHistory}
+              disabled={isLoading || messages.length === 0}
+              title="Delete chat history"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-mono uppercase tracking-wider text-gray-400 hover:text-red-400 hover:bg-red-500/10 border border-slate-800/60 hover:border-red-500/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-gray-400 disabled:hover:bg-transparent disabled:hover:border-slate-800/60"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Clear</span>
+            </button>
           </div>
         </div>
 
