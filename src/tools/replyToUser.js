@@ -36,6 +36,8 @@ export async function replyToUser(params) {
 }
 
 export const replyToUserDescription =
-  'replyToUser(message: string) - Send a text message to the current user mid-task. ' +
-  'Use for progress updates ("Working on the API routes now..."), acknowledgments when the user sends a follow-up, ' +
-  'or intermediate results while still working. Does not end the task - work continues after sending.';
+  'replyToUser(message: string) - Send an INTERMEDIATE progress update while still working. ' +
+  'ONLY use for: status updates ("Reading the codebase now..."), acknowledgments ("Got it, starting on this..."), or partial findings while work continues. ' +
+  'NEVER use for the final answer — put the final response in finalResponse text. ' +
+  'NEVER use to deliver completed work or summaries — that goes in finalResponse. ' +
+  'Work continues after sending; this does not end the task.';
