@@ -62,10 +62,15 @@ class SkillLoader {
    * Parse a skill file with YAML frontmatter.
    */
   parseSkill(content, filename) {
+    // Derive default name: for "foo/SKILL.md" use "foo"; for "bar.md" use "bar"
+    const defaultName = filename.endsWith("/SKILL.md")
+      ? filename.replace(/\/SKILL\.md$/, "")
+      : filename.replace(/\.md$/, "");
+
     const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/);
     if (!fmMatch) {
       return {
-        name: filename.replace(".md", ""),
+        name: defaultName,
         description: "",
         triggers: [],
         content: content.trim(),
@@ -87,7 +92,7 @@ class SkillLoader {
     }
 
     return {
-      name: meta.name || filename.replace(".md", ""),
+      name: meta.name || defaultName,
       description: meta.description || "",
       triggers: meta.triggers
         ? meta.triggers.split(",").map((t) => t.trim().toLowerCase())
@@ -427,7 +432,13 @@ class SkillLoader {
 
     // Strip path prefixes and .md extension for matching
     // Handles full absolute paths on any OS: /Users/.../skills/coding.md or C:\...\skills\coding.md → "coding"
+    // For subdirectory skills (.../foo/SKILL.md), use the parent directory name
     let normalized = basename(nameOrPath).replace(/\.md$/i, "");
+    if (normalized === "SKILL") {
+      // Use parent directory name instead (e.g. skills/discord/SKILL.md → "discord")
+      const parts = nameOrPath.split(/[/\\]/);
+      if (parts.length >= 2) normalized = parts[parts.length - 2];
+    }
 
     if (this.skills.has(normalized)) return this.skills.get(normalized);
 

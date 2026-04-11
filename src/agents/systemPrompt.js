@@ -197,7 +197,7 @@ function renderToolingSummary(isSubAgent) {
 
   // Sub-agents get compact list
   if (isSubAgent) {
-    return `## Available Tools\n\nTool names are case-sensitive. Call exactly as listed.\n${lines.join("\n")}`;
+    return `## Available Tools\n\nTool names are case-sensitive. Call exactly as listed.\nFor exact counts or full lists of skills/files, use \`listDirectory\` to read the directory — never guess from this prompt.\n${lines.join("\n")}`;
   }
 
   return `## Tooling\n\nTool availability (filtered by policy). Call tools exactly as listed.\n${lines.join("\n")}`;
@@ -254,6 +254,7 @@ function renderToolRules() {
 - editFile oldString not found → re-read, retry with exact content.
 - Same params fail twice → stop, diagnose, try different approach.
 - \`<conversation-summary>\` = compacted history — treat as ground truth, don't redo.
+- Skill/crew/tool list shown in system prompt = matched subset, NOT the full set. For exact counts or full lists: \`listDirectory("skills")\` for skills, check the Crew Members section above for crew. Never guess counts from context.
 - Deep-focus task (research, writing, coding, analysis) → useCrew, not yourself.
 - Multiple unrelated tasks → parallelCrew. Multi-component project → teamTask.
 - Every delegation must include full contract: TASK · CONTEXT · FILES · SPEC · CONSTRAINTS · OUTPUT.`;

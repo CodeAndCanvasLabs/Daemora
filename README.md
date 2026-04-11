@@ -43,6 +43,16 @@ Deploy once on your machine. Connect your channels. Message the bot - it writes 
 
 ---
 
+## Watch Daemora In Action
+
+
+
+https://github.com/user-attachments/assets/be0fadad-c307-4487-a4fd-2adc0f967421
+
+
+
+---
+
 ## See It In Action
 
 ### Demo 1 — GitHub PR + Local Tests + Health Monitoring
