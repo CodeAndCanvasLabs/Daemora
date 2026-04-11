@@ -3,7 +3,7 @@ import { apiFetch } from "../api";
 import {
   Clock, Plus, Trash2, Loader2, Play, Pause, RotateCcw, History,
   Globe, Repeat, Timer, AlertTriangle, CheckCircle2, XCircle, RefreshCw,
-  Send, Users, ChevronDown, ChevronRight, Check, Pencil
+  Send, Check, Pencil
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -75,10 +75,10 @@ interface DeliveryTarget {
   channelMeta?: Record<string, unknown> | null;
 }
 
-interface TenantOption {
-  id: string;
-  name: string;
-  channels: { channel: string; userId: string; meta: Record<string, unknown> | null }[];
+interface ChannelDestination {
+  channel: string;
+  label: string;
+  channelMeta: Record<string, unknown> | null;
 }
 
 interface Preset {
@@ -113,10 +113,8 @@ export function Cron() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [activeTab, setActiveTab] = useState("jobs");
   // Delivery targets
-  const [deliveryTenants, setDeliveryTenants] = useState<TenantOption[]>([]);
-  const [deliveryGlobal, setDeliveryGlobal] = useState<{ channel: string }[]>([]);
-  const [selectedTargets, setSelectedTargets] = useState<Set<string>>(new Set());
-  const [expandedTenants, setExpandedTenants] = useState<Set<string>>(new Set());
+  const [destinations, setDestinations] = useState<ChannelDestination[]>([]);
+  const [selectedDestinations, setSelectedDestinations] = useState<ChannelDestination[]>([]);
   // Presets
   const [presets, setPresets] = useState<Preset[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState("");
@@ -153,14 +151,13 @@ export function Cron() {
 
   const fetchDeliveryTargets = useCallback(async () => {
     try {
-      const [targetsRes, presetsRes] = await Promise.all([
-        apiFetch("/api/cron/delivery-targets"),
+      const [destRes, presetsRes] = await Promise.all([
+        apiFetch("/api/channels/destinations"),
         apiFetch("/api/cron/presets"),
       ]);
-      if (targetsRes.ok) {
-        const d = await targetsRes.json();
-        setDeliveryTenants(d.tenants || []);
-        setDeliveryGlobal(d.globalChannels || []);
+      if (destRes.ok) {
+        const d = await destRes.json();
+        setDestinations((d.destinations || []).filter((x: ChannelDestination) => x.channelMeta));
       }
       if (presetsRes.ok) setPresets((await presetsRes.json()).presets || []);
     } catch {}
@@ -201,18 +198,13 @@ export function Cron() {
 
     if (form.deliveryMode === "preset" && selectedPresetId) {
       body.delivery = { mode: "preset", presetId: selectedPresetId };
-    } else if (form.deliveryMode === "multi" && selectedTargets.size > 0) {
-      const targets: DeliveryTarget[] = [];
-      for (const key of selectedTargets) {
-        const [tid, ch, uid] = key.split("||");
-        if (tid === "__global__") {
-          targets.push({ tenantId: null, channel: ch, userId: null, channelMeta: null });
-        } else {
-          const tenant = deliveryTenants.find(t => t.id === tid);
-          const chData = tenant?.channels.find(c => c.channel === ch && c.userId === uid);
-          targets.push({ tenantId: tid, channel: ch, userId: uid || null, channelMeta: chData?.meta || null });
-        }
-      }
+    } else if (form.deliveryMode === "channels" && selectedDestinations.length > 0) {
+      const targets: DeliveryTarget[] = selectedDestinations.map(d => ({
+        tenantId: null,
+        channel: d.channel,
+        userId: (d.channelMeta?.userId as string) || (d.channelMeta?.chatId as string) || null,
+        channelMeta: d.channelMeta,
+      }));
       body.delivery = { mode: "multi", targets };
     } else if (form.deliveryMode === "webhook") {
       body.delivery = { mode: "webhook" };
@@ -288,6 +280,8 @@ export function Cron() {
       else if (everyMs >= 60000) everyInterval = `${Math.round(everyMs / 60000)}m`;
       else everyInterval = `${Math.round(everyMs / 1000)}s`;
     }
+    // Map server "multi" mode → UI "channels" mode (which uses active channel destinations)
+    const uiMode = job.delivery?.mode === "multi" ? "channels" : (job.delivery?.mode || "none");
     setForm({
       name: job.name || "",
       scheduleKind: job.schedule.kind,
@@ -299,10 +293,18 @@ export function Cron() {
       model: job.model || "",
       maxRetries: String(job.maxRetries || 0),
       timeoutSeconds: String(job.timeoutSeconds || 7200),
-      deliveryMode: job.delivery?.mode || "none",
+      deliveryMode: uiMode,
     });
     if (job.delivery?.mode === "preset" && (job.delivery as any).presetId) {
       setSelectedPresetId((job.delivery as any).presetId);
+    }
+    if (job.delivery?.mode === "multi" && (job.delivery as any).targets) {
+      const existingTargets = (job.delivery as any).targets as Array<{ channel: string; channelMeta: Record<string, unknown> | null }>;
+      setSelectedDestinations(existingTargets.map(t => ({
+        channel: t.channel,
+        label: `${t.channel} → ${(t.channelMeta?.userName as string) || (t.channelMeta?.userId as string) || (t.channelMeta?.chatId as string) || "user"}`,
+        channelMeta: t.channelMeta,
+      })));
     }
     fetchDeliveryTargets();
     setIsEditOpen(true);
@@ -337,18 +339,13 @@ export function Cron() {
 
     if (form.deliveryMode === "preset" && selectedPresetId) {
       body.delivery = { mode: "preset", presetId: selectedPresetId };
-    } else if (form.deliveryMode === "multi" && selectedTargets.size > 0) {
-      const targets: DeliveryTarget[] = [];
-      for (const key of selectedTargets) {
-        const [tid, ch, uid] = key.split("||");
-        if (tid === "__global__") {
-          targets.push({ tenantId: null, channel: ch, userId: null, channelMeta: null });
-        } else {
-          const tenant = deliveryTenants.find(t => t.id === tid);
-          const chData = tenant?.channels.find(c => c.channel === ch && c.userId === uid);
-          targets.push({ tenantId: tid, channel: ch, userId: uid || null, channelMeta: chData?.meta || null });
-        }
-      }
+    } else if (form.deliveryMode === "channels" && selectedDestinations.length > 0) {
+      const targets: DeliveryTarget[] = selectedDestinations.map(d => ({
+        tenantId: null,
+        channel: d.channel,
+        userId: (d.channelMeta?.userId as string) || (d.channelMeta?.chatId as string) || null,
+        channelMeta: d.channelMeta,
+      }));
       body.delivery = { mode: "multi", targets };
     } else if (form.deliveryMode === "webhook") {
       body.delivery = { mode: "webhook" };
@@ -424,7 +421,7 @@ export function Cron() {
             <RefreshCw className="w-3 h-3 mr-2" />
             Refresh
           </Button>
-          <Dialog open={isAddOpen} onOpenChange={(v) => { setIsAddOpen(v); if (!v) { setSelectedTargets(new Set()); setExpandedTenants(new Set()); setSelectedPresetId(""); } }}>
+          <Dialog open={isAddOpen} onOpenChange={(v) => { setIsAddOpen(v); if (!v) { setSelectedDestinations([]); setSelectedPresetId(""); } }}>
             <DialogTrigger asChild>
               <Button size="sm" className="bg-gradient-to-r from-[#0891b2] to-[#0d9488] text-white uppercase text-xs tracking-tighter">
                 <Plus className="w-3 h-3 mr-2" />
@@ -493,12 +490,12 @@ export function Cron() {
                 {/* Delivery */}
                 <div className="space-y-2 border-t border-slate-800 pt-4">
                   <label className="text-xs text-gray-400 flex items-center gap-1"><Send className="w-3 h-3" /> Delivery</label>
-                  <Select value={form.deliveryMode} onValueChange={(v) => { setForm({ ...form, deliveryMode: v }); setSelectedTargets(new Set()); setSelectedPresetId(""); }}>
+                  <Select value={form.deliveryMode} onValueChange={(v) => { setForm({ ...form, deliveryMode: v }); setSelectedDestinations([]); setSelectedPresetId(""); }}>
                     <SelectTrigger className="bg-slate-900 border-slate-800 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-slate-950 border-slate-800">
                       <SelectItem value="none">None</SelectItem>
+                      <SelectItem value="channels">Active channels</SelectItem>
                       <SelectItem value="preset">Preset (saved group)</SelectItem>
-                      <SelectItem value="multi">Multi-Target (pick tenants)</SelectItem>
                       <SelectItem value="webhook">Webhook URL</SelectItem>
                     </SelectContent>
                   </Select>
@@ -514,77 +511,43 @@ export function Cron() {
                     </Select>
                   )}
 
-                  {form.deliveryMode === "multi" && (
-                    <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-3 max-h-48 overflow-y-auto space-y-1">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs text-gray-400">{selectedTargets.size} selected</span>
-                        <button
-                          className="text-xs text-[#38bdf8] hover:underline"
-                          onClick={() => {
-                            const all = new Set<string>();
-                            deliveryTenants.forEach(t => t.channels.forEach(c => all.add(`${t.id}||${c.channel}||${c.userId}`)));
-                            deliveryGlobal.forEach(c => all.add(`__global__||${c.channel}||`));
-                            setSelectedTargets(selectedTargets.size === all.size ? new Set() : all);
-                          }}
-                        >{selectedTargets.size > 0 ? "Deselect All" : "Select All"}</button>
-                      </div>
-
-                      {/* Global channels */}
-                      {deliveryGlobal.length > 0 && (
-                        <div className="mb-2">
-                          <span className="text-xs text-gray-400 block mb-1">Global Channels</span>
-                          {deliveryGlobal.map(c => {
-                            const key = `__global__||${c.channel}||`;
-                            return (
-                              <label key={key} className="flex items-center gap-2 py-0.5 px-1 hover:bg-slate-800/50 rounded cursor-pointer">
-                                <input type="checkbox" checked={selectedTargets.has(key)} onChange={() => {
-                                  const s = new Set(selectedTargets);
-                                  s.has(key) ? s.delete(key) : s.add(key);
-                                  setSelectedTargets(s);
-                                }} className="accent-[#00d9ff]" />
-                                <span className="text-sm text-gray-400">{c.channel}</span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {/* Tenant channels */}
-                      {deliveryTenants.map(t => (
-                        <div key={t.id} className="border-t border-slate-800/30 pt-1">
+                  {form.deliveryMode === "channels" && (
+                    destinations.length > 0 ? (
+                      <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-3 max-h-48 overflow-y-auto space-y-1">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-gray-400">{selectedDestinations.length} selected</span>
                           <button
-                            className="flex items-center gap-1 w-full text-left py-1 hover:bg-slate-800/30 rounded px-1"
-                            onClick={() => {
-                              const s = new Set(expandedTenants);
-                              s.has(t.id) ? s.delete(t.id) : s.add(t.id);
-                              setExpandedTenants(s);
-                            }}
-                          >
-                            {expandedTenants.has(t.id) ? <ChevronDown className="w-3 h-3 text-gray-500" /> : <ChevronRight className="w-3 h-3 text-gray-500" />}
-                            <Users className="w-3 h-3 text-[#00d9ff]" />
-                            <span className="text-sm text-gray-300">{t.name?.includes(":") ? `${t.name.split(":")[0]}:${t.name.split(":").pop()?.slice(0,8)}` : t.name}</span>
-                            <span className="text-xs text-gray-500 ml-auto">{t.channels.length} ch</span>
-                          </button>
-                          {expandedTenants.has(t.id) && (
-                            <div className="pl-6 space-y-0.5">
-                              {t.channels.map(c => {
-                                const key = `${t.id}||${c.channel}||${c.userId}`;
-                                return (
-                                  <label key={key} className="flex items-center gap-2 py-0.5 px-1 hover:bg-slate-800/50 rounded cursor-pointer">
-                                    <input type="checkbox" checked={selectedTargets.has(key)} onChange={() => {
-                                      const s = new Set(selectedTargets);
-                                      s.has(key) ? s.delete(key) : s.add(key);
-                                      setSelectedTargets(s);
-                                    }} className="accent-[#00d9ff]" />
-                                    <span className="text-sm text-gray-400">{c.channel}</span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          )}
+                            className="text-xs text-[#38bdf8] hover:underline"
+                            onClick={() => setSelectedDestinations(selectedDestinations.length === destinations.length ? [] : [...destinations])}
+                          >{selectedDestinations.length > 0 ? "Deselect All" : "Select All"}</button>
                         </div>
-                      ))}
-                    </div>
+                        {destinations.map((d, i) => {
+                          const isSelected = selectedDestinations.some(s => s.channel === d.channel && JSON.stringify(s.channelMeta) === JSON.stringify(d.channelMeta));
+                          return (
+                            <label key={`${d.channel}-${i}`} className="flex items-center gap-2 py-1 px-1 hover:bg-slate-800/50 rounded cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => {
+                                  if (isSelected) {
+                                    setSelectedDestinations(selectedDestinations.filter(s => !(s.channel === d.channel && JSON.stringify(s.channelMeta) === JSON.stringify(d.channelMeta))));
+                                  } else {
+                                    setSelectedDestinations([...selectedDestinations, d]);
+                                  }
+                                }}
+                                className="accent-[#00d9ff]"
+                              />
+                              <span className="text-sm text-gray-300">{d.label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 p-2.5 bg-slate-900/50 border border-slate-800 rounded-lg">
+                        <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                        <p className="text-xs text-gray-400">No active channel destinations. Send a message on Discord/Telegram first so the system knows where to deliver.</p>
+                      </div>
+                    )
                   )}
                 </div>
 
@@ -598,7 +561,7 @@ export function Cron() {
       </div>
 
       {/* Edit Job Dialog */}
-      <Dialog open={isEditOpen} onOpenChange={(v) => { setIsEditOpen(v); if (!v) { setEditingJobId(null); setForm(EMPTY_FORM); setSelectedTargets(new Set()); setExpandedTenants(new Set()); setSelectedPresetId(""); } }}>
+      <Dialog open={isEditOpen} onOpenChange={(v) => { setIsEditOpen(v); if (!v) { setEditingJobId(null); setForm(EMPTY_FORM); setSelectedDestinations([]); setSelectedPresetId(""); } }}>
         <DialogContent className="bg-slate-950 border-slate-800 text-white max-w-3xl">
           <DialogHeader>
             <DialogTitle className="uppercase tracking-widest text-sm border-b border-slate-800 pb-4">Edit Cron Job</DialogTitle>
@@ -661,12 +624,12 @@ export function Cron() {
             {/* Delivery */}
             <div className="space-y-2 border-t border-slate-800 pt-4">
               <label className="text-xs text-gray-400 flex items-center gap-1"><Send className="w-3 h-3" /> Delivery</label>
-              <Select value={form.deliveryMode} onValueChange={(v) => { setForm({ ...form, deliveryMode: v }); setSelectedTargets(new Set()); setSelectedPresetId(""); }}>
+              <Select value={form.deliveryMode} onValueChange={(v) => { setForm({ ...form, deliveryMode: v }); setSelectedDestinations([]); setSelectedPresetId(""); }}>
                 <SelectTrigger className="bg-slate-900 border-slate-800 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent className="bg-slate-950 border-slate-800">
                   <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="channels">Active channels</SelectItem>
                   <SelectItem value="preset">Preset (saved group)</SelectItem>
-                  <SelectItem value="multi">Multi-Target (pick tenants)</SelectItem>
                   <SelectItem value="webhook">Webhook URL</SelectItem>
                 </SelectContent>
               </Select>
@@ -682,73 +645,43 @@ export function Cron() {
                 </Select>
               )}
 
-              {form.deliveryMode === "multi" && (
-                <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-3 max-h-48 overflow-y-auto space-y-1">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-gray-400">{selectedTargets.size} selected</span>
-                    <button
-                      className="text-xs text-[#38bdf8] hover:underline"
-                      onClick={() => {
-                        const all = new Set<string>();
-                        deliveryTenants.forEach(t => t.channels.forEach(c => all.add(`${t.id}||${c.channel}||${c.userId}`)));
-                        deliveryGlobal.forEach(c => all.add(`__global__||${c.channel}||`));
-                        setSelectedTargets(selectedTargets.size === all.size ? new Set() : all);
-                      }}
-                    >{selectedTargets.size > 0 ? "Deselect All" : "Select All"}</button>
-                  </div>
-                  {deliveryGlobal.length > 0 && (
-                    <div className="mb-2">
-                      <span className="text-xs text-gray-400 block mb-1">Global Channels</span>
-                      {deliveryGlobal.map(c => {
-                        const key = `__global__||${c.channel}||`;
-                        return (
-                          <label key={key} className="flex items-center gap-2 py-0.5 px-1 hover:bg-slate-800/50 rounded cursor-pointer">
-                            <input type="checkbox" checked={selectedTargets.has(key)} onChange={() => {
-                              const s = new Set(selectedTargets);
-                              s.has(key) ? s.delete(key) : s.add(key);
-                              setSelectedTargets(s);
-                            }} className="accent-[#00d9ff]" />
-                            <span className="text-sm text-gray-400">{c.channel}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
-                  {deliveryTenants.map(t => (
-                    <div key={t.id} className="border-t border-slate-800/30 pt-1">
+              {form.deliveryMode === "channels" && (
+                destinations.length > 0 ? (
+                  <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-3 max-h-48 overflow-y-auto space-y-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-gray-400">{selectedDestinations.length} selected</span>
                       <button
-                        className="flex items-center gap-1 w-full text-left py-1 hover:bg-slate-800/30 rounded px-1"
-                        onClick={() => {
-                          const s = new Set(expandedTenants);
-                          s.has(t.id) ? s.delete(t.id) : s.add(t.id);
-                          setExpandedTenants(s);
-                        }}
-                      >
-                        {expandedTenants.has(t.id) ? <ChevronDown className="w-3 h-3 text-gray-500" /> : <ChevronRight className="w-3 h-3 text-gray-500" />}
-                        <Users className="w-3 h-3 text-[#00d9ff]" />
-                        <span className="text-sm text-gray-300">{t.name?.includes(":") ? `${t.name.split(":")[0]}:${t.name.split(":").pop()?.slice(0,8)}` : t.name}</span>
-                        <span className="text-xs text-gray-500 ml-auto">{t.channels.length} ch</span>
-                      </button>
-                      {expandedTenants.has(t.id) && (
-                        <div className="pl-6 space-y-0.5">
-                          {t.channels.map(c => {
-                            const key = `${t.id}||${c.channel}||${c.userId}`;
-                            return (
-                              <label key={key} className="flex items-center gap-2 py-0.5 px-1 hover:bg-slate-800/50 rounded cursor-pointer">
-                                <input type="checkbox" checked={selectedTargets.has(key)} onChange={() => {
-                                  const s = new Set(selectedTargets);
-                                  s.has(key) ? s.delete(key) : s.add(key);
-                                  setSelectedTargets(s);
-                                }} className="accent-[#00d9ff]" />
-                                <span className="text-sm text-gray-400">{c.channel}</span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      )}
+                        className="text-xs text-[#38bdf8] hover:underline"
+                        onClick={() => setSelectedDestinations(selectedDestinations.length === destinations.length ? [] : [...destinations])}
+                      >{selectedDestinations.length > 0 ? "Deselect All" : "Select All"}</button>
                     </div>
-                  ))}
-                </div>
+                    {destinations.map((d, i) => {
+                      const isSelected = selectedDestinations.some(s => s.channel === d.channel && JSON.stringify(s.channelMeta) === JSON.stringify(d.channelMeta));
+                      return (
+                        <label key={`${d.channel}-${i}`} className="flex items-center gap-2 py-1 px-1 hover:bg-slate-800/50 rounded cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {
+                              if (isSelected) {
+                                setSelectedDestinations(selectedDestinations.filter(s => !(s.channel === d.channel && JSON.stringify(s.channelMeta) === JSON.stringify(d.channelMeta))));
+                              } else {
+                                setSelectedDestinations([...selectedDestinations, d]);
+                              }
+                            }}
+                            className="accent-[#00d9ff]"
+                          />
+                          <span className="text-sm text-gray-300">{d.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 p-2.5 bg-slate-900/50 border border-slate-800 rounded-lg">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                    <p className="text-xs text-gray-400">No active channel destinations. Send a message on Discord/Telegram first.</p>
+                  </div>
+                )
               )}
             </div>
 
@@ -947,7 +880,7 @@ export function Cron() {
               <span className="text-sm font-mono text-white uppercase tracking-tight">Delivery Presets</span>
               <span className="text-[9px] font-mono text-gray-600">{presets.length} presets</span>
             </div>
-            <Dialog open={isPresetOpen} onOpenChange={(v) => { setIsPresetOpen(v); if (!v) { setSelectedTargets(new Set()); setExpandedTenants(new Set()); } }}>
+            <Dialog open={isPresetOpen} onOpenChange={(v) => { setIsPresetOpen(v); if (!v) { setSelectedDestinations([]); } }}>
               <DialogTrigger asChild>
                 <Button size="sm" className="bg-gradient-to-r from-[#0891b2] to-[#0d9488] text-white uppercase text-xs tracking-tighter">
                   <Plus className="w-3 h-3 mr-2" />New Preset
@@ -960,7 +893,7 @@ export function Cron() {
                 <div className="space-y-4 pt-4 max-h-[70vh] overflow-y-auto">
                   <div className="space-y-1">
                     <label className="text-xs text-gray-400">Name</label>
-                    <Input value={presetForm.name} onChange={(e) => setPresetForm({ ...presetForm, name: e.target.value })} placeholder="e.g. engineers, team-leads, interns" className="bg-slate-900 border-slate-800 text-sm" />
+                    <Input value={presetForm.name} onChange={(e) => setPresetForm({ ...presetForm, name: e.target.value })} placeholder="e.g. team, alerts, daily-digest" className="bg-slate-900 border-slate-800 text-sm" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs text-gray-400">Description</label>
@@ -968,84 +901,55 @@ export function Cron() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs text-gray-400">Select Tenants & Channels</label>
-                    <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-3 max-h-48 overflow-y-auto space-y-1">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs text-gray-400">{selectedTargets.size} selected</span>
-                        <button
-                          className="text-xs text-[#38bdf8] hover:underline"
-                          onClick={() => {
-                            const all = new Set<string>();
-                            deliveryTenants.forEach(t => t.channels.forEach(c => all.add(`${t.id}||${c.channel}||${c.userId}`)));
-                            deliveryGlobal.forEach(c => all.add(`__global__||${c.channel}||`));
-                            setSelectedTargets(selectedTargets.size === all.size ? new Set() : all);
-                          }}
-                        >{selectedTargets.size > 0 ? "Deselect All" : "Select All"}</button>
-                      </div>
-                      {deliveryGlobal.length > 0 && (
-                        <div className="mb-2">
-                          <span className="text-xs text-gray-400 block mb-1">Global Channels</span>
-                          {deliveryGlobal.map(c => {
-                            const key = `__global__||${c.channel}||`;
-                            return (
-                              <label key={key} className="flex items-center gap-2 py-0.5 px-1 hover:bg-slate-800/50 rounded cursor-pointer">
-                                <input type="checkbox" checked={selectedTargets.has(key)} onChange={() => {
-                                  const s = new Set(selectedTargets);
-                                  s.has(key) ? s.delete(key) : s.add(key);
-                                  setSelectedTargets(s);
-                                }} className="accent-[#00d9ff]" />
-                                <span className="text-sm text-gray-400">{c.channel}</span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      )}
-                      {deliveryTenants.map(t => (
-                        <div key={t.id} className="border-t border-slate-800/30 pt-1">
+                    <label className="text-xs text-gray-400">Select Channel Destinations</label>
+                    {destinations.length > 0 ? (
+                      <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-3 max-h-48 overflow-y-auto space-y-1">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-gray-400">{selectedDestinations.length} selected</span>
                           <button
-                            className="flex items-center gap-1 w-full text-left py-1 hover:bg-slate-800/30 rounded px-1"
-                            onClick={() => {
-                              const s = new Set(expandedTenants);
-                              s.has(t.id) ? s.delete(t.id) : s.add(t.id);
-                              setExpandedTenants(s);
-                            }}
-                          >
-                            {expandedTenants.has(t.id) ? <ChevronDown className="w-3 h-3 text-gray-500" /> : <ChevronRight className="w-3 h-3 text-gray-500" />}
-                            <Users className="w-3 h-3 text-[#00d9ff]" />
-                            <span className="text-sm text-gray-300">{t.name?.includes(":") ? `${t.name.split(":")[0]}:${t.name.split(":").pop()?.slice(0,8)}` : t.name}</span>
-                            <span className="text-xs text-gray-500 ml-auto">{t.channels.length} ch</span>
-                          </button>
-                          {expandedTenants.has(t.id) && (
-                            <div className="pl-6 space-y-0.5">
-                              {t.channels.map(c => {
-                                const key = `${t.id}||${c.channel}||${c.userId}`;
-                                return (
-                                  <label key={key} className="flex items-center gap-2 py-0.5 px-1 hover:bg-slate-800/50 rounded cursor-pointer">
-                                    <input type="checkbox" checked={selectedTargets.has(key)} onChange={() => {
-                                      const s = new Set(selectedTargets);
-                                      s.has(key) ? s.delete(key) : s.add(key);
-                                      setSelectedTargets(s);
-                                    }} className="accent-[#00d9ff]" />
-                                    <span className="text-sm text-gray-400">{c.channel}</span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          )}
+                            className="text-xs text-[#38bdf8] hover:underline"
+                            onClick={() => setSelectedDestinations(selectedDestinations.length === destinations.length ? [] : [...destinations])}
+                          >{selectedDestinations.length > 0 ? "Deselect All" : "Select All"}</button>
                         </div>
-                      ))}
-                    </div>
+                        {destinations.map((d, i) => {
+                          const isSelected = selectedDestinations.some(s => s.channel === d.channel && JSON.stringify(s.channelMeta) === JSON.stringify(d.channelMeta));
+                          return (
+                            <label key={`${d.channel}-${i}`} className="flex items-center gap-2 py-1 px-1 hover:bg-slate-800/50 rounded cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => {
+                                  if (isSelected) {
+                                    setSelectedDestinations(selectedDestinations.filter(s => !(s.channel === d.channel && JSON.stringify(s.channelMeta) === JSON.stringify(d.channelMeta))));
+                                  } else {
+                                    setSelectedDestinations([...selectedDestinations, d]);
+                                  }
+                                }}
+                                className="accent-[#00d9ff]"
+                              />
+                              <span className="text-sm text-gray-300">{d.label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 p-2.5 bg-slate-900/50 border border-slate-800 rounded-lg">
+                        <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                        <p className="text-xs text-gray-400">No active channel destinations. Send a message on Discord/Telegram first.</p>
+                      </div>
+                    )}
                   </div>
 
                   <Button
                     onClick={async () => {
                       if (!presetForm.name) return toast.error("Name is required");
-                      if (selectedTargets.size === 0) return toast.error("Select at least one target");
-                      const targets: DeliveryTarget[] = [];
-                      for (const key of selectedTargets) {
-                        const [tid, ch, uid] = key.split("||");
-                        targets.push({ tenantId: tid === "__global__" ? null : tid, channel: ch, userId: uid || null });
-                      }
+                      if (selectedDestinations.length === 0) return toast.error("Select at least one destination");
+                      const targets: DeliveryTarget[] = selectedDestinations.map(d => ({
+                        tenantId: null,
+                        channel: d.channel,
+                        userId: (d.channelMeta?.userId as string) || (d.channelMeta?.chatId as string) || null,
+                        channelMeta: d.channelMeta,
+                      }));
                       try {
                         const res = await apiFetch("/api/cron/presets", {
                           method: "POST",
@@ -1056,7 +960,7 @@ export function Cron() {
                           toast.success("Preset created");
                           setIsPresetOpen(false);
                           setPresetForm({ name: "", description: "" });
-                          setSelectedTargets(new Set());
+                          setSelectedDestinations([]);
                           fetchDeliveryTargets();
                         } else {
                           const err = await res.json();

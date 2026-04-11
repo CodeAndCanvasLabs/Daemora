@@ -221,7 +221,7 @@ export function SchedulePicker({ value, onChange, showOnce = true, defaultMode =
                 <Select value={time.split(":")[1] || "00"} onValueChange={m => setTime(`${time.split(":")[0] || "09"}:${m}`)}>
                   <SelectTrigger className="bg-slate-800 border-slate-700 text-white w-20"><SelectValue /></SelectTrigger>
                   <SelectContent className="bg-slate-800 border-slate-700 max-h-48">
-                    {["00","15","30","45"].map(m=>(
+                    {Array.from({length:60},(_,i)=>String(i).padStart(2,"0")).map(m=>(
                       <SelectItem key={m} value={m}>{m}</SelectItem>
                     ))}
                   </SelectContent>
@@ -301,7 +301,7 @@ export function SchedulePicker({ value, onChange, showOnce = true, defaultMode =
                 <Select value={time.split(":")[1] || "00"} onValueChange={m => setTime(`${time.split(":")[0] || "09"}:${m}`)}>
                   <SelectTrigger className="bg-slate-800 border-slate-700 text-white w-20"><SelectValue /></SelectTrigger>
                   <SelectContent className="bg-slate-800 border-slate-700 max-h-48">
-                    {["00","15","30","45"].map(m=>(
+                    {Array.from({length:60},(_,i)=>String(i).padStart(2,"0")).map(m=>(
                       <SelectItem key={m} value={m}>{m}</SelectItem>
                     ))}
                   </SelectContent>
@@ -355,7 +355,7 @@ export function SchedulePicker({ value, onChange, showOnce = true, defaultMode =
                 <Select value={time.split(":")[1] || "00"} onValueChange={m => setTime(`${time.split(":")[0] || "09"}:${m}`)}>
                   <SelectTrigger className="bg-slate-800 border-slate-700 text-white w-20"><SelectValue /></SelectTrigger>
                   <SelectContent className="bg-slate-800 border-slate-700 max-h-48">
-                    {["00","15","30","45"].map(m=>(
+                    {Array.from({length:60},(_,i)=>String(i).padStart(2,"0")).map(m=>(
                       <SelectItem key={m} value={m}>{m}</SelectItem>
                     ))}
                   </SelectContent>
@@ -411,7 +411,7 @@ export function SchedulePicker({ value, onChange, showOnce = true, defaultMode =
                 <Select value={time.split(":")[1] || "00"} onValueChange={m => setTime(`${time.split(":")[0] || "09"}:${m}`)}>
                   <SelectTrigger className="bg-slate-800 border-slate-700 text-white w-20"><SelectValue /></SelectTrigger>
                   <SelectContent className="bg-slate-800 border-slate-700 max-h-48">
-                    {["00","15","30","45"].map(m=>(
+                    {Array.from({length:60},(_,i)=>String(i).padStart(2,"0")).map(m=>(
                       <SelectItem key={m} value={m}>{m}</SelectItem>
                     ))}
                   </SelectContent>
