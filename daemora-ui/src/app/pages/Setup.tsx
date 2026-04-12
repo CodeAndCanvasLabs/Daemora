@@ -11,18 +11,19 @@ const PROVIDERS = {
   groq:      { name: "Groq",      detail: "Llama / Mixtral",    key: "GROQ_API_KEY",      model: "groq:llama-3.3-70b-versatile" },
 };
 
+// Each voice provider needs an API key — we track which env key matches
 const STT_OPTIONS = [
-  { value: "groq",      label: "Groq Whisper",    detail: "Fast, free tier" },
-  { value: "deepgram",  label: "Deepgram Nova",   detail: "Accurate streaming" },
-  { value: "openai",    label: "OpenAI Whisper",   detail: "Multilingual" },
-  { value: "assemblyai",label: "AssemblyAI",       detail: "Best accuracy" },
+  { value: "groq",      label: "Groq Whisper",     detail: "Fast, free tier",       keyEnv: "GROQ_API_KEY" },
+  { value: "deepgram",  label: "Deepgram Nova",    detail: "Accurate streaming",    keyEnv: "DEEPGRAM_API_KEY" },
+  { value: "openai",    label: "OpenAI Whisper",   detail: "Multilingual",          keyEnv: "OPENAI_API_KEY" },
+  { value: "assemblyai",label: "AssemblyAI",       detail: "Best accuracy",         keyEnv: "ASSEMBLYAI_API_KEY" },
 ];
 
 const TTS_OPTIONS = [
-  { value: "openai",     label: "OpenAI TTS",      detail: "Natural voices" },
-  { value: "groq",       label: "Groq Orpheus",    detail: "Ultra-fast" },
-  { value: "elevenlabs", label: "ElevenLabs",       detail: "Premium quality" },
-  { value: "cartesia",   label: "Cartesia Sonic",   detail: "Low latency" },
+  { value: "openai",     label: "OpenAI TTS",      detail: "Natural voices",         keyEnv: "OPENAI_API_KEY" },
+  { value: "groq",       label: "Groq Orpheus",    detail: "Ultra-fast",             keyEnv: "GROQ_API_KEY" },
+  { value: "elevenlabs", label: "ElevenLabs",      detail: "Premium quality",        keyEnv: "ELEVENLABS_API_KEY" },
+  { value: "cartesia",   label: "Cartesia Sonic",  detail: "Low latency",            keyEnv: "CARTESIA_API_KEY" },
 ];
 
 type Step = "vault" | "provider" | "voice" | "complete";
@@ -48,6 +49,8 @@ export function Setup() {
   // Voice
   const [sttProvider, setSttProvider] = useState("groq");
   const [ttsProvider, setTtsProvider] = useState("openai");
+  const [voiceKeys, setVoiceKeys] = useState<Record<string, string>>({});
+  const [voiceError, setVoiceError] = useState<string | null>(null);
 
   useEffect(() => {
     checkSetup();
@@ -148,20 +151,59 @@ export function Setup() {
   }
 
   async function handleVoice() {
+    setVoiceError(null);
+    // Figure out which API keys are needed for the selected providers
+    const sttOpt = STT_OPTIONS.find((o) => o.value === sttProvider);
+    const ttsOpt = TTS_OPTIONS.find((o) => o.value === ttsProvider);
+    const neededKeys = new Set<string>();
+    if (sttOpt?.keyEnv) neededKeys.add(sttOpt.keyEnv);
+    if (ttsOpt?.keyEnv) neededKeys.add(ttsOpt.keyEnv);
+
+    // If user picked the same provider for LLM (e.g., OPENAI_API_KEY already set), skip asking
+    const missingKeys = Array.from(neededKeys).filter((k) => !voiceKeys[k]);
+    // Check if already saved (from LLM step)
+    const stillMissing: string[] = [];
+    for (const k of missingKeys) {
+      // If key env matches LLM provider key we already saved, skip
+      const llmKey = selectedProvider ? PROVIDERS[selectedProvider as keyof typeof PROVIDERS].key : null;
+      if (llmKey === k) continue;
+      stillMissing.push(k);
+    }
+    if (stillMissing.length > 0) {
+      setVoiceError(`Enter API key for: ${stillMissing.join(", ")}`);
+      return;
+    }
+
+    const updates: Record<string, string> = {
+      DAEMORA_STT_PROVIDER: sttProvider,
+      DAEMORA_TTS_PROVIDER: ttsProvider,
+      SETUP_COMPLETED: new Date().toISOString(),
+    };
+    // Save voice provider keys
+    for (const [envKey, value] of Object.entries(voiceKeys)) {
+      if (value?.trim()) updates[envKey] = value.trim();
+    }
+
     try {
       await apiFetch("/api/settings", {
         method: "PUT",
-        body: JSON.stringify({
-          updates: {
-            DAEMORA_STT_PROVIDER: sttProvider,
-            DAEMORA_TTS_PROVIDER: ttsProvider,
-            SETUP_COMPLETED: new Date().toISOString(),
-          },
-        }),
+        body: JSON.stringify({ updates }),
       });
     } catch {}
     setStep("complete");
     setTimeout(() => navigate("/", { replace: true }), 1500);
+  }
+
+  // Compute which voice provider keys need to be entered (excluding already-saved LLM key)
+  function neededVoiceKeys(): string[] {
+    const sttOpt = STT_OPTIONS.find((o) => o.value === sttProvider);
+    const ttsOpt = TTS_OPTIONS.find((o) => o.value === ttsProvider);
+    const keys = new Set<string>();
+    if (sttOpt?.keyEnv) keys.add(sttOpt.keyEnv);
+    if (ttsOpt?.keyEnv) keys.add(ttsOpt.keyEnv);
+    const llmKey = selectedProvider ? PROVIDERS[selectedProvider as keyof typeof PROVIDERS].key : null;
+    if (llmKey) keys.delete(llmKey);
+    return Array.from(keys);
   }
 
   const steps: Step[] = ["vault", "provider", "voice", "complete"];
@@ -364,6 +406,24 @@ export function Setup() {
                   ))}
                 </div>
               </div>
+
+              {neededVoiceKeys().length > 0 && (
+                <div className="flex flex-col gap-2 border-t border-[#1e2d45] pt-3">
+                  <label className="text-[10px] uppercase tracking-wider text-[#6b7a8d]">API Keys for Voice</label>
+                  {neededVoiceKeys().map((envKey) => (
+                    <input
+                      key={envKey}
+                      type="password"
+                      value={voiceKeys[envKey] || ""}
+                      onChange={(e) => setVoiceKeys({ ...voiceKeys, [envKey]: e.target.value })}
+                      placeholder={`${envKey}`}
+                      className="w-full px-4 py-2.5 bg-[#131b2e] border border-[#1e2d45] rounded-lg text-white font-mono text-xs outline-none focus:border-[#00d9ff] transition-colors"
+                    />
+                  ))}
+                </div>
+              )}
+
+              {voiceError && <p className="text-xs text-red-400 text-center">{voiceError}</p>}
 
               <button
                 onClick={handleVoice}
