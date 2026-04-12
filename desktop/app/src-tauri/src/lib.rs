@@ -73,12 +73,8 @@ pub fn run() {
                 info!("starting daemora + livekit...");
                 match sup.start_all().await {
                     Ok(state) => {
-                        let url = format!("http://127.0.0.1:{}", state.daemora_port);
-                        info!("navigating to {}", url);
-                        if let Some(w) = handle.get_webview_window("main") {
-                            let _ = w.navigate(url.parse().unwrap());
-                            let _ = w.set_focus();
-                        }
+                        info!("services ready on port {} — splash page will poll and navigate", state.daemora_port);
+                        // JS in splash polls get_status and handles navigation via location.href
                     }
                     Err(e) => {
                         error!("failed to start: {e}");

@@ -6,475 +6,97 @@
 <title>Daemora</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #0a0f1a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #e2e8f0; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+  html, body { background: #0a0f1a; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  body { display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
   @keyframes pulse { 0%,100% { opacity: .3; transform: scale(.8) } 50% { opacity: 1; transform: scale(1.2) } }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
-
-  .container { display: flex; flex-direction: column; align-items: center; gap: 16px; max-width: 480px; width: 100%; padding: 0 24px; animation: fadeIn 0.4s ease; }
-  .logo svg { display: block; }
-  .title { font-size: 28px; font-weight: 700; letter-spacing: 3px; background: linear-gradient(135deg, #00d9ff, #4ECDC4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-  .subtitle { font-size: 13px; color: #4a5568; letter-spacing: 1px; font-family: monospace; text-align: center; }
-  .dots { display: flex; gap: 6px; margin-top: 4px; }
+  @keyframes spin { to { transform: rotate(360deg) } }
+  .box { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .title { font-size: 24px; font-weight: 700; letter-spacing: 3px; background: linear-gradient(135deg, #00d9ff, #4ECDC4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .dots { display: flex; gap: 6px; margin-top: 8px; }
   .dots span { width: 6px; height: 6px; border-radius: 50%; background: #00d9ff; animation: pulse 1.4s ease-in-out infinite; }
   .dots span:nth-child(2) { animation-delay: 0.2s; }
   .dots span:nth-child(3) { animation-delay: 0.4s; }
-
-  /* Steps */
-  .step { display: none; width: 100%; animation: fadeIn 0.3s ease; }
-  .step.active { display: block; }
-  .step-title { font-size: 18px; font-weight: 600; margin-bottom: 6px; color: #e2e8f0; text-align: center; }
-  .step-desc { font-size: 13px; color: #6b7a8d; margin-bottom: 20px; text-align: center; line-height: 1.5; }
-
-  /* Progress bar */
-  .progress { display: flex; gap: 6px; margin-bottom: 20px; justify-content: center; }
-  .progress-dot { width: 8px; height: 8px; border-radius: 50%; background: #1e2d45; transition: background 0.3s; }
-  .progress-dot.done { background: #4ECDC4; }
-  .progress-dot.current { background: #00d9ff; box-shadow: 0 0 8px rgba(0,217,255,0.4); }
-
-  /* Form elements */
-  .input { width: 100%; padding: 12px 16px; background: #131b2e; border: 1px solid #1e2d45; border-radius: 8px; color: #e2e8f0; font-size: 14px; outline: none; font-family: monospace; transition: border-color 0.2s; margin-bottom: 10px; }
-  .input:focus { border-color: #00d9ff; box-shadow: 0 0 0 2px rgba(0,217,255,0.12); }
-  .input::placeholder { color: #3a4a5c; }
-  select.input { appearance: none; cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%234a5568' fill='none' stroke-width='1.5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; }
-  .label { font-size: 11px; color: #6b7a8d; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; display: block; }
-
-  .btn { width: 100%; padding: 12px 24px; background: linear-gradient(135deg, #00d9ff, #4ECDC4); color: #0a0f1a; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 14px; letter-spacing: 0.5px; transition: opacity 0.2s, transform 0.1s; }
-  .btn:hover { opacity: 0.9; }
-  .btn:active { transform: scale(0.98); }
-  .btn:disabled { opacity: 0.4; cursor: wait; }
-  .btn-secondary { background: transparent; border: 1px solid #1e2d45; color: #6b7a8d; }
-  .btn-secondary:hover { border-color: #00d9ff; color: #00d9ff; }
-  .btn-row { display: flex; gap: 10px; margin-top: 8px; }
-  .btn-row .btn { flex: 1; }
-
-  .error-msg { font-size: 11px; color: #ff4444; margin-top: 4px; display: none; }
-  .error-msg.visible { display: block; }
-  .success-msg { font-size: 11px; color: #4ECDC4; margin-top: 4px; }
-  .skip-link { background: none; border: none; color: #4a5568; font-size: 11px; cursor: pointer; text-decoration: underline; margin-top: 8px; display: block; text-align: center; }
-
-  /* Provider cards */
-  .provider-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
-  .provider-card { padding: 14px 12px; background: #131b2e; border: 1px solid #1e2d45; border-radius: 8px; cursor: pointer; text-align: center; transition: all 0.2s; }
-  .provider-card:hover { border-color: #00d9ff; }
-  .provider-card.selected { border-color: #00d9ff; background: #0d1a2d; box-shadow: 0 0 12px rgba(0,217,255,0.1); }
-  .provider-card .name { font-size: 14px; font-weight: 600; color: #e2e8f0; }
-  .provider-card .detail { font-size: 10px; color: #4a5568; margin-top: 4px; }
+  .status { font-size: 12px; color: #4a5568; letter-spacing: 1px; font-family: monospace; margin-top: 4px; }
+  .logo { animation: spin 20s linear infinite; }
 </style>
 </head>
 <body>
-<div class="container" id="container">
-  <!-- Logo -->
-  <div class="logo">
-    <svg width="56" height="56" viewBox="0 0 64 64" fill="none">
-      <circle cx="32" cy="32" r="28" stroke="#00d9ff" stroke-width="2" opacity="0.6"/>
-      <circle cx="32" cy="32" r="18" stroke="#4ECDC4" stroke-width="1.5" opacity="0.3"/>
-      <circle cx="32" cy="32" r="6" fill="#00d9ff" opacity="0.8">
-        <animate attributeName="r" values="6;8;6" dur="2s" repeatCount="indefinite"/>
-      </circle>
-    </svg>
-  </div>
+<div class="box">
+  <svg class="logo" width="64" height="64" viewBox="0 0 64 64" fill="none">
+    <circle cx="32" cy="32" r="28" stroke="#00d9ff" stroke-width="2" opacity="0.6"/>
+    <circle cx="32" cy="32" r="18" stroke="#4ECDC4" stroke-width="1.5" opacity="0.3"/>
+    <circle cx="32" cy="32" r="6" fill="#00d9ff" opacity="0.8">
+      <animate attributeName="r" values="6;8;6" dur="2s" repeatCount="indefinite"/>
+    </circle>
+  </svg>
   <div class="title">DAEMORA</div>
-
-  <!-- Loading state -->
-  <div id="loading">
-    <div class="dots"><span></span><span></span><span></span></div>
-    <div class="subtitle" id="loading-status">Starting services...</div>
-  </div>
-
-  <!-- Progress dots (hidden until wizard starts) -->
-  <div class="progress" id="progress" style="display:none">
-    <div class="progress-dot" id="p1"></div>
-    <div class="progress-dot" id="p2"></div>
-    <div class="progress-dot" id="p3"></div>
-    <div class="progress-dot" id="p4"></div>
-  </div>
-
-  <!-- Step 1: Vault -->
-  <div class="step" id="step-vault">
-    <div class="step-title">Secure Your Keys</div>
-    <div class="step-desc" id="vault-desc">Create a vault passphrase to encrypt your API keys. You'll enter this once each time you open Daemora.</div>
-    <input class="input" id="vault-pass" type="password" placeholder="Vault passphrase (8+ characters)" autocomplete="off" />
-    <input class="input" id="vault-pass-confirm" type="password" placeholder="Confirm passphrase" autocomplete="off" style="display:none" />
-    <div class="error-msg" id="vault-error"></div>
-    <button class="btn" id="vault-btn" onclick="handleVault()">Continue</button>
-    <button class="skip-link" id="vault-skip" onclick="skipVault()">Skip — keys stored unencrypted</button>
-  </div>
-
-  <!-- Step 2: LLM Provider -->
-  <div class="step" id="step-llm">
-    <div class="step-title">AI Model</div>
-    <div class="step-desc">Pick your AI provider and enter the API key.</div>
-    <div class="provider-grid" id="llm-providers">
-      <div class="provider-card" data-provider="anthropic" onclick="selectLLM(this)">
-        <div class="name">Anthropic</div>
-        <div class="detail">Claude 4.5 / Haiku</div>
-      </div>
-      <div class="provider-card" data-provider="openai" onclick="selectLLM(this)">
-        <div class="name">OpenAI</div>
-        <div class="detail">GPT-4o / o3</div>
-      </div>
-      <div class="provider-card" data-provider="google" onclick="selectLLM(this)">
-        <div class="name">Google</div>
-        <div class="detail">Gemini 2.5</div>
-      </div>
-      <div class="provider-card" data-provider="groq" onclick="selectLLM(this)">
-        <div class="name">Groq</div>
-        <div class="detail">Llama / Mixtral</div>
-      </div>
-    </div>
-    <input class="input" id="llm-key" type="password" placeholder="API key" autocomplete="off" style="display:none" />
-    <div class="error-msg" id="llm-error"></div>
-    <button class="btn" id="llm-btn" onclick="handleLLM()" disabled>Continue</button>
-  </div>
-
-  <!-- Step 3: Voice Provider -->
-  <div class="step" id="step-voice">
-    <div class="step-title">Voice</div>
-    <div class="step-desc">Choose speech-to-text and text-to-speech providers for voice mode.</div>
-    <label class="label">Speech-to-Text</label>
-    <select class="input" id="stt-select">
-      <option value="groq">Groq Whisper (fast, free tier)</option>
-      <option value="deepgram">Deepgram Nova</option>
-      <option value="openai">OpenAI Whisper</option>
-      <option value="assemblyai">AssemblyAI</option>
-    </select>
-    <label class="label">Text-to-Speech</label>
-    <select class="input" id="tts-select">
-      <option value="openai">OpenAI TTS (natural)</option>
-      <option value="groq">Groq Orpheus (fast)</option>
-      <option value="elevenlabs">ElevenLabs</option>
-      <option value="cartesia">Cartesia Sonic</option>
-    </select>
-    <div class="error-msg" id="voice-error"></div>
-    <button class="btn" onclick="handleVoice()">Continue</button>
-    <button class="skip-link" onclick="handleVoice()">Use defaults</button>
-  </div>
-
-  <!-- Step 4: Done -->
-  <div class="step" id="step-done">
-    <div class="step-title">Ready to Go</div>
-    <div class="step-desc">Daemora is configured. Starting services...</div>
-    <div class="dots"><span></span><span></span><span></span></div>
-    <div class="subtitle" id="done-status">Launching...</div>
-  </div>
+  <div class="dots"><span></span><span></span><span></span></div>
+  <div class="status" id="status">Starting services...</div>
 </div>
 
 <script>
-var state = {
-  vaultPassphrase: null,
-  llmProvider: null,
-  llmKey: null,
-  sttProvider: 'groq',
-  ttsProvider: 'openai',
-  vaultExists: false,
-  setupCompleted: false,
-  daemoraPort: null,
-  authToken: null,
-};
+  // Poll for Daemora to be ready, then navigate to it.
+  // This runs in the splash window (tauri://localhost). Once Daemora is up,
+  // we use location.href to navigate — WKWebView handles this as a normal
+  // same-process navigation, which works reliably.
 
-var ipc = null;
-var apiBase = '';
+  var statusEl = document.getElementById('status');
+  var ipc = null;
 
-function $(id) { return document.getElementById(id); }
-
-function showStep(name) {
-  document.querySelectorAll('.step').forEach(function(s) { s.classList.remove('active'); });
-  var el = $('step-' + name);
-  if (el) el.classList.add('active');
-  $('progress').style.display = 'flex';
-  var steps = ['vault', 'llm', 'voice', 'done'];
-  var idx = steps.indexOf(name);
-  for (var i = 0; i < 4; i++) {
-    var dot = $('p' + (i + 1));
-    dot.className = 'progress-dot' + (i < idx ? ' done' : i === idx ? ' current' : '');
-  }
-}
-
-function showError(id, msg) {
-  var el = $(id);
-  el.textContent = msg;
-  el.classList.add('visible');
-}
-function hideError(id) { $(id).classList.remove('visible'); }
-
-async function apiCall(path, opts) {
-  var url = apiBase + path;
-  var headers = Object.assign({ 'Content-Type': 'application/json' }, opts && opts.headers || {});
-  if (state.authToken) headers['Authorization'] = 'Bearer ' + state.authToken;
-  var resp = await fetch(url, Object.assign({}, opts, { headers: headers }));
-  return resp;
-}
-
-// After Daemora starts, check setup status and either show wizard or go to UI
-async function afterDaemoraStarted(result) {
-  state.daemoraPort = result.daemora_port;
-  state.authToken = result.auth_token;
-  apiBase = 'http://127.0.0.1:' + result.daemora_port;
-
-  try {
-    var setupRes = await apiCall('/api/setup/status');
-    var setup = await setupRes.json();
-    if (setup.completed) {
-      window.location.href = apiBase + '/';
-      return;
-    }
-  } catch (err) {
-    // If setup check fails, show wizard anyway
-  }
-  showStep('llm');
-}
-
-// Step 1: Vault
-async function handleVault() {
-  hideError('vault-error');
-  var pass = $('vault-pass').value;
-  if (!pass || pass.length < 8) {
-    showError('vault-error', 'Passphrase must be at least 8 characters');
-    return;
+  function waitForIpc(cb) {
+    var tries = 0;
+    var iv = setInterval(function() {
+      tries++;
+      if (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke) {
+        clearInterval(iv);
+        cb(window.__TAURI_INTERNALS__);
+      } else if (tries > 100) {
+        clearInterval(iv);
+        statusEl.textContent = 'Tauri IPC unavailable';
+      }
+    }, 50);
   }
 
-  if (state.vaultExists) {
-    // Unlock existing vault
-    $('vault-btn').textContent = 'Unlocking...';
-    $('vault-btn').disabled = true;
-    try {
-      var r = await apiCall('/api/vault/unlock', { method: 'POST', body: JSON.stringify({ passphrase: pass }) });
-      if (!r.ok) { var e = await r.json(); throw new Error(e.error || 'Wrong passphrase'); }
-      state.vaultPassphrase = pass;
-      showStep('llm');
-    } catch (err) {
-      showError('vault-error', String(err.message || err));
-      $('vault-btn').textContent = 'Unlock';
-      $('vault-btn').disabled = false;
-    }
-  } else {
-    // Create new vault — show confirm field
-    var confirm = $('vault-pass-confirm');
-    if (confirm.style.display === 'none') {
-      confirm.style.display = 'block';
-      $('vault-btn').textContent = 'Create Vault';
-      return;
-    }
-    if (confirm.value !== pass) {
-      showError('vault-error', 'Passphrases do not match');
-      return;
-    }
-    state.vaultPassphrase = pass;
-    showStep('llm');
+  function pollAndNavigate(port) {
+    var url = 'http://127.0.0.1:' + port + '/';
+    statusEl.textContent = 'Connecting to Daemora...';
+    var tries = 0;
+    var iv = setInterval(function() {
+      tries++;
+      fetch(url, { method: 'GET', mode: 'no-cors' })
+        .then(function() {
+          clearInterval(iv);
+          statusEl.textContent = 'Loading UI...';
+          setTimeout(function() { window.location.href = url; }, 100);
+        })
+        .catch(function() {
+          if (tries > 60) {
+            clearInterval(iv);
+            statusEl.textContent = 'Daemora did not respond';
+            statusEl.style.color = '#ff4444';
+          }
+        });
+    }, 500);
   }
-}
 
-function skipVault() {
-  state.vaultPassphrase = null;
-  showStep('llm');
-}
-
-// Step 2: LLM
-var selectedLLM = null;
-function selectLLM(card) {
-  document.querySelectorAll('#llm-providers .provider-card').forEach(function(c) { c.classList.remove('selected'); });
-  card.classList.add('selected');
-  selectedLLM = card.dataset.provider;
-  $('llm-key').style.display = 'block';
-  $('llm-key').placeholder = selectedLLM.charAt(0).toUpperCase() + selectedLLM.slice(1) + ' API key';
-  $('llm-key').focus();
-  $('llm-btn').disabled = false;
-}
-
-async function handleLLM() {
-  hideError('llm-error');
-  var key = $('llm-key').value.trim();
-  if (!selectedLLM) { showError('llm-error', 'Pick a provider'); return; }
-  if (!key) { showError('llm-error', 'API key is required'); return; }
-
-  state.llmProvider = selectedLLM;
-  state.llmKey = key;
-
-  // Map provider to env key name
-  var keyMap = { anthropic: 'ANTHROPIC_API_KEY', openai: 'OPENAI_API_KEY', google: 'GOOGLE_GENERATIVE_AI_API_KEY', groq: 'GROQ_API_KEY' };
-  var modelMap = { anthropic: 'anthropic:claude-haiku-4-5', openai: 'openai:gpt-4o-mini', google: 'google:gemini-2.5-flash', groq: 'groq:llama-3.3-70b-versatile' };
-  var envKey = keyMap[selectedLLM];
-
-  $('llm-btn').textContent = 'Saving...';
-  $('llm-btn').disabled = true;
-  try {
-    var updates = {};
-    updates[envKey] = key;
-    updates['DEFAULT_MODEL'] = modelMap[selectedLLM];
-    var r = await apiCall('/api/settings', { method: 'PUT', body: JSON.stringify({ updates: updates }) });
-    if (!r.ok) throw new Error('Failed to save');
-    showStep('voice');
-  } catch (err) {
-    showError('llm-error', String(err.message || err));
-  }
-  $('llm-btn').textContent = 'Continue';
-  $('llm-btn').disabled = false;
-}
-
-// Step 3: Voice
-async function handleVoice() {
-  state.sttProvider = $('stt-select').value;
-  state.ttsProvider = $('tts-select').value;
-  try {
-    await apiCall('/api/settings', {
-      method: 'PUT',
-      body: JSON.stringify({ updates: { DAEMORA_STT_PROVIDER: state.sttProvider, DAEMORA_TTS_PROVIDER: state.ttsProvider } })
+  waitForIpc(function(t) {
+    t.invoke('get_status').then(function(s) {
+      if (s && s.daemora_port) {
+        pollAndNavigate(s.daemora_port);
+      } else {
+        statusEl.textContent = 'Waiting for services...';
+        // Retry
+        var retry = setInterval(function() {
+          t.invoke('get_status').then(function(s2) {
+            if (s2 && s2.daemora_port) {
+              clearInterval(retry);
+              pollAndNavigate(s2.daemora_port);
+            }
+          });
+        }, 1000);
+      }
     });
-  } catch {}
-
-  // Mark setup as completed
-  try {
-    await apiCall('/api/settings', {
-      method: 'PUT',
-      body: JSON.stringify({ updates: { SETUP_COMPLETED: new Date().toISOString() } })
-    });
-  } catch {}
-
-  showStep('done');
-  $('done-status').textContent = 'Loading Daemora...';
-
-  // Navigate to the main UI
-  setTimeout(function() {
-    window.location.href = apiBase + '/';
-  }, 800);
-}
-
-// ── Startup flow ──────────────────────────────────────────────────
-async function waitForIpc(maxMs) {
-  var start = Date.now();
-  while (Date.now() - start < maxMs) {
-    var ti = window.__TAURI_INTERNALS__;
-    if (ti && ('invoke' in ti)) {
-      return ti;
-    }
-    await new Promise(function(r) { setTimeout(r, 50); });
-  }
-  return null;
-}
-
-async function tauriInvoke(cmd, args) {
-  var ti = window.__TAURI_INTERNALS__;
-  if (!ti || !('invoke' in ti)) {
-    var keys = ti ? Object.getOwnPropertyNames(ti).join(', ') : 'null';
-    throw new Error('Tauri IPC unavailable (keys: ' + keys + ')');
-  }
-  return ti.invoke(cmd, args || {});
-}
-
-async function boot() {
-  $('loading').style.display = 'block';
-  ipc = await waitForIpc(5000);
-  if (!ipc) {
-    $('loading-status').textContent = 'Waiting for Tauri IPC...';
-    $('loading-status').style.color = '#ff4444';
-    // Show debug info
-    var ti = window.__TAURI_INTERNALS__;
-    if (ti) {
-      $('loading-status').textContent = 'IPC exists but invoke missing. Keys: ' + Object.getOwnPropertyNames(ti).join(', ');
-    } else {
-      $('loading-status').textContent = 'Tauri IPC not injected';
-    }
-    return;
-  }
-
-  // If already running Daemora (navigated back), check its status
-  if (!ipc) {
-    // We're loaded from Daemora's HTTP server (post-setup redirect)
-    window.location.href = '/';
-    return;
-  }
-
-  // Check if vault exists
-  try {
-    var vaultExists = await tauriInvoke('check_vault');
-    state.vaultExists = vaultExists;
-  } catch {}
-
-  // Show passphrase screen (vault required to start Daemora)
-  $('loading').style.display = 'none';
-  $('progress').style.display = 'flex';
-
-  if (state.vaultExists) {
-    $('vault-desc').textContent = 'Enter your vault passphrase to unlock your API keys.';
-    $('vault-pass').placeholder = 'Vault passphrase';
-    $('vault-pass-confirm').style.display = 'none';
-    $('vault-btn').textContent = 'Unlock';
-    $('vault-skip').textContent = 'Skip — start without API keys';
-  }
-  showStep('vault');
-
-  // Override handleVault and skipVault to start Daemora services
-  handleVault = async function() {
-    hideError('vault-error');
-    var pass = $('vault-pass').value;
-
-    if (state.vaultExists) {
-      if (!pass) { showError('vault-error', 'Enter your passphrase'); return; }
-      $('vault-btn').textContent = 'Starting...';
-      $('vault-btn').disabled = true;
-      vaultForm.classList.remove('visible');
-      dotsEl.style.display = 'flex';
-      statusEl.style.display = 'block';
-      statusEl.textContent = 'Unlocking vault and starting services...';
-      try {
-        var result = await tauriInvoke('submit_passphrase', { passphrase: pass });
-        statusEl.textContent = 'Checking configuration...';
-        await afterDaemoraStarted(result);
-      } catch (err) {
-        showError('vault-error', String(err.message || err));
-        $('vault-btn').textContent = 'Unlock';
-        $('vault-btn').disabled = false;
-        vaultForm.classList.add('visible');
-        dotsEl.style.display = 'none';
-        statusEl.style.display = 'none';
-      }
-    } else {
-      if (!pass || pass.length < 8) { showError('vault-error', 'Passphrase must be at least 8 characters'); return; }
-      var confirm = $('vault-pass-confirm');
-      if (confirm.style.display === 'none') {
-        confirm.style.display = 'block';
-        $('vault-btn').textContent = 'Create & Start';
-        return;
-      }
-      if (confirm.value !== pass) { showError('vault-error', 'Passphrases do not match'); return; }
-      $('vault-btn').textContent = 'Starting...';
-      $('vault-btn').disabled = true;
-      dotsEl.style.display = 'flex';
-      statusEl.style.display = 'block';
-      statusEl.textContent = 'Creating vault and starting...';
-      try {
-        var result = await tauriInvoke('submit_passphrase', { passphrase: pass });
-        await afterDaemoraStarted(result);
-      } catch (err) {
-        showError('vault-error', String(err.message || err));
-        $('vault-btn').textContent = 'Create & Start';
-        $('vault-btn').disabled = false;
-      }
-    }
-  };
-
-  skipVault = async function() {
-    dotsEl.style.display = 'flex';
-    statusEl.style.display = 'block';
-    statusEl.textContent = 'Starting without vault...';
-    document.querySelectorAll('.step').forEach(function(s) { s.classList.remove('active'); });
-    try {
-      var result = await tauriInvoke('start_without_vault');
-      await afterDaemoraStarted(result);
-    } catch (err) {
-      statusEl.textContent = 'Failed: ' + err;
-      statusEl.style.color = '#ff4444';
-    }
-  };
-
-  // Called by Rust when no vault exists
-  window.__daemora_no_vault = function() {
-    $('loading').style.display = 'none';
-    showStep('vault');
-  };
-}
-
-boot();
+  });
 </script>
 </body>
 </html>
