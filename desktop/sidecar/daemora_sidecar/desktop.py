@@ -69,6 +69,18 @@ def _snapshot(action: str) -> str:
     return str(path)
 
 
+def _scale_factor() -> tuple[float, float]:
+    try:
+        logical_w, logical_h = pyautogui.size()
+        shot = pyautogui.screenshot()
+        phys_w, phys_h = shot.size
+        sx = phys_w / logical_w if logical_w else 1.0
+        sy = phys_h / logical_h if logical_h else 1.0
+        return sx, sy
+    except Exception:
+        return 1.0, 1.0
+
+
 def _gate(action: str, params: dict) -> str:
     audit.check_rate_limit()
     _check_active_window()
@@ -134,7 +146,15 @@ def screenshot(region: dict | None = None) -> dict:
 
 def screen_size() -> dict:
     w, h = pyautogui.size()
-    return {"width": int(w), "height": int(h)}
+    sx, sy = _scale_factor()
+    return {
+        "width": int(w),
+        "height": int(h),
+        "physicalWidth": int(round(w * sx)),
+        "physicalHeight": int(round(h * sy)),
+        "scaleX": round(sx, 3),
+        "scaleY": round(sy, 3),
+    }
 
 
 def list_windows() -> dict:

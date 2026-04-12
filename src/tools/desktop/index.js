@@ -1,0 +1,10 @@
+export { desktopClick } from "./mouseClick.js";
+export { desktopMove } from "./mouseMove.js";
+export { desktopType } from "./typeText.js";
+export { desktopPressKey } from "./pressKey.js";
+export { desktopKeyCombo } from "./keyCombo.js";
+export { desktopScroll } from "./scroll.js";
+export { desktopScreenshot } from "./screenshot.js";
+export { desktopListWindows } from "./listWindows.js";
+export { desktopFocusWindow } from "./focusWindow.js";
+export { desktopFindElement } from "./findElement.js";

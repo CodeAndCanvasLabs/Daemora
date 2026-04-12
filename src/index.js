@@ -1389,6 +1389,27 @@ app.get("/api/setup/status", (req, res) => {
   });
 });
 
+// --- Setup status (first-run detection for desktop app / CLI wizard) ---
+app.get("/api/setup/status", (req, res) => {
+  const setupCompleted = configStore.get("SETUP_COMPLETED") || null;
+  const defaultModel = configStore.get("DEFAULT_MODEL") || process.env.DEFAULT_MODEL || null;
+  const hasAnyLlmKey = [
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "GOOGLE_GENERATIVE_AI_API_KEY",
+    "GEMINI_API_KEY",
+    "GROQ_API_KEY",
+  ].some((k) => !!process.env[k]);
+  res.json({
+    completed: !!setupCompleted,
+    completedAt: setupCompleted,
+    vaultExists: secretVault.exists(),
+    vaultUnlocked: secretVault.isUnlocked(),
+    defaultModel,
+    hasAnyLlmKey,
+  });
+});
+
 // --- Vault endpoints ---
 app.get("/api/vault/status", (req, res) => {
   res.json({

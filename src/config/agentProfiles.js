@@ -126,6 +126,9 @@ export const CORE_TOOLS = [
   "useMCP", "useCrew",
   // Image processing (local, no API key)
   "imageOps",
+  // Desktop control (via local sidecar — PyAutoGUI, screenshot, keyboard, mouse, vision findElement)
+  "desktopScreenshot", "desktopListWindows", "desktopFocusWindow", "desktopFindElement",
+  "desktopClick", "desktopMove", "desktopType", "desktopPressKey", "desktopKeyCombo", "desktopScroll",
 ];
 
 export const defaultSubAgentTools = [

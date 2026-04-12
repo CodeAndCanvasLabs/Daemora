@@ -206,6 +206,74 @@ const toolSchemas = {
     }),
     description: "Capture screenshot or record video",
   },
+  desktopScreenshot: {
+    schema: z.object({
+      x: optNum("Region x (omit for full screen)"),
+      y: optNum("Region y"),
+      width: optNum("Region width"),
+      height: optNum("Region height"),
+    }),
+    description: "Capture the live desktop screen (audited). Returns {path,width,height}. Use BEFORE interacting with any GUI so you know what's visible. Chain with imageAnalysis or desktopFindElement.",
+  },
+  desktopListWindows: {
+    schema: z.object({}),
+    description: "List visible windows/apps with active flag. Call before typing or focusing.",
+  },
+  desktopFocusWindow: {
+    schema: z.object({
+      name: str("App name (macOS) or window title substring (Windows)"),
+    }),
+    description: "Bring an app/window to the foreground before typing or clicking into it",
+  },
+  desktopFindElement: {
+    schema: z.object({
+      description: str("Natural-language description of the UI element, e.g. 'the blue Sign In button'"),
+    }),
+    description: "Take a screenshot and use vision AI to locate a UI element. Returns click-ready x,y (scale-normalized for the display). Prefer over guessing pixels.",
+  },
+  desktopClick: {
+    schema: z.object({
+      x: z.number().describe("Screen x in logical pixels"),
+      y: z.number().describe("Screen y in logical pixels"),
+      button: optStr("'left' | 'right' | 'middle' (default: left)"),
+      clicks: optNum("1=single 2=double 3=triple (default 1)"),
+    }),
+    description: "Click at screen coordinates. Use desktopFindElement first to get coords for UI elements.",
+  },
+  desktopMove: {
+    schema: z.object({
+      x: z.number(),
+      y: z.number(),
+      duration: optNum("Seconds for smooth move (default 0 = instant)"),
+    }),
+    description: "Move the mouse cursor without clicking",
+  },
+  desktopType: {
+    schema: z.object({
+      text: str("Text to type into the focused window"),
+      interval: optNum("Seconds between keystrokes (default 0.01)"),
+    }),
+    description: "Type text into the currently focused window. Confirm focus with desktopListWindows first.",
+  },
+  desktopPressKey: {
+    schema: z.object({
+      key: str("Single key, e.g. 'enter', 'tab', 'escape', 'f5', 'backspace'"),
+    }),
+    description: "Press a single key",
+  },
+  desktopKeyCombo: {
+    schema: z.object({
+      keys: z.union([z.array(z.string()), z.string()]).describe("Array of keys or plus-separated, e.g. 'cmd+c'"),
+    }),
+    description: "Press a keyboard combo like cmd+c or ctrl+shift+t",
+  },
+  desktopScroll: {
+    schema: z.object({
+      dx: optNum("Horizontal scroll"),
+      dy: optNum("Vertical scroll (positive = up)"),
+    }),
+    description: "Scroll the focused window",
+  },
   imageAnalysis: {
     schema: z.object({
       imagePath: str("Image file path or URL"),
