@@ -708,13 +708,13 @@ export function Chat() {
             </div>
           </ScrollArea>
 
-          {/* Voice panel — mic + waveform + listening/speaking state */}
+          {/* Voice waveform strip — only visible when voice is active */}
           <VoicePanel />
 
-          {/* Input */}
+          {/* Input + mic button */}
           <div className="px-4 pb-4 pt-2 backdrop-blur-xl shrink-0">
             <div className="max-w-6xl mx-auto">
-              <div className="flex items-end gap-0 bg-slate-800/60 border border-slate-700/50 rounded-full px-2 py-1.5 shadow-[0_0_30px_rgba(0,0,0,0.3)] focus-within:border-[#00d9ff]/30 transition-all">
+              <div className="flex items-end gap-1.5 bg-slate-800/60 border border-slate-700/50 rounded-full px-2 py-1.5 shadow-[0_0_30px_rgba(0,0,0,0.3)] focus-within:border-[#00d9ff]/30 transition-all">
                 <Textarea
                   ref={textareaRef}
                   value={input}
@@ -728,6 +728,8 @@ export function Chat() {
                   placeholder={isLoading ? "Send a follow-up..." : "Ask anything..."}
                   className="flex-1 min-h-[36px] max-h-[120px] bg-transparent border-0 text-white placeholder:text-gray-600 focus-visible:ring-0 focus-visible:ring-offset-0 font-mono text-sm px-3 py-2 resize-none shadow-none"
                 />
+                {/* Mic button — integrated into the input bar */}
+                <VoicePanel renderMicButton />
                 <button
                   onClick={handleSend}
                   disabled={!input.trim()}

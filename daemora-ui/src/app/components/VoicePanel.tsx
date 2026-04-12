@@ -1,13 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Room, RoomEvent, Track, RemoteTrack, RemoteAudioTrack, LocalAudioTrack, createLocalAudioTrack } from "livekit-client";
-import { Mic, MicOff, Loader2, AlertCircle } from "lucide-react";
+import { Mic, MicOff, Loader2, AlertCircle, PhoneOff } from "lucide-react";
 import { apiFetch } from "../api";
 
 type Status = "idle" | "connecting" | "listening" | "speaking" | "error";
 
-// Per-browser-session identity — stable across re-renders of VoicePanel
-// so reconnect attempts aren't evicted by identity collision, but unique
-// across tabs / devices so two clients can coexist later.
 function getOrCreateBrowserIdentity(): string {
   const KEY = "daemora_voice_identity";
   let id = sessionStorage.getItem(KEY);
@@ -18,20 +15,124 @@ function getOrCreateBrowserIdentity(): string {
   return id;
 }
 
-export function VoicePanel() {
+// ── Animated Orb — circular voice visualizer ──────────────────────────────
+function VoiceOrb({ level, status }: { level: number; status: Status }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const frameRef = useRef(0);
+
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const cx = w / 2;
+    const cy = h / 2;
+    const baseRadius = Math.min(w, h) * 0.28;
+    const time = frameRef.current * 0.015;
+    frameRef.current++;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Outer glow rings
+    const glowIntensity = status === "speaking" ? 0.3 + level * 0.5 : status === "listening" ? 0.15 + Math.sin(time * 2) * 0.08 : 0.05;
+    for (let ring = 3; ring >= 1; ring--) {
+      const ringRadius = baseRadius + ring * 18 + (status === "speaking" ? level * 25 : Math.sin(time + ring) * 4);
+      const grad = ctx.createRadialGradient(cx, cy, ringRadius * 0.6, cx, cy, ringRadius);
+      grad.addColorStop(0, `rgba(0, 217, 255, ${glowIntensity * 0.3 / ring})`);
+      grad.addColorStop(0.5, `rgba(78, 205, 196, ${glowIntensity * 0.2 / ring})`);
+      grad.addColorStop(1, "rgba(0, 217, 255, 0)");
+      ctx.beginPath();
+      ctx.arc(cx, cy, ringRadius, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+
+    // Main orb — morphing blob
+    const points = 64;
+    ctx.beginPath();
+    for (let i = 0; i <= points; i++) {
+      const angle = (i / points) * Math.PI * 2;
+      const noiseScale = status === "speaking" ? level * 0.35 : status === "listening" ? 0.06 : 0.02;
+      const noise =
+        Math.sin(angle * 3 + time * 3) * noiseScale * baseRadius +
+        Math.sin(angle * 5 - time * 2) * noiseScale * baseRadius * 0.5 +
+        Math.sin(angle * 7 + time * 4) * noiseScale * baseRadius * 0.3;
+      const breathe = status === "listening" ? Math.sin(time * 1.5) * 3 : 0;
+      const r = baseRadius + noise + breathe + (status === "speaking" ? level * 12 : 0);
+      const x = cx + Math.cos(angle) * r;
+      const y = cy + Math.sin(angle) * r;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+
+    // Gradient fill
+    const grad = ctx.createRadialGradient(cx - baseRadius * 0.3, cy - baseRadius * 0.3, 0, cx, cy, baseRadius * 1.4);
+    if (status === "speaking") {
+      grad.addColorStop(0, "rgba(78, 205, 196, 0.95)");
+      grad.addColorStop(0.5, "rgba(0, 217, 255, 0.85)");
+      grad.addColorStop(1, "rgba(0, 150, 200, 0.6)");
+    } else if (status === "listening") {
+      grad.addColorStop(0, "rgba(0, 217, 255, 0.8)");
+      grad.addColorStop(0.5, "rgba(0, 180, 220, 0.6)");
+      grad.addColorStop(1, "rgba(78, 205, 196, 0.4)");
+    } else {
+      grad.addColorStop(0, "rgba(0, 217, 255, 0.3)");
+      grad.addColorStop(0.5, "rgba(30, 80, 100, 0.2)");
+      grad.addColorStop(1, "rgba(0, 100, 130, 0.1)");
+    }
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Inner highlight
+    const innerGrad = ctx.createRadialGradient(cx - baseRadius * 0.2, cy - baseRadius * 0.3, 0, cx, cy, baseRadius * 0.7);
+    innerGrad.addColorStop(0, "rgba(255, 255, 255, 0.15)");
+    innerGrad.addColorStop(1, "rgba(255, 255, 255, 0)");
+    ctx.fillStyle = innerGrad;
+    ctx.fill();
+
+    frameRef.current = requestAnimationFrame(draw);
+  }, [level, status]);
+
+  useEffect(() => {
+    frameRef.current = requestAnimationFrame(draw);
+    return () => {
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
+    };
+  }, [draw]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="w-full h-full"
+      style={{ maxWidth: 280, maxHeight: 280, margin: "0 auto", display: "block" }}
+    />
+  );
+}
+
+// ── Main VoicePanel ───────────────────────────────────────────────────────
+
+interface VoicePanelProps {
+  renderMicButton?: boolean;
+}
+
+export function VoicePanel({ renderMicButton = false }: VoicePanelProps) {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [agentLevel, setAgentLevel] = useState<number[]>(Array(24).fill(0));
+  const [avgLevel, setAvgLevel] = useState(0);
   const roomRef = useRef<Room | null>(null);
   const localTrackRef = useRef<LocalAudioTrack | null>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const rafRef = useRef<number | null>(null);
   const identityRef = useRef<string>(getOrCreateBrowserIdentity());
-  // Guard against React StrictMode double-invoking the effect cleanup
-  // between the two mount+unmount+remount cycles — we only want to tear
-  // down the room when the component is actually leaving the DOM, not
-  // when StrictMode is toggling us.
   const startingRef = useRef(false);
 
   const cleanup = () => {
@@ -49,9 +150,6 @@ export function VoicePanel() {
     startingRef.current = false;
   };
 
-  // NO useEffect cleanup — StrictMode would fire it between the paired
-  // mount/unmount and kill the room the user just started. Cleanup is
-  // driven by the stop() button and on actual page unload below.
   useEffect(() => {
     const onUnload = () => cleanup();
     window.addEventListener("beforeunload", onUnload);
@@ -59,39 +157,23 @@ export function VoicePanel() {
   }, []);
 
   const start = async () => {
-    if (startingRef.current || roomRef.current) {
-      // Already starting or running — don't fire a second connect
-      return;
-    }
+    if (startingRef.current || roomRef.current) return;
     startingRef.current = true;
     setError(null);
     setStatus("connecting");
     try {
-      // 0. Pre-flight mic permission check so we don't spin up the whole
-      // backend (sidecar + livekit-server) just to tear it down on a
-      // doomed attempt. `navigator.permissions` is available on all
-      // modern browsers but returns "prompt" when the user hasn't
-      // decided yet — we let those through to the native prompt below.
       try {
         const perm = await navigator.permissions.query({ name: "microphone" as PermissionName });
         if (perm.state === "denied") {
-          throw new Error(
-            "Mic permission is blocked in Chrome. Click the 🔒 left of the address bar → Site settings → Microphone → Allow. Then reload."
-          );
+          throw new Error("Mic blocked — click the lock icon → Microphone → Allow, then reload.");
         }
       } catch (permErr: any) {
-        if (permErr?.message?.includes("Mic permission is blocked")) throw permErr;
-        // navigator.permissions.query may throw on old browsers — fall through to native prompt
+        if (permErr?.message?.includes("Mic blocked")) throw permErr;
       }
 
-      // 1. Ask Daemora to start the sidecar voice pipeline (idempotent)
       const sc = await apiFetch("/api/voice/sidecar/start", { method: "POST" });
-      if (!sc.ok) {
-        const text = await sc.text();
-        throw new Error(`sidecar: ${text || sc.statusText}`);
-      }
+      if (!sc.ok) throw new Error(`sidecar: ${await sc.text()}`);
 
-      // 2. Mint a user-side JWT from Daemora
       const tokRes = await apiFetch("/api/voice/token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -100,20 +182,13 @@ export function VoicePanel() {
       if (!tokRes.ok) throw new Error(`token: ${tokRes.statusText}`);
       const { token, url } = await tokRes.json();
 
-      // 3. Join the loopback LiveKit room
-      const room = new Room({
-        adaptiveStream: true,
-        dynacast: true,
-      });
+      const room = new Room({ adaptiveStream: true, dynacast: true });
       roomRef.current = room;
 
       room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
         if (track.kind === Track.Kind.Audio) {
           const audio = track as RemoteAudioTrack;
-          if (audioElRef.current) {
-            audio.attach(audioElRef.current);
-          }
-          // Build an AnalyserNode off the remote audio for the visualizer
+          if (audioElRef.current) audio.attach(audioElRef.current);
           try {
             const ms = audio.mediaStreamTrack ? new MediaStream([audio.mediaStreamTrack]) : null;
             if (ms) {
@@ -121,39 +196,31 @@ export function VoicePanel() {
               const ctx = new AudioCtx();
               const src = ctx.createMediaStreamSource(ms);
               const analyser = ctx.createAnalyser();
-              analyser.fftSize = 64;
+              analyser.fftSize = 128;
               src.connect(analyser);
               analyserRef.current = analyser;
               const buf = new Uint8Array(analyser.frequencyBinCount);
               const tick = () => {
                 if (!analyserRef.current) return;
                 analyserRef.current.getByteFrequencyData(buf);
-                const bars = Array.from(buf).slice(0, 24).map((v) => v / 255);
-                setAgentLevel(bars);
-                const avg = bars.reduce((a, b) => a + b, 0) / bars.length;
+                const avg = buf.reduce((a, b) => a + b, 0) / buf.length / 255;
+                setAvgLevel(avg);
                 setStatus(avg > 0.04 ? "speaking" : "listening");
                 rafRef.current = requestAnimationFrame(tick);
               };
               tick();
             }
-          } catch { /* visualizer is optional */ }
+          } catch {}
         }
       });
 
-      room.on(RoomEvent.Disconnected, (reason) => {
-        console.warn("[VoicePanel] room disconnected:", reason);
+      room.on(RoomEvent.Disconnected, () => {
         setStatus("idle");
-        setAgentLevel(Array(24).fill(0));
-      });
-      room.on(RoomEvent.ConnectionStateChanged, (s) => {
-        console.log("[VoicePanel] connection state:", s);
+        setAvgLevel(0);
       });
 
-      console.log("[VoicePanel] connecting to", url, "as", identityRef.current);
       await room.connect(url, token);
-      console.log("[VoicePanel] room connected");
 
-      // 4. Publish the mic — this is where the browser prompts for permission
       let micTrack;
       try {
         micTrack = await createLocalAudioTrack({
@@ -163,23 +230,18 @@ export function VoicePanel() {
         });
       } catch (micErr: any) {
         const msg = micErr?.name === "NotAllowedError"
-          ? "Mic permission denied — click the 🔒 in the address bar and allow microphone."
+          ? "Mic denied — click the lock icon → Microphone → Allow."
           : micErr?.name === "NotFoundError"
-          ? "No microphone found on this device."
-          : `Mic error: ${micErr?.message || micErr}`;
+          ? "No microphone found."
+          : `Mic: ${micErr?.message || micErr}`;
         throw new Error(msg);
       }
-      console.log("[VoicePanel] mic track created");
       localTrackRef.current = micTrack;
       await room.localParticipant.publishTrack(micTrack);
-      console.log("[VoicePanel] mic track published");
-
       setStatus("listening");
       startingRef.current = false;
     } catch (e: any) {
-      const msg = e?.message || String(e);
-      console.error("[VoicePanel] start failed:", msg, e);
-      setError(msg);
+      setError(e?.message || String(e));
       setStatus("error");
       cleanup();
     }
@@ -188,105 +250,88 @@ export function VoicePanel() {
   const stop = () => {
     cleanup();
     setStatus("idle");
-    setAgentLevel(Array(24).fill(0));
+    setAvgLevel(0);
   };
 
   const active = status !== "idle" && status !== "error";
 
-  const statusLabel = {
-    idle: "Voice Off",
-    connecting: "Connecting…",
-    listening: "Listening",
-    speaking: "Daemora speaking",
-    error: "Error",
-  }[status];
-
-  const statusColor = {
-    idle: "text-gray-500",
-    connecting: "text-[#00d9ff]",
-    listening: "text-[#00d9ff]",
-    speaking: "text-[#4ECDC4]",
-    error: "text-red-400",
-  }[status];
-
-  return (
-    <div className="relative w-full bg-gradient-to-r from-slate-900/70 via-slate-900/50 to-slate-900/70 border-t border-slate-800/60 backdrop-blur-md">
-      {/* Ambient glow while active */}
-      {active && (
-        <div className="pointer-events-none absolute inset-0 opacity-60 bg-[radial-gradient(ellipse_at_center,rgba(0,217,255,0.08),transparent_70%)] animate-pulse" />
-      )}
-
-      <div className="relative flex items-center gap-4 px-4 py-3 sm:px-6 max-w-6xl mx-auto">
-        {/* Mic button — bigger, glowing ring when active */}
+  // ── Mic button for the input bar ──────────────────────────────────────
+  if (renderMicButton) {
+    return (
+      <>
         <button
           onClick={active ? stop : start}
           disabled={status === "connecting"}
-          title={active ? "Stop voice" : "Start voice"}
-          aria-label={active ? "Stop voice" : "Start voice"}
-          className={`group flex-shrink-0 relative w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all duration-300 ${
+          title={active ? "End voice" : "Start voice"}
+          className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all ${
             status === "error"
-              ? "bg-red-500/20 border border-red-400/50 hover:bg-red-500/30"
+              ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
               : active
-              ? "bg-gradient-to-br from-[#00d9ff] to-[#4ECDC4] text-slate-950 shadow-[0_0_20px_rgba(0,217,255,0.5)]"
-              : "bg-slate-800/80 border border-slate-700/80 text-gray-400 hover:text-white hover:border-[#00d9ff]/50 hover:shadow-[0_0_15px_rgba(0,217,255,0.3)]"
+              ? "bg-gradient-to-br from-[#00d9ff] to-[#4ECDC4] text-slate-950 shadow-[0_0_15px_rgba(0,217,255,0.4)]"
+              : "bg-slate-700/50 text-gray-500 hover:text-[#00d9ff] hover:bg-slate-700"
           }`}
         >
-          {/* Pulse ring while listening */}
-          {status === "listening" && (
-            <span className="absolute inset-0 rounded-full border-2 border-[#00d9ff]/60 animate-ping" />
-          )}
           {status === "connecting" ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
+            <Loader2 className="w-4 h-4 animate-spin" />
           ) : status === "error" ? (
-            <AlertCircle className="w-5 h-5 text-red-400" />
+            <AlertCircle className="w-3.5 h-3.5" />
           ) : active ? (
-            <Mic className="w-5 h-5" />
+            <PhoneOff className="w-3.5 h-3.5" />
           ) : (
-            <MicOff className="w-5 h-5" />
+            <Mic className="w-4 h-4" />
           )}
         </button>
+        <audio ref={audioElRef} autoPlay hidden />
+      </>
+    );
+  }
 
-        {/* Waveform — responsive, bigger on desktop */}
-        <div className="flex-1 min-w-0 flex items-center gap-[2px] h-10 sm:h-12">
-          {agentLevel.map((v, i) => {
-            const scaled = active ? Math.max(6, v * 100) : 6;
-            return (
-              <div
-                key={i}
-                className={`flex-1 rounded-full transition-[height,opacity] duration-100 ${
-                  status === "speaking"
-                    ? "bg-gradient-to-t from-[#4ECDC4] via-[#00d9ff] to-[#4ECDC4] opacity-90"
-                    : status === "listening"
-                    ? "bg-gradient-to-t from-[#00d9ff]/30 to-[#00d9ff]/70 opacity-60"
-                    : "bg-slate-700/50 opacity-40"
-                }`}
-                style={{ height: `${scaled}%` }}
-              />
-            );
-          })}
+  // ── Orb + status (only rendered when voice is active) ─────────────────
+  if (!active && !error) return null;
+
+  return (
+    <div className="w-full shrink-0">
+      <div className="max-w-xl mx-auto px-4 py-2">
+        {/* Status + End button */}
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            {status === "listening" && (
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-[#00d9ff] opacity-75 animate-ping" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-[#00d9ff]" />
+              </span>
+            )}
+            {status === "speaking" && (
+              <span className="relative flex h-2 w-2">
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-[#4ECDC4]" />
+              </span>
+            )}
+            <span className={`text-[10px] font-mono uppercase tracking-[0.15em] ${
+              status === "speaking" ? "text-[#4ECDC4]" : status === "listening" ? "text-[#00d9ff]" : "text-gray-500"
+            }`}>
+              {status === "connecting" ? "Connecting…" : status === "listening" ? "Listening" : status === "speaking" ? "Speaking" : ""}
+            </span>
+          </div>
+          <button
+            onClick={stop}
+            className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-wider text-gray-500 hover:text-red-400 transition-colors px-2 py-1 rounded hover:bg-red-500/10"
+          >
+            <PhoneOff className="w-3 h-3" /> End
+          </button>
         </div>
 
-        {/* Status label — hidden on mobile, shown on sm+ */}
-        <div className="hidden sm:flex flex-shrink-0 flex-col items-end min-w-[112px]">
-          <span className={`text-[10px] font-mono uppercase tracking-[0.2em] ${statusColor} transition-colors`}>
-            {statusLabel}
-          </span>
-          {active && !error && (
-            <span className="text-[8px] text-gray-600 font-mono mt-0.5 truncate max-w-[140px]">
-              {identityRef.current.replace("daemora-user-", "session ")}
-            </span>
-          )}
-          {error && (
-            <span
-              className="text-[9px] text-red-400/90 font-mono mt-0.5 max-w-[180px] text-right leading-tight cursor-help"
-              title={error}
-            >
-              {error.length > 48 ? error.slice(0, 45) + "…" : error}
-            </span>
-          )}
+        {/* Animated Orb */}
+        <div className="w-full aspect-square max-w-[200px] mx-auto">
+          <VoiceOrb level={avgLevel} status={status} />
         </div>
+
+        {/* Error */}
+        {error && (
+          <p className="text-[10px] text-red-400/90 font-mono text-center mt-2 max-w-sm mx-auto">
+            {error}
+          </p>
+        )}
       </div>
-
       <audio ref={audioElRef} autoPlay hidden />
     </div>
   );
