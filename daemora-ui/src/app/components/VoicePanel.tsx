@@ -278,7 +278,7 @@ export const VoicePanel = forwardRef<VoiceHandle>(function VoicePanel(_props, re
   return (
     <>
       {/* Fixed overlay — outside layout flow, doesn't push anything */}
-      <div className="fixed inset-0 z-50 pointer-events-none flex items-end justify-center pb-32">
+      <div className="fixed top-0 right-0 bottom-0 left-[var(--sidebar-width,140px)] z-50 pointer-events-none flex items-end justify-center pb-32">
         <div className="pointer-events-auto flex flex-col items-center gap-2">
           <div className="flex items-center gap-2">
             {status === "listening" && (
