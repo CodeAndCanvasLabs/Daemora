@@ -54,9 +54,9 @@ function VoiceOrb({ level, status, size }: { level: number; status: Status; size
       ctx.clip();
 
       const sphereGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-      sphereGrad.addColorStop(0, "rgba(15, 25, 35, 0.95)");
-      sphereGrad.addColorStop(0.7, "rgba(8, 15, 25, 0.98)");
-      sphereGrad.addColorStop(1, "rgba(0, 10, 20, 1)");
+      sphereGrad.addColorStop(0, "rgba(10, 20, 30, 0.25)");
+      sphereGrad.addColorStop(0.7, "rgba(5, 12, 20, 0.2)");
+      sphereGrad.addColorStop(1, "rgba(0, 8, 15, 0.15)");
       ctx.fillStyle = sphereGrad;
       ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
 
