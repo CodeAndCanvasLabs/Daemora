@@ -2214,6 +2214,7 @@ process.on("SIGTERM", async () => {
   goalPulse.stop();
   taskRunner.stop();
   supervisor.stop();
+  try { const { stopSidecar } = await import("./voice/sidecarSupervisor.js"); await stopSidecar(); } catch {}
   try { const { stopCrew } = await import("./crew/PluginLoader.js"); await stopCrew(); } catch {}
   closeTunnel().then(() =>
     mcpManager.shutdown().then(() =>

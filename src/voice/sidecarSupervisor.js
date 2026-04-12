@@ -142,18 +142,20 @@ export async function startSidecar() {
       );
     }
 
-    // Kill any stale sidecar from a previous run occupying our port
-    if (await _waitForPort("127.0.0.1", SIDECAR_PORT, 200)) {
-      console.log(`[Sidecar] port ${SIDECAR_PORT} occupied — killing stale process`);
+    // Kill any stale sidecar from a previous run (port-based + process-name-based)
+    try {
+      const { execSync } = await import("node:child_process");
+      // Method 1: kill anything on SIDECAR_PORT
       try {
-        const { execSync } = await import("node:child_process");
-        const pids = execSync(`lsof -ti :${SIDECAR_PORT}`, { encoding: "utf-8" }).trim();
+        const pids = execSync(`lsof -ti :${SIDECAR_PORT} 2>/dev/null || true`, { encoding: "utf-8" }).trim();
         for (const pid of pids.split("\n").filter(Boolean)) {
           try { process.kill(Number(pid), 9); } catch {}
         }
-        await new Promise((r) => setTimeout(r, 500));
       } catch {}
-    }
+      // Method 2: kill by process name (catches sidecars on different ports)
+      try { execSync("pkill -9 -f daemora_sidecar 2>/dev/null || true", { stdio: "ignore" }); } catch {}
+      await new Promise((r) => setTimeout(r, 500));
+    } catch {}
 
     // Ensure the loopback LiveKit server is up before the sidecar tries to join.
     await _startLivekitServer();

@@ -82,6 +82,11 @@ impl Supervisor {
 
         // Kill stale sidecar from previous runs (Daemora manages its own sidecar)
         kill_stale_process_on_port(8765).await;
+        // Also pkill by process name in case it's on a different port
+        let _ = tokio::process::Command::new("pkill")
+            .args(["-9", "-f", "daemora_sidecar"])
+            .output()
+            .await;
 
         self.start_livekit(livekit_port).await?;
         self.start_daemora(daemora_port, livekit_port).await?;
@@ -178,6 +183,11 @@ impl Supervisor {
             info!("supervisor: stopping livekit");
             let _ = child.kill().await;
         }
+        // Kill any orphaned sidecar processes (daemora_sidecar module)
+        let _ = tokio::process::Command::new("pkill")
+            .args(["-9", "-f", "daemora_sidecar"])
+            .output()
+            .await;
         self.state = None;
     }
 }
