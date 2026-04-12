@@ -15,13 +15,23 @@ dependencies = [
 
 [project.optional-dependencies]
 voice = [
-  "livekit>=0.19",
-  "livekit-agents>=0.12",
-  "livekit-plugins-silero>=0.7",
-  "livekit-plugins-openai>=0.10",
-  "faster-whisper>=1.0",
-  "piper-tts>=1.2",
+  # LiveKit pipeline — provider-agnostic, plugins below
+  "livekit>=1.1.5",
+  "livekit-agents>=1.5.2",
+  # VAD — local, always on-device (needed for turn detection)
+  "livekit-plugins-silero>=1.5.2",
+  # STT provider plugins — installed for selection; user picks one in first-run wizard
+  "livekit-plugins-deepgram>=1.5.2",
+  "livekit-plugins-openai>=1.5.2",
+  "livekit-plugins-groq>=1.5.2",
+  "livekit-plugins-google>=1.5.2",
+  "livekit-plugins-assemblyai>=1.5.2",
+  # TTS provider plugins — same
+  "livekit-plugins-elevenlabs>=1.5.2",
+  "livekit-plugins-cartesia>=1.5.2",
+  # Wake word — local, always on-device (cost + privacy — can't stream mic to cloud 24/7)
   "openwakeword>=0.6",
+  # Audio I/O
   "sounddevice>=0.5",
   "numpy>=2.0",
 ]
