@@ -1369,6 +1369,53 @@ app.post("/api/daemon/:action", (req, res) => {
   }
 });
 
+// --- Voice room token (browser-side LiveKit JWT minting) ---
+// The webview joins the local loopback LiveKit room as a "user" participant.
+// It needs a short-lived access token. We mint it here so the raw dev secret
+// never crosses the wire — the browser just gets an already-signed JWT.
+app.post("/api/voice/token", (req, res) => {
+  try {
+    const identity = (req.body && req.body.identity) || `daemora-user-${Date.now()}`;
+    const room = (req.body && req.body.room) || process.env.DAEMORA_VOICE_ROOM || "daemora-local";
+    const apiKey = process.env.LIVEKIT_API_KEY || "devkey";
+    const apiSecret = process.env.LIVEKIT_API_SECRET || "secret";
+
+    const now = Math.floor(Date.now() / 1000);
+    const payload = {
+      iss: apiKey,
+      nbf: now,
+      exp: now + 6 * 60 * 60,
+      sub: identity,
+      video: {
+        room,
+        roomJoin: true,
+        canPublish: true,
+        canSubscribe: true,
+        canPublishData: true,
+        canUpdateOwnMetadata: true,
+      },
+    };
+    const crypto = require("node:crypto");
+    const b64url = (buf) => Buffer.from(buf).toString("base64").replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
+    const header = { alg: "HS256", typ: "JWT" };
+    const headerB = b64url(JSON.stringify(header));
+    const payloadB = b64url(JSON.stringify(payload));
+    const toSign = `${headerB}.${payloadB}`;
+    const sig = crypto.createHmac("sha256", apiSecret).update(toSign).digest();
+    const sigB = b64url(sig);
+    const token = `${toSign}.${sigB}`;
+
+    res.json({
+      token,
+      url: process.env.LIVEKIT_URL || "ws://127.0.0.1:7880",
+      room,
+      identity,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // --- Voice env (sidecar bootstrap — returns keys the voice pipeline needs) ---
 // The sidecar fetches this once at boot so it inherits the same vault state
 // as the daemon without having to pipe env vars through shell. In production
