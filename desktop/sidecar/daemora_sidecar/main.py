@@ -19,10 +19,18 @@ _voice_error: Optional[str] = None
 
 
 def verify_token(x_daemora_token: Optional[str] = Header(default=None)) -> None:
-    if not config.SIDECAR_TOKEN:
-        return
+    # Token is MANDATORY — no unauthenticated path. The sidecar refuses to
+    # start if DAEMORA_SIDECAR_TOKEN is unset (see module-init check below).
     if x_daemora_token != config.SIDECAR_TOKEN:
-        raise HTTPException(status_code=401, detail="invalid sidecar token")
+        raise HTTPException(status_code=401, detail="invalid or missing sidecar token")
+
+
+if not config.SIDECAR_TOKEN:
+    raise RuntimeError(
+        "DAEMORA_SIDECAR_TOKEN not set. The sidecar must be spawned by Daemora "
+        "(which generates a random token per spawn) or launched with the token "
+        "explicitly set in env. Refusing to start unauthenticated."
+    )
 
 
 def handle(fn, *args, **kwargs):
@@ -141,45 +149,28 @@ def voice_status() -> dict:
     }
 
 
-async def _fetch_voice_env_from_daemora() -> dict:
-    """Pull provider keys from the running Daemora so the sidecar inherits
-    the same vault state. Dev stand-in for Tauri's child-process env
-    inheritance in production."""
+def _detect_providers() -> tuple[str, str]:
+    """Auto-pick STT/TTS providers from whichever keys Daemora passed down."""
     import os as _os
-    import httpx as _httpx
 
-    daemora_http = _os.environ.get("DAEMORA_HTTP", "http://127.0.0.1:8081")
-    token = _os.environ.get("DAEMORA_AUTH_TOKEN")
-    if not token:
-        # Fall back to reading the local auth-token file
-        for candidate in [
-            _os.path.expanduser("~/.daemora/auth-token"),
-            _os.path.join(_os.getcwd(), "..", "..", "data", "auth-token"),
-        ]:
-            if _os.path.exists(candidate):
-                with open(candidate) as f:
-                    token = f.read().strip()
-                    break
-    headers = {"Authorization": f"Bearer {token}"} if token else {}
-    try:
-        async with _httpx.AsyncClient(timeout=5.0) as client:
-            r = await client.get(f"{daemora_http}/api/voice/env", headers=headers)
-            r.raise_for_status()
-            data = r.json()
-    except Exception as e:
-        log.warning("could not fetch voice env from Daemora: %s", e)
-        return {}
-    env = data.get("env", {})
-    suggested = data.get("providers", {})
-    for k, v in env.items():
-        _os.environ.setdefault(k, v)
-    if token:
-        _os.environ.setdefault("DAEMORA_AUTH_TOKEN", token)
-    if suggested.get("stt"):
-        _os.environ.setdefault("DAEMORA_STT_PROVIDER", suggested["stt"])
-    if suggested.get("tts"):
-        _os.environ.setdefault("DAEMORA_TTS_PROVIDER", suggested["tts"])
-    return {"keys": list(env.keys()), "providers": suggested}
+    stt = _os.environ.get("DAEMORA_STT_PROVIDER")
+    if not stt:
+        if _os.environ.get("GROQ_API_KEY"): stt = "groq"
+        elif _os.environ.get("DEEPGRAM_API_KEY"): stt = "deepgram"
+        elif _os.environ.get("OPENAI_API_KEY"): stt = "openai"
+        elif _os.environ.get("ASSEMBLYAI_API_KEY"): stt = "assemblyai"
+        else: stt = "groq"  # default target; will fail fast with a clear error
+
+    tts = _os.environ.get("DAEMORA_TTS_PROVIDER")
+    if not tts:
+        if _os.environ.get("ELEVENLABS_API_KEY"): tts = "elevenlabs"
+        elif _os.environ.get("CARTESIA_API_KEY"): tts = "cartesia"
+        elif _os.environ.get("OPENAI_API_KEY"): tts = "openai"
+        else: tts = "openai"
+
+    _os.environ["DAEMORA_STT_PROVIDER"] = stt
+    _os.environ["DAEMORA_TTS_PROVIDER"] = tts
+    return stt, tts
 
 
 @app.post("/voice/start", dependencies=[Depends(verify_token)])
@@ -194,10 +185,9 @@ async def voice_start() -> dict:
         _voice_error = f"voice extras not installed: {e}"
         raise HTTPException(status_code=503, detail=_voice_error)
 
-    inherited = await _fetch_voice_env_from_daemora()
+    stt, tts = _detect_providers()
     cfg = voice_config.load()
-    log.info("starting voice agent (stt=%s tts=%s inherited=%s)",
-             cfg.stt_provider, cfg.tts_provider, inherited.get("keys") or [])
+    log.info("starting voice agent (stt=%s tts=%s)", cfg.stt_provider, cfg.tts_provider)
 
     async def _run():
         try:
@@ -209,12 +199,7 @@ async def voice_start() -> dict:
 
     _voice_error = None
     _voice_task = asyncio.create_task(_run())
-    return {
-        "ok": True,
-        "stt": cfg.stt_provider,
-        "tts": cfg.tts_provider,
-        "inherited_keys": inherited.get("keys") or [],
-    }
+    return {"ok": True, "stt": cfg.stt_provider, "tts": cfg.tts_provider}
 
 
 @app.post("/voice/stop", dependencies=[Depends(verify_token)])

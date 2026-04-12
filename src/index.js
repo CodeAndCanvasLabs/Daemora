@@ -1416,41 +1416,54 @@ app.post("/api/voice/token", (req, res) => {
   }
 });
 
-// --- Voice env (sidecar bootstrap — returns keys the voice pipeline needs) ---
-// The sidecar fetches this once at boot so it inherits the same vault state
-// as the daemon without having to pipe env vars through shell. In production
-// the Tauri shell spawns the sidecar as a child of Daemora and env is inherited
-// directly; this endpoint is the dev stand-in for that.
-app.get("/api/voice/env", (req, res) => {
-  const keys = [
-    "GROQ_API_KEY",
-    "OPENAI_API_KEY",
-    "DEEPGRAM_API_KEY",
-    "ELEVENLABS_API_KEY",
-    "CARTESIA_API_KEY",
-    "ASSEMBLYAI_API_KEY",
-    "GOOGLE_APPLICATION_CREDENTIALS",
-  ];
-  const env = {};
-  for (const k of keys) {
-    const v = process.env[k];
-    if (v) env[k] = v;
+// --- Voice sidecar supervisor endpoints ---
+// Daemora spawns the Python voice + desktop sidecar as a managed child
+// process with env inherited directly — no /api/voice/env endpoint (deleted
+// for security: that one leaked raw vault keys to any token-auth caller).
+// The browser calls these proxy endpoints, which forward to the sidecar
+// using a random per-spawn shared token only Daemora knows.
+app.post("/api/voice/sidecar/start", async (req, res) => {
+  try {
+    const supervisor = await import("./voice/sidecarSupervisor.js");
+    supervisor.registerShutdownHook();
+    const spawnState = await supervisor.startSidecar();
+    const voiceRes = await supervisor.sidecarFetch("/voice/start", { method: "POST" });
+    const voiceBody = await voiceRes.json().catch(() => ({}));
+    res.json({ spawn: spawnState, voice: voiceBody });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
-  res.json({
-    keys: Object.keys(env),
-    env,
-    providers: {
-      stt: env.GROQ_API_KEY ? "groq"
-         : env.DEEPGRAM_API_KEY ? "deepgram"
-         : env.OPENAI_API_KEY ? "openai"
-         : env.ASSEMBLYAI_API_KEY ? "assemblyai"
-         : null,
-      tts: env.ELEVENLABS_API_KEY ? "elevenlabs"
-         : env.CARTESIA_API_KEY ? "cartesia"
-         : env.OPENAI_API_KEY ? "openai"
-         : null,
-    },
-  });
+});
+
+app.post("/api/voice/sidecar/stop", async (req, res) => {
+  try {
+    const supervisor = await import("./voice/sidecarSupervisor.js");
+    try {
+      await supervisor.sidecarFetch("/voice/stop", { method: "POST" });
+    } catch { /* sidecar may already be down */ }
+    const killKeepAlive = req.body && req.body.killChild === true;
+    if (killKeepAlive) await supervisor.stopSidecar();
+    res.json({ ok: true, ...supervisor.getSidecarStatus() });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/voice/sidecar/status", async (req, res) => {
+  try {
+    const supervisor = await import("./voice/sidecarSupervisor.js");
+    const status = supervisor.getSidecarStatus();
+    let voice = null;
+    if (status.running) {
+      try {
+        const r = await supervisor.sidecarFetch("/voice/status");
+        voice = await r.json();
+      } catch { /* best-effort */ }
+    }
+    res.json({ ...status, voice });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // --- Setup status (first-run detection for desktop app / CLI wizard) ---
