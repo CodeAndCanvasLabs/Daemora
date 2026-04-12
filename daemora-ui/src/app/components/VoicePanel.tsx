@@ -283,6 +283,7 @@ export const VoicePanel = forwardRef<VoiceHandle>(function VoicePanel(_props, re
     cleanup();
     setStatus("idle");
     setAvgLevel(0);
+    apiFetch("/api/voice/sidecar/stop", { method: "POST" }).catch(() => {});
   };
 
   const active = status !== "idle" && status !== "error";
