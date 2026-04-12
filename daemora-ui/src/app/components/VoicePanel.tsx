@@ -285,31 +285,31 @@ export const VoicePanel = forwardRef<VoiceHandle>(function VoicePanel(_props, re
   if (!active && !error) return <audio ref={audioElRef} autoPlay hidden />;
 
   return (
-    <>
-      {/* Floating orb — bottom-right, no layout shift, never hides messages */}
-      <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-1">
-        <div className="flex items-center gap-1.5">
-          {status === "listening" && (
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full rounded-full bg-[#00d9ff] opacity-75 animate-ping" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#00d9ff]" />
-            </span>
-          )}
-          {status === "speaking" && <span className="h-1.5 w-1.5 rounded-full bg-[#4ECDC4]" />}
-          <span className={`text-[8px] font-mono uppercase tracking-wider ${
-            status === "speaking" ? "text-[#4ECDC4]" : "text-[#00d9ff]"
-          }`}>
-            {status === "listening" ? "Listening" : status === "speaking" ? "Speaking" : ""}
+    <div className="w-full shrink-0 flex flex-col items-center py-3">
+      <div className="flex items-center gap-2 mb-2">
+        {status === "listening" && (
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full rounded-full bg-[#00d9ff] opacity-75 animate-ping" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-[#00d9ff]" />
           </span>
-        </div>
-        <button onClick={stop} title="End voice" className="hover:scale-105 active:scale-95 transition-transform">
-          <div style={{ width: 72, height: 72 }}>
-            <VoiceOrb level={avgLevel} status={status} size={72} />
-          </div>
+        )}
+        {status === "speaking" && <span className="h-2 w-2 rounded-full bg-[#4ECDC4]" />}
+        <span className={`text-[9px] font-mono uppercase tracking-wider ${
+          status === "speaking" ? "text-[#4ECDC4]" : "text-[#00d9ff]"
+        }`}>
+          {status === "listening" ? "Listening" : status === "speaking" ? "Speaking" : ""}
+        </span>
+        <button onClick={stop} className="text-[9px] font-mono uppercase text-gray-500 hover:text-red-400 ml-2 px-2 py-0.5 rounded hover:bg-red-500/10 transition-colors">
+          End
         </button>
-        {error && <p className="text-[8px] text-red-400 font-mono max-w-[120px] text-center">{error}</p>}
       </div>
+      <button onClick={stop} title="End voice" className="hover:scale-105 active:scale-95 transition-transform">
+        <div style={{ width: 140, height: 140 }}>
+          <VoiceOrb level={avgLevel} status={status} size={140} />
+        </div>
+      </button>
+      {error && <p className="text-[9px] text-red-400 font-mono text-center mt-1 max-w-xs">{error}</p>}
       <audio ref={audioElRef} autoPlay hidden />
-    </>
+    </div>
   );
 });
