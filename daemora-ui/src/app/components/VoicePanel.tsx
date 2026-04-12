@@ -123,26 +123,46 @@ export function VoicePanel() {
         }
       });
 
-      room.on(RoomEvent.Disconnected, () => {
+      room.on(RoomEvent.Disconnected, (reason) => {
+        console.warn("[VoicePanel] room disconnected:", reason);
         setStatus("idle");
         setAgentLevel(Array(24).fill(0));
       });
-
-      await room.connect(url, token);
-
-      // 4. Publish the mic
-      const micTrack = await createLocalAudioTrack({
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
+      room.on(RoomEvent.ConnectionStateChanged, (s) => {
+        console.log("[VoicePanel] connection state:", s);
       });
+
+      console.log("[VoicePanel] connecting to", url, "as", identityRef.current);
+      await room.connect(url, token);
+      console.log("[VoicePanel] room connected");
+
+      // 4. Publish the mic — this is where the browser prompts for permission
+      let micTrack;
+      try {
+        micTrack = await createLocalAudioTrack({
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        });
+      } catch (micErr: any) {
+        const msg = micErr?.name === "NotAllowedError"
+          ? "Mic permission denied — click the 🔒 in the address bar and allow microphone."
+          : micErr?.name === "NotFoundError"
+          ? "No microphone found on this device."
+          : `Mic error: ${micErr?.message || micErr}`;
+        throw new Error(msg);
+      }
+      console.log("[VoicePanel] mic track created");
       localTrackRef.current = micTrack;
       await room.localParticipant.publishTrack(micTrack);
+      console.log("[VoicePanel] mic track published");
 
       setStatus("listening");
       startingRef.current = false;
     } catch (e: any) {
-      setError(e?.message || String(e));
+      const msg = e?.message || String(e);
+      console.error("[VoicePanel] start failed:", msg, e);
+      setError(msg);
       setStatus("error");
       cleanup();
     }
