@@ -57,7 +57,13 @@ class TaskQueue {
       this.queue.splice(insertIdx, 0, task);
     }
 
-    eventBus.emitEvent("task:created", { taskId: task.id, channel: task.channel, priority: task.priority });
+    eventBus.emitEvent("task:created", {
+      taskId: task.id,
+      channel: task.channel,
+      priority: task.priority,
+      sessionId: task.sessionId,
+      input: task.input,
+    });
     console.log(`[TaskQueue] Enqueued task ${task.id} (priority: ${task.priority}, queue size: ${this.queue.length})`);
 
     return task;

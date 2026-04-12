@@ -120,6 +120,77 @@ export function Chat() {
     };
   }, []);
 
+  // Session-level SSE stream — stays open for the entire chat session and
+  // renders deltas from ANY task in this session (voice, background, channels).
+  // Chat.tsx previously only subscribed to task streams it created itself via
+  // the text input, so voice-originated tasks never rendered live. This fixes
+  // that with one persistent stream.
+  useEffect(() => {
+    const es = new EventSource(apiStreamUrl(`/api/sessions/${SESSION_ID}/stream`));
+    let voiceStreamingActive = false;
+    let voiceTaskId: string | null = null;
+
+    es.addEventListener("task:created", (e) => {
+      try {
+        const data = JSON.parse((e as MessageEvent).data);
+        // If this task was created by another channel (voice, cron, etc.),
+        // not the text input, append the user prompt into the chat as a
+        // preview so the user sees what was captured.
+        const myActive = sessionStorage.getItem("daemora_active_task");
+        if (data.taskId && data.taskId !== myActive && data.input) {
+          voiceTaskId = data.taskId;
+          setMessages((prev) => [...prev, {
+            role: "user",
+            content: String(data.input).replace(/^\[Voice mode:[^\]]+\]\s*/, ""),
+            timestamp: new Date().toISOString(),
+          }]);
+          voiceStreamingActive = false;
+        }
+      } catch { /* ignore */ }
+    });
+
+    es.addEventListener("text:delta", (e) => {
+      try {
+        const data = JSON.parse((e as MessageEvent).data);
+        // Only process deltas for tasks that are NOT the one we're already
+        // streaming via the per-task stream (the text-input path). Voice
+        // and background tasks land here.
+        const myActive = sessionStorage.getItem("daemora_active_task");
+        if (!data.taskId || data.taskId === myActive) return;
+        const delta = data.delta || "";
+        if (!delta) return;
+        setMessages((prev) => {
+          if (!voiceStreamingActive) {
+            voiceStreamingActive = true;
+            return [...prev, {
+              role: "assistant",
+              content: delta,
+              timestamp: new Date().toISOString(),
+            }];
+          }
+          const next = [...prev];
+          const last = next[next.length - 1];
+          if (last && last.role === "assistant") {
+            next[next.length - 1] = { ...last, content: last.content + delta };
+          }
+          return next;
+        });
+      } catch { /* ignore */ }
+    });
+
+    es.addEventListener("text:end", () => { voiceStreamingActive = false; });
+    es.addEventListener("task:completed", () => {
+      voiceStreamingActive = false;
+      voiceTaskId = null;
+    });
+    es.addEventListener("task:failed", () => {
+      voiceStreamingActive = false;
+      voiceTaskId = null;
+    });
+
+    return () => es.close();
+  }, []);
+
   const handleSend = async () => {
     if (!input.trim()) return;
 

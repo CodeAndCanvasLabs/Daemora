@@ -570,6 +570,96 @@ app.get("/api/tasks/:id/stream", (req, res) => {
   req.on("close", cleanup);
 });
 
+// --- Session-level SSE stream ---
+// Unlike /api/tasks/:id/stream (one task), this stays open for the entire
+// session and broadcasts deltas from ANY task in that session — voice,
+// text, background scheduler, channel bots, everything. Chat.tsx subscribes
+// once on mount so the chat renders live no matter who created the task
+// (browser, sidecar voice pipeline, channel webhook, …).
+app.get("/api/sessions/:id/stream", (req, res) => {
+  const sessionId = req.params.id;
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+  });
+
+  const send = (event, data) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  // Resolve task.sessionId with a tiny cache so we don't slam SQLite
+  // for every single text:delta frame.
+  const taskSessionCache = new Map();
+  const belongsToSession = (taskId) => {
+    if (!taskId) return false;
+    if (taskSessionCache.has(taskId)) return taskSessionCache.get(taskId) === sessionId;
+    const task = loadTask(taskId);
+    const sid = task?.sessionId || null;
+    taskSessionCache.set(taskId, sid);
+    // Evict after 5 min to avoid unbounded growth
+    setTimeout(() => taskSessionCache.delete(taskId), 5 * 60 * 1000).unref?.();
+    return sid === sessionId;
+  };
+
+  const wrap = (evtName) => (evt) => {
+    if (belongsToSession(evt.taskId)) send(evtName, evt);
+  };
+
+  const onToolBefore = wrap("tool:before");
+  const onTool = wrap("tool:after");
+  const onModel = wrap("model:called");
+  const onTextDelta = wrap("text:delta");
+  const onTextEnd = wrap("text:end");
+  const onTaskCreated = (evt) => {
+    if (evt.sessionId === sessionId || belongsToSession(evt.taskId)) {
+      send("task:created", evt);
+    }
+  };
+  const onComplete = (evt) => {
+    if (belongsToSession(evt.taskId)) {
+      const finalTask = loadTask(evt.taskId);
+      send("task:completed", finalTask || evt);
+    }
+  };
+  const onFail = (evt) => {
+    if (belongsToSession(evt.taskId)) send("task:failed", evt);
+  };
+
+  eventBus.on("tool:before", onToolBefore);
+  eventBus.on("tool:after", onTool);
+  eventBus.on("model:called", onModel);
+  eventBus.on("text:delta", onTextDelta);
+  eventBus.on("text:end", onTextEnd);
+  eventBus.on("task:created", onTaskCreated);
+  eventBus.on("task:completed", onComplete);
+  eventBus.on("task:failed", onFail);
+
+  const cleanup = () => {
+    eventBus.removeListener("tool:before", onToolBefore);
+    eventBus.removeListener("tool:after", onTool);
+    eventBus.removeListener("model:called", onModel);
+    eventBus.removeListener("text:delta", onTextDelta);
+    eventBus.removeListener("text:end", onTextEnd);
+    eventBus.removeListener("task:created", onTaskCreated);
+    eventBus.removeListener("task:completed", onComplete);
+    eventBus.removeListener("task:failed", onFail);
+  };
+
+  // Keep-alive ping every 20s so proxies / browsers don't drop the stream
+  const pingTimer = setInterval(() => {
+    try { res.write(": ping\n\n"); } catch {}
+  }, 20000);
+  pingTimer.unref?.();
+
+  req.on("close", () => {
+    clearInterval(pingTimer);
+    cleanup();
+  });
+
+  send("stream:opened", { sessionId });
+});
+
 // --- WhatsApp webhook ---
 app.post("/webhooks/whatsapp", async (req, res) => {
   const whatsapp = channelRegistry.get("whatsapp");
