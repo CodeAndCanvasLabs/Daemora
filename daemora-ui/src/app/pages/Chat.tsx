@@ -51,6 +51,7 @@ export function Chat() {
   const activeTaskIdRef = useRef<string | null>(sessionStorage.getItem("daemora_active_task"));
   const voiceRef = useRef<VoiceHandle>(null);
   const [voiceStatus, setVoiceStatus] = useState<string>("idle");
+  const pendingSendRef = useRef(false);
 
   const loadSession = async () => {
     try {
@@ -140,13 +141,15 @@ export function Chat() {
         // not the text input, append the user prompt into the chat as a
         // preview so the user sees what was captured.
         const myActive = sessionStorage.getItem("daemora_active_task");
+        if (pendingSendRef.current) return;
         if (data.taskId && data.taskId !== myActive && data.input) {
           voiceTaskId = data.taskId;
-          setMessages((prev) => [...prev, {
-            role: "user",
-            content: String(data.input).replace(/^\[Voice mode:[^\]]+\]\s*/, ""),
-            timestamp: new Date().toISOString(),
-          }]);
+          const cleanInput = String(data.input).replace(/^\[Voice mode:[^\]]+\]\s*/, "");
+          setMessages((prev) => {
+            const last = prev[prev.length - 1];
+            if (last?.role === "user" && last?.content === cleanInput) return prev;
+            return [...prev, { role: "user", content: cleanInput, timestamp: new Date().toISOString() }];
+          });
           voiceStreamingActive = false;
         }
       } catch { /* ignore */ }
@@ -207,6 +210,7 @@ export function Chat() {
     setMessages((prev) => [...prev, userMessage]);
     const currentInput = input;
     setInput("");
+    pendingSendRef.current = true;
 
     if (!isFollowUp) {
       setIsLoading(true);
@@ -233,6 +237,7 @@ export function Chat() {
 
       if (data.taskId) {
         connectToStream(data.taskId);
+        pendingSendRef.current = false;
       } else if (data.result) {
         const assistantMessage: Message = {
           role: "assistant",
@@ -717,7 +722,7 @@ export function Chat() {
           {/* Input */}
           <div className="px-4 pb-4 pt-2 backdrop-blur-xl shrink-0">
             <div className="max-w-3xl mx-auto">
-              <div className="flex items-end gap-0 bg-slate-800/60 border border-slate-700/50 rounded-full px-2 py-1.5 shadow-[0_0_30px_rgba(0,0,0,0.3)] focus-within:border-[#00d9ff]/30 transition-all">
+              <div className="flex items-end gap-2 bg-slate-800/60 border border-slate-700/50 rounded-full px-3 py-1.5 shadow-[0_0_30px_rgba(0,0,0,0.3)] focus-within:border-[#00d9ff]/30 transition-all">
                 <Textarea
                   ref={textareaRef}
                   value={input}
@@ -731,22 +736,7 @@ export function Chat() {
                   placeholder={isLoading ? "Send a follow-up..." : "Ask anything..."}
                   className="flex-1 min-h-[36px] max-h-[120px] bg-transparent border-0 text-white placeholder:text-gray-600 focus-visible:ring-0 focus-visible:ring-offset-0 font-mono text-sm px-3 py-2 resize-none shadow-none"
                 />
-                <button
-                  onClick={() => {
-                    const v = voiceRef.current;
-                    if (!v) return;
-                    if (v.active) v.stop(); else v.start();
-                    setTimeout(() => setVoiceStatus(voiceRef.current?.status || "idle"), 100);
-                  }}
-                  title={voiceRef.current?.active ? "End voice" : "Start voice"}
-                  className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-                    voiceRef.current?.active
-                      ? "bg-gradient-to-br from-[#00d9ff] to-[#4ECDC4] text-slate-950 shadow-[0_0_12px_rgba(0,217,255,0.3)]"
-                      : "bg-slate-700/50 text-gray-500 hover:text-[#00d9ff]"
-                  }`}
-                >
-                  {voiceRef.current?.active ? <PhoneOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                </button>
+                {/* Send button */}
                 <button
                   onClick={handleSend}
                   disabled={!input.trim()}
@@ -757,6 +747,23 @@ export function Chat() {
                   }`}
                 >
                   <ArrowUp className="w-4 h-4" />
+                </button>
+                {/* Mic button — always visible, right of send */}
+                <button
+                  onClick={() => {
+                    const v = voiceRef.current;
+                    if (!v) return;
+                    if (v.active) v.stop(); else v.start();
+                    setTimeout(() => setVoiceStatus(voiceRef.current?.status || "idle"), 150);
+                  }}
+                  title={voiceRef.current?.active ? "End voice" : "Start voice"}
+                  className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+                    voiceRef.current?.active
+                      ? "bg-gradient-to-br from-[#00d9ff] to-[#4ECDC4] text-slate-950 shadow-[0_0_12px_rgba(0,217,255,0.3)]"
+                      : "bg-slate-700/50 text-gray-500 hover:text-[#00d9ff] hover:bg-slate-700"
+                  }`}
+                >
+                  {voiceRef.current?.active ? <PhoneOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                 </button>
               </div>
               <div className="text-center mt-1.5">
