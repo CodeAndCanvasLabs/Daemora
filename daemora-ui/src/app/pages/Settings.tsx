@@ -595,70 +595,87 @@ export function Settings() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Transcription Model (STT)</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  list="stt-models"
-                  className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-gray-600 focus:border-[#00d9ff]/50 focus:outline-none"
-                  placeholder="gpt-4o-mini-transcribe"
-                  value={globalConfig.sttModel || ""}
-                  onChange={(e) => handleConfigChange("sttModel", e.target.value)}
-                />
-                <datalist id="stt-models">
-                  <option value="gpt-4o-mini-transcribe">$0.003/min - fast, cheap</option>
-                  <option value="gpt-4o-transcribe">$0.006/min - best accuracy</option>
-                  <option value="gpt-4o-transcribe-diarize">$0.006/min - speaker ID</option>
-                  <option value="whisper-1">legacy</option>
-                  <option value="whisper-large-v3-turbo">Groq - free tier</option>
-                </datalist>
-              </div>
+              <select
+                className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white focus:border-[#00d9ff]/50 focus:outline-none appearance-none cursor-pointer"
+                value={globalConfig.sttModel || ""}
+                onChange={(e) => handleConfigChange("sttModel", e.target.value)}
+              >
+                <option value="">Auto (detect from API key)</option>
+                <optgroup label="Groq (free tier)">
+                  <option value="whisper-large-v3-turbo">whisper-large-v3-turbo — fast, free</option>
+                  <option value="whisper-large-v3">whisper-large-v3 — accurate, free</option>
+                </optgroup>
+                <optgroup label="OpenAI">
+                  <option value="gpt-4o-mini-transcribe">gpt-4o-mini-transcribe — $0.003/min</option>
+                  <option value="gpt-4o-transcribe">gpt-4o-transcribe — $0.006/min</option>
+                  <option value="whisper-1">whisper-1 — legacy</option>
+                </optgroup>
+                <optgroup label="Deepgram">
+                  <option value="nova-3">nova-3 — best accuracy</option>
+                  <option value="nova-2">nova-2 — stable</option>
+                </optgroup>
+                <optgroup label="AssemblyAI">
+                  <option value="best">best — universal model</option>
+                </optgroup>
+              </select>
             </div>
             <div>
               <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Speech Model (TTS)</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  list="tts-models"
-                  className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-gray-600 focus:border-[#00d9ff]/50 focus:outline-none"
-                  placeholder="gpt-4o-mini-tts"
-                  value={globalConfig.ttsModel || ""}
-                  onChange={(e) => handleConfigChange("ttsModel", e.target.value)}
-                />
-                <datalist id="tts-models">
-                  <option value="groq">Groq PlayAI - free tier</option>
-                  <option value="edge">Edge TTS - free, no API key</option>
-                  <option value="gpt-4o-mini-tts">steerable, 14 voices</option>
-                  <option value="tts-1">standard</option>
-                  <option value="tts-1-hd">high quality</option>
-                </datalist>
-              </div>
+              <select
+                className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white focus:border-[#00d9ff]/50 focus:outline-none appearance-none cursor-pointer"
+                value={globalConfig.ttsModel || ""}
+                onChange={(e) => handleConfigChange("ttsModel", e.target.value)}
+              >
+                <option value="">Auto (detect from API key)</option>
+                <optgroup label="OpenAI">
+                  <option value="gpt-4o-mini-tts">gpt-4o-mini-tts — steerable, natural</option>
+                  <option value="tts-1">tts-1 — standard</option>
+                  <option value="tts-1-hd">tts-1-hd — high quality</option>
+                </optgroup>
+                <optgroup label="Groq (free tier)">
+                  <option value="canopylabs/orpheus-v1-english">orpheus — ultra-fast, free</option>
+                </optgroup>
+                <optgroup label="ElevenLabs">
+                  <option value="eleven_turbo_v2_5">eleven_turbo_v2.5 — fast</option>
+                  <option value="eleven_multilingual_v2">eleven_multilingual_v2 — quality</option>
+                </optgroup>
+                <optgroup label="Cartesia">
+                  <option value="sonic-english">sonic-english — low latency</option>
+                  <option value="sonic-multilingual">sonic-multilingual</option>
+                </optgroup>
+              </select>
             </div>
           </div>
 
-          {/* ── Meeting Bot ─────────────────────────────────────────── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">TTS Voice</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  list="tts-voices"
-                  className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-gray-600 focus:border-[#00d9ff]/50 focus:outline-none"
-                  placeholder="auto (based on model)"
-                  value={globalConfig.ttsVoice || ""}
-                  onChange={(e) => handleConfigChange("ttsVoice", e.target.value)}
-                />
-                <datalist id="tts-voices">
-                  <option value="nova">nova - OpenAI female</option>
-                  <option value="alloy">alloy - OpenAI neutral</option>
-                  <option value="echo">echo - OpenAI male</option>
-                  <option value="fable">fable - OpenAI UK</option>
-                  <option value="onyx">onyx - OpenAI deep</option>
-                  <option value="shimmer">shimmer - OpenAI soft</option>
-                  <option value="hannah">hannah - Groq orpheus</option>
-                  <option value="fritz">fritz - Groq orpheus</option>
-                </datalist>
-              </div>
+              <select
+                className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white focus:border-[#00d9ff]/50 focus:outline-none appearance-none cursor-pointer"
+                value={globalConfig.ttsVoice || ""}
+                onChange={(e) => handleConfigChange("ttsVoice", e.target.value)}
+              >
+                <option value="">Auto (provider default)</option>
+                <optgroup label="OpenAI Voices">
+                  <option value="nova">nova — warm female</option>
+                  <option value="alloy">alloy — neutral</option>
+                  <option value="echo">echo — male</option>
+                  <option value="fable">fable — British</option>
+                  <option value="onyx">onyx — deep male</option>
+                  <option value="shimmer">shimmer — soft female</option>
+                  <option value="ash">ash — conversational male</option>
+                  <option value="coral">coral — conversational female</option>
+                  <option value="sage">sage — calm</option>
+                </optgroup>
+                <optgroup label="Groq Orpheus Voices">
+                  <option value="troy">troy — male</option>
+                  <option value="hannah">hannah — female</option>
+                  <option value="austin">austin — male</option>
+                  <option value="diana">diana — female</option>
+                  <option value="autumn">autumn — female</option>
+                  <option value="daniel">daniel — male</option>
+                </optgroup>
+              </select>
             </div>
             <div>
               <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Meeting LLM</label>
