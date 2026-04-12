@@ -127,8 +127,9 @@ async def _play_agent_audio_locally(cfg: voice_config.VoiceConfig) -> None:
 
     @room.on("track_subscribed")
     def on_track_subscribed(track, publication, participant):
-        if track.kind == rtc.TrackKind.KIND_AUDIO and participant.identity != "local-speaker":
-            log.info("local speaker: subscribed to audio from %s", participant.identity)
+        # ONLY play the agent's audio — not the user's mic (that would echo)
+        if track.kind == rtc.TrackKind.KIND_AUDIO and participant.identity == "daemora-agent":
+            log.info("local speaker: subscribed to agent audio")
             asyncio.create_task(track_audio_stream(track))
 
     try:
