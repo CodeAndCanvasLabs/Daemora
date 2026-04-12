@@ -538,7 +538,7 @@ export function Chat() {
         {/* Messages Area */}
         <div className="flex-1 min-h-0 relative z-10 flex flex-col">
           <ScrollArea className="flex-1 min-h-0" ref={scrollAreaRef}>
-            <div className="max-w-6xl mx-auto py-6 px-4 sm:px-6 space-y-5">
+            <div className="max-w-3xl mx-auto py-6 px-4 sm:px-6 lg:px-8 space-y-5">
               {!initialized ? (
                 <div className="flex flex-col items-center py-24 gap-3 opacity-50">
                   <Loader2 className="w-5 h-5 text-[#00d9ff] animate-spin" />
@@ -560,14 +560,14 @@ export function Chat() {
                 messages.map((message, i) => (
                   <div
                     key={i}
-                    className={`flex gap-3 animate-in slide-in-from-bottom-2 duration-300 ${message.role === "user" ? "justify-end" : ""}`}
+                    className={`flex gap-3 animate-in slide-in-from-bottom-2 duration-300 ${message.role === "user" ? "flex-row-reverse" : ""}`}
                   >
                     {message.role === "assistant" && (
                       <div className="w-7 h-7 rounded-lg bg-slate-950 border border-slate-800/80 p-1 flex-shrink-0 flex items-center justify-center shadow-lg mt-1">
                         <Logo size={18} />
                       </div>
                     )}
-                    <div className={`max-w-[88%] ${message.role === "user" ? "flex justify-end" : ""}`}>
+                    <div className="max-w-[85%] sm:max-w-[80%] lg:max-w-[75%]">
                       <div
                         className={`rounded-lg p-4 shadow-md border transition-all ${
                           message.role === "user"
@@ -713,7 +713,7 @@ export function Chat() {
 
           {/* Input */}
           <div className="px-4 pb-4 pt-2 backdrop-blur-xl shrink-0">
-            <div className="max-w-6xl mx-auto">
+            <div className="max-w-3xl mx-auto">
               <div className="flex items-end gap-0 bg-slate-800/60 border border-slate-700/50 rounded-full px-2 py-1.5 shadow-[0_0_30px_rgba(0,0,0,0.3)] focus-within:border-[#00d9ff]/30 transition-all">
                 <Textarea
                   ref={textareaRef}

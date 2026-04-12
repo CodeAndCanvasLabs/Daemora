@@ -312,7 +312,7 @@ export function VoicePanel() {
       )}
 
       {/* Mic toggle button — always visible, right-aligned */}
-      <div className="flex justify-end px-4 max-w-6xl mx-auto w-full">
+      <div className="flex justify-end px-4 max-w-3xl mx-auto w-full">
         <button
           onClick={active ? stop : start}
           disabled={status === "connecting"}
