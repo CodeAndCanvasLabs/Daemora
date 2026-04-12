@@ -5,6 +5,19 @@ import { apiFetch } from "../api";
 
 type Status = "idle" | "connecting" | "listening" | "speaking" | "error";
 
+// Per-browser-session identity — stable across re-renders of VoicePanel
+// so reconnect attempts aren't evicted by identity collision, but unique
+// across tabs / devices so two clients can coexist later.
+function getOrCreateBrowserIdentity(): string {
+  const KEY = "daemora_voice_identity";
+  let id = sessionStorage.getItem(KEY);
+  if (!id) {
+    id = `daemora-user-${Math.random().toString(36).slice(2, 10)}`;
+    sessionStorage.setItem(KEY, id);
+  }
+  return id;
+}
+
 export function VoicePanel() {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -14,24 +27,43 @@ export function VoicePanel() {
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const rafRef = useRef<number | null>(null);
+  const identityRef = useRef<string>(getOrCreateBrowserIdentity());
+  // Guard against React StrictMode double-invoking the effect cleanup
+  // between the two mount+unmount+remount cycles — we only want to tear
+  // down the room when the component is actually leaving the DOM, not
+  // when StrictMode is toggling us.
+  const startingRef = useRef(false);
 
   const cleanup = () => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
     analyserRef.current = null;
     if (localTrackRef.current) {
-      localTrackRef.current.stop();
+      try { localTrackRef.current.stop(); } catch {}
       localTrackRef.current = null;
     }
     if (roomRef.current) {
-      roomRef.current.disconnect();
+      try { roomRef.current.disconnect(); } catch {}
       roomRef.current = null;
     }
+    startingRef.current = false;
   };
 
-  useEffect(() => () => cleanup(), []);
+  // NO useEffect cleanup — StrictMode would fire it between the paired
+  // mount/unmount and kill the room the user just started. Cleanup is
+  // driven by the stop() button and on actual page unload below.
+  useEffect(() => {
+    const onUnload = () => cleanup();
+    window.addEventListener("beforeunload", onUnload);
+    return () => window.removeEventListener("beforeunload", onUnload);
+  }, []);
 
   const start = async () => {
+    if (startingRef.current || roomRef.current) {
+      // Already starting or running — don't fire a second connect
+      return;
+    }
+    startingRef.current = true;
     setError(null);
     setStatus("connecting");
     try {
@@ -46,7 +78,7 @@ export function VoicePanel() {
       const tokRes = await apiFetch("/api/voice/token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identity: "daemora-user" }),
+        body: JSON.stringify({ identity: identityRef.current }),
       });
       if (!tokRes.ok) throw new Error(`token: ${tokRes.statusText}`);
       const { token, url } = await tokRes.json();
@@ -108,6 +140,7 @@ export function VoicePanel() {
       await room.localParticipant.publishTrack(micTrack);
 
       setStatus("listening");
+      startingRef.current = false;
     } catch (e: any) {
       setError(e?.message || String(e));
       setStatus("error");
