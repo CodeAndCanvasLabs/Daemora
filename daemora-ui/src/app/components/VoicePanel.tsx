@@ -300,39 +300,47 @@ export const VoicePanel = forwardRef<VoiceHandle>(function VoicePanel(_props, re
 
   const active = status !== "idle" && status !== "error";
 
-  if (!active && !error) return <audio ref={audioElRef} autoPlay playsInline style={{ position: "fixed", width: 1, height: 1, opacity: 0, pointerEvents: "none", bottom: 0, right: 0 }} />;
-
   return (
     <>
-      {/* Fixed overlay — outside layout flow, doesn't push anything */}
-      <div className="fixed top-0 right-0 bottom-0 left-[var(--sidebar-width,140px)] z-50 pointer-events-none flex items-end justify-center pb-32">
-        <div className="pointer-events-auto flex flex-col items-center gap-2">
-          <div className="flex items-center gap-2">
-            {status === "listening" && (
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-[#00d9ff] opacity-75 animate-ping" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-[#00d9ff]" />
+      {/* Audio element: always rendered with stable position in JSX tree.
+          React reconciliation keeps the same DOM node across renders, so
+          srcObject and playing state are preserved. */}
+      <audio
+        ref={audioElRef}
+        autoPlay
+        playsInline
+        style={{ position: "fixed", width: 1, height: 1, opacity: 0, pointerEvents: "none", bottom: 0, right: 0 }}
+      />
+
+      {(active || error) && (
+        <div className="fixed top-0 right-0 bottom-0 left-[var(--sidebar-width,140px)] z-50 pointer-events-none flex items-end justify-center pb-32">
+          <div className="pointer-events-auto flex flex-col items-center gap-2">
+            <div className="flex items-center gap-2">
+              {status === "listening" && (
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-[#00d9ff] opacity-75 animate-ping" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#00d9ff]" />
+                </span>
+              )}
+              {status === "speaking" && <span className="h-2 w-2 rounded-full bg-[#4ECDC4]" />}
+              <span className={`text-[10px] font-mono uppercase tracking-wider ${
+                status === "speaking" ? "text-[#4ECDC4]" : "text-[#00d9ff]"
+              }`}>
+                {status === "listening" ? "Listening" : status === "speaking" ? "Speaking" : ""}
               </span>
-            )}
-            {status === "speaking" && <span className="h-2 w-2 rounded-full bg-[#4ECDC4]" />}
-            <span className={`text-[10px] font-mono uppercase tracking-wider ${
-              status === "speaking" ? "text-[#4ECDC4]" : "text-[#00d9ff]"
-            }`}>
-              {status === "listening" ? "Listening" : status === "speaking" ? "Speaking" : ""}
-            </span>
-            <button onClick={stop} className="text-[9px] font-mono uppercase text-gray-500 hover:text-red-400 ml-1 px-2 py-0.5 rounded hover:bg-red-500/10 transition-colors">
-              End
-            </button>
-          </div>
-          <button onClick={stop} title="End voice" className="hover:scale-105 active:scale-95 transition-transform">
-            <div style={{ width: 160, height: 160 }}>
-              <VoiceOrb level={avgLevel} status={status} size={160} />
+              <button onClick={stop} className="text-[9px] font-mono uppercase text-gray-500 hover:text-red-400 ml-1 px-2 py-0.5 rounded hover:bg-red-500/10 transition-colors">
+                End
+              </button>
             </div>
-          </button>
-          {error && <p className="text-[9px] text-red-400 font-mono text-center max-w-xs">{error}</p>}
+            <button onClick={stop} title="End voice" className="hover:scale-105 active:scale-95 transition-transform">
+              <div style={{ width: 160, height: 160 }}>
+                <VoiceOrb level={avgLevel} status={status} size={160} />
+              </div>
+            </button>
+            {error && <p className="text-[9px] text-red-400 font-mono text-center max-w-xs">{error}</p>}
+          </div>
         </div>
-      </div>
-      <audio ref={audioElRef} autoPlay playsInline style={{ position: "fixed", width: 1, height: 1, opacity: 0, pointerEvents: "none", bottom: 0, right: 0 }} />
+      )}
     </>
   );
 });
