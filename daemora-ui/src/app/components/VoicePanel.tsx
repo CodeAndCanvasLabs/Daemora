@@ -293,7 +293,7 @@ export const VoicePanel = forwardRef<VoiceHandle>(function VoicePanel(_props, re
 
   const active = status !== "idle" && status !== "error";
 
-  if (!active && !error) return <audio ref={audioElRef} autoPlay hidden />;
+  if (!active && !error) return <audio ref={audioElRef} autoPlay playsInline style={{ position: "fixed", width: 1, height: 1, opacity: 0, pointerEvents: "none", bottom: 0, right: 0 }} />;
 
   return (
     <>
@@ -325,7 +325,7 @@ export const VoicePanel = forwardRef<VoiceHandle>(function VoicePanel(_props, re
           {error && <p className="text-[9px] text-red-400 font-mono text-center max-w-xs">{error}</p>}
         </div>
       </div>
-      <audio ref={audioElRef} autoPlay hidden />
+      <audio ref={audioElRef} autoPlay playsInline style={{ position: "fixed", width: 1, height: 1, opacity: 0, pointerEvents: "none", bottom: 0, right: 0 }} />
     </>
   );
 });
