@@ -723,9 +723,9 @@ export function Chat() {
           <VoicePanel ref={voiceRef} />
 
           {/* Input */}
-          <div className="px-4 pb-4 pt-2 backdrop-blur-xl shrink-0">
-            <div className="max-w-3xl mx-auto">
-              <div className="flex items-end gap-2 bg-slate-800/60 border border-slate-700/50 rounded-full px-3 py-1.5 shadow-[0_0_30px_rgba(0,0,0,0.3)] focus-within:border-[#00d9ff]/30 transition-all">
+          <div className="px-3 sm:px-4 pb-3 sm:pb-4 pt-2 backdrop-blur-xl shrink-0">
+            <div className="max-w-3xl mx-auto w-full">
+              <div className="flex items-end gap-2 bg-slate-800/60 border border-slate-700/50 rounded-2xl px-3 py-2 shadow-[0_0_30px_rgba(0,0,0,0.3)] focus-within:border-[#00d9ff]/30 transition-all">
                 <Textarea
                   ref={textareaRef}
                   value={input}
@@ -737,7 +737,7 @@ export function Chat() {
                     }
                   }}
                   placeholder={isLoading ? "Send a follow-up..." : "Ask anything..."}
-                  className="flex-1 min-h-[36px] max-h-[120px] bg-transparent border-0 text-white placeholder:text-gray-600 focus-visible:ring-0 focus-visible:ring-offset-0 font-mono text-sm px-3 py-2 resize-none shadow-none"
+                  className="flex-1 min-h-[40px] max-h-[120px] bg-transparent border-0 text-white placeholder:text-gray-500 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm px-2 py-2.5 resize-none shadow-none leading-relaxed"
                 />
                 {/* Send button */}
                 <button
