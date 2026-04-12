@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from "react";
 import { Room, RoomEvent, Track, RemoteTrack, RemoteAudioTrack, LocalAudioTrack, createLocalAudioTrack } from "livekit-client";
 import { Loader2, Mic, PhoneOff, AlertCircle } from "lucide-react";
 import { apiFetch } from "../api";
@@ -144,7 +144,14 @@ function VoiceOrb({ level, status, size }: { level: number; status: Status; size
 
 // ── Main VoicePanel ───────────────────────────────────────────────────────
 
-export function VoicePanel() {
+export interface VoiceHandle {
+  start: () => void;
+  stop: () => void;
+  status: Status;
+  active: boolean;
+}
+
+export const VoicePanel = forwardRef<VoiceHandle>(function VoicePanel(_props, ref) {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [avgLevel, setAvgLevel] = useState(0);
@@ -155,6 +162,10 @@ export function VoicePanel() {
   const rafRef = useRef<number | null>(null);
   const identityRef = useRef<string>(getOrCreateBrowserIdentity());
   const startingRef = useRef(false);
+
+  useImperativeHandle(ref, () => ({
+    start, stop, status, active: status !== "idle" && status !== "error",
+  }), [status]);
 
   const cleanup = () => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -311,33 +322,7 @@ export function VoicePanel() {
         </div>
       )}
 
-      {/* Mic toggle button — always visible, right-aligned */}
-      <div className="flex justify-end px-4 max-w-3xl mx-auto w-full">
-        <button
-          onClick={active ? stop : start}
-          disabled={status === "connecting"}
-          title={active ? "End voice" : "Start voice"}
-          className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-            status === "error"
-              ? "bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-400/30"
-              : status === "connecting"
-              ? "bg-slate-700/50 text-[#00d9ff]"
-              : active
-              ? "bg-gradient-to-br from-[#00d9ff] to-[#4ECDC4] text-slate-950 shadow-[0_0_20px_rgba(0,217,255,0.4)]"
-              : "bg-slate-800/60 border border-slate-700/60 text-gray-500 hover:text-[#00d9ff] hover:border-[#00d9ff]/40 hover:shadow-[0_0_12px_rgba(0,217,255,0.2)]"
-          }`}
-        >
-          {status === "connecting" ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : active ? (
-            <PhoneOff className="w-4 h-4" />
-          ) : (
-            <Mic className="w-4 h-4" />
-          )}
-        </button>
-      </div>
-
       <audio ref={audioElRef} autoPlay hidden />
     </div>
   );
-}
+});

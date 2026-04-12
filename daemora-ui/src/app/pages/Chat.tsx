@@ -16,7 +16,8 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Logo } from "../components/ui/Logo";
-import { VoicePanel } from "../components/VoicePanel";
+import { VoicePanel, VoiceHandle } from "../components/VoicePanel";
+import { Mic, PhoneOff } from "lucide-react";
 import { toast } from "sonner";
 
 interface Message {
@@ -48,6 +49,8 @@ export function Chat() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const activeTaskIdRef = useRef<string | null>(sessionStorage.getItem("daemora_active_task"));
+  const voiceRef = useRef<VoiceHandle>(null);
+  const [voiceStatus, setVoiceStatus] = useState<string>("idle");
 
   const loadSession = async () => {
     try {
@@ -708,8 +711,8 @@ export function Chat() {
             </div>
           </ScrollArea>
 
-          {/* Voice orb + mic button */}
-          <VoicePanel />
+          {/* Voice orb (only when active) */}
+          <VoicePanel ref={voiceRef} />
 
           {/* Input */}
           <div className="px-4 pb-4 pt-2 backdrop-blur-xl shrink-0">
@@ -728,6 +731,22 @@ export function Chat() {
                   placeholder={isLoading ? "Send a follow-up..." : "Ask anything..."}
                   className="flex-1 min-h-[36px] max-h-[120px] bg-transparent border-0 text-white placeholder:text-gray-600 focus-visible:ring-0 focus-visible:ring-offset-0 font-mono text-sm px-3 py-2 resize-none shadow-none"
                 />
+                <button
+                  onClick={() => {
+                    const v = voiceRef.current;
+                    if (!v) return;
+                    if (v.active) v.stop(); else v.start();
+                    setTimeout(() => setVoiceStatus(voiceRef.current?.status || "idle"), 100);
+                  }}
+                  title={voiceRef.current?.active ? "End voice" : "Start voice"}
+                  className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+                    voiceRef.current?.active
+                      ? "bg-gradient-to-br from-[#00d9ff] to-[#4ECDC4] text-slate-950 shadow-[0_0_12px_rgba(0,217,255,0.3)]"
+                      : "bg-slate-700/50 text-gray-500 hover:text-[#00d9ff]"
+                  }`}
+                >
+                  {voiceRef.current?.active ? <PhoneOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                </button>
                 <button
                   onClick={handleSend}
                   disabled={!input.trim()}
