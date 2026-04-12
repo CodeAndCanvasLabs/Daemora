@@ -58,7 +58,10 @@ export function Chat() {
       const res = await apiFetch(`/api/sessions/${SESSION_ID}`);
       if (res.ok) {
         const data = await res.json();
-        setMessages(data.messages || []);
+        setMessages((data.messages || []).map((m: Message) => ({
+          ...m,
+          content: m.role === "user" ? m.content.replace(/^\[Voice mode:[^\]]+\]\s*/, "") : m.content,
+        })));
       } else {
         // Session doesn't exist yet — create it
         await apiFetch("/api/sessions", {
