@@ -59,7 +59,7 @@ def _stt_groq(cfg: VoiceConfig):
     from livekit.plugins import groq
     return groq.STT(
         api_key=_require("GROQ_API_KEY", "Groq Whisper"),
-        model=_env("DAEMORA_GROQ_STT_MODEL", "whisper-large-v3-turbo"),
+        model=cfg.stt_model or _env("DAEMORA_GROQ_STT_MODEL", "whisper-large-v3-turbo"),
         language=cfg.language,
     )
 
@@ -68,7 +68,7 @@ def _stt_deepgram(cfg: VoiceConfig):
     from livekit.plugins import deepgram
     return deepgram.STT(
         api_key=_require("DEEPGRAM_API_KEY", "Deepgram"),
-        model=_env("DAEMORA_DEEPGRAM_STT_MODEL", "nova-3"),
+        model=cfg.stt_model or _env("DAEMORA_DEEPGRAM_STT_MODEL", "nova-3"),
         language=cfg.language,
         smart_format=True,
         interim_results=True,
@@ -79,7 +79,7 @@ def _stt_openai(cfg: VoiceConfig):
     from livekit.plugins import openai
     return openai.STT(
         api_key=_require("OPENAI_API_KEY", "OpenAI Whisper"),
-        model=_env("DAEMORA_OPENAI_STT_MODEL", "whisper-1"),
+        model=cfg.stt_model or _env("DAEMORA_OPENAI_STT_MODEL", "whisper-1"),
         language=cfg.language,
     )
 
@@ -134,7 +134,7 @@ def _tts_elevenlabs(cfg: VoiceConfig):
     return elevenlabs.TTS(
         api_key=_require("ELEVENLABS_API_KEY", "ElevenLabs"),
         voice_id=cfg.tts_voice or _env("DAEMORA_ELEVENLABS_TTS_VOICE", "cgSgspJ2msm6clMCkdW9"),
-        model=_env("DAEMORA_ELEVENLABS_TTS_MODEL", "eleven_turbo_v2_5"),
+        model=cfg.tts_model or _env("DAEMORA_ELEVENLABS_TTS_MODEL", "eleven_turbo_v2_5"),
     )
 
 
@@ -143,7 +143,7 @@ def _tts_cartesia(cfg: VoiceConfig):
     return cartesia.TTS(
         api_key=_require("CARTESIA_API_KEY", "Cartesia"),
         voice=cfg.tts_voice or _env("DAEMORA_CARTESIA_TTS_VOICE", "a0e99841-438c-4a64-b679-ae501e7d6091"),
-        model=_env("DAEMORA_CARTESIA_TTS_MODEL", "sonic-english"),
+        model=cfg.tts_model or _env("DAEMORA_CARTESIA_TTS_MODEL", "sonic-english"),
     )
 
 
@@ -152,7 +152,7 @@ def _tts_openai(cfg: VoiceConfig):
     return openai.TTS(
         api_key=_require("OPENAI_API_KEY", "OpenAI TTS"),
         voice=cfg.tts_voice or _env("DAEMORA_OPENAI_TTS_VOICE", "nova"),
-        model=_env("DAEMORA_OPENAI_TTS_MODEL", "gpt-4o-mini-tts"),
+        model=cfg.tts_model or _env("DAEMORA_OPENAI_TTS_MODEL", "gpt-4o-mini-tts"),
     )
 
 

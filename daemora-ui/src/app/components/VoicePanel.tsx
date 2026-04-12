@@ -193,52 +193,98 @@ export function VoicePanel() {
 
   const active = status !== "idle" && status !== "error";
 
+  const statusLabel = {
+    idle: "Voice Off",
+    connecting: "Connecting…",
+    listening: "Listening",
+    speaking: "Daemora speaking",
+    error: "Error",
+  }[status];
+
+  const statusColor = {
+    idle: "text-gray-500",
+    connecting: "text-[#00d9ff]",
+    listening: "text-[#00d9ff]",
+    speaking: "text-[#4ECDC4]",
+    error: "text-red-400",
+  }[status];
+
   return (
-    <div className="flex items-center gap-3 px-4 py-2 bg-slate-900/40 border-t border-slate-800/50">
-      <button
-        onClick={active ? stop : start}
-        disabled={status === "connecting"}
-        title={active ? "Stop voice" : "Start voice"}
-        className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-          active
-            ? "bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] text-slate-950 shadow-[0_0_15px_rgba(0,217,255,0.3)]"
-            : "bg-slate-700/60 text-gray-400 hover:text-white"
-        }`}
-      >
-        {status === "connecting" ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
-        ) : status === "error" ? (
-          <AlertCircle className="w-4 h-4 text-red-400" />
-        ) : active ? (
-          <Mic className="w-4 h-4" />
-        ) : (
-          <MicOff className="w-4 h-4" />
-        )}
-      </button>
+    <div className="relative w-full bg-gradient-to-r from-slate-900/70 via-slate-900/50 to-slate-900/70 border-t border-slate-800/60 backdrop-blur-md">
+      {/* Ambient glow while active */}
+      {active && (
+        <div className="pointer-events-none absolute inset-0 opacity-60 bg-[radial-gradient(ellipse_at_center,rgba(0,217,255,0.08),transparent_70%)] animate-pulse" />
+      )}
 
-      <div className="flex-1 flex items-center gap-[2px] h-8">
-        {agentLevel.map((v, i) => (
-          <div
-            key={i}
-            className="flex-1 bg-gradient-to-t from-[#00d9ff]/30 to-[#4ECDC4] rounded-sm transition-[height] duration-75"
-            style={{ height: `${Math.max(4, v * 100)}%` }}
-          />
-        ))}
-      </div>
+      <div className="relative flex items-center gap-4 px-4 py-3 sm:px-6 max-w-6xl mx-auto">
+        {/* Mic button — bigger, glowing ring when active */}
+        <button
+          onClick={active ? stop : start}
+          disabled={status === "connecting"}
+          title={active ? "Stop voice" : "Start voice"}
+          aria-label={active ? "Stop voice" : "Start voice"}
+          className={`group flex-shrink-0 relative w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all duration-300 ${
+            status === "error"
+              ? "bg-red-500/20 border border-red-400/50 hover:bg-red-500/30"
+              : active
+              ? "bg-gradient-to-br from-[#00d9ff] to-[#4ECDC4] text-slate-950 shadow-[0_0_20px_rgba(0,217,255,0.5)]"
+              : "bg-slate-800/80 border border-slate-700/80 text-gray-400 hover:text-white hover:border-[#00d9ff]/50 hover:shadow-[0_0_15px_rgba(0,217,255,0.3)]"
+          }`}
+        >
+          {/* Pulse ring while listening */}
+          {status === "listening" && (
+            <span className="absolute inset-0 rounded-full border-2 border-[#00d9ff]/60 animate-ping" />
+          )}
+          {status === "connecting" ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : status === "error" ? (
+            <AlertCircle className="w-5 h-5 text-red-400" />
+          ) : active ? (
+            <Mic className="w-5 h-5" />
+          ) : (
+            <MicOff className="w-5 h-5" />
+          )}
+        </button>
 
-      <div className="flex-shrink-0 min-w-[88px] text-right">
-        <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-[#00d9ff]/70">
-          {status === "connecting" && "Connecting"}
-          {status === "listening" && "Listening"}
-          {status === "speaking" && "Speaking"}
-          {status === "error" && "Error"}
-          {status === "idle" && "Voice Off"}
-        </span>
-        {error && (
-          <div className="text-[8px] text-red-400/80 font-mono mt-0.5 truncate max-w-[140px]">
-            {error}
-          </div>
-        )}
+        {/* Waveform — responsive, bigger on desktop */}
+        <div className="flex-1 min-w-0 flex items-center gap-[2px] h-10 sm:h-12">
+          {agentLevel.map((v, i) => {
+            const scaled = active ? Math.max(6, v * 100) : 6;
+            return (
+              <div
+                key={i}
+                className={`flex-1 rounded-full transition-[height,opacity] duration-100 ${
+                  status === "speaking"
+                    ? "bg-gradient-to-t from-[#4ECDC4] via-[#00d9ff] to-[#4ECDC4] opacity-90"
+                    : status === "listening"
+                    ? "bg-gradient-to-t from-[#00d9ff]/30 to-[#00d9ff]/70 opacity-60"
+                    : "bg-slate-700/50 opacity-40"
+                }`}
+                style={{ height: `${scaled}%` }}
+              />
+            );
+          })}
+        </div>
+
+        {/* Status label — hidden on mobile, shown on sm+ */}
+        <div className="hidden sm:flex flex-shrink-0 flex-col items-end min-w-[112px]">
+          <span className={`text-[10px] font-mono uppercase tracking-[0.2em] ${statusColor} transition-colors`}>
+            {statusLabel}
+          </span>
+          {active && !error && (
+            <span className="text-[8px] text-gray-600 font-mono mt-0.5 truncate max-w-[140px]">
+              {identityRef.current.replace("daemora-user-", "session ")}
+            </span>
+          )}
+          {error && (
+            <span
+              className="text-[9px] text-red-400/90 font-mono mt-0.5 max-w-[180px] text-right leading-tight cursor-help"
+              title={error}
+            >
+              {error.length > 48 ? error.slice(0, 45) + "…" : error}
+            </span>
+          )}
+        </div>
       </div>
 
       <audio ref={audioElRef} autoPlay hidden />
