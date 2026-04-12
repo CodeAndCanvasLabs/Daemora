@@ -141,6 +141,47 @@ def voice_status() -> dict:
     }
 
 
+async def _fetch_voice_env_from_daemora() -> dict:
+    """Pull provider keys from the running Daemora so the sidecar inherits
+    the same vault state. Dev stand-in for Tauri's child-process env
+    inheritance in production."""
+    import os as _os
+    import httpx as _httpx
+
+    daemora_http = _os.environ.get("DAEMORA_HTTP", "http://127.0.0.1:8081")
+    token = _os.environ.get("DAEMORA_AUTH_TOKEN")
+    if not token:
+        # Fall back to reading the local auth-token file
+        for candidate in [
+            _os.path.expanduser("~/.daemora/auth-token"),
+            _os.path.join(_os.getcwd(), "..", "..", "data", "auth-token"),
+        ]:
+            if _os.path.exists(candidate):
+                with open(candidate) as f:
+                    token = f.read().strip()
+                    break
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    try:
+        async with _httpx.AsyncClient(timeout=5.0) as client:
+            r = await client.get(f"{daemora_http}/api/voice/env", headers=headers)
+            r.raise_for_status()
+            data = r.json()
+    except Exception as e:
+        log.warning("could not fetch voice env from Daemora: %s", e)
+        return {}
+    env = data.get("env", {})
+    suggested = data.get("providers", {})
+    for k, v in env.items():
+        _os.environ.setdefault(k, v)
+    if token:
+        _os.environ.setdefault("DAEMORA_AUTH_TOKEN", token)
+    if suggested.get("stt"):
+        _os.environ.setdefault("DAEMORA_STT_PROVIDER", suggested["stt"])
+    if suggested.get("tts"):
+        _os.environ.setdefault("DAEMORA_TTS_PROVIDER", suggested["tts"])
+    return {"keys": list(env.keys()), "providers": suggested}
+
+
 @app.post("/voice/start", dependencies=[Depends(verify_token)])
 async def voice_start() -> dict:
     global _voice_task, _voice_error
@@ -153,8 +194,10 @@ async def voice_start() -> dict:
         _voice_error = f"voice extras not installed: {e}"
         raise HTTPException(status_code=503, detail=_voice_error)
 
+    inherited = await _fetch_voice_env_from_daemora()
     cfg = voice_config.load()
-    log.info("starting voice agent (stt=%s tts=%s)", cfg.stt_provider, cfg.tts_provider)
+    log.info("starting voice agent (stt=%s tts=%s inherited=%s)",
+             cfg.stt_provider, cfg.tts_provider, inherited.get("keys") or [])
 
     async def _run():
         try:
@@ -166,7 +209,12 @@ async def voice_start() -> dict:
 
     _voice_error = None
     _voice_task = asyncio.create_task(_run())
-    return {"ok": True, "stt": cfg.stt_provider, "tts": cfg.tts_provider}
+    return {
+        "ok": True,
+        "stt": cfg.stt_provider,
+        "tts": cfg.tts_provider,
+        "inherited_keys": inherited.get("keys") or [],
+    }
 
 
 @app.post("/voice/stop", dependencies=[Depends(verify_token)])

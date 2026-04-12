@@ -1369,23 +1369,40 @@ app.post("/api/daemon/:action", (req, res) => {
   }
 });
 
-// --- Setup status (first-run detection for desktop app / CLI wizard) ---
-app.get("/api/setup/status", (req, res) => {
-  const setupCompleted = configStore.get("SETUP_COMPLETED") || null;
-  const defaultModel = configStore.get("DEFAULT_MODEL") || process.env.DEFAULT_MODEL || null;
-  const hasAnyLlmKey = [
+// --- Voice env (sidecar bootstrap — returns keys the voice pipeline needs) ---
+// The sidecar fetches this once at boot so it inherits the same vault state
+// as the daemon without having to pipe env vars through shell. In production
+// the Tauri shell spawns the sidecar as a child of Daemora and env is inherited
+// directly; this endpoint is the dev stand-in for that.
+app.get("/api/voice/env", (req, res) => {
+  const keys = [
+    "GROQ_API_KEY",
     "OPENAI_API_KEY",
-    "ANTHROPIC_API_KEY",
-    "GOOGLE_GENERATIVE_AI_API_KEY",
-    "GEMINI_API_KEY",
-  ].some((k) => !!process.env[k]);
+    "DEEPGRAM_API_KEY",
+    "ELEVENLABS_API_KEY",
+    "CARTESIA_API_KEY",
+    "ASSEMBLYAI_API_KEY",
+    "GOOGLE_APPLICATION_CREDENTIALS",
+  ];
+  const env = {};
+  for (const k of keys) {
+    const v = process.env[k];
+    if (v) env[k] = v;
+  }
   res.json({
-    completed: !!setupCompleted,
-    completedAt: setupCompleted,
-    vaultExists: secretVault.exists(),
-    vaultUnlocked: secretVault.isUnlocked(),
-    defaultModel,
-    hasAnyLlmKey,
+    keys: Object.keys(env),
+    env,
+    providers: {
+      stt: env.GROQ_API_KEY ? "groq"
+         : env.DEEPGRAM_API_KEY ? "deepgram"
+         : env.OPENAI_API_KEY ? "openai"
+         : env.ASSEMBLYAI_API_KEY ? "assemblyai"
+         : null,
+      tts: env.ELEVENLABS_API_KEY ? "elevenlabs"
+         : env.CARTESIA_API_KEY ? "cartesia"
+         : env.OPENAI_API_KEY ? "openai"
+         : null,
+    },
   });
 });
 
