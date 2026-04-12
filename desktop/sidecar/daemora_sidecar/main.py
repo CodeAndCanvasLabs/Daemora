@@ -1,5 +1,7 @@
-"""Daemora desktop sidecar — HTTP server exposing desktop control and (later) voice pipeline."""
+"""Daemora desktop sidecar — HTTP server exposing desktop control and voice pipeline."""
 
+import asyncio
+import logging
 from typing import Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -7,7 +9,13 @@ from pydantic import BaseModel, Field
 
 from . import audit, config, desktop
 
-app = FastAPI(title="Daemora Sidecar", version="0.1.0")
+log = logging.getLogger("daemora.sidecar")
+
+app = FastAPI(title="Daemora Sidecar", version="0.2.0")
+
+# Voice agent state (lazy-imported — voice deps are optional)
+_voice_task: Optional[asyncio.Task] = None
+_voice_error: Optional[str] = None
 
 
 def verify_token(x_daemora_token: Optional[str] = Header(default=None)) -> None:
@@ -120,6 +128,59 @@ def http_focus(req: FocusReq) -> dict:
 @app.post("/desktop/audit/prune", dependencies=[Depends(verify_token)])
 def http_prune() -> dict:
     return {"ok": True, "removed": audit.prune_old()}
+
+
+# ── Voice pipeline endpoints ──────────────────────────────────────────────
+
+@app.get("/voice/status", dependencies=[Depends(verify_token)])
+def voice_status() -> dict:
+    running = _voice_task is not None and not _voice_task.done()
+    return {
+        "running": running,
+        "error": _voice_error,
+    }
+
+
+@app.post("/voice/start", dependencies=[Depends(verify_token)])
+async def voice_start() -> dict:
+    global _voice_task, _voice_error
+    if _voice_task is not None and not _voice_task.done():
+        return {"ok": True, "already_running": True}
+
+    try:
+        from . import voice_agent, voice_config
+    except Exception as e:
+        _voice_error = f"voice extras not installed: {e}"
+        raise HTTPException(status_code=503, detail=_voice_error)
+
+    cfg = voice_config.load()
+    log.info("starting voice agent (stt=%s tts=%s)", cfg.stt_provider, cfg.tts_provider)
+
+    async def _run():
+        try:
+            await voice_agent.entrypoint_standalone()
+        except Exception as e:
+            log.exception("voice agent crashed")
+            global _voice_error
+            _voice_error = str(e)
+
+    _voice_error = None
+    _voice_task = asyncio.create_task(_run())
+    return {"ok": True, "stt": cfg.stt_provider, "tts": cfg.tts_provider}
+
+
+@app.post("/voice/stop", dependencies=[Depends(verify_token)])
+async def voice_stop() -> dict:
+    global _voice_task
+    if _voice_task is None or _voice_task.done():
+        return {"ok": True, "running": False}
+    _voice_task.cancel()
+    try:
+        await _voice_task
+    except (asyncio.CancelledError, Exception):
+        pass
+    _voice_task = None
+    return {"ok": True, "running": False}
 
 
 def run() -> None:

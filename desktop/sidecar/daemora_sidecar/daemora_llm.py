@@ -15,8 +15,7 @@ import uuid
 from typing import Optional
 
 import httpx
-from livekit.agents import llm
-from livekit.agents.llm import APIConnectOptions
+from livekit.agents import APIConnectOptions, llm
 
 from .voice_config import VoiceConfig
 
