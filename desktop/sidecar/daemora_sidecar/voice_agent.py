@@ -82,7 +82,7 @@ async def entrypoint_standalone() -> None:
     vad = voice_providers.build_vad()
     stt = voice_providers.build_stt(cfg)
     tts = voice_providers.build_tts(cfg)
-    daemora_llm = DaemoraLLM(cfg, session_id="voice")
+    daemora_llm = DaemoraLLM(cfg, session_id="main")
 
     agent = Agent(
         instructions=SYSTEM_PROMPT,
