@@ -142,6 +142,19 @@ export async function startSidecar() {
       );
     }
 
+    // Kill any stale sidecar from a previous run occupying our port
+    if (await _waitForPort("127.0.0.1", SIDECAR_PORT, 200)) {
+      console.log(`[Sidecar] port ${SIDECAR_PORT} occupied — killing stale process`);
+      try {
+        const { execSync } = await import("node:child_process");
+        const pids = execSync(`lsof -ti :${SIDECAR_PORT}`, { encoding: "utf-8" }).trim();
+        for (const pid of pids.split("\n").filter(Boolean)) {
+          try { process.kill(Number(pid), 9); } catch {}
+        }
+        await new Promise((r) => setTimeout(r, 500));
+      } catch {}
+    }
+
     // Ensure the loopback LiveKit server is up before the sidecar tries to join.
     await _startLivekitServer();
 
@@ -153,7 +166,7 @@ export async function startSidecar() {
       ...process.env,
       DAEMORA_SIDECAR_TOKEN: _token,
       DAEMORA_SIDECAR_PORT: String(SIDECAR_PORT),
-      DAEMORA_HTTP: `http://127.0.0.1:${config.port || 8081}`,
+      DAEMORA_HTTP: `http://127.0.0.1:${process.env.PORT || config.port || 8081}`,
       DAEMORA_AUTH_TOKEN: process.env.DAEMORA_AUTH_TOKEN || process.env.API_TOKEN || "",
       // Expose the sidecar token to the daemon's own desktop tools too so
       // they can call /desktop/* endpoints authenticated.

@@ -199,19 +199,46 @@ export const VoicePanel = forwardRef<VoiceHandle>(function VoicePanel(_props, re
       if (!tokRes.ok) throw new Error(`token: ${tokRes.statusText}`);
       const { token, url } = await tokRes.json();
 
-      const room = new Room({ adaptiveStream: true, dynacast: true });
+      const room = new Room({
+        adaptiveStream: true,
+        dynacast: true,
+        audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true },
+        audioOutput: { deviceId: "default" },
+      });
+      // Enable audio playback (required for WKWebView — must be called from user gesture context)
+      room.startAudio().catch(() => {});
       roomRef.current = room;
 
       room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
         if (track.kind === Track.Kind.Audio) {
           const audio = track as RemoteAudioTrack;
-          if (audioElRef.current) audio.attach(audioElRef.current);
+
+          // Method 1: Attach to visible audio element (WKWebView needs user gesture)
+          const allAttached = audio.attach();
+          for (const el of allAttached) {
+            el.volume = 1;
+            el.muted = false;
+            el.play().catch(() => {});
+            document.body.appendChild(el);
+          }
+
+          // Method 2: Also attach to our ref element
+          if (audioElRef.current) {
+            audio.attach(audioElRef.current);
+            audioElRef.current.muted = false;
+            audioElRef.current.volume = 1;
+            audioElRef.current.play().catch(() => {});
+          }
+
+          // Method 3: Web Audio API for analysis + playback
           try {
             const ms = audio.mediaStreamTrack ? new MediaStream([audio.mediaStreamTrack]) : null;
             if (ms) {
               const AudioCtx = (window.AudioContext || (window as any).webkitAudioContext);
               const ctx = new AudioCtx();
+              if (ctx.state === "suspended") ctx.resume().catch(() => {});
               const src = ctx.createMediaStreamSource(ms);
+              src.connect(ctx.destination);
               const analyser = ctx.createAnalyser();
               analyser.fftSize = 128;
               src.connect(analyser);
@@ -237,6 +264,8 @@ export const VoicePanel = forwardRef<VoiceHandle>(function VoicePanel(_props, re
       });
 
       await room.connect(url, token);
+      // startAudio must be called after connect for WKWebView audio playback
+      await room.startAudio().catch(() => {});
 
       let micTrack;
       try {

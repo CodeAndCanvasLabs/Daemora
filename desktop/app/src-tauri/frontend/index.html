@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daemora</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0f1a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #e2e8f0; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+  @keyframes pulse { 0%,100% { opacity: .3; transform: scale(.8) } 50% { opacity: 1; transform: scale(1.2) } }
+  @keyframes spin { to { transform: rotate(360deg) } }
+  .container { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .logo svg { animation: spin 20s linear infinite; }
+  .title { font-size: 24px; font-weight: 700; letter-spacing: 2px; background: linear-gradient(135deg, #00d9ff, #4ECDC4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .dots { display: flex; gap: 6px; margin-top: 8px; }
+  .dots span { width: 6px; height: 6px; border-radius: 50%; background: #00d9ff; animation: pulse 1.4s ease-in-out infinite; }
+  .dots span:nth-child(2) { animation-delay: 0.2s; }
+  .dots span:nth-child(3) { animation-delay: 0.4s; }
+  .status { font-size: 12px; color: #4a5568; letter-spacing: 1px; font-family: monospace; }
+  .vault-form { display: none; margin-top: 12px; text-align: center; }
+  .vault-form.visible { display: block; }
+  .vault-label { font-size: 13px; color: #8899aa; margin-bottom: 12px; }
+  .vault-row { display: flex; gap: 8px; align-items: center; }
+  .vault-input { padding: 10px 16px; background: #131b2e; border: 1px solid #1e2d45; border-radius: 8px; color: #e2e8f0; font-size: 14px; width: 260px; outline: none; font-family: monospace; transition: border-color 0.2s; }
+  .vault-input:focus { border-color: #00d9ff; box-shadow: 0 0 0 2px rgba(0,217,255,0.15); }
+  .btn { padding: 10px 24px; background: linear-gradient(135deg, #00d9ff, #4ECDC4); color: #0a0f1a; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 14px; letter-spacing: 0.5px; white-space: nowrap; }
+  .btn:disabled { opacity: 0.5; cursor: wait; }
+  .skip { margin-top: 12px; background: none; border: none; color: #4a5568; font-size: 11px; cursor: pointer; text-decoration: underline; }
+  .error { font-size: 11px; color: #ff4444; margin-top: 8px; display: none; }
+  .error.visible { display: block; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo">
+    <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r="28" stroke="#00d9ff" stroke-width="2" opacity="0.6"/>
+      <circle cx="32" cy="32" r="18" stroke="#4ECDC4" stroke-width="1.5" opacity="0.3"/>
+      <circle cx="32" cy="32" r="6" fill="#00d9ff" opacity="0.8">
+        <animate attributeName="r" values="6;8;6" dur="2s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0.8;0.4;0.8" dur="2s" repeatCount="indefinite"/>
+      </circle>
+    </svg>
+  </div>
+  <div class="title">DAEMORA</div>
+  <div class="dots" id="dots"><span></span><span></span><span></span></div>
+  <div class="status" id="status">Starting services...</div>
+
+  <div class="vault-form" id="vault-form">
+    <div class="vault-label">Vault detected. Enter passphrase to unlock your API keys.</div>
+    <form class="vault-row" id="vault-submit">
+      <input class="vault-input" id="vault-input" type="password" placeholder="Vault passphrase" autocomplete="off" />
+      <button class="btn" type="submit" id="vault-btn">Unlock</button>
+    </form>
+    <div class="error" id="vault-error"></div>
+    <button class="skip" id="skip-btn">Skip (no API keys — voice won't work)</button>
+  </div>
+</div>
+
+<script>
+  var statusEl = document.getElementById('status');
+  var dotsEl = document.getElementById('dots');
+  var vaultForm = document.getElementById('vault-form');
+  var vaultInput = document.getElementById('vault-input');
+  var vaultBtn = document.getElementById('vault-btn');
+  var vaultError = document.getElementById('vault-error');
+  var skipBtn = document.getElementById('skip-btn');
+
+  window.__daemora_show_passphrase = function() {
+    dotsEl.style.display = 'none';
+    statusEl.style.display = 'none';
+    vaultForm.classList.add('visible');
+    setTimeout(function() { vaultInput.focus(); }, 100);
+  };
+
+  document.getElementById('vault-submit').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var pass = vaultInput.value;
+    if (!pass) return;
+    vaultBtn.textContent = 'Unlocking...';
+    vaultBtn.disabled = true;
+    vaultError.classList.remove('visible');
+    vaultForm.classList.remove('visible');
+    dotsEl.style.display = 'flex';
+    statusEl.style.display = 'block';
+    statusEl.textContent = 'Unlocking vault...';
+
+    var ipc = window.__TAURI_INTERNALS__;
+    if (!ipc) {
+      vaultError.textContent = 'Tauri IPC not available';
+      vaultError.classList.add('visible');
+      vaultForm.classList.add('visible');
+      dotsEl.style.display = 'none';
+      statusEl.style.display = 'none';
+      vaultBtn.textContent = 'Unlock';
+      vaultBtn.disabled = false;
+      return;
+    }
+    ipc.invoke('submit_passphrase', { passphrase: pass })
+      .then(function() { statusEl.textContent = 'Loading UI...'; })
+      .catch(function(err) {
+        vaultBtn.textContent = 'Unlock';
+        vaultBtn.disabled = false;
+        vaultError.textContent = String(err);
+        vaultError.classList.add('visible');
+        vaultForm.classList.add('visible');
+        dotsEl.style.display = 'none';
+        statusEl.style.display = 'none';
+      });
+  });
+
+  skipBtn.addEventListener('click', function() {
+    vaultForm.classList.remove('visible');
+    dotsEl.style.display = 'flex';
+    statusEl.style.display = 'block';
+    statusEl.textContent = 'Starting without vault...';
+
+    if (window.__TAURI_INTERNALS__) {
+      window.__TAURI_INTERNALS__.invoke('start_without_vault')
+        .catch(function(err) {
+          statusEl.textContent = 'Failed: ' + err;
+          statusEl.style.color = '#ff4444';
+        });
+    }
+  });
+</script>
+</body>
+</html>

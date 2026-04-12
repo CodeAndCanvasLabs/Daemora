@@ -152,13 +152,20 @@ const originGuard = (req, res, next) => {
     `http://127.0.0.1:${config.port}`,
     `http://[::1]:${config.port}`,
   ];
+  // Tauri desktop app (custom protocol origins)
+  allowedOrigins.push("tauri://localhost", "https://tauri.localhost");
   // Also allow Vite dev server (common dev ports)
   for (const devPort of [5173, 5174, 3000, 3001]) {
     allowedOrigins.push(`http://localhost:${devPort}`);
     allowedOrigins.push(`http://127.0.0.1:${devPort}`);
   }
 
-  if (allowedOrigins.includes(origin)) {
+  // Allow any localhost/127.0.0.1 origin (port may vary in desktop mode)
+  const isLocalOrigin = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin)
+    || origin === "tauri://localhost"
+    || origin === "https://tauri.localhost";
+
+  if (isLocalOrigin || allowedOrigins.includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");

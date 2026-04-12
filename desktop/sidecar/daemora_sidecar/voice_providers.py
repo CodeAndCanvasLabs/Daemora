@@ -236,6 +236,6 @@ def _try_chain(kind: str, chain: list[str], registry: dict, cfg: VoiceConfig):
 def build_vad() -> Any:
     from livekit.plugins import silero
     return silero.VAD.load(
-        min_speech_duration=0.1,
-        min_silence_duration=0.5,
+        min_speech_duration=0.2,
+        min_silence_duration=1.0,
     )
