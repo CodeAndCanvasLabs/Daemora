@@ -189,6 +189,10 @@ function getOrCreateAuthToken() {
 }
 
 const API_TOKEN = getOrCreateAuthToken();
+// Expose to process.env so child processes (voice sidecar, etc.) inherit it
+// and can authenticate back to Daemora. DaemoraLLM plugin reads DAEMORA_AUTH_TOKEN.
+process.env.API_TOKEN = API_TOKEN;
+process.env.DAEMORA_AUTH_TOKEN = API_TOKEN;
 
 const tokenAuth = (req, res, next) => {
   // Health endpoint is public (monitoring/readiness probes)

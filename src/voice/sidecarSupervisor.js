@@ -154,7 +154,7 @@ export async function startSidecar() {
       DAEMORA_SIDECAR_TOKEN: _token,
       DAEMORA_SIDECAR_PORT: String(SIDECAR_PORT),
       DAEMORA_HTTP: `http://127.0.0.1:${config.port || 8081}`,
-      DAEMORA_AUTH_TOKEN: process.env.API_TOKEN || "",
+      DAEMORA_AUTH_TOKEN: process.env.DAEMORA_AUTH_TOKEN || process.env.API_TOKEN || "",
       // Expose the sidecar token to the daemon's own desktop tools too so
       // they can call /desktop/* endpoints authenticated.
       DESKTOP_SIDECAR_TOKEN: _token,
