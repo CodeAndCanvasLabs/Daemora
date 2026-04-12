@@ -93,6 +93,15 @@ async function hotReloadAll() {
   try { await channelRegistry.stopAll(); await channelRegistry.startAll(); } catch {}
   try { await mcpManager.init(); } catch {}
   try { scheduler.stop(); await scheduler.start(); } catch {}
+  // Restart voice sidecar if running — picks up new TTS voice / STT model
+  try {
+    const supervisor = await import("./voice/sidecarSupervisor.js");
+    if (supervisor.getSidecarStatus().running) {
+      try { await supervisor.sidecarFetch("/voice/stop", { method: "POST" }); } catch {}
+      try { await supervisor.sidecarFetch("/voice/start", { method: "POST" }); } catch {}
+      console.log("[HotReload] Voice agent restarted with new config");
+    }
+  } catch {}
   console.log(`[HotReload] Complete in ${Date.now() - start}ms`);
 }
 
