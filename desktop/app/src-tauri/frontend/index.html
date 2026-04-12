@@ -319,9 +319,25 @@ async function handleVoice() {
 }
 
 // ── Startup flow ──────────────────────────────────────────────────
+async function waitForIpc(maxMs) {
+  var start = Date.now();
+  while (Date.now() - start < maxMs) {
+    if (window.__TAURI_INTERNALS__ && typeof window.__TAURI_INTERNALS__.invoke === 'function') {
+      return window.__TAURI_INTERNALS__;
+    }
+    await new Promise(function(r) { setTimeout(r, 50); });
+  }
+  return null;
+}
+
 async function boot() {
-  ipc = window.__TAURI_INTERNALS__;
   $('loading').style.display = 'block';
+  ipc = await waitForIpc(3000);
+  if (!ipc) {
+    // Not running in Tauri — might be loaded directly in browser
+    $('loading-status').textContent = 'Not running in Tauri desktop app';
+    return;
+  }
 
   // If already running Daemora (navigated back), check its status
   if (!ipc) {
