@@ -287,7 +287,7 @@ export const VoicePanel = forwardRef<VoiceHandle>(function VoicePanel(_props, re
   return (
     <>
       {/* Floating orb — bottom-right, no layout shift, never hides messages */}
-      <div className="fixed bottom-28 right-8 z-50 flex flex-col items-center gap-1">
+      <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-1">
         <div className="flex items-center gap-1.5">
           {status === "listening" && (
             <span className="relative flex h-1.5 w-1.5">
