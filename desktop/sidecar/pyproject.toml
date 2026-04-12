@@ -36,6 +36,20 @@ voice = [
   "numpy>=2.0",
 ]
 
+# Opt-in offline mode: local STT/TTS models. Installed with:
+#   uv pip install -e ".[voice,local]"
+# or via bootstrap: ./bootstrap.sh --local
+# First-run wizard in the Tauri shell will expose this as an "Offline mode"
+# toggle. Defaults here are the best 2026 open-source picks; the provider
+# factory is string-dispatched so adding more (Moonshine, Distil-Whisper,
+# OuteTTS, Parler-TTS, XTTS-v2) is a one-branch change in voice_providers.py.
+local = [
+  "faster-whisper>=1.2.1",   # local STT — CTranslate2 port of Whisper, Apache-2.0
+  "kokoro>=0.9.4",           # local TTS — hexgrad Kokoro-82M, Apache-2.0 (better than Piper)
+  "misaki>=0.9",             # Kokoro's G2P phonemizer dep
+  "soundfile>=0.13",         # audio file I/O
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

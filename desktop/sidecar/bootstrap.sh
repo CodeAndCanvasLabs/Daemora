@@ -18,6 +18,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+WITH_LOCAL=0
+for arg in "$@"; do
+  case "$arg" in
+    --local|--offline) WITH_LOCAL=1 ;;
+  esac
+done
+
 say() { printf "\033[1;36m[bootstrap]\033[0m %s\n" "$*"; }
 die() { printf "\033[1;31m[bootstrap] FATAL:\033[0m %s\n" "$*" >&2; exit 1; }
 
@@ -85,8 +92,14 @@ install_python_env() {
     say "venv already exists"
   fi
 
-  say "Installing desktop-control + voice extras…"
-  uv pip install -e ".[voice]"
+  local extras="voice"
+  if [[ "${WITH_LOCAL:-0}" == "1" ]]; then
+    extras="voice,local"
+    say "Installing desktop-control + voice + local offline extras (~400 MB)…"
+  else
+    say "Installing desktop-control + voice extras…"
+  fi
+  uv pip install -e ".[$extras]"
 }
 
 # ── Verification ───────────────────────────────────────────────────────────

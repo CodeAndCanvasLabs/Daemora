@@ -31,6 +31,9 @@ def _require(env: str, provider: str) -> str:
 
 def build_stt(cfg: VoiceConfig) -> Any:
     p = cfg.stt_provider
+    if p == "local" or p == "faster-whisper":
+        from .voice_providers_local import FasterWhisperSTT
+        return FasterWhisperSTT(model=os.environ.get("DAEMORA_LOCAL_WHISPER_MODEL", "small.en"))
     if p == "deepgram":
         from livekit.plugins import deepgram
         return deepgram.STT(
@@ -72,6 +75,12 @@ def build_stt(cfg: VoiceConfig) -> Any:
 
 def build_tts(cfg: VoiceConfig) -> Any:
     p = cfg.tts_provider
+    if p == "local" or p == "kokoro":
+        from .voice_providers_local import KokoroTTS
+        return KokoroTTS(
+            voice=os.environ.get("DAEMORA_LOCAL_KOKORO_VOICE", "af_heart"),
+            lang_code=os.environ.get("DAEMORA_LOCAL_KOKORO_LANG", "a"),
+        )
     if p == "elevenlabs":
         from livekit.plugins import elevenlabs
         return elevenlabs.TTS(
