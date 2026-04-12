@@ -44,6 +44,9 @@ export const permissionTiers = {
       "createDocument",
       // Vision & screen
       "imageAnalysis", "screenCapture",
+      // Desktop control (sidecar-gated, audited)
+      "desktopScreenshot", "desktopListWindows", "desktopFocusWindow", "desktopFindElement",
+      "desktopClick", "desktopMove", "desktopType", "desktopPressKey", "desktopKeyCombo", "desktopScroll",
       // Memory
       "readMemory", "writeMemory", "readDailyLog", "writeDailyLog",
       "searchMemory", "pruneMemory", "listMemoryCategories",
@@ -75,6 +78,9 @@ export const permissionTiers = {
       "createDocument",
       // Vision & screen
       "imageAnalysis", "screenCapture",
+      // Desktop control (sidecar-gated, audited)
+      "desktopScreenshot", "desktopListWindows", "desktopFocusWindow", "desktopFindElement",
+      "desktopClick", "desktopMove", "desktopType", "desktopPressKey", "desktopKeyCombo", "desktopScroll",
       // Memory
       "readMemory", "writeMemory", "readDailyLog", "writeDailyLog",
       "searchMemory", "pruneMemory", "listMemoryCategories",

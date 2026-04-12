@@ -263,7 +263,7 @@ const toolSchemas = {
   },
   desktopKeyCombo: {
     schema: z.object({
-      keys: z.union([z.array(z.string()), z.string()]).describe("Array of keys or plus-separated, e.g. 'cmd+c'"),
+      keys: z.array(z.string()).describe("Keys to press together, e.g. ['cmd','c'] or ['ctrl','shift','t']"),
     }),
     description: "Press a keyboard combo like cmd+c or ctrl+shift+t",
   },

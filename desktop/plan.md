@@ -241,13 +241,22 @@ Daemora stays headless by default (no tray, no browser) when launched as a Tauri
 
 ### 4.5 First-run onboarding
 
-On first launch, Tauri checks for `~/.daemora/config.json`. If absent:
-1. Show a native onboarding window (5 steps, same wizard as `daemora setup`).
-2. Step 1: pick default LLM provider (Anthropic / OpenAI / Google / Ollama). Keys stored in the existing Daemora vault.
-3. Step 2: pick voice stack — "Free local" (bundled Piper + faster-whisper + OpenWakeWord) or "Premium" (ElevenLabs + Deepgram keys).
-4. Step 3: grant OS permissions — Mic, Accessibility (for PyAutoGUI), Screen Recording (for screenshots). Tauri deep-links to the right system pref page on each OS.
-5. Step 4: pick wake word + hotkeys.
-6. Step 5: done → floating chat opens.
+On first launch, Tauri hits `GET /api/setup/status`. If `completed: false`:
+1. Show a native onboarding window (6 steps, full parity with `daemora setup` CLI).
+2. **Step 1 — LLM provider.** Pick Anthropic / OpenAI / Google / Groq / Ollama. API key written to Daemora vault via `PUT /api/settings` (key flows to `vault_entries`).
+3. **Step 2 — Voice stack.** "Free local" (bundled Piper + faster-whisper + OpenWakeWord, zero keys) or "Premium" (ElevenLabs + Deepgram keys → vault).
+4. **Step 3 — Wake word + hotkeys.** User picks wake phrase (default "Hey Daemora"), push-to-talk hotkey, kill-switch hotkey.
+5. **Step 4 — OS permissions (non-skippable).** Tauri deep-links to the system pref panes and uses native `tccutil`-style nudges on macOS. REQUIRED grants before Step 5 unlocks:
+   - **Microphone** — for voice input (LiveKit mic capture in the webview).
+   - **Accessibility** — for PyAutoGUI to click / type on behalf of the user.
+   - **Screen Recording** — for `desktopScreenshot` / vision `desktopFindElement`.
+   - **Automation** (macOS) — per-app once we focus each target app; deferred to first use.
+   - **Input Monitoring** (macOS) — for global hotkeys via `tauri-plugin-global-shortcut` and wake-word listener.
+   The wizard polls each permission via a small Swift / Python probe and refuses to advance until all are granted. User can skip "Automation" and "Input Monitoring" and lose the matching features, but the three core grants (Mic / Accessibility / Screen Recording) are required.
+6. **Step 5 — Daemora permission tier.** Forced to `standard` or `full` (desktop tools are gated by tier inside Daemora, so the minimal tier is never offered in the desktop app). Written via `PUT /api/settings` → `PERMISSION_TIER`. The desktop tools are already in both tiers' `allowedTools` list (`src/config/permissions.js`) so the agent never sees a "tool not allowed" block at runtime.
+7. **Step 6 — Vault passphrase.** Create or enter. Then `POST /api/setup/complete` stamps `SETUP_COMPLETED` in config, wizard closes, unified window opens.
+
+**Why non-skippable OS grants + forced tier:** during Phase 1 testing the Haiku model kept hallucinating "permission restrictions" excuses when the desktop tools were rejected by PermissionGuard (because they weren't in any tier's allowlist) — the same class of problem will hit real users if the wizard lets them opt out. Making the grants mandatory AND pre-wiring the tier allowlist means the agent never hits a silent reject at runtime. If the user explicitly downgrades to `minimal` later in settings, they lose desktop tools but that's an explicit, informed choice.
 
 ---
 
