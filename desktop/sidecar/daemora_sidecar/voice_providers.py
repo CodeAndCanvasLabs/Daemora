@@ -165,16 +165,27 @@ def _tts_google(cfg: VoiceConfig):
     )
 
 
+def _tts_groq(cfg: VoiceConfig):
+    from livekit.plugins import openai
+    return openai.TTS(
+        api_key=_require("GROQ_API_KEY", "Groq Orpheus TTS"),
+        base_url="https://api.groq.com/openai/v1",
+        voice=cfg.tts_voice or _env("DAEMORA_GROQ_TTS_VOICE", "troy"),
+        model=_env("DAEMORA_GROQ_TTS_MODEL", "canopylabs/orpheus-v1-english"),
+    )
+
+
 _TTS_REGISTRY: dict[str, Callable[[VoiceConfig], Any]] = {
     "local": _tts_local,
     "kokoro": _tts_local,
+    "groq": _tts_groq,
     "elevenlabs": _tts_elevenlabs,
     "cartesia": _tts_cartesia,
     "openai": _tts_openai,
     "google": _tts_google,
 }
 
-_TTS_FALLBACK_ORDER = ["elevenlabs", "cartesia", "openai", "google", "local"]
+_TTS_FALLBACK_ORDER = ["groq", "elevenlabs", "cartesia", "openai", "google", "local"]
 
 
 def build_tts(cfg: VoiceConfig) -> Any:

@@ -39,17 +39,26 @@ _STT_MODEL_HINTS = {
 }
 
 _TTS_MODEL_HINTS = {
+    # Groq Orpheus
+    "canopylabs/orpheus-v1-english": "groq",
+    "canopylabs/orpheus-arabic-saudi": "groq",
+    "orpheus": "groq",
+    # OpenAI
     "gpt-4o-mini-tts": "openai",
     "gpt-4o-tts": "openai",
     "tts-1": "openai",
     "tts-1-hd": "openai",
+    # ElevenLabs
     "eleven_turbo_v2_5": "elevenlabs",
     "eleven_multilingual_v2": "elevenlabs",
     "eleven_monolingual_v1": "elevenlabs",
+    # Cartesia
     "sonic-english": "cartesia",
     "sonic-multilingual": "cartesia",
     "sonic": "cartesia",
+    # Google
     "neural2": "google",
+    # Local
     "kokoro": "local",
     "kokoro-82m": "local",
     "piper": "local",
@@ -103,6 +112,8 @@ def _pick_tts() -> tuple[str, str | None, str | None]:
     if inferred:
         return (inferred, tts_model, tts_voice)
 
+    # Groq has Orpheus TTS (canopylabs/orpheus-v1-english), same key as STT
+    if os.environ.get("GROQ_API_KEY"):       return ("groq", tts_model, tts_voice)
     if os.environ.get("ELEVENLABS_API_KEY"): return ("elevenlabs", tts_model, tts_voice)
     if os.environ.get("CARTESIA_API_KEY"):   return ("cartesia", tts_model, tts_voice)
     if os.environ.get("OPENAI_API_KEY"):     return ("openai", tts_model, tts_voice)
