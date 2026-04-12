@@ -60,6 +60,22 @@ Voice-first desktop app that runs Daemora as the agent brain, talks to you throu
 
 ## 2. Voice pipeline
 
+### 2.0 Provider-first voice, local models optional
+
+**Default: everything is cloud-provider based.** STT, TTS, and LLM all go through provider APIs the user picks in the first-run wizard (Groq / Deepgram / ElevenLabs / Cartesia / OpenAI / etc.). The app ships with the provider plugins installed but zero local weights — nothing is downloaded unless the user explicitly opts in.
+
+**Optional "local / offline" mode (opt-in).** In the first-run wizard and the settings panel, a clearly-labelled toggle offers:
+
+> **Offline mode** — Download local models so voice works without any API keys (~300 MB). Piper TTS + faster-whisper STT + OpenWakeWord. Slower and lower quality than cloud providers, but fully offline and free.
+
+If the user clicks it, the desktop app pulls the models on demand (faster-whisper small.en ~240 MB, Piper voice ONNX ~60 MB). Nothing is bundled with the installer — download happens in the background with a progress bar the first time, then cached under `~/.daemora/models/`. Uninstall just deletes the dir.
+
+**The only always-local pieces** (non-negotiable, tiny, bundled with pip wheels):
+- Silero VAD (~1 MB, inside `livekit-plugins-silero`) — for turn detection.
+- OpenWakeWord base model (~5 MB, lazy-loaded) — wake word can't stream to cloud 24/7.
+
+Total forced-local footprint: ~6 MB. Everything else is either cloud by default or user-opted-in.
+
 ### 2.1 Framework: LiveKit Agents + local `livekit-server --dev`
 
 LiveKit Agents is a Python framework (Apache-2.0) for building real-time voice agents. Handles: VAD, interruption, turn detection, plugin-based STT/TTS/LLM, barge-in, noise suppression. Production-grade.

@@ -53,6 +53,7 @@ def _build_access_token(cfg: voice_config.VoiceConfig, identity: str) -> str:
             "canPublish": True,
             "canSubscribe": True,
             "canPublishData": True,
+            "canUpdateOwnMetadata": True,
         },
     }
     return _jwt.encode(payload, cfg.livekit_api_secret, algorithm="HS256")
