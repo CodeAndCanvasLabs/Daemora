@@ -16,6 +16,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Logo } from "../components/ui/Logo";
+import { VoicePanel } from "../components/VoicePanel";
 import { toast } from "sonner";
 
 interface Message {
@@ -635,6 +636,9 @@ export function Chat() {
               <div ref={messagesEndRef} />
             </div>
           </ScrollArea>
+
+          {/* Voice panel — mic + waveform + listening/speaking state */}
+          <VoicePanel />
 
           {/* Input */}
           <div className="px-4 pb-4 pt-2 backdrop-blur-xl shrink-0">
