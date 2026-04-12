@@ -46,19 +46,12 @@ function VoiceOrb({ level, status, size }: { level: number; status: Status; size
 
       ctx.clearRect(0, 0, w, h);
 
-      // Dark sphere background
+      // Clip all drawing to the circle — NO dark fill, fully transparent
       ctx.save();
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.closePath();
       ctx.clip();
-
-      const sphereGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-      sphereGrad.addColorStop(0, "rgba(10, 20, 30, 0.25)");
-      sphereGrad.addColorStop(0.7, "rgba(5, 12, 20, 0.2)");
-      sphereGrad.addColorStop(1, "rgba(0, 8, 15, 0.15)");
-      ctx.fillStyle = sphereGrad;
-      ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
 
       // Flowing luminous curves inside the sphere
       const curveCount = 5;
@@ -103,15 +96,6 @@ function VoiceOrb({ level, status, size }: { level: number; status: Status; size
         ctx.stroke();
         ctx.shadowBlur = 0;
       }
-
-      // Inner core glow
-      const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 0.5);
-      const coreAlpha = status === "speaking" ? 0.15 + level * 0.2 : status === "listening" ? 0.08 : 0.03;
-      coreGrad.addColorStop(0, `rgba(0, 217, 255, ${coreAlpha})`);
-      coreGrad.addColorStop(0.5, `rgba(78, 205, 196, ${coreAlpha * 0.5})`);
-      coreGrad.addColorStop(1, "rgba(0, 0, 0, 0)");
-      ctx.fillStyle = coreGrad;
-      ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
 
       ctx.restore();
 
@@ -285,31 +269,36 @@ export const VoicePanel = forwardRef<VoiceHandle>(function VoicePanel(_props, re
   if (!active && !error) return <audio ref={audioElRef} autoPlay hidden />;
 
   return (
-    <div className="w-full shrink-0 flex flex-col items-center py-3">
-      <div className="flex items-center gap-2 mb-2">
-        {status === "listening" && (
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full rounded-full bg-[#00d9ff] opacity-75 animate-ping" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-[#00d9ff]" />
-          </span>
-        )}
-        {status === "speaking" && <span className="h-2 w-2 rounded-full bg-[#4ECDC4]" />}
-        <span className={`text-[9px] font-mono uppercase tracking-wider ${
-          status === "speaking" ? "text-[#4ECDC4]" : "text-[#00d9ff]"
-        }`}>
-          {status === "listening" ? "Listening" : status === "speaking" ? "Speaking" : ""}
-        </span>
-        <button onClick={stop} className="text-[9px] font-mono uppercase text-gray-500 hover:text-red-400 ml-2 px-2 py-0.5 rounded hover:bg-red-500/10 transition-colors">
-          End
-        </button>
-      </div>
-      <button onClick={stop} title="End voice" className="hover:scale-105 active:scale-95 transition-transform">
-        <div style={{ width: 140, height: 140 }}>
-          <VoiceOrb level={avgLevel} status={status} size={140} />
+    <>
+      {/* Fixed overlay — outside layout flow, doesn't push anything */}
+      <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center">
+        <div className="pointer-events-auto flex flex-col items-center gap-2">
+          <div className="flex items-center gap-2">
+            {status === "listening" && (
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-[#00d9ff] opacity-75 animate-ping" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-[#00d9ff]" />
+              </span>
+            )}
+            {status === "speaking" && <span className="h-2 w-2 rounded-full bg-[#4ECDC4]" />}
+            <span className={`text-[10px] font-mono uppercase tracking-wider ${
+              status === "speaking" ? "text-[#4ECDC4]" : "text-[#00d9ff]"
+            }`}>
+              {status === "listening" ? "Listening" : status === "speaking" ? "Speaking" : ""}
+            </span>
+            <button onClick={stop} className="text-[9px] font-mono uppercase text-gray-500 hover:text-red-400 ml-1 px-2 py-0.5 rounded hover:bg-red-500/10 transition-colors">
+              End
+            </button>
+          </div>
+          <button onClick={stop} title="End voice" className="hover:scale-105 active:scale-95 transition-transform">
+            <div style={{ width: 160, height: 160 }}>
+              <VoiceOrb level={avgLevel} status={status} size={160} />
+            </div>
+          </button>
+          {error && <p className="text-[9px] text-red-400 font-mono text-center max-w-xs">{error}</p>}
         </div>
-      </button>
-      {error && <p className="text-[9px] text-red-400 font-mono text-center mt-1 max-w-xs">{error}</p>}
+      </div>
       <audio ref={audioElRef} autoPlay hidden />
-    </div>
+    </>
   );
 });
