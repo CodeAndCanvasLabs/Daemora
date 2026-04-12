@@ -63,11 +63,14 @@ export function Setup() {
           return;
         }
         setVaultExists(data.vaultExists);
-        if (data.vaultUnlocked && data.hasAnyLlmKey) {
-          setStep("voice");
-        } else if (data.vaultUnlocked) {
-          setStep("provider");
+        // Layout already handles vault unlock for existing vaults.
+        // Setup wizard only asks for vault creation if no vault exists.
+        if (data.vaultExists) {
+          // Vault is already unlocked by Layout before reaching here
+          if (data.hasAnyLlmKey) setStep("voice");
+          else setStep("provider");
         }
+        // else: vault doesn't exist — show create passphrase step
       }
     } catch {}
     setLoading(false);
@@ -216,9 +219,7 @@ export function Setup() {
                 </div>
                 <h2 className="text-lg font-semibold text-white">Secure Your Keys</h2>
                 <p className="text-sm text-[#6b7a8d] mt-1">
-                  {vaultExists
-                    ? "Enter your vault passphrase to unlock API keys."
-                    : "Create a passphrase to encrypt your API keys. You'll enter this each time you open Daemora."}
+                  Create a passphrase to encrypt your API keys. You'll enter this each time you open Daemora. Choose something you'll remember — if you forget it, your keys can't be recovered.
                 </p>
               </div>
 
