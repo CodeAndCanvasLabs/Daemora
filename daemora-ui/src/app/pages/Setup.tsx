@@ -97,16 +97,15 @@ export function Setup() {
       if (passphrase !== confirmPass) { setError("Passphrases don't match"); return; }
       setVaultLoading(true);
       try {
-        // Create vault by storing a test key
-        const res = await apiFetch("/api/settings", {
-          method: "PUT",
-          body: JSON.stringify({ updates: { VAULT_PASSPHRASE_SET: "true" } }),
-        });
-        // Unlock the new vault
-        await apiFetch("/api/vault/unlock", {
+        // unlock() creates the vault automatically on first call
+        const res = await apiFetch("/api/vault/unlock", {
           method: "POST",
           body: JSON.stringify({ passphrase }),
         });
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          throw new Error(d.error || "Failed to create vault");
+        }
         setStep("provider");
       } catch (e: any) {
         setError(e.message || String(e));

@@ -213,16 +213,7 @@ export const VoicePanel = forwardRef<VoiceHandle>(function VoicePanel(_props, re
         if (track.kind === Track.Kind.Audio) {
           const audio = track as RemoteAudioTrack;
 
-          // Method 1: Attach to visible audio element (WKWebView needs user gesture)
-          const allAttached = audio.attach();
-          for (const el of allAttached) {
-            el.volume = 1;
-            el.muted = false;
-            el.play().catch(() => {});
-            document.body.appendChild(el);
-          }
-
-          // Method 2: Also attach to our ref element
+          // Attach to our audio element for playback
           if (audioElRef.current) {
             audio.attach(audioElRef.current);
             audioElRef.current.muted = false;
@@ -238,7 +229,7 @@ export const VoicePanel = forwardRef<VoiceHandle>(function VoicePanel(_props, re
               const ctx = new AudioCtx();
               if (ctx.state === "suspended") ctx.resume().catch(() => {});
               const src = ctx.createMediaStreamSource(ms);
-              src.connect(ctx.destination);
+              // Only connect to analyser for visualizer — audio element handles playback
               const analyser = ctx.createAnalyser();
               analyser.fftSize = 128;
               src.connect(analyser);
