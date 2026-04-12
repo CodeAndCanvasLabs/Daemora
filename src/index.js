@@ -504,6 +504,9 @@ app.get("/api/tasks/:id/stream", (req, res) => {
   const task = loadTask(taskId);
   if (task) send("task:state", task);
 
+  const onToolBefore = (evt) => {
+    if (evt.taskId === taskId) send("tool:before", evt);
+  };
   const onTool = (evt) => {
     if (evt.taskId === taskId) send("tool:after", evt);
   };
@@ -538,6 +541,7 @@ app.get("/api/tasks/:id/stream", (req, res) => {
     }
   };
 
+  eventBus.on("tool:before", onToolBefore);
   eventBus.on("tool:after", onTool);
   eventBus.on("model:called", onModel);
   eventBus.on("text:delta", onTextDelta);
@@ -548,6 +552,7 @@ app.get("/api/tasks/:id/stream", (req, res) => {
   eventBus.on("task:failed", onFail);
 
   const cleanup = () => {
+    eventBus.removeListener("tool:before", onToolBefore);
     eventBus.removeListener("tool:after", onTool);
     eventBus.removeListener("model:called", onModel);
     eventBus.removeListener("text:delta", onTextDelta);
@@ -1362,6 +1367,26 @@ app.post("/api/daemon/:action", (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// --- Setup status (first-run detection for desktop app / CLI wizard) ---
+app.get("/api/setup/status", (req, res) => {
+  const setupCompleted = configStore.get("SETUP_COMPLETED") || null;
+  const defaultModel = configStore.get("DEFAULT_MODEL") || process.env.DEFAULT_MODEL || null;
+  const hasAnyLlmKey = [
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "GOOGLE_GENERATIVE_AI_API_KEY",
+    "GEMINI_API_KEY",
+  ].some((k) => !!process.env[k]);
+  res.json({
+    completed: !!setupCompleted,
+    completedAt: setupCompleted,
+    vaultExists: secretVault.exists(),
+    vaultUnlocked: secretVault.isUnlocked(),
+    defaultModel,
+    hasAnyLlmKey,
+  });
 });
 
 // --- Vault endpoints ---

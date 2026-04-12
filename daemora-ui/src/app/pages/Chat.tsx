@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { apiFetch, apiStreamUrl } from "../api";
-import { User, Loader2, Terminal, ArrowUp, Wrench, Brain, Bot, Download, Image as ImageIcon, Trash2 } from "lucide-react";
+import { User, Loader2, Terminal, ArrowUp, Wrench, Brain, Bot, Download, Image as ImageIcon, Trash2, Check, X } from "lucide-react";
 import { Textarea } from "../components/ui/textarea";
 import { ScrollArea } from "../components/ui/scroll-area";
 import {
@@ -24,6 +24,14 @@ interface Message {
   timestamp: string;
 }
 
+interface ToolEvent {
+  id: string;
+  name: string;
+  status: "running" | "done" | "error";
+  preview?: string;
+  durationMs?: number;
+}
+
 const SESSION_ID = "main";
 
 export function Chat() {
@@ -31,6 +39,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [streamStatus, setStreamStatus] = useState<string | null>(null);
+  const [toolEvents, setToolEvents] = useState<ToolEvent[]>([]);
   const [initialized, setInitialized] = useState(false);
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -71,6 +80,7 @@ export function Chat() {
         body: JSON.stringify({ sessionId: SESSION_ID }),
       });
       setMessages([]);
+      setToolEvents([]);
       sessionStorage.removeItem("daemora_active_task");
       toast.success("Chat history cleared");
     } catch (error) {
@@ -126,6 +136,7 @@ export function Chat() {
     if (!isFollowUp) {
       setIsLoading(true);
       setStreamStatus("Queuing...");
+      setToolEvents([]);
     } else {
       setStreamStatus("Follow-up sent — agent will pick it up between steps");
     }
@@ -218,10 +229,53 @@ export function Chat() {
       } catch { setStreamStatus("Thinking..."); }
     });
 
+    const summarizeParams = (params: any): string => {
+      if (!params) return "";
+      try {
+        if (Array.isArray(params)) {
+          const first = params.find((p) => typeof p === "string");
+          if (first) return first.length > 40 ? first.slice(0, 40) + "…" : first;
+          return "";
+        }
+        if (typeof params === "object") {
+          for (const k of ["path", "file", "filePath", "url", "query", "command", "prompt", "name"]) {
+            const v = params[k];
+            if (typeof v === "string" && v) return v.length > 40 ? v.slice(0, 40) + "…" : v;
+          }
+        }
+        if (typeof params === "string") return params.length > 40 ? params.slice(0, 40) + "…" : params;
+      } catch { /* ignore */ }
+      return "";
+    };
+
+    es.addEventListener("tool:before", (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        const name = data.tool_name || data.tool || "tool";
+        const preview = summarizeParams(data.params);
+        const id = `${name}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        setToolEvents((prev) => [...prev, { id, name, status: "running", preview }]);
+        setStreamStatus(`Running ${name}${preview ? ` · ${preview}` : ""}...`);
+      } catch { /* ignore */ }
+    });
+
     es.addEventListener("tool:after", (e) => {
       try {
         const data = JSON.parse(e.data);
-        setStreamStatus(`Using ${data.tool_name || data.tool || "tool"}...`);
+        const name = data.tool_name || data.tool || "tool";
+        const duration = typeof data.duration === "number" ? data.duration : undefined;
+        const nextStatus: "done" | "error" = data.error ? "error" : "done";
+        setToolEvents((prev) => {
+          const next = [...prev];
+          for (let i = next.length - 1; i >= 0; i--) {
+            if (next[i].name === name && next[i].status === "running") {
+              next[i] = { ...next[i], status: nextStatus, durationMs: duration };
+              return next;
+            }
+          }
+          return next;
+        });
+        setStreamStatus(nextStatus === "error" ? `${name} failed` : `Using ${name}...`);
       } catch { setStreamStatus("Using tool..."); }
     });
 
@@ -274,6 +328,7 @@ export function Chat() {
       loadSession();
       setIsLoading(false);
       setStreamStatus(null);
+      setToolEvents([]);
       es.close();
       eventSourceRef.current = null;
     });
@@ -513,36 +568,65 @@ export function Chat() {
               )}
 
               {isLoading && (() => {
-                // Don't render the status bubble if the last message is a streaming
-                // assistant message — that would create a duplicate floating pill
-                // below the live message. In that case, show a tiny inline cursor instead.
                 const lastMsg = messages[messages.length - 1];
                 const isStreamingActive = lastMsg?.role === "assistant" && lastMsg?.content;
 
+                const timeline = toolEvents.length > 0 ? (
+                  <div className="flex flex-col gap-1 font-mono">
+                    {toolEvents.slice(-6).map((t) => (
+                      <div key={t.id} className="flex items-center gap-2 text-[10px]">
+                        {t.status === "running" && <Loader2 className="w-3 h-3 text-[#00d9ff] animate-spin flex-shrink-0" />}
+                        {t.status === "done" && <Check className="w-3 h-3 text-[#4ECDC4] flex-shrink-0" />}
+                        {t.status === "error" && <X className="w-3 h-3 text-red-400 flex-shrink-0" />}
+                        <span className={`tracking-wider uppercase ${t.status === "running" ? "text-[#00d9ff]" : "text-gray-500"}`}>
+                          {t.name}
+                        </span>
+                        {t.preview && (
+                          <span className="text-gray-600 truncate normal-case tracking-normal">
+                            {t.preview}
+                          </span>
+                        )}
+                        {typeof t.durationMs === "number" && t.status !== "running" && (
+                          <span className="text-gray-700 text-[9px] ml-auto">
+                            {t.durationMs < 1000 ? `${t.durationMs}ms` : `${(t.durationMs / 1000).toFixed(1)}s`}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : null;
+
                 if (isStreamingActive) {
-                  // Tiny inline status — only show if there's actual status text (e.g. tool call)
-                  if (!streamStatus) return null;
+                  if (!streamStatus && !timeline) return null;
                   return (
-                    <div className="flex items-center gap-2 pl-10 -mt-2 mb-2 opacity-60">
-                      {getStatusIcon()}
-                      <span className="text-[9px] text-[#00d9ff]/70 font-mono tracking-[0.2em] uppercase">
-                        {streamStatus}
-                      </span>
+                    <div className="flex flex-col gap-1 pl-10 -mt-2 mb-2 opacity-70">
+                      {timeline}
+                      {streamStatus && (
+                        <div className="flex items-center gap-2">
+                          {getStatusIcon()}
+                          <span className="text-[9px] text-[#00d9ff]/70 font-mono tracking-[0.2em] uppercase">
+                            {streamStatus}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   );
                 }
 
                 return (
-                  <div className="flex gap-3 animate-pulse">
+                  <div className="flex gap-3">
                     <div className="w-7 h-7 rounded-lg bg-slate-950 border border-slate-800/80 p-1 flex-shrink-0 flex items-center justify-center">
                       <Logo size={18} />
                     </div>
                     <div className="max-w-[88%]">
-                      <div className="rounded-lg p-4 bg-slate-800/30 border border-slate-800 flex items-center gap-3">
-                        {getStatusIcon()}
-                        <span className="text-[9px] text-[#00d9ff] font-mono tracking-[0.2em] uppercase">
-                          {streamStatus || "Processing..."}
-                        </span>
+                      <div className="rounded-lg p-4 bg-slate-800/30 border border-slate-800 flex flex-col gap-2">
+                        {timeline}
+                        <div className="flex items-center gap-3">
+                          {getStatusIcon()}
+                          <span className="text-[9px] text-[#00d9ff] font-mono tracking-[0.2em] uppercase animate-pulse">
+                            {streamStatus || "Processing..."}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
