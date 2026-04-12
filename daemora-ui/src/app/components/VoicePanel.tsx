@@ -164,6 +164,8 @@ export const VoicePanel = forwardRef<VoiceHandle>(function VoicePanel(_props, re
       try { roomRef.current.disconnect(); } catch {}
       roomRef.current = null;
     }
+    // Remove any vanilla audio elements we created for WKWebView playback
+    try { document.querySelectorAll("audio[data-daemora-voice]").forEach((el) => el.remove()); } catch {}
     startingRef.current = false;
   };
 
@@ -213,20 +215,37 @@ export const VoicePanel = forwardRef<VoiceHandle>(function VoicePanel(_props, re
         if (track.kind === Track.Kind.Audio) {
           const audio = track as RemoteAudioTrack;
 
-          // Bypass LiveKit's attach() — set srcObject directly for WKWebView
-          if (audioElRef.current && audio.mediaStreamTrack) {
-            const el = audioElRef.current;
-            el.srcObject = new MediaStream([audio.mediaStreamTrack]);
-            el.muted = false;
-            el.volume = 1;
+          // Bypass React entirely — create audio element via vanilla DOM so it's
+          // never touched by re-renders. WKWebView reliably plays these.
+          if (audio.mediaStreamTrack) {
+            // Remove any stale audio elements we previously created
+            document.querySelectorAll("audio[data-daemora-voice]").forEach((el) => el.remove());
+
+            const el = document.createElement("audio");
+            el.setAttribute("data-daemora-voice", "1");
             el.autoplay = true;
+            el.controls = false;
+            (el as any).playsInline = true;
+            el.srcObject = new MediaStream([audio.mediaStreamTrack]);
+            el.volume = 1;
+            el.muted = false;
+            el.style.cssText = "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;bottom:0;right:0";
+            document.body.appendChild(el);
+
             const tryPlay = () => el.play().catch((err) => {
-              console.warn("[Voice] audio play blocked:", err);
-              // Retry on next user interaction
-              const retry = () => { el.play().catch(() => {}); document.removeEventListener("click", retry); };
+              console.warn("[Voice] play blocked, will retry on click:", err);
+              const retry = () => {
+                el.play().catch(() => {});
+                document.removeEventListener("click", retry);
+              };
               document.addEventListener("click", retry, { once: true });
             });
             tryPlay();
+            // Belt-and-suspenders: also try via ref
+            if (audioElRef.current) {
+              audioElRef.current.srcObject = new MediaStream([audio.mediaStreamTrack]);
+              audioElRef.current.play().catch(() => {});
+            }
           }
 
           // Web Audio API — ONLY for visualizer analyser, not playback

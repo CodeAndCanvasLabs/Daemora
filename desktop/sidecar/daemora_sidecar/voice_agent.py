@@ -7,6 +7,10 @@ handles turn detection, barge-in, interruption, and audio track routing.
 livekit-agents 1.5.x API: Agent + AgentSession. The Agent defines
 instructions/personality; the AgentSession owns the stt/tts/llm/vad
 pipeline and binds to a room.
+
+IMPORTANT: Tauri 2 on macOS uses WKWebView, which does NOT reliably play
+WebRTC audio tracks. So TTS audio is ALSO played directly through system
+speakers (sounddevice) — the LiveKit audio track is a backup path.
 """
 
 from __future__ import annotations
@@ -59,6 +63,96 @@ def _build_access_token(cfg: voice_config.VoiceConfig, identity: str) -> str:
     return _jwt.encode(payload, cfg.livekit_api_secret, algorithm="HS256")
 
 
+async def _play_agent_audio_locally(cfg: voice_config.VoiceConfig) -> None:
+    """Subscribe to the agent's audio track in the LiveKit room and play it
+    through system speakers via sounddevice. Workaround for WKWebView not
+    reliably playing WebRTC audio on macOS.
+
+    Runs in parallel with the agent — acts as a second participant that
+    subscribes to everyone else's audio and pipes it to the speaker.
+    """
+    import sounddevice as sd
+    import numpy as np
+    from livekit import rtc
+
+    # Join room as "local-speaker" participant
+    token = _build_access_token(cfg, "local-speaker")
+    ws_url = cfg.livekit_url.replace("http://", "ws://").replace("https://", "wss://")
+    room = rtc.Room()
+
+    # Audio output stream — LiveKit audio frames are typically 48000 Hz mono
+    stream_ref = {"stream": None, "sr": 0}
+
+    def ensure_stream(sample_rate: int, channels: int):
+        if stream_ref["stream"] is not None and stream_ref["sr"] == sample_rate:
+            return
+        if stream_ref["stream"] is not None:
+            try:
+                stream_ref["stream"].stop()
+                stream_ref["stream"].close()
+            except Exception:
+                pass
+        try:
+            s = sd.OutputStream(
+                samplerate=sample_rate,
+                channels=max(1, channels),
+                dtype="int16",
+                blocksize=0,
+                latency="low",
+            )
+            s.start()
+            stream_ref["stream"] = s
+            stream_ref["sr"] = sample_rate
+            log.info("local speaker stream started (sr=%d ch=%d)", sample_rate, channels)
+        except Exception as e:
+            log.error("local speaker stream failed: %s", e)
+
+    async def track_audio_stream(track: rtc.Track):
+        audio_stream = rtc.AudioStream(track)
+        async for event in audio_stream:
+            try:
+                frame = event.frame
+                ensure_stream(frame.sample_rate, frame.num_channels)
+                s = stream_ref["stream"]
+                if s is None:
+                    continue
+                arr = np.frombuffer(frame.data, dtype=np.int16)
+                if frame.num_channels > 1:
+                    arr = arr.reshape(-1, frame.num_channels)
+                else:
+                    arr = arr.reshape(-1, 1)
+                s.write(arr)
+            except Exception as e:
+                log.debug("audio frame write failed: %s", e)
+
+    @room.on("track_subscribed")
+    def on_track_subscribed(track, publication, participant):
+        if track.kind == rtc.TrackKind.KIND_AUDIO and participant.identity != "local-speaker":
+            log.info("local speaker: subscribed to audio from %s", participant.identity)
+            asyncio.create_task(track_audio_stream(track))
+
+    try:
+        await room.connect(ws_url, token)
+        log.info("local speaker: joined room as local-speaker")
+        # Block until the parent task is cancelled
+        while True:
+            await asyncio.sleep(3600)
+    except asyncio.CancelledError:
+        pass
+    finally:
+        if stream_ref["stream"]:
+            try:
+                stream_ref["stream"].stop()
+                stream_ref["stream"].close()
+            except Exception:
+                pass
+        try:
+            await room.disconnect()
+        except Exception:
+            pass
+        log.info("local speaker: shut down")
+
+
 async def entrypoint_standalone() -> None:
     """Run the voice pipeline without the LiveKit Agents CLI worker.
 
@@ -84,6 +178,10 @@ async def entrypoint_standalone() -> None:
     tts = voice_providers.build_tts(cfg)
     daemora_llm = DaemoraLLM(cfg, session_id="main")
 
+    # Start local speaker in parallel — plays agent's audio through system speakers
+    # (WKWebView in Tauri doesn't reliably play WebRTC audio on macOS)
+    local_speaker_task = asyncio.create_task(_play_agent_audio_locally(cfg))
+
     agent = Agent(
         instructions=SYSTEM_PROMPT,
     )
@@ -105,6 +203,10 @@ async def entrypoint_standalone() -> None:
     except asyncio.CancelledError:
         log.info("voice: cancellation requested")
     finally:
+        try:
+            local_speaker_task.cancel()
+        except Exception:
+            pass
         try:
             await session.aclose()
         except Exception:
