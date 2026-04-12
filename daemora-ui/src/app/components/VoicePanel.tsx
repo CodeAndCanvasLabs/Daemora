@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Room, RoomEvent, Track, RemoteTrack, RemoteAudioTrack, LocalAudioTrack, createLocalAudioTrack } from "livekit-client";
-import { Loader2 } from "lucide-react";
+import { Loader2, Mic, PhoneOff, AlertCircle } from "lucide-react";
 import { apiFetch } from "../api";
 
 type Status = "idle" | "connecting" | "listening" | "speaking" | "error";
