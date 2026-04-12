@@ -16,59 +16,23 @@ fn find_project_root() -> PathBuf {
             return p;
         }
     }
-
     let exe = std::env::current_exe().unwrap_or_default();
     let mut dir = exe.parent().unwrap_or(&exe).to_path_buf();
     for _ in 0..15 {
-        if dir.join("src").join("index.js").exists() {
-            return dir;
-        }
-        if let Some(parent) = dir.parent() {
-            dir = parent.to_path_buf();
-        } else {
-            break;
-        }
+        if dir.join("src").join("index.js").exists() { return dir; }
+        if let Some(parent) = dir.parent() { dir = parent.to_path_buf(); } else { break; }
     }
-
     let mut dir = std::env::current_dir().unwrap_or_default();
     for _ in 0..10 {
-        if dir.join("src").join("index.js").exists() {
-            return dir;
-        }
-        if let Some(parent) = dir.parent() {
-            dir = parent.to_path_buf();
-        } else {
-            break;
-        }
+        if dir.join("src").join("index.js").exists() { return dir; }
+        if let Some(parent) = dir.parent() { dir = parent.to_path_buf(); } else { break; }
     }
-
     std::env::current_dir().unwrap_or_default()
-}
-
-pub fn inject_config_and_reload(w: &tauri::WebviewWindow, state: &supervisor::ProcessState, _auth_token: &str) {
-    let url = format!("http://127.0.0.1:{}", state.daemora_port);
-    info!("navigating webview to {}", url);
-    let _ = w.navigate(url.parse().unwrap());
-    let _ = w.set_focus();
-}
-
-pub fn show_error(w: &tauri::WebviewWindow, msg: &str) {
-    let escaped = msg.replace('\'', "\\'");
-    let js = format!(
-        "document.getElementById('status').textContent='Failed: {escaped}';\
-         document.getElementById('status').style.color='#ff4444';\
-         document.getElementById('dots').style.display='none';"
-    );
-    let _ = w.eval(&js);
 }
 
 pub async fn read_auth_token(project_root: &PathBuf) -> String {
     let path = project_root.join("data").join("auth-token");
-    tokio::fs::read_to_string(&path)
-        .await
-        .unwrap_or_default()
-        .trim()
-        .to_string()
+    tokio::fs::read_to_string(&path).await.unwrap_or_default().trim().to_string()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -95,39 +59,34 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
 
-            // Show the splash page (simple HTML, no React)
+            // Show splash immediately
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.show();
             }
 
+            // Start Daemora immediately (no IPC needed)
+            // Vault unlock happens later via web API
             tauri::async_runtime::spawn(async move {
                 let sup_state = handle.state::<Arc<Mutex<supervisor::Supervisor>>>();
-                let vault_exists = {
-                    let sup = sup_state.lock().await;
-                    sup.vault_exists()
-                };
+                let mut sup = sup_state.lock().await;
 
-                if vault_exists {
-                    info!("vault detected — showing passphrase input");
-                    if let Some(w) = handle.get_webview_window("main") {
-                        let _ = w.eval("window.__daemora_show_passphrase()");
-                    }
-                } else {
-                    info!("no vault — starting services directly");
-                    let mut sup = sup_state.lock().await;
-                    match sup.start_all().await {
-                        Ok(state) => {
-                            info!("services started on port {}", state.daemora_port);
-                            let token = read_auth_token(sup.project_root()).await;
-                            if let Some(w) = handle.get_webview_window("main") {
-                                inject_config_and_reload(&w, &state, &token);
-                            }
+                info!("starting daemora + livekit...");
+                match sup.start_all().await {
+                    Ok(state) => {
+                        let url = format!("http://127.0.0.1:{}", state.daemora_port);
+                        info!("navigating to {}", url);
+                        if let Some(w) = handle.get_webview_window("main") {
+                            let _ = w.navigate(url.parse().unwrap());
+                            let _ = w.set_focus();
                         }
-                        Err(e) => {
-                            error!("failed to start: {e}");
-                            if let Some(w) = handle.get_webview_window("main") {
-                                show_error(&w, &e);
-                            }
+                    }
+                    Err(e) => {
+                        error!("failed to start: {e}");
+                        if let Some(w) = handle.get_webview_window("main") {
+                            let escaped = e.replace('\'', "\\'");
+                            let _ = w.eval(&format!(
+                                "document.body.innerHTML='<div style=\"display:flex;align-items:center;justify-content:center;height:100vh;background:#0a0f1a;color:#ff4444;font-family:monospace;text-align:center\"><div><h2 style=\"color:#00d9ff\">Daemora</h2><p>Failed to start: {escaped}</p></div></div>';"
+                            ));
                         }
                     }
                 }

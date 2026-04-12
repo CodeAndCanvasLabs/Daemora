@@ -24,7 +24,7 @@
         "visible": false,
         "titleBarStyle": "Visible",
         "hiddenTitle": false,
-        "backgroundColor": [10, 15, 26, 255]
+        "theme": "Dark"
       }
     ],
     "trayIcon": {

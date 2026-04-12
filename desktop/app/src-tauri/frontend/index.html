@@ -169,6 +169,7 @@ var state = {
   vaultExists: false,
   setupCompleted: false,
   daemoraPort: null,
+  authToken: null,
 };
 
 var ipc = null;
@@ -199,8 +200,28 @@ function hideError(id) { $(id).classList.remove('visible'); }
 async function apiCall(path, opts) {
   var url = apiBase + path;
   var headers = Object.assign({ 'Content-Type': 'application/json' }, opts && opts.headers || {});
+  if (state.authToken) headers['Authorization'] = 'Bearer ' + state.authToken;
   var resp = await fetch(url, Object.assign({}, opts, { headers: headers }));
   return resp;
+}
+
+// After Daemora starts, check setup status and either show wizard or go to UI
+async function afterDaemoraStarted(result) {
+  state.daemoraPort = result.daemora_port;
+  state.authToken = result.auth_token;
+  apiBase = 'http://127.0.0.1:' + result.daemora_port;
+
+  try {
+    var setupRes = await apiCall('/api/setup/status');
+    var setup = await setupRes.json();
+    if (setup.completed) {
+      window.location.href = apiBase + '/';
+      return;
+    }
+  } catch (err) {
+    // If setup check fails, show wizard anyway
+  }
+  showStep('llm');
 }
 
 // Step 1: Vault
@@ -322,20 +343,37 @@ async function handleVoice() {
 async function waitForIpc(maxMs) {
   var start = Date.now();
   while (Date.now() - start < maxMs) {
-    if (window.__TAURI_INTERNALS__ && typeof window.__TAURI_INTERNALS__.invoke === 'function') {
-      return window.__TAURI_INTERNALS__;
+    var ti = window.__TAURI_INTERNALS__;
+    if (ti && ('invoke' in ti)) {
+      return ti;
     }
     await new Promise(function(r) { setTimeout(r, 50); });
   }
   return null;
 }
 
+async function tauriInvoke(cmd, args) {
+  var ti = window.__TAURI_INTERNALS__;
+  if (!ti || !('invoke' in ti)) {
+    var keys = ti ? Object.getOwnPropertyNames(ti).join(', ') : 'null';
+    throw new Error('Tauri IPC unavailable (keys: ' + keys + ')');
+  }
+  return ti.invoke(cmd, args || {});
+}
+
 async function boot() {
   $('loading').style.display = 'block';
-  ipc = await waitForIpc(3000);
+  ipc = await waitForIpc(5000);
   if (!ipc) {
-    // Not running in Tauri — might be loaded directly in browser
-    $('loading-status').textContent = 'Not running in Tauri desktop app';
+    $('loading-status').textContent = 'Waiting for Tauri IPC...';
+    $('loading-status').style.color = '#ff4444';
+    // Show debug info
+    var ti = window.__TAURI_INTERNALS__;
+    if (ti) {
+      $('loading-status').textContent = 'IPC exists but invoke missing. Keys: ' + Object.getOwnPropertyNames(ti).join(', ');
+    } else {
+      $('loading-status').textContent = 'Tauri IPC not injected';
+    }
     return;
   }
 
@@ -348,7 +386,7 @@ async function boot() {
 
   // Check if vault exists
   try {
-    var vaultExists = await ipc.invoke('check_vault');
+    var vaultExists = await tauriInvoke('check_vault');
     state.vaultExists = vaultExists;
   } catch {}
 
@@ -365,9 +403,7 @@ async function boot() {
   }
   showStep('vault');
 
-  // When user submits vault or skips, we need to start Daemora
-  // Override handleVault completion and skipVault to start services
-  var origHandleVault = handleVault;
+  // Override handleVault and skipVault to start Daemora services
   handleVault = async function() {
     hideError('vault-error');
     var pass = $('vault-pass').value;
@@ -376,26 +412,23 @@ async function boot() {
       if (!pass) { showError('vault-error', 'Enter your passphrase'); return; }
       $('vault-btn').textContent = 'Starting...';
       $('vault-btn').disabled = true;
+      vaultForm.classList.remove('visible');
+      dotsEl.style.display = 'flex';
+      statusEl.style.display = 'block';
+      statusEl.textContent = 'Unlocking vault and starting services...';
       try {
-        var result = await ipc.invoke('submit_passphrase', { passphrase: pass });
-        state.daemoraPort = result.daemora_port;
-        apiBase = 'http://127.0.0.1:' + result.daemora_port;
-        // Check if setup is already done
-        var setupRes = await apiCall('/api/setup/status');
-        var setup = await setupRes.json();
-        if (setup.completed) {
-          // Already configured — go straight to UI
-          window.location.href = apiBase + '/';
-          return;
-        }
-        showStep('llm');
+        var result = await tauriInvoke('submit_passphrase', { passphrase: pass });
+        statusEl.textContent = 'Checking configuration...';
+        await afterDaemoraStarted(result);
       } catch (err) {
         showError('vault-error', String(err.message || err));
         $('vault-btn').textContent = 'Unlock';
         $('vault-btn').disabled = false;
+        vaultForm.classList.add('visible');
+        dotsEl.style.display = 'none';
+        statusEl.style.display = 'none';
       }
     } else {
-      // New vault creation
       if (!pass || pass.length < 8) { showError('vault-error', 'Passphrase must be at least 8 characters'); return; }
       var confirm = $('vault-pass-confirm');
       if (confirm.style.display === 'none') {
@@ -406,40 +439,38 @@ async function boot() {
       if (confirm.value !== pass) { showError('vault-error', 'Passphrases do not match'); return; }
       $('vault-btn').textContent = 'Starting...';
       $('vault-btn').disabled = true;
+      dotsEl.style.display = 'flex';
+      statusEl.style.display = 'block';
+      statusEl.textContent = 'Creating vault and starting...';
       try {
-        var result = await ipc.invoke('submit_passphrase', { passphrase: pass });
-        state.daemoraPort = result.daemora_port;
-        apiBase = 'http://127.0.0.1:' + result.daemora_port;
-        showStep('llm');
+        var result = await tauriInvoke('submit_passphrase', { passphrase: pass });
+        await afterDaemoraStarted(result);
       } catch (err) {
         showError('vault-error', String(err.message || err));
-        $('vault-btn').textContent = 'Continue';
+        $('vault-btn').textContent = 'Create & Start';
         $('vault-btn').disabled = false;
       }
     }
   };
 
-  var origSkip = skipVault;
   skipVault = async function() {
-    $('loading').style.display = 'block';
-    $('loading-status').textContent = 'Starting without vault...';
+    dotsEl.style.display = 'flex';
+    statusEl.style.display = 'block';
+    statusEl.textContent = 'Starting without vault...';
     document.querySelectorAll('.step').forEach(function(s) { s.classList.remove('active'); });
     try {
-      var result = await ipc.invoke('start_without_vault');
-      state.daemoraPort = result.daemora_port;
-      apiBase = 'http://127.0.0.1:' + result.daemora_port;
-      $('loading').style.display = 'none';
-      var setupRes = await apiCall('/api/setup/status');
-      var setup = await setupRes.json();
-      if (setup.completed) {
-        window.location.href = apiBase + '/';
-        return;
-      }
-      showStep('llm');
+      var result = await tauriInvoke('start_without_vault');
+      await afterDaemoraStarted(result);
     } catch (err) {
-      $('loading-status').textContent = 'Failed: ' + err;
-      $('loading-status').style.color = '#ff4444';
+      statusEl.textContent = 'Failed: ' + err;
+      statusEl.style.color = '#ff4444';
     }
+  };
+
+  // Called by Rust when no vault exists
+  window.__daemora_no_vault = function() {
+    $('loading').style.display = 'none';
+    showStep('vault');
   };
 }
 
