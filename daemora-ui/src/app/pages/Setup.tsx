@@ -259,9 +259,6 @@ export function Setup() {
                 {vaultLoading ? "Starting..." : vaultExists ? "Unlock" : "Create & Continue"}
               </button>
 
-              <button onClick={skipVault} className="text-xs text-[#4a5568] hover:text-[#6b7a8d] underline transition-colors">
-                Skip — keys stored unencrypted
-              </button>
             </div>
           )}
 
