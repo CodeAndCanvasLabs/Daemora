@@ -46,15 +46,6 @@ function VoiceOrb({ level, status, size }: { level: number; status: Status; size
 
       ctx.clearRect(0, 0, w, h);
 
-      // Outer glow
-      const glowSize = status === "speaking" ? 0.55 + level * 0.3 : status === "listening" ? 0.35 : 0.15;
-      const outerGlow = ctx.createRadialGradient(cx, cy, radius * 0.8, cx, cy, radius * 1.5);
-      outerGlow.addColorStop(0, `rgba(0, 217, 255, ${glowSize * 0.25})`);
-      outerGlow.addColorStop(0.5, `rgba(78, 205, 196, ${glowSize * 0.12})`);
-      outerGlow.addColorStop(1, "rgba(0, 0, 0, 0)");
-      ctx.fillStyle = outerGlow;
-      ctx.fillRect(0, 0, w, h);
-
       // Dark sphere background
       ctx.save();
       ctx.beginPath();
@@ -124,13 +115,16 @@ function VoiceOrb({ level, status, size }: { level: number; status: Status; size
 
       ctx.restore();
 
-      // Sphere border ring
+      // Sphere border ring — subtle glow outside the clip
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-      const borderAlpha = status === "speaking" ? 0.4 : status === "listening" ? 0.25 : 0.1;
+      const borderAlpha = status === "speaking" ? 0.5 : status === "listening" ? 0.3 : 0.12;
       ctx.strokeStyle = `rgba(0, 217, 255, ${borderAlpha})`;
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 2;
+      ctx.shadowColor = `rgba(0, 217, 255, ${borderAlpha * 0.8})`;
+      ctx.shadowBlur = 15;
       ctx.stroke();
+      ctx.shadowBlur = 0;
 
       raf = requestAnimationFrame(draw);
     };
