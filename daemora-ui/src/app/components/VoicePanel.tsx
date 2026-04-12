@@ -282,42 +282,34 @@ export const VoicePanel = forwardRef<VoiceHandle>(function VoicePanel(_props, re
 
   const active = status !== "idle" && status !== "error";
 
+  if (!active && !error) return <audio ref={audioElRef} autoPlay hidden />;
+
   return (
-    <div className="w-full shrink-0">
-      {/* Orb — only when active */}
-      {active && (
-        <div className="flex flex-col items-center py-4">
-          <div className="flex items-center gap-3 mb-3">
-        {status === "listening" && (
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full rounded-full bg-[#00d9ff] opacity-75 animate-ping" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-[#00d9ff]" />
-          </span>
-        )}
-        {status === "speaking" && <span className="h-2 w-2 rounded-full bg-[#4ECDC4]" />}
-        <span className={`text-[10px] font-mono uppercase tracking-[0.15em] ${
-          status === "speaking" ? "text-[#4ECDC4]" : status === "listening" ? "text-[#00d9ff]" : "text-gray-500"
-        }`}>
-          {status === "connecting" ? "Connecting…" : status === "listening" ? "Listening" : status === "speaking" ? "Speaking" : ""}
-        </span>
-        <button onClick={stop} className="text-[9px] font-mono uppercase tracking-wider text-gray-600 hover:text-red-400 transition-colors px-2 py-0.5 rounded hover:bg-red-500/10 ml-2">
-          End
-        </button>
-      </div>
-
-      {/* Orb */}
-      <div style={{ width: 180, height: 180 }}>
-        <VoiceOrb level={avgLevel} status={status} size={180} />
-      </div>
-
-          {/* Error */}
-          {error && (
-            <p className="text-[10px] text-red-400/90 font-mono text-center mt-2 max-w-xs">{error}</p>
+    <>
+      {/* Floating orb — bottom-right, no layout shift, never hides messages */}
+      <div className="fixed bottom-28 right-8 z-50 flex flex-col items-center gap-1">
+        <div className="flex items-center gap-1.5">
+          {status === "listening" && (
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-[#00d9ff] opacity-75 animate-ping" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#00d9ff]" />
+            </span>
           )}
+          {status === "speaking" && <span className="h-1.5 w-1.5 rounded-full bg-[#4ECDC4]" />}
+          <span className={`text-[8px] font-mono uppercase tracking-wider ${
+            status === "speaking" ? "text-[#4ECDC4]" : "text-[#00d9ff]"
+          }`}>
+            {status === "listening" ? "Listening" : status === "speaking" ? "Speaking" : ""}
+          </span>
         </div>
-      )}
-
+        <button onClick={stop} title="End voice" className="hover:scale-105 active:scale-95 transition-transform">
+          <div style={{ width: 72, height: 72 }}>
+            <VoiceOrb level={avgLevel} status={status} size={72} />
+          </div>
+        </button>
+        {error && <p className="text-[8px] text-red-400 font-mono max-w-[120px] text-center">{error}</p>}
+      </div>
       <audio ref={audioElRef} autoPlay hidden />
-    </div>
+    </>
   );
 });
