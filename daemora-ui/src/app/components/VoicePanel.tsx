@@ -67,6 +67,23 @@ export function VoicePanel() {
     setError(null);
     setStatus("connecting");
     try {
+      // 0. Pre-flight mic permission check so we don't spin up the whole
+      // backend (sidecar + livekit-server) just to tear it down on a
+      // doomed attempt. `navigator.permissions` is available on all
+      // modern browsers but returns "prompt" when the user hasn't
+      // decided yet — we let those through to the native prompt below.
+      try {
+        const perm = await navigator.permissions.query({ name: "microphone" as PermissionName });
+        if (perm.state === "denied") {
+          throw new Error(
+            "Mic permission is blocked in Chrome. Click the 🔒 left of the address bar → Site settings → Microphone → Allow. Then reload."
+          );
+        }
+      } catch (permErr: any) {
+        if (permErr?.message?.includes("Mic permission is blocked")) throw permErr;
+        // navigator.permissions.query may throw on old browsers — fall through to native prompt
+      }
+
       // 1. Ask Daemora to start the sidecar voice pipeline (idempotent)
       const sc = await apiFetch("/api/voice/sidecar/start", { method: "POST" });
       if (!sc.ok) {
