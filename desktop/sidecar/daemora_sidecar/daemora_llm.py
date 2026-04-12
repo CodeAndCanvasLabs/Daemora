@@ -30,9 +30,13 @@ class DaemoraLLM(llm.LLM):
     as LLM tokens back to the voice pipeline.
     """
 
-    def __init__(self, cfg: VoiceConfig, session_id: str = "voice"):
+    def __init__(self, cfg: VoiceConfig, session_id: str = "main"):
         super().__init__()
         self._cfg = cfg
+        # Voice shares the "main" session with text chat by default, so the
+        # transcript + Daemora's reply stream live into the chat UI exactly
+        # like typing does. Override only if you want an isolated voice
+        # history (e.g. multi-user voice rooms later).
         self._session_id = session_id
         self._client = httpx.AsyncClient(timeout=120.0)
 
@@ -99,6 +103,15 @@ class DaemoraLLMStream(llm.LLMStream):
             log.debug("empty user input, nothing to stream")
             return
 
+        # Voice-mode prompt nudge — prepended to the user input so Claude
+        # answers in short spoken prose (no markdown, no bullet lists, no
+        # headers). Claude respects this when it's in the user turn text.
+        voice_input = (
+            "[Voice mode: reply in 1-2 short natural sentences, plain prose only, "
+            "no markdown, no bullets, no headers, no code blocks. Keep it conversational.] "
+            + self._user_input
+        )
+
         headers = {"Content-Type": "application/json"}
         if cfg.daemora_auth_token:
             headers["Authorization"] = f"Bearer {cfg.daemora_auth_token}"
@@ -108,7 +121,11 @@ class DaemoraLLMStream(llm.LLMStream):
             r = await client.post(
                 f"{cfg.daemora_http}/api/chat",
                 headers=headers,
-                json={"input": self._user_input, "sessionId": self._llm._session_id},  # type: ignore[attr-defined]
+                json={
+                    "input": voice_input,
+                    "sessionId": self._llm._session_id,  # type: ignore[attr-defined]
+                    "voice": True,
+                },
             )
             r.raise_for_status()
             task_id = r.json().get("taskId")
