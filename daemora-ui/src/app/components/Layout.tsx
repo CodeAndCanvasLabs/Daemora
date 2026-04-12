@@ -56,6 +56,9 @@ export function Layout() {
         } else {
           if (data?.vaultExists && !data?.vaultUnlocked) {
             setVaultLocked(true);
+          } else {
+            // Setup complete + vault unlocked → start wake word listener
+            apiFetch("/api/voice/wake/start", { method: "POST" }).catch(() => {});
           }
           setReady(true);
         }
@@ -78,6 +81,8 @@ export function Layout() {
       }
       setVaultLocked(false);
       setVaultPass("");
+      // Start wake word listener now that vault is unlocked (API keys available)
+      apiFetch("/api/voice/wake/start", { method: "POST" }).catch(() => {});
     } catch (e: any) {
       setVaultError(e.message || "Failed");
     }

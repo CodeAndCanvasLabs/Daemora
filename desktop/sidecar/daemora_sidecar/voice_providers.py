@@ -167,11 +167,13 @@ def _tts_google(cfg: VoiceConfig):
 
 def _tts_groq(cfg: VoiceConfig):
     from livekit.plugins import openai
+    # Groq Orpheus only accepts "wav" format — OpenAI plugin defaults to "mp3"
     return openai.TTS(
         api_key=_require("GROQ_API_KEY", "Groq Orpheus TTS"),
         base_url="https://api.groq.com/openai/v1",
         voice=cfg.tts_voice or _env("DAEMORA_GROQ_TTS_VOICE", "troy"),
         model=_env("DAEMORA_GROQ_TTS_MODEL", "canopylabs/orpheus-v1-english"),
+        response_format="wav",
     )
 
 

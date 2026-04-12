@@ -26,7 +26,15 @@ const TTS_OPTIONS = [
   { value: "cartesia",   label: "Cartesia Sonic",  detail: "Low latency",            keyEnv: "CARTESIA_API_KEY" },
 ];
 
-type Step = "vault" | "provider" | "voice" | "complete";
+type Step = "vault" | "provider" | "voice" | "wake" | "complete";
+
+const WAKE_WORDS = [
+  { value: "hey_jarvis",  label: "Hey Jarvis",    detail: "Most accurate" },
+  { value: "hey_daemora", label: "Hey Daemora",   detail: "Falls back to Jarvis" },
+  { value: "hey_mycroft", label: "Hey Mycroft",   detail: "Classic open-source" },
+  { value: "hey_rhasspy", label: "Hey Rhasspy",   detail: "Alternative phrase" },
+  { value: "alexa",       label: "Alexa",         detail: "If you like the name" },
+];
 
 export function Setup() {
   const navigate = useNavigate();
@@ -51,6 +59,9 @@ export function Setup() {
   const [ttsProvider, setTtsProvider] = useState("openai");
   const [voiceKeys, setVoiceKeys] = useState<Record<string, string>>({});
   const [voiceError, setVoiceError] = useState<string | null>(null);
+
+  // Wake word
+  const [wakeWord, setWakeWord] = useState("hey_jarvis");
 
   useEffect(() => {
     checkSetup();
@@ -177,7 +188,6 @@ export function Setup() {
     const updates: Record<string, string> = {
       DAEMORA_STT_PROVIDER: sttProvider,
       DAEMORA_TTS_PROVIDER: ttsProvider,
-      SETUP_COMPLETED: new Date().toISOString(),
     };
     // Save voice provider keys
     for (const [envKey, value] of Object.entries(voiceKeys)) {
@@ -189,6 +199,27 @@ export function Setup() {
         method: "PUT",
         body: JSON.stringify({ updates }),
       });
+    } catch {}
+    setStep("wake");
+  }
+
+  async function handleWake() {
+    try {
+      await apiFetch("/api/settings", {
+        method: "PUT",
+        body: JSON.stringify({
+          updates: {
+            DAEMORA_WAKE_WORD: wakeWord,
+            DAEMORA_WAKE_WORD_ENABLED: "true",
+            SETUP_COMPLETED: new Date().toISOString(),
+          },
+        }),
+      });
+      // Start the wake word listener immediately
+      await apiFetch("/api/voice/wake/start", {
+        method: "POST",
+        body: JSON.stringify({ wake_word: wakeWord }),
+      }).catch(() => {});
     } catch {}
     setStep("complete");
     setTimeout(() => navigate("/", { replace: true }), 1500);
@@ -206,7 +237,7 @@ export function Setup() {
     return Array.from(keys);
   }
 
-  const steps: Step[] = ["vault", "provider", "voice", "complete"];
+  const steps: Step[] = ["vault", "provider", "voice", "wake", "complete"];
   const stepIndex = steps.indexOf(step);
 
   if (loading) {
@@ -427,6 +458,49 @@ export function Setup() {
 
               <button
                 onClick={handleVoice}
+                className="w-full py-3 bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] text-[#0a0f1a] font-bold rounded-lg text-sm tracking-wide hover:opacity-90 active:scale-[0.98] transition-all"
+              >
+                Finish Setup
+              </button>
+            </div>
+          )}
+
+          {/* WAKE STEP */}
+          {step === "wake" && (
+            <div className="flex flex-col gap-4">
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-[#131b2e] border border-[#1e2d45] mb-3">
+                  <Mic className="w-6 h-6 text-[#00d9ff]" />
+                </div>
+                <h2 className="text-lg font-semibold text-white">Wake Word</h2>
+                <p className="text-sm text-[#6b7a8d] mt-1">
+                  Daemora listens for this phrase and activates voice mode when heard.
+                  Say the phrase, wait for the beep, then speak.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2">
+                {WAKE_WORDS.map((w) => (
+                  <button
+                    key={w.value}
+                    onClick={() => setWakeWord(w.value)}
+                    className={`p-3 rounded-lg border text-left transition-all flex items-center justify-between ${
+                      wakeWord === w.value
+                        ? "border-[#00d9ff] bg-[#0d1a2d] shadow-[0_0_12px_rgba(0,217,255,0.1)]"
+                        : "border-[#1e2d45] bg-[#131b2e] hover:border-[#00d9ff]/50"
+                    }`}
+                  >
+                    <div>
+                      <div className="text-sm font-semibold text-white">&quot;{w.label}&quot;</div>
+                      <div className="text-[10px] text-[#4a5568]">{w.detail}</div>
+                    </div>
+                    {wakeWord === w.value && <Check className="w-4 h-4 text-[#00d9ff]" />}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={handleWake}
                 className="w-full py-3 bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] text-[#0a0f1a] font-bold rounded-lg text-sm tracking-wide hover:opacity-90 active:scale-[0.98] transition-all"
               >
                 Finish Setup

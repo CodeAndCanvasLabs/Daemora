@@ -1563,6 +1563,45 @@ app.post("/api/voice/sidecar/stop", async (req, res) => {
   }
 });
 
+// --- Wake word endpoints ---
+app.post("/api/voice/wake/start", async (req, res) => {
+  try {
+    const supervisor = await import("./voice/sidecarSupervisor.js");
+    supervisor.registerShutdownHook();
+    await supervisor.startSidecar();
+    const wakeWord = req.body?.wake_word || process.env.DAEMORA_WAKE_WORD || "hey_jarvis";
+    const r = await supervisor.sidecarFetch("/wake/start", {
+      method: "POST",
+      body: JSON.stringify({ wake_word: wakeWord, threshold: 0.5 }),
+    });
+    res.json(await r.json());
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/voice/wake/stop", async (req, res) => {
+  try {
+    const supervisor = await import("./voice/sidecarSupervisor.js");
+    const r = await supervisor.sidecarFetch("/wake/stop", { method: "POST" });
+    res.json(await r.json());
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get("/api/voice/wake/status", async (req, res) => {
+  try {
+    const supervisor = await import("./voice/sidecarSupervisor.js");
+    const r = await supervisor.sidecarFetch("/wake/status");
+    res.json(await r.json());
+  } catch (e) { res.json({ running: false }); }
+});
+
+// Called by sidecar when wake word fires — broadcast via SSE so UI can react
+app.post("/api/voice/wake-event", (req, res) => {
+  try {
+    eventBus.emit("voice:wake", { model: req.body?.model, score: req.body?.score });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get("/api/voice/sidecar/status", async (req, res) => {
   try {
     const supervisor = await import("./voice/sidecarSupervisor.js");

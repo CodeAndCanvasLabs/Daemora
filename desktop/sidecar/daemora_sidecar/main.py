@@ -216,6 +216,84 @@ async def voice_stop() -> dict:
     return {"ok": True, "running": False}
 
 
+# ── Wake word endpoints ────────────────────────────────────────────────────
+
+class WakeStartReq(BaseModel):
+    wake_word: str = Field(default="hey_jarvis", description="Wake word name")
+    threshold: float = Field(default=0.5, description="Detection threshold 0-1")
+
+
+@app.post("/wake/start", dependencies=[Depends(verify_token)])
+def wake_start(req: WakeStartReq) -> dict:
+    from . import wake_word
+    listener = wake_word.get_listener()
+    if listener.running:
+        return {"ok": True, "already_running": True}
+    try:
+        listener.start(wake_word=req.wake_word, threshold=req.threshold)
+        return {"ok": True, "wake_word": req.wake_word, "threshold": req.threshold}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/wake/stop", dependencies=[Depends(verify_token)])
+def wake_stop() -> dict:
+    from . import wake_word
+    listener = wake_word.get_listener()
+    listener.stop()
+    return {"ok": True, "running": False}
+
+
+@app.get("/wake/status", dependencies=[Depends(verify_token)])
+def wake_status() -> dict:
+    from . import wake_word
+    listener = wake_word.get_listener()
+    return {"running": listener.running}
+
+
+@app.post("/voice/wake-trigger", dependencies=[Depends(verify_token)])
+async def voice_wake_trigger(req: dict) -> dict:
+    """Called by the wake word listener when a wake phrase is detected.
+    Starts the full LiveKit voice session."""
+    global _voice_task
+    if _voice_task is not None and not _voice_task.done():
+        return {"ok": True, "already_running": True}
+
+    # Notify Daemora via HTTP so the UI can react (show active voice orb)
+    try:
+        import httpx
+        import os as _os
+        daemora_http = _os.environ.get("DAEMORA_HTTP", "http://127.0.0.1:8081")
+        daemora_token = _os.environ.get("DAEMORA_AUTH_TOKEN", "")
+        await httpx.AsyncClient(timeout=2.0).post(
+            f"{daemora_http}/api/voice/wake-event",
+            headers={"Authorization": f"Bearer {daemora_token}"},
+            json={"model": req.get("model"), "score": req.get("score", 0)},
+        )
+    except Exception as e:
+        log.warning("failed to notify daemora of wake: %s", e)
+
+    # Start voice agent
+    try:
+        from . import voice_agent
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"voice extras not installed: {e}")
+
+    _detect_providers()
+
+    async def _run():
+        try:
+            await voice_agent.entrypoint_standalone()
+        except Exception as e:
+            log.exception("voice agent crashed after wake")
+            global _voice_error
+            _voice_error = str(e)
+
+    _voice_error = None
+    _voice_task = asyncio.create_task(_run())
+    return {"ok": True, "wake_triggered": True}
+
+
 def run() -> None:
     import uvicorn
 
