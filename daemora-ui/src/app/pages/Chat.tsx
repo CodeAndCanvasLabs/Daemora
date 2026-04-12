@@ -188,7 +188,16 @@ export function Chat() {
     });
 
     es.addEventListener("text:end", () => { voiceStreamingActive = false; });
-    es.addEventListener("task:completed", () => {
+    es.addEventListener("task:completed", (e) => {
+      try {
+        const data = JSON.parse((e as MessageEvent).data);
+        const myActive = sessionStorage.getItem("daemora_active_task");
+        // If this was a voice/channel task (not our text-input task), reload
+        // the session to pick up the final response
+        if (data?.id && data.id !== myActive) {
+          loadSession();
+        }
+      } catch {}
       voiceStreamingActive = false;
       voiceTaskId = null;
     });
