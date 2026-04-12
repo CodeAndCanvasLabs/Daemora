@@ -103,26 +103,18 @@ class DaemoraLLMStream(llm.LLMStream):
             log.debug("empty user input, nothing to stream")
             return
 
-        # Voice-mode prompt nudge — prepended to the user input so Claude
-        # answers in short spoken prose (no markdown, no bullet lists, no
-        # headers). Claude respects this when it's in the user turn text.
-        voice_input = (
-            "[Voice mode: reply in 1-2 short natural sentences, plain prose only, "
-            "no markdown, no bullets, no headers, no code blocks. Keep it conversational.] "
-            + self._user_input
-        )
-
         headers = {"Content-Type": "application/json"}
         if cfg.daemora_auth_token:
             headers["Authorization"] = f"Bearer {cfg.daemora_auth_token}"
 
-        # 1) POST chat → get taskId
+        # Send voice: true flag — Daemora appends voice instructions to the
+        # system prompt at runtime, no token waste on user input.
         try:
             r = await client.post(
                 f"{cfg.daemora_http}/api/chat",
                 headers=headers,
                 json={
-                    "input": voice_input,
+                    "input": self._user_input,
                     "sessionId": self._llm._session_id,  # type: ignore[attr-defined]
                     "voice": True,
                 },

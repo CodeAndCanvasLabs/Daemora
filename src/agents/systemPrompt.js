@@ -108,6 +108,17 @@ export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeM
   const runtime = renderRuntime(runtimeMeta);
   if (runtime) sections.push(runtime);
 
+  // Voice mode: append short, spoken-prose instructions only when the task
+  // came from the voice pipeline. No token waste on text tasks.
+  if (runtimeMeta.voice) {
+    sections.push(
+      "# Voice Mode\n" +
+      "- Reply in 1-2 short natural sentences, plain prose only.\n" +
+      "- No markdown, no bullets, no headers, no code blocks.\n" +
+      "- Keep it conversational — you're being spoken aloud."
+    );
+  }
+
   return {
     role: "system",
     content: sections.filter(Boolean).join("\n\n---\n\n"),

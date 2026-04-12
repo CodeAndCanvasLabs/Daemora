@@ -261,16 +261,17 @@ app.get("/api/tools", (req, res) => {
 // --- Chat endpoint (Async - returns taskId, client uses SSE to stream) ---
 app.post("/api/chat", (req, res) => {
   try {
-    const { input, sessionId, model, priority } = req.body;
+    const { input, sessionId, model, priority, voice } = req.body;
     if (!input) return res.status(400).json({ error: "input is required" });
 
     const task = taskQueue.enqueue({
       input,
-      channel: "http",
+      channel: voice ? "voice" : "http",
       sessionId: sessionId || "main",
       model,
       priority: priority || 5,
       type: "chat",
+      voice: !!voice,
     });
 
     res.status(202).json({

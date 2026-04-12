@@ -293,6 +293,7 @@ class TaskRunner {
         const systemPrompt = await buildSystemPrompt(task.input, "full", {
           model: resolvedModel,
           agentId: "main",
+          voice: !!task.voice,
         });
 
         // Build message history - filter out raw tool-call/tool-result messages
