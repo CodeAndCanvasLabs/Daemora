@@ -2,7 +2,7 @@ import express from "express";
 import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, unlinkSync, statSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { randomBytes } from "crypto";
+import { createHmac, randomBytes } from "crypto";
 import { toolFunctions } from "./tools/index.js";
 import { getSession, listSessions, createSession, clearSession } from "./services/sessions.js";
 import { config, reloadFromDb } from "./config/default.js";
@@ -1395,13 +1395,12 @@ app.post("/api/voice/token", (req, res) => {
         canUpdateOwnMetadata: true,
       },
     };
-    const crypto = require("node:crypto");
     const b64url = (buf) => Buffer.from(buf).toString("base64").replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
     const header = { alg: "HS256", typ: "JWT" };
     const headerB = b64url(JSON.stringify(header));
     const payloadB = b64url(JSON.stringify(payload));
     const toSign = `${headerB}.${payloadB}`;
-    const sig = crypto.createHmac("sha256", apiSecret).update(toSign).digest();
+    const sig = createHmac("sha256", apiSecret).update(toSign).digest();
     const sigB = b64url(sig);
     const token = `${toSign}.${sigB}`;
 

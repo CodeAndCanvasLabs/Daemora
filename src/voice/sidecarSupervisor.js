@@ -25,6 +25,7 @@ const SIDECAR_PYTHON = join(SIDECAR_DIR, ".venv", "bin", "python");
 const SIDECAR_PORT = Number(process.env.DAEMORA_SIDECAR_PORT || "8765");
 
 let _child = null;
+let _livekitChild = null;
 let _token = null;
 let _startPromise = null;
 let _lastError = null;
@@ -43,7 +44,75 @@ export function getSidecarStatus() {
     pid: _child?.pid || null,
     url: getSidecarUrl(),
     lastError: _lastError,
+    livekit: {
+      managed: !!(_livekitChild && !_livekitChild.killed && _livekitChild.exitCode === null),
+      pid: _livekitChild?.pid || null,
+      url: "ws://127.0.0.1:7880",
+    },
   };
+}
+
+async function _waitForPort(host, port, timeoutMs) {
+  const net = await import("node:net");
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const open = await new Promise((resolve) => {
+      const socket = new net.Socket();
+      socket.setTimeout(500);
+      socket.once("connect", () => { socket.destroy(); resolve(true); });
+      socket.once("error", () => { socket.destroy(); resolve(false); });
+      socket.once("timeout", () => { socket.destroy(); resolve(false); });
+      socket.connect(port, host);
+    });
+    if (open) return true;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  return false;
+}
+
+async function _startLivekitServer() {
+  // If something is already listening on 7880, assume it's livekit-server and reuse.
+  if (await _waitForPort("127.0.0.1", 7880, 200)) {
+    console.log("[LiveKit] already running on 127.0.0.1:7880");
+    return;
+  }
+
+  const { execSync } = await import("node:child_process");
+  let binary = "livekit-server";
+  try {
+    execSync(`command -v ${binary}`, { stdio: "ignore" });
+  } catch {
+    throw new Error(
+      "livekit-server not found on PATH. Install: brew install livekit (macOS) or " +
+      "curl -sSL https://get.livekit.io | bash (linux). Or run desktop/sidecar/bootstrap.sh."
+    );
+  }
+
+  console.log("[LiveKit] spawning livekit-server --dev on 127.0.0.1:7880");
+  _livekitChild = spawn(binary, ["--dev"], {
+    stdio: ["ignore", "pipe", "pipe"],
+    detached: false,
+  });
+  _livekitChild.stdout.on("data", (c) => {
+    const s = c.toString().trim();
+    if (s && /(starting|listening|error)/i.test(s)) console.log(`[LiveKit] ${s.slice(0, 180)}`);
+  });
+  _livekitChild.stderr.on("data", (c) => {
+    const s = c.toString().trim();
+    if (s && /(starting|listening|error)/i.test(s)) console.log(`[LiveKit] ${s.slice(0, 180)}`);
+  });
+  _livekitChild.on("exit", (code, signal) => {
+    console.log(`[LiveKit] exited (code=${code} signal=${signal})`);
+    _livekitChild = null;
+  });
+
+  const up = await _waitForPort("127.0.0.1", 7880, 8000);
+  if (!up) {
+    try { _livekitChild?.kill("SIGKILL"); } catch {}
+    _livekitChild = null;
+    throw new Error("livekit-server did not bind 127.0.0.1:7880 within 8s");
+  }
+  console.log("[LiveKit] ready on 127.0.0.1:7880");
 }
 
 async function _waitForHealth(timeoutMs = 10000) {
@@ -72,6 +141,9 @@ export async function startSidecar() {
         `sidecar venv missing at ${SIDECAR_PYTHON}. Run: cd desktop/sidecar && ./bootstrap.sh`
       );
     }
+
+    // Ensure the loopback LiveKit server is up before the sidecar tries to join.
+    await _startLivekitServer();
 
     _token = randomBytes(32).toString("hex");
 
@@ -143,24 +215,28 @@ export async function startSidecar() {
   }
 }
 
-export async function stopSidecar() {
-  if (!_child || _child.killed) {
-    return { already: false, stopped: true };
-  }
-  const pid = _child.pid;
-  try {
-    _child.kill("SIGTERM");
-  } catch {}
-  // Give it 3s then SIGKILL
+async function _killChild(child, label) {
+  if (!child || child.killed) return;
+  try { child.kill("SIGTERM"); } catch {}
   const killAt = Date.now() + 3000;
-  while (_child && !_child.killed && _child.exitCode === null && Date.now() < killAt) {
+  while (child && !child.killed && child.exitCode === null && Date.now() < killAt) {
     await new Promise((r) => setTimeout(r, 100));
   }
-  if (_child && !_child.killed && _child.exitCode === null) {
-    try { _child.kill("SIGKILL"); } catch {}
+  if (child && !child.killed && child.exitCode === null) {
+    try { child.kill("SIGKILL"); } catch {}
   }
+  console.log(`[${label}] stopped`);
+}
+
+export async function stopSidecar({ killLivekit = false } = {}) {
+  const pid = _child?.pid || null;
+  await _killChild(_child, "Sidecar");
   _child = null;
   _token = null;
+  if (killLivekit) {
+    await _killChild(_livekitChild, "LiveKit");
+    _livekitChild = null;
+  }
   return { stopped: true, pid };
 }
 
@@ -184,7 +260,10 @@ export function registerShutdownHook() {
   const handler = async () => {
     if (_child && !_child.killed) {
       console.log("[Sidecar] shutdown — stopping child");
-      try { await stopSidecar(); } catch {}
+      try { await stopSidecar({ killLivekit: true }); } catch {}
+    } else if (_livekitChild && !_livekitChild.killed) {
+      try { await _killChild(_livekitChild, "LiveKit"); } catch {}
+      _livekitChild = null;
     }
   };
   process.once("SIGINT", handler);
