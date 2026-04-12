@@ -93,6 +93,7 @@ async def entrypoint_standalone() -> None:
         vad=vad,
         llm=daemora_llm,
         tts=tts,
+        user_away_timeout=None,
     )
     await session.start(agent=agent, room=room)
     await session.say("Ready.", allow_interruptions=True)
