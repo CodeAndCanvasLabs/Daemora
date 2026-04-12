@@ -1611,6 +1611,28 @@ app.post("/api/vault/lock", (req, res) => {
   res.json({ message: "Vault locked" });
 });
 
+// Delete a single key from vault + config (used by Settings UI delete buttons)
+app.delete("/api/settings/:key", async (req, res) => {
+  const key = req.params.key;
+  if (!key) return res.status(400).json({ error: "key is required" });
+  try {
+    // Remove from vault (secrets)
+    if (secretVault.isUnlocked()) {
+      try { secretVault.delete(key); } catch {}
+    }
+    // Remove from config store (non-secrets)
+    try { configStore.delete(key); } catch {}
+    // Remove from process.env
+    delete process.env[key];
+    // Hot-reload to pick up the change
+    await hotReloadAll();
+    console.log(`[Settings] Deleted key: ${key}`);
+    res.json({ ok: true, key });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // --- Exec approvals ---
 app.get("/api/approvals", (req, res) => {
   res.json({ approvals: execApproval.listPending(), mode: execApproval.mode });
