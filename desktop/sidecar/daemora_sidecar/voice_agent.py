@@ -59,6 +59,96 @@ def _build_access_token(cfg: voice_config.VoiceConfig, identity: str) -> str:
     return _jwt.encode(payload, cfg.livekit_api_secret, algorithm="HS256")
 
 
+def _run_local_speaker(cfg: voice_config.VoiceConfig) -> None:
+    """Run in a background thread. Joins the LiveKit room as 'local-speaker',
+    subscribes to the agent's audio track, and plays frames through system
+    speakers via sounddevice. Workaround for Tauri WKWebView WebRTC audio bug.
+    """
+    import asyncio as _asyncio
+    loop = _asyncio.new_event_loop()
+    _asyncio.set_event_loop(loop)
+
+    async def _main():
+        try:
+            import numpy as np
+            import sounddevice as sd
+            from livekit import rtc
+        except Exception as e:
+            log.error("local speaker deps missing: %s", e)
+            return
+
+        token = _build_access_token(cfg, "local-speaker")
+        ws_url = cfg.livekit_url.replace("http://", "ws://").replace("https://", "wss://")
+        room = rtc.Room()
+
+        state = {"stream": None, "sr": 0}
+
+        def ensure_stream(sr: int, ch: int):
+            if state["stream"] is not None and state["sr"] == sr:
+                return
+            if state["stream"] is not None:
+                try: state["stream"].stop(); state["stream"].close()
+                except Exception: pass
+            try:
+                s = sd.OutputStream(samplerate=sr, channels=max(1, ch), dtype="int16", blocksize=0, latency="low")
+                s.start()
+                state["stream"] = s
+                state["sr"] = sr
+                log.info("speaker stream: %d Hz, %d ch", sr, ch)
+            except Exception as e:
+                log.error("speaker stream failed: %s", e)
+
+        async def play_track(track):
+            try:
+                stream = rtc.AudioStream(track)
+                async for event in stream:
+                    try:
+                        frame = event.frame
+                        ensure_stream(frame.sample_rate, frame.num_channels)
+                        s = state["stream"]
+                        if s is None:
+                            continue
+                        arr = np.frombuffer(frame.data, dtype=np.int16)
+                        if frame.num_channels > 1:
+                            arr = arr.reshape(-1, frame.num_channels)
+                        else:
+                            arr = arr.reshape(-1, 1)
+                        s.write(arr)
+                    except Exception as e:
+                        log.debug("frame write failed: %s", e)
+            except Exception as e:
+                log.error("audio stream loop failed: %s", e)
+
+        @room.on("track_subscribed")
+        def on_subscribed(track, publication, participant):
+            # Only play the agent's audio, not the user's mic (would echo)
+            if track.kind == rtc.TrackKind.KIND_AUDIO and participant.identity == "daemora-agent":
+                log.info("local speaker: subscribing to agent audio")
+                _asyncio.create_task(play_track(track))
+
+        try:
+            await room.connect(ws_url, token)
+            log.info("local speaker: joined room")
+            while True:
+                await _asyncio.sleep(3600)
+        except Exception as e:
+            log.error("local speaker loop: %s", e)
+        finally:
+            try:
+                if state["stream"]:
+                    state["stream"].stop()
+                    state["stream"].close()
+            except Exception: pass
+            try:
+                await room.disconnect()
+            except Exception: pass
+
+    try:
+        loop.run_until_complete(_main())
+    except Exception as e:
+        log.error("speaker thread crashed: %s", e)
+
+
 async def entrypoint_standalone() -> None:
     """Run the voice pipeline without the LiveKit Agents CLI worker.
 
@@ -96,6 +186,20 @@ async def entrypoint_standalone() -> None:
         user_away_timeout=None,
     )
     await session.start(agent=agent, room=room)
+
+    # Workaround for Tauri+WKWebView on macOS: the browser can't reliably play
+    # the agent's WebRTC audio track. Play it directly through system speakers
+    # by subscribing to the agent's audio track from within the sidecar.
+    import threading
+    speaker_thread = threading.Thread(
+        target=_run_local_speaker,
+        args=(cfg,),
+        daemon=True,
+        name="local-speaker",
+    )
+    speaker_thread.start()
+    log.info("local speaker thread started (plays TTS via system speakers)")
+
     await session.say("Ready.", allow_interruptions=True)
 
     # Block until cancelled
