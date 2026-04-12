@@ -93,15 +93,19 @@ async function hotReloadAll() {
   try { await channelRegistry.stopAll(); await channelRegistry.startAll(); } catch {}
   try { await mcpManager.init(); } catch {}
   try { scheduler.stop(); await scheduler.start(); } catch {}
-  // Restart voice sidecar if running — picks up new TTS voice / STT model
+  // Fully restart voice sidecar (new process = fresh env vars for TTS voice/model)
   try {
     const supervisor = await import("./voice/sidecarSupervisor.js");
     if (supervisor.getSidecarStatus().running) {
-      try { await supervisor.sidecarFetch("/voice/stop", { method: "POST" }); } catch {}
-      try { await supervisor.sidecarFetch("/voice/start", { method: "POST" }); } catch {}
-      console.log("[HotReload] Voice agent restarted with new config");
+      await supervisor.stopSidecar();
+      // Respawn with fresh env (includes new TTS_VOICE, STT_MODEL, etc.)
+      await supervisor.startSidecar();
+      await supervisor.sidecarFetch("/voice/start", { method: "POST" }).catch(() => {});
+      console.log("[HotReload] Voice sidecar fully restarted with fresh env");
     }
-  } catch {}
+  } catch (e) {
+    console.log("[HotReload] Voice restart failed:", e.message);
+  }
   console.log(`[HotReload] Complete in ${Date.now() - start}ms`);
 }
 
