@@ -213,15 +213,23 @@ export const VoicePanel = forwardRef<VoiceHandle>(function VoicePanel(_props, re
         if (track.kind === Track.Kind.Audio) {
           const audio = track as RemoteAudioTrack;
 
-          // Attach to our audio element for playback
-          if (audioElRef.current) {
-            audio.attach(audioElRef.current);
-            audioElRef.current.muted = false;
-            audioElRef.current.volume = 1;
-            audioElRef.current.play().catch(() => {});
+          // Bypass LiveKit's attach() — set srcObject directly for WKWebView
+          if (audioElRef.current && audio.mediaStreamTrack) {
+            const el = audioElRef.current;
+            el.srcObject = new MediaStream([audio.mediaStreamTrack]);
+            el.muted = false;
+            el.volume = 1;
+            el.autoplay = true;
+            const tryPlay = () => el.play().catch((err) => {
+              console.warn("[Voice] audio play blocked:", err);
+              // Retry on next user interaction
+              const retry = () => { el.play().catch(() => {}); document.removeEventListener("click", retry); };
+              document.addEventListener("click", retry, { once: true });
+            });
+            tryPlay();
           }
 
-          // Method 3: Web Audio API for analysis + playback
+          // Web Audio API — ONLY for visualizer analyser, not playback
           try {
             const ms = audio.mediaStreamTrack ? new MediaStream([audio.mediaStreamTrack]) : null;
             if (ms) {
@@ -229,7 +237,6 @@ export const VoicePanel = forwardRef<VoiceHandle>(function VoicePanel(_props, re
               const ctx = new AudioCtx();
               if (ctx.state === "suspended") ctx.resume().catch(() => {});
               const src = ctx.createMediaStreamSource(ms);
-              // Only connect to analyser for visualizer — audio element handles playback
               const analyser = ctx.createAnalyser();
               analyser.fftSize = 128;
               src.connect(analyser);
