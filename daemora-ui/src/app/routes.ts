@@ -15,8 +15,13 @@ import { Goals } from "./pages/Goals";
 import { Watchers } from "./pages/Watchers";
 import { Crew } from "./pages/Crew";
 import { Teams } from "./pages/Teams";
+import { Setup } from "./pages/Setup";
 
 export const router = createBrowserRouter([
+  {
+    path: "/setup",
+    Component: Setup,
+  },
   {
     path: "/",
     Component: Layout,

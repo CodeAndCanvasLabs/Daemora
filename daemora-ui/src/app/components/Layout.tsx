@@ -1,4 +1,6 @@
-import { Outlet, Link, useLocation } from "react-router";
+import { Outlet, Link, useLocation, useNavigate } from "react-router";
+import { useEffect, useState } from "react";
+import { apiFetch } from "../api";
 import { StarField } from "./StarField";
 import { Logo } from "./ui/Logo";
 import {
@@ -38,6 +40,23 @@ const navItems = [
 
 export function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    apiFetch("/api/setup/status")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data && !data.completed) {
+          navigate("/setup", { replace: true });
+        } else {
+          setReady(true);
+        }
+      })
+      .catch(() => setReady(true));
+  }, []);
+
+  if (!ready) return null;
 
   return (
     <div className="min-h-screen bg-[#030213] text-[#f0f0f3] relative overflow-hidden flex">
