@@ -46,12 +46,19 @@ function VoiceOrb({ level, status, size }: { level: number; status: Status; size
 
       ctx.clearRect(0, 0, w, h);
 
-      // Clip all drawing to the circle — NO dark fill, fully transparent
+      // Dark sphere — clipped to circle only, outside is fully transparent
       ctx.save();
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.closePath();
       ctx.clip();
+
+      const sphereGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+      sphereGrad.addColorStop(0, "rgba(12, 20, 30, 0.95)");
+      sphereGrad.addColorStop(0.7, "rgba(6, 12, 22, 0.97)");
+      sphereGrad.addColorStop(1, "rgba(2, 8, 18, 1)");
+      ctx.fillStyle = sphereGrad;
+      ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
 
       // Flowing luminous curves inside the sphere
       const curveCount = 5;
