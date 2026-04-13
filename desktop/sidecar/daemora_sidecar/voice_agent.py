@@ -33,11 +33,19 @@ SYSTEM_PROMPT = (
 )
 
 
-def _build_access_token(cfg: voice_config.VoiceConfig, identity: str) -> str:
+def _build_access_token(
+    cfg: voice_config.VoiceConfig,
+    identity: str,
+    attributes: dict[str, str] | None = None,
+) -> str:
     """Mint a LiveKit access token using the baked-in dev credentials.
 
     Safe because the server binds to 127.0.0.1 only — nothing off-machine
     can reach the room anyway.
+
+    `attributes` are set on the participant at join time. The local-speaker
+    helper uses `lk.publish_on_behalf = daemora-agent` so livekit-agents'
+    RoomIO skips it when auto-linking to the "user" participant.
     """
     import jwt as _jwt
 
@@ -56,6 +64,8 @@ def _build_access_token(cfg: voice_config.VoiceConfig, identity: str) -> str:
             "canUpdateOwnMetadata": True,
         },
     }
+    if attributes:
+        payload["attributes"] = attributes
     return _jwt.encode(payload, cfg.livekit_api_secret, algorithm="HS256")
 
 
@@ -78,7 +88,15 @@ def _run_local_speaker(cfg: voice_config.VoiceConfig) -> None:
             log.error("livekit rtc missing: %s", e)
             return
 
-        token = _build_access_token(cfg, "local-speaker")
+        # Mark this participant as "publishing on behalf of daemora-agent" so
+        # livekit-agents' RoomIO skips it when auto-linking to the user.
+        # Without this, the AgentSession latches onto local-speaker (which
+        # never publishes mic audio) and the STT pipeline stays silent forever.
+        token = _build_access_token(
+            cfg,
+            "local-speaker",
+            attributes={"lk.publish_on_behalf": "daemora-agent"},
+        )
         ws_url = cfg.livekit_url.replace("http://", "ws://").replace("https://", "wss://")
         room = rtc.Room()
 
