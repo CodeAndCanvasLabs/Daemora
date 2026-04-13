@@ -56,10 +56,9 @@ export function Layout() {
         } else {
           if (data?.vaultExists && !data?.vaultUnlocked) {
             setVaultLocked(true);
-          } else {
-            // Setup complete + vault unlocked → start wake word listener
-            apiFetch("/api/voice/wake/start", { method: "POST" }).catch(() => {});
           }
+          // Wake word doesn't auto-start anymore — opt-in via Settings to avoid
+          // mic always-on competing with LiveKit voice session
           setReady(true);
         }
       })
@@ -81,8 +80,7 @@ export function Layout() {
       }
       setVaultLocked(false);
       setVaultPass("");
-      // Start wake word listener now that vault is unlocked (API keys available)
-      apiFetch("/api/voice/wake/start", { method: "POST" }).catch(() => {});
+      // Wake word is opt-in (not auto-started) to prevent mic conflict with voice session
     } catch (e: any) {
       setVaultError(e.message || "Failed");
     }
