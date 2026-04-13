@@ -87,28 +87,24 @@ def _run_local_speaker(cfg: voice_config.VoiceConfig) -> None:
         player = devices.open_output()
         player_started = False
 
-        @room.on("track_subscribed")
-        def on_subscribed(track, publication, participant):
-            nonlocal player_started
-            # Only play the agent's audio (not user mic — would echo)
-            if track.kind == rtc.TrackKind.KIND_AUDIO and participant.identity == "daemora-agent":
-                log.info("local speaker: adding agent audio track to player")
-                try:
-                    player.add_track(track)
-                    if not player_started:
-                        # Start the player after first track is added
-                        _asyncio.create_task(_start_player())
-                except Exception as e:
-                    log.error("add_track failed: %s", e)
-
-        async def _start_player():
+        async def _attach_track_and_start(track):
             nonlocal player_started
             try:
-                await player.start()
-                player_started = True
-                log.info("local speaker: player started")
+                await player.add_track(track)
+                log.info("local speaker: track added, starting player")
+                if not player_started:
+                    player_started = True
+                    await player.start()
+                    log.info("local speaker: player started successfully")
             except Exception as e:
-                log.error("player.start failed: %s", e)
+                log.error("attach/start failed: %s", e, exc_info=True)
+
+        @room.on("track_subscribed")
+        def on_subscribed(track, publication, participant):
+            # Only play the agent's audio (not user mic — would echo)
+            if track.kind == rtc.TrackKind.KIND_AUDIO and participant.identity == "daemora-agent":
+                log.info("local speaker: agent audio track received")
+                _asyncio.create_task(_attach_track_and_start(track))
 
         try:
             await room.connect(ws_url, token)
