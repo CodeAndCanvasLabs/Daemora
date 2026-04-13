@@ -115,7 +115,7 @@ class TaskQueue {
     if (waiter) {
       waiter.resolve(task);
       this.waiters.delete(taskId);
-    } else if (task.channel && task.channel !== "http" && task.channel !== "a2a") {
+    } else if (task.channel && task.channel !== "http" && task.channel !== "a2a" && task.channel !== "voice") {
       // No waiter = recovered task (agent restarted while task was in-flight).
       // Emit so ChannelRegistry can route the reply back to the user automatically.
       eventBus.emitEvent("task:reply:needed", { task });

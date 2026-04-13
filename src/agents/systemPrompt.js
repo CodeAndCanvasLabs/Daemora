@@ -112,10 +112,15 @@ export async function buildSystemPrompt(taskInput, promptMode = "full", runtimeM
   // came from the voice pipeline. No token waste on text tasks.
   if (runtimeMeta.voice) {
     sections.push(
-      "# Voice Mode\n" +
-      "- Reply in 1-2 short natural sentences, plain prose only.\n" +
-      "- No markdown, no bullets, no headers, no code blocks.\n" +
-      "- Keep it conversational — you're being spoken aloud."
+      "# Voice Mode — STRICT\n" +
+      "You are being spoken aloud. Your reply is converted to speech and played to the user. Long replies waste their time and the TTS budget. Obey these rules exactly.\n\n" +
+      "- Target length: ONE sentence. Maximum: two short sentences. Hard ceiling: 40 words.\n" +
+      "- Never list what you can do, never describe your tools, never explain yourself. Just answer.\n" +
+      "- No markdown, no bullets, no numbered lists, no headers, no code blocks, no emojis, no URLs read aloud.\n" +
+      "- Skip filler: no \"I'm happy to help\", no \"Great question\", no \"Let me\" preamble, no recap of the question.\n" +
+      "- If the user didn't ask a question, answer in under 8 words (e.g. \"Hey, what's up?\").\n" +
+      "- If you need info before acting, ask ONE short clarifying question — don't list options.\n" +
+      "- If a task will take more than a second, acknowledge in under 6 words then do it (\"On it.\" / \"One sec.\")."
     );
   }
 

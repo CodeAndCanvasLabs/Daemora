@@ -296,6 +296,23 @@ async def voice_wake_trigger(req: dict) -> dict:
 
 def run() -> None:
     import uvicorn
+    import logging as _logging
+    from logging.handlers import RotatingFileHandler as _RFH
+
+    # Tee all logs to ~/.daemora/sidecar.log so voice issues are debuggable
+    # without having to attach to the live process. Rotates at 2 MB × 3.
+    log_path = config.HOME / "sidecar.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    fh = _RFH(log_path, maxBytes=2_000_000, backupCount=3)
+    fh.setFormatter(_logging.Formatter(
+        "%(asctime)s %(levelname)s %(name)s: %(message)s"
+    ))
+    root = _logging.getLogger()
+    root.addHandler(fh)
+    root.setLevel(_logging.INFO)
+    _logging.getLogger("daemora").setLevel(_logging.DEBUG)
+    _logging.getLogger("livekit").setLevel(_logging.INFO)
+    log.info("sidecar log file: %s", log_path)
 
     uvicorn.run(
         "daemora_sidecar.main:app",

@@ -154,6 +154,11 @@ impl Supervisor {
             .env("LIVEKIT_URL", format!("ws://127.0.0.1:{livekit_port}"))
             .env("LIVEKIT_API_KEY", "devkey")
             .env("LIVEKIT_API_SECRET", "secret")
+            // WKWebView plays WebRTC audio natively once startAudio() has
+            // been called from a user gesture (handled in VoicePanel.tsx).
+            // The sidecar's local-speaker fallback is kept off by default —
+            // flip DAEMORA_LOCAL_SPEAKER=1 only if a future WKWebView
+            // regression breaks native playback again.
             .current_dir(&self.project_root)
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::piped())
