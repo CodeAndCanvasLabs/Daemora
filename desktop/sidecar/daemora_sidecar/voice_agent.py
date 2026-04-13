@@ -61,8 +61,11 @@ def _build_access_token(cfg: voice_config.VoiceConfig, identity: str) -> str:
 
 def _run_local_speaker(cfg: voice_config.VoiceConfig) -> None:
     """Run in a background thread. Joins the LiveKit room as 'local-speaker',
-    subscribes to the agent's audio track, and plays frames through system
-    speakers via sounddevice. Workaround for Tauri WKWebView WebRTC audio bug.
+    subscribes to the agent's audio track, and plays it through system
+    speakers using LiveKit's official MediaDevices API.
+
+    Workaround for Tauri WKWebView WebRTC audio bug — the Python sidecar
+    plays TTS audio directly so the browser doesn't have to.
     """
     import asyncio as _asyncio
     loop = _asyncio.new_event_loop()
@@ -70,74 +73,53 @@ def _run_local_speaker(cfg: voice_config.VoiceConfig) -> None:
 
     async def _main():
         try:
-            import numpy as np
-            import sounddevice as sd
             from livekit import rtc
         except Exception as e:
-            log.error("local speaker deps missing: %s", e)
+            log.error("livekit rtc missing: %s", e)
             return
 
         token = _build_access_token(cfg, "local-speaker")
         ws_url = cfg.livekit_url.replace("http://", "ws://").replace("https://", "wss://")
         room = rtc.Room()
 
-        state = {"stream": None, "sr": 0}
-
-        def ensure_stream(sr: int, ch: int):
-            if state["stream"] is not None and state["sr"] == sr:
-                return
-            if state["stream"] is not None:
-                try: state["stream"].stop(); state["stream"].close()
-                except Exception: pass
-            try:
-                s = sd.OutputStream(samplerate=sr, channels=max(1, ch), dtype="int16", blocksize=0, latency="low")
-                s.start()
-                state["stream"] = s
-                state["sr"] = sr
-                log.info("speaker stream: %d Hz, %d ch", sr, ch)
-            except Exception as e:
-                log.error("speaker stream failed: %s", e)
-
-        async def play_track(track):
-            try:
-                stream = rtc.AudioStream(track)
-                async for event in stream:
-                    try:
-                        frame = event.frame
-                        ensure_stream(frame.sample_rate, frame.num_channels)
-                        s = state["stream"]
-                        if s is None:
-                            continue
-                        arr = np.frombuffer(frame.data, dtype=np.int16)
-                        if frame.num_channels > 1:
-                            arr = arr.reshape(-1, frame.num_channels)
-                        else:
-                            arr = arr.reshape(-1, 1)
-                        s.write(arr)
-                    except Exception as e:
-                        log.debug("frame write failed: %s", e)
-            except Exception as e:
-                log.error("audio stream loop failed: %s", e)
+        # Official LiveKit local audio output API (uses sounddevice under the hood)
+        devices = rtc.MediaDevices()
+        player = devices.open_output()
+        player_started = False
 
         @room.on("track_subscribed")
         def on_subscribed(track, publication, participant):
-            # Only play the agent's audio, not the user's mic (would echo)
+            nonlocal player_started
+            # Only play the agent's audio (not user mic — would echo)
             if track.kind == rtc.TrackKind.KIND_AUDIO and participant.identity == "daemora-agent":
-                log.info("local speaker: subscribing to agent audio")
-                _asyncio.create_task(play_track(track))
+                log.info("local speaker: adding agent audio track to player")
+                try:
+                    player.add_track(track)
+                    if not player_started:
+                        # Start the player after first track is added
+                        _asyncio.create_task(_start_player())
+                except Exception as e:
+                    log.error("add_track failed: %s", e)
+
+        async def _start_player():
+            nonlocal player_started
+            try:
+                await player.start()
+                player_started = True
+                log.info("local speaker: player started")
+            except Exception as e:
+                log.error("player.start failed: %s", e)
 
         try:
             await room.connect(ws_url, token)
-            log.info("local speaker: joined room")
+            log.info("local speaker: joined room as 'local-speaker'")
             while True:
                 await _asyncio.sleep(3600)
         except Exception as e:
             log.error("local speaker loop: %s", e)
         finally:
             try:
-                if state["stream"]:
-                    state["stream"].stop()
-                    state["stream"].close()
+                await player.stop()
             except Exception: pass
             try:
                 await room.disconnect()
@@ -146,7 +128,7 @@ def _run_local_speaker(cfg: voice_config.VoiceConfig) -> None:
     try:
         loop.run_until_complete(_main())
     except Exception as e:
-        log.error("speaker thread crashed: %s", e)
+        log.error("speaker thread crashed: %s", e, exc_info=True)
 
 
 async def entrypoint_standalone() -> None:
