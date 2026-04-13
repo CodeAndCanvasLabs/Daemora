@@ -281,8 +281,32 @@ export const VoicePanel = forwardRef<VoiceHandle>(function VoicePanel(_props, re
       });
 
       await room.connect(url, token);
-      // startAudio must be called after connect for WKWebView audio playback
-      await room.startAudio().catch(() => {});
+
+      // Official LiveKit pattern for handling autoplay restrictions:
+      // 1. Try startAudio() immediately (works if user gesture context is preserved)
+      // 2. If it fails, listen for AudioPlaybackStatusChanged and retry on click
+      try {
+        await room.startAudio();
+      } catch (err) {
+        console.warn("[Voice] startAudio failed initially, will retry on click");
+      }
+
+      // Listen for audio playback status — required for Safari/WKWebView
+      room.on("audioPlaybackChanged" as any, () => {
+        if (!room.canPlaybackAudio) {
+          console.warn("[Voice] audio playback blocked — adding click handler");
+          const enableAudio = async () => {
+            try {
+              await room.startAudio();
+              console.log("[Voice] audio playback enabled");
+              document.removeEventListener("click", enableAudio);
+            } catch (e) {
+              console.error("[Voice] startAudio failed:", e);
+            }
+          };
+          document.addEventListener("click", enableAudio);
+        }
+      });
 
       let micTrack;
       try {
