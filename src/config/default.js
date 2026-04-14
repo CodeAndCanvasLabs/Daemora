@@ -246,6 +246,10 @@ export const config = buildConfig(process.env);
 // If any of these leak into config_entries, they are deleted on reload.
 const SENSITIVE_PATTERN = /KEY|TOKEN|SECRET|PASSWORD|PASSPHRASE|CREDENTIAL/i;
 
+// Runtime-only keys that must NEVER be read from config_entries.
+// PORT is dynamic per launch (desktop app uses random ports).
+const RUNTIME_ONLY_KEYS = new Set(["PORT"]);
+
 export async function reloadFromDb() {
   try {
     const { getDb } = await import("../storage/Database.js");
@@ -264,6 +268,11 @@ export async function reloadFromDb() {
     let loaded = 0;
     const leaked = [];
     for (const { key, value } of rows) {
+      // Never override runtime-only keys (PORT is dynamic per launch)
+      if (RUNTIME_ONLY_KEYS.has(key)) {
+        leaked.push(key);
+        continue;
+      }
       // Skip sensitive keys when vault is active - vault is source of truth.
       // Exception: WEBHOOK_TOKEN is auto-generated config, not a vault secret.
       if (vaultActive && SENSITIVE_PATTERN.test(key) && key !== "WEBHOOK_TOKEN") {

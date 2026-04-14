@@ -1,4 +1,6 @@
-import { Outlet, Link, useLocation } from "react-router";
+import { Outlet, Link, useLocation, useNavigate } from "react-router";
+import { useEffect, useState } from "react";
+import { apiFetch } from "../api";
 import { StarField } from "./StarField";
 import { Logo } from "./ui/Logo";
 import {
@@ -38,6 +40,95 @@ const navItems = [
 
 export function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [ready, setReady] = useState(false);
+  const [vaultLocked, setVaultLocked] = useState(false);
+  const [vaultPass, setVaultPass] = useState("");
+  const [vaultError, setVaultError] = useState("");
+  const [vaultLoading, setVaultLoading] = useState(false);
+
+  useEffect(() => {
+    apiFetch("/api/setup/status")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data && !data.completed) {
+          navigate("/setup", { replace: true });
+        } else {
+          if (data?.vaultExists && !data?.vaultUnlocked) {
+            setVaultLocked(true);
+          }
+          // Wake word doesn't auto-start anymore — opt-in via Settings to avoid
+          // mic always-on competing with LiveKit voice session
+          setReady(true);
+        }
+      })
+      .catch(() => setReady(true));
+  }, []);
+
+  const unlockVault = async () => {
+    if (!vaultPass) return;
+    setVaultLoading(true);
+    setVaultError("");
+    try {
+      const res = await apiFetch("/api/vault/unlock", {
+        method: "POST",
+        body: JSON.stringify({ passphrase: vaultPass }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Wrong passphrase");
+      }
+      setVaultLocked(false);
+      setVaultPass("");
+      // Wake word is opt-in (not auto-started) to prevent mic conflict with voice session
+    } catch (e: any) {
+      setVaultError(e.message || "Failed");
+    }
+    setVaultLoading(false);
+  };
+
+  if (!ready) return null;
+
+  if (vaultLocked) {
+    return (
+      <div className="min-h-screen bg-[#0a0f1a] flex items-center justify-center">
+        <div className="w-full max-w-sm px-6 flex flex-col items-center gap-5">
+          <Logo size={48} />
+          <h1 className="text-xl font-bold tracking-[2px] bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] bg-clip-text text-transparent">
+            DAEMORA
+          </h1>
+          <div className="text-center">
+            <p className="text-sm text-[#6b7a8d]">Enter vault passphrase to unlock API keys</p>
+          </div>
+          <div className="w-full flex flex-col gap-3">
+            <input
+              type="password"
+              value={vaultPass}
+              onChange={(e) => setVaultPass(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && unlockVault()}
+              placeholder="Vault passphrase"
+              className="w-full px-4 py-3 bg-[#131b2e] border border-[#1e2d45] rounded-lg text-white font-mono text-sm outline-none focus:border-[#00d9ff] transition-colors"
+              autoFocus
+            />
+            {vaultError && <p className="text-xs text-red-400 text-center">{vaultError}</p>}
+            <button
+              onClick={unlockVault}
+              disabled={vaultLoading || !vaultPass}
+              className="w-full py-3 bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] text-[#0a0f1a] font-bold rounded-lg text-sm hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-40"
+            >
+              {vaultLoading ? "Unlocking..." : "Unlock"}
+            </button>
+            <button
+              onClick={() => setVaultLocked(false)}
+              className="text-xs text-[#4a5568] hover:text-[#6b7a8d] underline"
+            >
+              Skip — continue without API keys
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#030213] text-[#f0f0f3] relative overflow-hidden flex">

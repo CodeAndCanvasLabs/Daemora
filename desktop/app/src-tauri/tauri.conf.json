@@ -1,0 +1,74 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
+  "productName": "Daemora",
+  "version": "2026.1.1",
+  "identifier": "com.daemora.desktop",
+  "build": {
+    "frontendDist": "frontend",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "",
+    "beforeBuildCommand": ""
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Daemora",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 480,
+        "minHeight": 600,
+        "decorations": true,
+        "resizable": true,
+        "center": true,
+        "visible": false,
+        "titleBarStyle": "Visible",
+        "hiddenTitle": false,
+        "theme": "Dark"
+      }
+    ],
+    "trayIcon": {
+      "id": "main-tray",
+      "iconPath": "icons/icon.png",
+      "iconAsTemplate": true,
+      "tooltip": "Daemora"
+    },
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.png"
+    ],
+    "category": "Productivity",
+    "shortDescription": "Voice-first AI agent for your desktop",
+    "longDescription": "Daemora Desktop — a voice-first AI agent that can see, click, type, and talk. Runs fully local with optional cloud providers.",
+    "macOS": {
+      "entitlements": "Entitlements.plist",
+      "minimumSystemVersion": "10.15",
+      "frameworks": []
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      }
+    },
+    "linux": {
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libayatana-appindicator3-1"]
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "",
+      "endpoints": []
+    }
+  }
+}

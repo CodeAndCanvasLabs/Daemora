@@ -261,7 +261,7 @@ export function Logs() {
                   {/* Input text */}
                   <Link to={`/logs/${entry.id}`} className="flex-1 min-w-0 group-hover:text-[#00d9ff] transition-colors">
                     <span className="text-sm text-gray-200 font-mono truncate block">
-                      {entry.title || entry.input}
+                      {(entry.title || entry.input || "").replace(/^\[Voice mode:[^\]]+\]\s*/, "")}
                     </span>
                   </Link>
 

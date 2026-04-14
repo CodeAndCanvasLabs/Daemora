@@ -28,6 +28,16 @@ import {
   Zap,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../components/ui/alert-dialog";
 import { FaTelegram, FaDiscord, FaSlack, FaWhatsapp, FaLine } from "react-icons/fa6";
 import { SiSignal, SiGooglechat, SiOpenai, SiAnthropic, SiGooglegemini } from "react-icons/si";
 import { BsMicrosoftTeams } from "react-icons/bs";
@@ -304,6 +314,36 @@ export function Settings() {
   const [isLoading, setIsLoading] = useState(true);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
+  // Radix AlertDialog for delete confirmation (window.confirm blocks in Tauri WKWebView).
+  const [deleteTarget, setDeleteTarget] = useState<{ key: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  // Which provider keys are configured — used to filter STT/TTS/voice
+  // dropdowns so users only see groups for providers they've set up.
+  const hasKey = (envKey: string) => {
+    const v = data?.vars?.[envKey];
+    return !!v && v !== "";
+  };
+  async function confirmDeleteKey() {
+    if (!deleteTarget) return;
+    const { key, name } = deleteTarget;
+    setDeleting(true);
+    try {
+      const res = await apiFetch(`/api/settings/${key}`, { method: "DELETE" });
+      if (res.ok) {
+        const refreshed = await apiFetch("/api/settings").then((r) => r.json());
+        setData(refreshed);
+        toast.success(`${name} key deleted`);
+        setDeleteTarget(null);
+      } else {
+        const body = await res.text().catch(() => "");
+        toast.error(`Failed to delete ${name} key${body ? ": " + body.slice(0, 80) : ""}`);
+      }
+    } catch (e: any) {
+      toast.error(`Delete failed: ${e?.message || e}`);
+    } finally {
+      setDeleting(false);
+    }
+  }
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -595,70 +635,107 @@ export function Settings() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Transcription Model (STT)</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  list="stt-models"
-                  className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-gray-600 focus:border-[#00d9ff]/50 focus:outline-none"
-                  placeholder="gpt-4o-mini-transcribe"
-                  value={globalConfig.sttModel || ""}
-                  onChange={(e) => handleConfigChange("sttModel", e.target.value)}
-                />
-                <datalist id="stt-models">
-                  <option value="gpt-4o-mini-transcribe">$0.003/min - fast, cheap</option>
-                  <option value="gpt-4o-transcribe">$0.006/min - best accuracy</option>
-                  <option value="gpt-4o-transcribe-diarize">$0.006/min - speaker ID</option>
-                  <option value="whisper-1">legacy</option>
-                  <option value="whisper-large-v3-turbo">Groq - free tier</option>
-                </datalist>
-              </div>
+              <select
+                className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white focus:border-[#00d9ff]/50 focus:outline-none appearance-none cursor-pointer"
+                value={globalConfig.sttModel || ""}
+                onChange={(e) => handleConfigChange("sttModel", e.target.value)}
+              >
+                <option value="">Auto (detect from API key)</option>
+                {hasKey("GROQ_API_KEY") && (
+                  <optgroup label="Groq (free tier)">
+                    <option value="whisper-large-v3-turbo">whisper-large-v3-turbo — fast, free</option>
+                    <option value="whisper-large-v3">whisper-large-v3 — accurate, free</option>
+                  </optgroup>
+                )}
+                {hasKey("OPENAI_API_KEY") && (
+                  <optgroup label="OpenAI">
+                    <option value="gpt-4o-mini-transcribe">gpt-4o-mini-transcribe — $0.003/min</option>
+                    <option value="gpt-4o-transcribe">gpt-4o-transcribe — $0.006/min</option>
+                    <option value="whisper-1">whisper-1 — legacy</option>
+                  </optgroup>
+                )}
+                {hasKey("DEEPGRAM_API_KEY") && (
+                  <optgroup label="Deepgram">
+                    <option value="nova-3">nova-3 — best accuracy</option>
+                    <option value="nova-2">nova-2 — stable</option>
+                  </optgroup>
+                )}
+                {hasKey("ASSEMBLYAI_API_KEY") && (
+                  <optgroup label="AssemblyAI">
+                    <option value="best">best — universal model</option>
+                  </optgroup>
+                )}
+              </select>
             </div>
             <div>
               <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Speech Model (TTS)</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  list="tts-models"
-                  className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-gray-600 focus:border-[#00d9ff]/50 focus:outline-none"
-                  placeholder="gpt-4o-mini-tts"
-                  value={globalConfig.ttsModel || ""}
-                  onChange={(e) => handleConfigChange("ttsModel", e.target.value)}
-                />
-                <datalist id="tts-models">
-                  <option value="groq">Groq PlayAI - free tier</option>
-                  <option value="edge">Edge TTS - free, no API key</option>
-                  <option value="gpt-4o-mini-tts">steerable, 14 voices</option>
-                  <option value="tts-1">standard</option>
-                  <option value="tts-1-hd">high quality</option>
-                </datalist>
-              </div>
+              <select
+                className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white focus:border-[#00d9ff]/50 focus:outline-none appearance-none cursor-pointer"
+                value={globalConfig.ttsModel || ""}
+                onChange={(e) => handleConfigChange("ttsModel", e.target.value)}
+              >
+                <option value="">Auto (detect from API key)</option>
+                {hasKey("OPENAI_API_KEY") && (
+                  <optgroup label="OpenAI">
+                    <option value="gpt-4o-mini-tts">gpt-4o-mini-tts — steerable, natural</option>
+                    <option value="tts-1">tts-1 — standard</option>
+                    <option value="tts-1-hd">tts-1-hd — high quality</option>
+                  </optgroup>
+                )}
+                {hasKey("GROQ_API_KEY") && (
+                  <optgroup label="Groq (free tier)">
+                    <option value="canopylabs/orpheus-v1-english">orpheus — ultra-fast, free</option>
+                  </optgroup>
+                )}
+                {hasKey("ELEVENLABS_API_KEY") && (
+                  <optgroup label="ElevenLabs">
+                    <option value="eleven_turbo_v2_5">eleven_turbo_v2.5 — fast</option>
+                    <option value="eleven_multilingual_v2">eleven_multilingual_v2 — quality</option>
+                  </optgroup>
+                )}
+                {hasKey("CARTESIA_API_KEY") && (
+                  <optgroup label="Cartesia">
+                    <option value="sonic-english">sonic-english — low latency</option>
+                    <option value="sonic-multilingual">sonic-multilingual</option>
+                  </optgroup>
+                )}
+              </select>
             </div>
           </div>
 
-          {/* ── Meeting Bot ─────────────────────────────────────────── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">TTS Voice</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  list="tts-voices"
-                  className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white placeholder-gray-600 focus:border-[#00d9ff]/50 focus:outline-none"
-                  placeholder="auto (based on model)"
-                  value={globalConfig.ttsVoice || ""}
-                  onChange={(e) => handleConfigChange("ttsVoice", e.target.value)}
-                />
-                <datalist id="tts-voices">
-                  <option value="nova">nova - OpenAI female</option>
-                  <option value="alloy">alloy - OpenAI neutral</option>
-                  <option value="echo">echo - OpenAI male</option>
-                  <option value="fable">fable - OpenAI UK</option>
-                  <option value="onyx">onyx - OpenAI deep</option>
-                  <option value="shimmer">shimmer - OpenAI soft</option>
-                  <option value="hannah">hannah - Groq orpheus</option>
-                  <option value="fritz">fritz - Groq orpheus</option>
-                </datalist>
-              </div>
+              <select
+                className="w-full bg-slate-950/60 border border-slate-700/50 rounded-xl px-4 py-3 text-sm font-mono text-white focus:border-[#00d9ff]/50 focus:outline-none appearance-none cursor-pointer"
+                value={globalConfig.ttsVoice || ""}
+                onChange={(e) => handleConfigChange("ttsVoice", e.target.value)}
+              >
+                <option value="">Auto (provider default)</option>
+                {hasKey("OPENAI_API_KEY") && (
+                  <optgroup label="OpenAI Voices">
+                    <option value="nova">nova — warm female</option>
+                    <option value="alloy">alloy — neutral</option>
+                    <option value="echo">echo — male</option>
+                    <option value="fable">fable — British</option>
+                    <option value="onyx">onyx — deep male</option>
+                    <option value="shimmer">shimmer — soft female</option>
+                    <option value="ash">ash — conversational male</option>
+                    <option value="coral">coral — conversational female</option>
+                    <option value="sage">sage — calm</option>
+                  </optgroup>
+                )}
+                {hasKey("GROQ_API_KEY") && (
+                  <optgroup label="Groq Orpheus Voices">
+                    <option value="troy">troy — male</option>
+                    <option value="hannah">hannah — female</option>
+                    <option value="austin">austin — male</option>
+                    <option value="diana">diana — female</option>
+                    <option value="autumn">autumn — female</option>
+                    <option value="daniel">daniel — male</option>
+                  </optgroup>
+                )}
+              </select>
             </div>
             <div>
               <label className="text-[11px] font-mono text-gray-400 uppercase mb-2 block tracking-wider">Meeting LLM</label>
@@ -954,11 +1031,20 @@ export function Settings() {
                   {data.vaultActive && isSet && <span className="text-[8px] font-mono text-[#00d9ff] bg-[#00d9ff]/8 px-1.5 py-0.5 rounded border border-[#00d9ff]/15 flex items-center gap-0.5"><Shield className="w-2.5 h-2.5" /> vault</span>}
                   {hasEdit && <span className="text-[8px] font-mono text-amber-400 bg-amber-400/8 px-1.5 py-0.5 rounded border border-amber-400/15">modified</span>}
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <input type={visibleKeys.has(key) ? "text" : "password"} placeholder={isSet ? data.vars[key] : "Not set"} value={editValues[key] ?? ""} onChange={(e) => handleChange(key, e.target.value)} className={inputClass} />
-                  <button onClick={() => toggleVisible(key)} className="p-2.5 text-gray-500 hover:text-[#00d9ff] transition-colors rounded-xl hover:bg-slate-800/50">
+                  <button onClick={() => toggleVisible(key)} className="p-2.5 text-gray-500 hover:text-[#00d9ff] transition-colors rounded-xl hover:bg-slate-800/50" title="Show/hide">
                     {visibleKeys.has(key) ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
+                  {isSet && (
+                    <button
+                      onClick={() => setDeleteTarget({ key, name })}
+                      className="p-2.5 text-gray-500 hover:text-red-400 transition-colors rounded-xl hover:bg-red-500/10"
+                      title={`Delete ${name} key`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -1001,11 +1087,20 @@ export function Settings() {
                   {data.vaultActive && isSet && !isUrl && <span className="text-[8px] font-mono text-[#00d9ff] bg-[#00d9ff]/8 px-1.5 py-0.5 rounded border border-[#00d9ff]/15 flex items-center gap-0.5"><Shield className="w-2.5 h-2.5" /> vault</span>}
                   {hasEdit && <span className="text-[8px] font-mono text-amber-400 bg-amber-400/8 px-1.5 py-0.5 rounded border border-amber-400/15">modified</span>}
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <input type={isUrl || visibleKeys.has(key) ? "text" : "password"} placeholder={isSet ? data.vars[key] : "Not set"} value={editValues[key] ?? ""} onChange={(e) => handleChange(key, e.target.value)} className={inputClass} />
                   {!isUrl && (
-                    <button onClick={() => toggleVisible(key)} className="p-2.5 text-gray-500 hover:text-[#00d9ff] transition-colors rounded-xl hover:bg-slate-800/50">
+                    <button onClick={() => toggleVisible(key)} className="p-2.5 text-gray-500 hover:text-[#00d9ff] transition-colors rounded-xl hover:bg-slate-800/50" title="Show/hide">
                       {visibleKeys.has(key) ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  )}
+                  {isSet && (
+                    <button
+                      onClick={() => setDeleteTarget({ key, name })}
+                      className="p-2.5 text-gray-500 hover:text-red-400 transition-colors rounded-xl hover:bg-red-500/10"
+                      title={`Delete ${name} key`}
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   )}
                 </div>
@@ -1068,6 +1163,32 @@ export function Settings() {
           })}
         </div>
       </Section>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent className="bg-slate-950 border-slate-800/80 text-gray-200 font-mono">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white tracking-tight flex items-center gap-2">
+              <Trash2 className="w-4 h-4 text-red-400" />
+              Delete {deleteTarget?.name} key
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400 text-sm leading-relaxed">
+              The key will be removed from the vault and any models that depend on it will stop working until you paste it back.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-slate-900 border-slate-800 text-gray-300 hover:bg-slate-800 hover:text-white">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteKey}
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-500 text-white border border-red-500/40"
+            >
+              {deleting ? "Deleting..." : "Delete key"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

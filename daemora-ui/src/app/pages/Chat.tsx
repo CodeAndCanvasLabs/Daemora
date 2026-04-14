@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { apiFetch, apiStreamUrl } from "../api";
-import { User, Loader2, Terminal, ArrowUp, Wrench, Brain, Bot, Download, Image as ImageIcon, Trash2 } from "lucide-react";
+import { User, Loader2, Terminal, ArrowUp, Wrench, Brain, Bot, Download, Image as ImageIcon, Trash2, Check, X } from "lucide-react";
 import { Textarea } from "../components/ui/textarea";
 import { ScrollArea } from "../components/ui/scroll-area";
 import {
@@ -16,12 +16,22 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Logo } from "../components/ui/Logo";
+import { VoicePanel, VoiceHandle } from "../components/VoicePanel";
+import { Mic, PhoneOff } from "lucide-react";
 import { toast } from "sonner";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
+}
+
+interface ToolEvent {
+  id: string;
+  name: string;
+  status: "running" | "done" | "error";
+  preview?: string;
+  durationMs?: number;
 }
 
 const SESSION_ID = "main";
@@ -31,6 +41,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [streamStatus, setStreamStatus] = useState<string | null>(null);
+  const [toolEvents, setToolEvents] = useState<ToolEvent[]>([]);
   const [initialized, setInitialized] = useState(false);
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -38,13 +49,19 @@ export function Chat() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const activeTaskIdRef = useRef<string | null>(sessionStorage.getItem("daemora_active_task"));
+  const voiceRef = useRef<VoiceHandle>(null);
+  const [voiceStatus, setVoiceStatus] = useState<string>("idle");
+  const pendingSendRef = useRef(false);
 
   const loadSession = async () => {
     try {
       const res = await apiFetch(`/api/sessions/${SESSION_ID}`);
       if (res.ok) {
         const data = await res.json();
-        setMessages(data.messages || []);
+        setMessages((data.messages || []).map((m: Message) => ({
+          ...m,
+          content: m.role === "user" ? m.content.replace(/^\[Voice mode:[^\]]+\]\s*/, "") : m.content,
+        })));
       } else {
         // Session doesn't exist yet — create it
         await apiFetch("/api/sessions", {
@@ -71,6 +88,7 @@ export function Chat() {
         body: JSON.stringify({ sessionId: SESSION_ID }),
       });
       setMessages([]);
+      setToolEvents([]);
       sessionStorage.removeItem("daemora_active_task");
       toast.success("Chat history cleared");
     } catch (error) {
@@ -109,6 +127,88 @@ export function Chat() {
     };
   }, []);
 
+  // Session-level SSE stream — stays open for the entire chat session and
+  // renders deltas from ANY task in this session (voice, background, channels).
+  // Chat.tsx previously only subscribed to task streams it created itself via
+  // the text input, so voice-originated tasks never rendered live. This fixes
+  // that with one persistent stream.
+  useEffect(() => {
+    const es = new EventSource(apiStreamUrl(`/api/sessions/${SESSION_ID}/stream`));
+    let voiceStreamingActive = false;
+    let voiceTaskId: string | null = null;
+
+    es.addEventListener("task:created", (e) => {
+      try {
+        const data = JSON.parse((e as MessageEvent).data);
+        // If this task was created by another channel (voice, cron, etc.),
+        // not the text input, append the user prompt into the chat as a
+        // preview so the user sees what was captured.
+        const myActive = sessionStorage.getItem("daemora_active_task");
+        if (pendingSendRef.current) return;
+        if (data.taskId && data.taskId !== myActive && data.input) {
+          voiceTaskId = data.taskId;
+          const cleanInput = String(data.input).replace(/^\[Voice mode:[^\]]+\]\s*/, "");
+          setMessages((prev) => {
+            const last = prev[prev.length - 1];
+            if (last?.role === "user" && last?.content === cleanInput) return prev;
+            return [...prev, { role: "user", content: cleanInput, timestamp: new Date().toISOString() }];
+          });
+          voiceStreamingActive = false;
+        }
+      } catch { /* ignore */ }
+    });
+
+    es.addEventListener("text:delta", (e) => {
+      try {
+        const data = JSON.parse((e as MessageEvent).data);
+        // Only process deltas for tasks that are NOT the one we're already
+        // streaming via the per-task stream (the text-input path). Voice
+        // and background tasks land here.
+        const myActive = sessionStorage.getItem("daemora_active_task");
+        if (!data.taskId || data.taskId === myActive) return;
+        const delta = data.delta || "";
+        if (!delta) return;
+        setMessages((prev) => {
+          if (!voiceStreamingActive) {
+            voiceStreamingActive = true;
+            return [...prev, {
+              role: "assistant",
+              content: delta,
+              timestamp: new Date().toISOString(),
+            }];
+          }
+          const next = [...prev];
+          const last = next[next.length - 1];
+          if (last && last.role === "assistant") {
+            next[next.length - 1] = { ...last, content: last.content + delta };
+          }
+          return next;
+        });
+      } catch { /* ignore */ }
+    });
+
+    es.addEventListener("text:end", () => { voiceStreamingActive = false; });
+    es.addEventListener("task:completed", (e) => {
+      try {
+        const data = JSON.parse((e as MessageEvent).data);
+        const myActive = sessionStorage.getItem("daemora_active_task");
+        // If this was a voice/channel task (not our text-input task), reload
+        // the session to pick up the final response
+        if (data?.id && data.id !== myActive) {
+          loadSession();
+        }
+      } catch {}
+      voiceStreamingActive = false;
+      voiceTaskId = null;
+    });
+    es.addEventListener("task:failed", () => {
+      voiceStreamingActive = false;
+      voiceTaskId = null;
+    });
+
+    return () => es.close();
+  }, []);
+
   const handleSend = async () => {
     if (!input.trim()) return;
 
@@ -122,10 +222,12 @@ export function Chat() {
     setMessages((prev) => [...prev, userMessage]);
     const currentInput = input;
     setInput("");
+    pendingSendRef.current = true;
 
     if (!isFollowUp) {
       setIsLoading(true);
       setStreamStatus("Queuing...");
+      setToolEvents([]);
     } else {
       setStreamStatus("Follow-up sent — agent will pick it up between steps");
     }
@@ -147,6 +249,7 @@ export function Chat() {
 
       if (data.taskId) {
         connectToStream(data.taskId);
+        pendingSendRef.current = false;
       } else if (data.result) {
         const assistantMessage: Message = {
           role: "assistant",
@@ -218,10 +321,53 @@ export function Chat() {
       } catch { setStreamStatus("Thinking..."); }
     });
 
+    const summarizeParams = (params: any): string => {
+      if (!params) return "";
+      try {
+        if (Array.isArray(params)) {
+          const first = params.find((p) => typeof p === "string");
+          if (first) return first.length > 40 ? first.slice(0, 40) + "…" : first;
+          return "";
+        }
+        if (typeof params === "object") {
+          for (const k of ["path", "file", "filePath", "url", "query", "command", "prompt", "name"]) {
+            const v = params[k];
+            if (typeof v === "string" && v) return v.length > 40 ? v.slice(0, 40) + "…" : v;
+          }
+        }
+        if (typeof params === "string") return params.length > 40 ? params.slice(0, 40) + "…" : params;
+      } catch { /* ignore */ }
+      return "";
+    };
+
+    es.addEventListener("tool:before", (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        const name = data.tool_name || data.tool || "tool";
+        const preview = summarizeParams(data.params);
+        const id = `${name}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        setToolEvents((prev) => [...prev, { id, name, status: "running", preview }]);
+        setStreamStatus(`Running ${name}${preview ? ` · ${preview}` : ""}...`);
+      } catch { /* ignore */ }
+    });
+
     es.addEventListener("tool:after", (e) => {
       try {
         const data = JSON.parse(e.data);
-        setStreamStatus(`Using ${data.tool_name || data.tool || "tool"}...`);
+        const name = data.tool_name || data.tool || "tool";
+        const duration = typeof data.duration === "number" ? data.duration : undefined;
+        const nextStatus: "done" | "error" = data.error ? "error" : "done";
+        setToolEvents((prev) => {
+          const next = [...prev];
+          for (let i = next.length - 1; i >= 0; i--) {
+            if (next[i].name === name && next[i].status === "running") {
+              next[i] = { ...next[i], status: nextStatus, durationMs: duration };
+              return next;
+            }
+          }
+          return next;
+        });
+        setStreamStatus(nextStatus === "error" ? `${name} failed` : `Using ${name}...`);
       } catch { setStreamStatus("Using tool..."); }
     });
 
@@ -274,6 +420,7 @@ export function Chat() {
       loadSession();
       setIsLoading(false);
       setStreamStatus(null);
+      setToolEvents([]);
       es.close();
       eventSourceRef.current = null;
     });
@@ -411,7 +558,7 @@ export function Chat() {
         {/* Messages Area */}
         <div className="flex-1 min-h-0 relative z-10 flex flex-col">
           <ScrollArea className="flex-1 min-h-0" ref={scrollAreaRef}>
-            <div className="max-w-6xl mx-auto py-6 px-4 sm:px-6 space-y-5">
+            <div className="max-w-3xl mx-auto py-6 px-4 sm:px-6 lg:px-8 space-y-5">
               {!initialized ? (
                 <div className="flex flex-col items-center py-24 gap-3 opacity-50">
                   <Loader2 className="w-5 h-5 text-[#00d9ff] animate-spin" />
@@ -433,14 +580,14 @@ export function Chat() {
                 messages.map((message, i) => (
                   <div
                     key={i}
-                    className={`flex gap-3 animate-in slide-in-from-bottom-2 duration-300 ${message.role === "user" ? "justify-end" : ""}`}
+                    className={`flex gap-3 animate-in slide-in-from-bottom-2 duration-300 ${message.role === "user" ? "flex-row-reverse" : ""}`}
                   >
                     {message.role === "assistant" && (
                       <div className="w-7 h-7 rounded-lg bg-slate-950 border border-slate-800/80 p-1 flex-shrink-0 flex items-center justify-center shadow-lg mt-1">
                         <Logo size={18} />
                       </div>
                     )}
-                    <div className={`max-w-[88%] ${message.role === "user" ? "flex justify-end" : ""}`}>
+                    <div className="max-w-[85%] sm:max-w-[80%] lg:max-w-[75%]">
                       <div
                         className={`rounded-lg p-4 shadow-md border transition-all ${
                           message.role === "user"
@@ -513,36 +660,65 @@ export function Chat() {
               )}
 
               {isLoading && (() => {
-                // Don't render the status bubble if the last message is a streaming
-                // assistant message — that would create a duplicate floating pill
-                // below the live message. In that case, show a tiny inline cursor instead.
                 const lastMsg = messages[messages.length - 1];
                 const isStreamingActive = lastMsg?.role === "assistant" && lastMsg?.content;
 
+                const timeline = toolEvents.length > 0 ? (
+                  <div className="flex flex-col gap-1 font-mono">
+                    {toolEvents.slice(-6).map((t) => (
+                      <div key={t.id} className="flex items-center gap-2 text-[10px]">
+                        {t.status === "running" && <Loader2 className="w-3 h-3 text-[#00d9ff] animate-spin flex-shrink-0" />}
+                        {t.status === "done" && <Check className="w-3 h-3 text-[#4ECDC4] flex-shrink-0" />}
+                        {t.status === "error" && <X className="w-3 h-3 text-red-400 flex-shrink-0" />}
+                        <span className={`tracking-wider uppercase ${t.status === "running" ? "text-[#00d9ff]" : "text-gray-500"}`}>
+                          {t.name}
+                        </span>
+                        {t.preview && (
+                          <span className="text-gray-600 truncate normal-case tracking-normal">
+                            {t.preview}
+                          </span>
+                        )}
+                        {typeof t.durationMs === "number" && t.status !== "running" && (
+                          <span className="text-gray-700 text-[9px] ml-auto">
+                            {t.durationMs < 1000 ? `${t.durationMs}ms` : `${(t.durationMs / 1000).toFixed(1)}s`}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : null;
+
                 if (isStreamingActive) {
-                  // Tiny inline status — only show if there's actual status text (e.g. tool call)
-                  if (!streamStatus) return null;
+                  if (!streamStatus && !timeline) return null;
                   return (
-                    <div className="flex items-center gap-2 pl-10 -mt-2 mb-2 opacity-60">
-                      {getStatusIcon()}
-                      <span className="text-[9px] text-[#00d9ff]/70 font-mono tracking-[0.2em] uppercase">
-                        {streamStatus}
-                      </span>
+                    <div className="flex flex-col gap-1 pl-10 -mt-2 mb-2 opacity-70">
+                      {timeline}
+                      {streamStatus && (
+                        <div className="flex items-center gap-2">
+                          {getStatusIcon()}
+                          <span className="text-[9px] text-[#00d9ff]/70 font-mono tracking-[0.2em] uppercase">
+                            {streamStatus}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   );
                 }
 
                 return (
-                  <div className="flex gap-3 animate-pulse">
+                  <div className="flex gap-3">
                     <div className="w-7 h-7 rounded-lg bg-slate-950 border border-slate-800/80 p-1 flex-shrink-0 flex items-center justify-center">
                       <Logo size={18} />
                     </div>
                     <div className="max-w-[88%]">
-                      <div className="rounded-lg p-4 bg-slate-800/30 border border-slate-800 flex items-center gap-3">
-                        {getStatusIcon()}
-                        <span className="text-[9px] text-[#00d9ff] font-mono tracking-[0.2em] uppercase">
-                          {streamStatus || "Processing..."}
-                        </span>
+                      <div className="rounded-lg p-4 bg-slate-800/30 border border-slate-800 flex flex-col gap-2">
+                        {timeline}
+                        <div className="flex items-center gap-3">
+                          {getStatusIcon()}
+                          <span className="text-[9px] text-[#00d9ff] font-mono tracking-[0.2em] uppercase animate-pulse">
+                            {streamStatus || "Processing..."}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -552,10 +728,13 @@ export function Chat() {
             </div>
           </ScrollArea>
 
+          {/* Voice orb (only when active) */}
+          <VoicePanel ref={voiceRef} />
+
           {/* Input */}
-          <div className="px-4 pb-4 pt-2 backdrop-blur-xl shrink-0">
-            <div className="max-w-6xl mx-auto">
-              <div className="flex items-end gap-0 bg-slate-800/60 border border-slate-700/50 rounded-full px-2 py-1.5 shadow-[0_0_30px_rgba(0,0,0,0.3)] focus-within:border-[#00d9ff]/30 transition-all">
+          <div className="px-3 sm:px-4 pb-3 sm:pb-4 pt-2 backdrop-blur-xl shrink-0">
+            <div className="max-w-3xl mx-auto w-full">
+              <div className="flex items-end gap-2 bg-slate-800/60 border border-slate-700/50 rounded-2xl px-3 py-2 shadow-[0_0_30px_rgba(0,0,0,0.3)] focus-within:border-[#00d9ff]/30 transition-all">
                 <Textarea
                   ref={textareaRef}
                   value={input}
@@ -567,8 +746,9 @@ export function Chat() {
                     }
                   }}
                   placeholder={isLoading ? "Send a follow-up..." : "Ask anything..."}
-                  className="flex-1 min-h-[36px] max-h-[120px] bg-transparent border-0 text-white placeholder:text-gray-600 focus-visible:ring-0 focus-visible:ring-offset-0 font-mono text-sm px-3 py-2 resize-none shadow-none"
+                  className="flex-1 min-h-[40px] max-h-[120px] bg-transparent border-0 text-white placeholder:text-gray-500 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm px-2 py-2.5 resize-none shadow-none leading-relaxed"
                 />
+                {/* Send button */}
                 <button
                   onClick={handleSend}
                   disabled={!input.trim()}
@@ -579,6 +759,23 @@ export function Chat() {
                   }`}
                 >
                   <ArrowUp className="w-4 h-4" />
+                </button>
+                {/* Mic button — always visible, right of send */}
+                <button
+                  onClick={() => {
+                    const v = voiceRef.current;
+                    if (!v) return;
+                    if (v.active) v.stop(); else v.start();
+                    setTimeout(() => setVoiceStatus(voiceRef.current?.status || "idle"), 150);
+                  }}
+                  title={voiceRef.current?.active ? "End voice" : "Start voice"}
+                  className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+                    voiceRef.current?.active
+                      ? "bg-gradient-to-br from-[#00d9ff] to-[#4ECDC4] text-slate-950 shadow-[0_0_12px_rgba(0,217,255,0.3)]"
+                      : "bg-slate-700/50 text-gray-500 hover:text-[#00d9ff] hover:bg-slate-700"
+                  }`}
+                >
+                  {voiceRef.current?.active ? <PhoneOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                 </button>
               </div>
               <div className="text-center mt-1.5">

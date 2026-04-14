@@ -2,11 +2,11 @@ import express from "express";
 import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, unlinkSync, statSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { randomBytes } from "crypto";
+import { createHmac, randomBytes } from "crypto";
 import { toolFunctions } from "./tools/index.js";
 import { getSession, listSessions, createSession, clearSession } from "./services/sessions.js";
 import { config, reloadFromDb } from "./config/default.js";
-import { listAvailableModels, resolveDefaultModel, clearProviderCache } from "./models/ModelRouter.js";
+import { listAvailableModels, resolveDefaultModel, clearProviderCache, refreshOllamaNow } from "./models/ModelRouter.js";
 import { models as modelRegistry } from "./config/models.js";
 import taskQueue from "./core/TaskQueue.js";
 import taskRunner from "./core/TaskRunner.js";
@@ -93,6 +93,19 @@ async function hotReloadAll() {
   try { await channelRegistry.stopAll(); await channelRegistry.startAll(); } catch {}
   try { await mcpManager.init(); } catch {}
   try { scheduler.stop(); await scheduler.start(); } catch {}
+  // Fully restart voice sidecar (new process = fresh env vars for TTS voice/model)
+  try {
+    const supervisor = await import("./voice/sidecarSupervisor.js");
+    if (supervisor.getSidecarStatus().running) {
+      await supervisor.stopSidecar();
+      // Respawn with fresh env (includes new TTS_VOICE, STT_MODEL, etc.)
+      await supervisor.startSidecar();
+      await supervisor.sidecarFetch("/voice/start", { method: "POST" }).catch(() => {});
+      console.log("[HotReload] Voice sidecar fully restarted with fresh env");
+    }
+  } catch (e) {
+    console.log("[HotReload] Voice restart failed:", e.message);
+  }
   console.log(`[HotReload] Complete in ${Date.now() - start}ms`);
 }
 
@@ -152,13 +165,20 @@ const originGuard = (req, res, next) => {
     `http://127.0.0.1:${config.port}`,
     `http://[::1]:${config.port}`,
   ];
+  // Tauri desktop app (custom protocol origins)
+  allowedOrigins.push("tauri://localhost", "https://tauri.localhost");
   // Also allow Vite dev server (common dev ports)
   for (const devPort of [5173, 5174, 3000, 3001]) {
     allowedOrigins.push(`http://localhost:${devPort}`);
     allowedOrigins.push(`http://127.0.0.1:${devPort}`);
   }
 
-  if (allowedOrigins.includes(origin)) {
+  // Allow any localhost/127.0.0.1 origin (port may vary in desktop mode)
+  const isLocalOrigin = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin)
+    || origin === "tauri://localhost"
+    || origin === "https://tauri.localhost";
+
+  if (isLocalOrigin || allowedOrigins.includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -189,6 +209,10 @@ function getOrCreateAuthToken() {
 }
 
 const API_TOKEN = getOrCreateAuthToken();
+// Expose to process.env so child processes (voice sidecar, etc.) inherit it
+// and can authenticate back to Daemora. DaemoraLLM plugin reads DAEMORA_AUTH_TOKEN.
+process.env.API_TOKEN = API_TOKEN;
+process.env.DAEMORA_AUTH_TOKEN = API_TOKEN;
 
 const tokenAuth = (req, res, next) => {
   // Health endpoint is public (monitoring/readiness probes)
@@ -237,16 +261,17 @@ app.get("/api/tools", (req, res) => {
 // --- Chat endpoint (Async - returns taskId, client uses SSE to stream) ---
 app.post("/api/chat", (req, res) => {
   try {
-    const { input, sessionId, model, priority } = req.body;
+    const { input, sessionId, model, priority, voice } = req.body;
     if (!input) return res.status(400).json({ error: "input is required" });
 
     const task = taskQueue.enqueue({
       input,
-      channel: "http",
+      channel: voice ? "voice" : "http",
       sessionId: sessionId || "main",
       model,
       priority: priority || 5,
       type: "chat",
+      voice: !!voice,
     });
 
     res.status(202).json({
@@ -428,7 +453,10 @@ app.get("/api/config", (req, res) => {
 });
 
 // --- Models endpoint ---
-app.get("/api/models", (req, res) => {
+app.get("/api/models", async (req, res) => {
+  if (req.query.refresh === "1") {
+    try { await refreshOllamaNow(); } catch { /* soft fail */ }
+  }
   const available = listAvailableModels();
   res.json({
     default: config.defaultModel,
@@ -442,17 +470,37 @@ app.get("/api/models", (req, res) => {
   });
 });
 
-// --- All models (registry) endpoint ---
-app.get("/api/models/all", (req, res) => {
-  const available = new Set(listAvailableModels().map(m => m.id));
+// --- All models (registry + live-discovered) endpoint ---
+app.get("/api/models/all", async (req, res) => {
+  if (req.query.refresh === "1") {
+    try { await refreshOllamaNow(); } catch { /* soft fail */ }
+  }
+  const availableList = listAvailableModels();
+  const availableIds = new Set(availableList.map(m => m.id));
   const all = Object.entries(modelRegistry).map(([id, m]) => ({
     id,
     provider: m.provider,
     model: m.model,
     tier: m.tier,
     contextWindow: m.contextWindow,
-    available: available.has(id),
+    available: availableIds.has(id),
   }));
+  // Merge dynamically discovered models (Ollama) into the "All" list so
+  // whatever the user has actually pulled shows up — otherwise this
+  // endpoint only returns static cloud presets.
+  const registryIds = new Set(Object.keys(modelRegistry));
+  for (const m of availableList) {
+    if (!registryIds.has(m.id)) {
+      all.push({
+        id: m.id,
+        provider: m.provider,
+        model: m.model,
+        tier: m.tier,
+        contextWindow: m.contextWindow,
+        available: true,
+      });
+    }
+  }
   res.json({ models: all });
 });
 
@@ -504,6 +552,9 @@ app.get("/api/tasks/:id/stream", (req, res) => {
   const task = loadTask(taskId);
   if (task) send("task:state", task);
 
+  const onToolBefore = (evt) => {
+    if (evt.taskId === taskId) send("tool:before", evt);
+  };
   const onTool = (evt) => {
     if (evt.taskId === taskId) send("tool:after", evt);
   };
@@ -538,6 +589,7 @@ app.get("/api/tasks/:id/stream", (req, res) => {
     }
   };
 
+  eventBus.on("tool:before", onToolBefore);
   eventBus.on("tool:after", onTool);
   eventBus.on("model:called", onModel);
   eventBus.on("text:delta", onTextDelta);
@@ -548,6 +600,7 @@ app.get("/api/tasks/:id/stream", (req, res) => {
   eventBus.on("task:failed", onFail);
 
   const cleanup = () => {
+    eventBus.removeListener("tool:before", onToolBefore);
     eventBus.removeListener("tool:after", onTool);
     eventBus.removeListener("model:called", onModel);
     eventBus.removeListener("text:delta", onTextDelta);
@@ -559,6 +612,96 @@ app.get("/api/tasks/:id/stream", (req, res) => {
   };
 
   req.on("close", cleanup);
+});
+
+// --- Session-level SSE stream ---
+// Unlike /api/tasks/:id/stream (one task), this stays open for the entire
+// session and broadcasts deltas from ANY task in that session — voice,
+// text, background scheduler, channel bots, everything. Chat.tsx subscribes
+// once on mount so the chat renders live no matter who created the task
+// (browser, sidecar voice pipeline, channel webhook, …).
+app.get("/api/sessions/:id/stream", (req, res) => {
+  const sessionId = req.params.id;
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+  });
+
+  const send = (event, data) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  // Resolve task.sessionId with a tiny cache so we don't slam SQLite
+  // for every single text:delta frame.
+  const taskSessionCache = new Map();
+  const belongsToSession = (taskId) => {
+    if (!taskId) return false;
+    if (taskSessionCache.has(taskId)) return taskSessionCache.get(taskId) === sessionId;
+    const task = loadTask(taskId);
+    const sid = task?.sessionId || null;
+    taskSessionCache.set(taskId, sid);
+    // Evict after 5 min to avoid unbounded growth
+    setTimeout(() => taskSessionCache.delete(taskId), 5 * 60 * 1000).unref?.();
+    return sid === sessionId;
+  };
+
+  const wrap = (evtName) => (evt) => {
+    if (belongsToSession(evt.taskId)) send(evtName, evt);
+  };
+
+  const onToolBefore = wrap("tool:before");
+  const onTool = wrap("tool:after");
+  const onModel = wrap("model:called");
+  const onTextDelta = wrap("text:delta");
+  const onTextEnd = wrap("text:end");
+  const onTaskCreated = (evt) => {
+    if (evt.sessionId === sessionId || belongsToSession(evt.taskId)) {
+      send("task:created", evt);
+    }
+  };
+  const onComplete = (evt) => {
+    if (belongsToSession(evt.taskId)) {
+      const finalTask = loadTask(evt.taskId);
+      send("task:completed", finalTask || evt);
+    }
+  };
+  const onFail = (evt) => {
+    if (belongsToSession(evt.taskId)) send("task:failed", evt);
+  };
+
+  eventBus.on("tool:before", onToolBefore);
+  eventBus.on("tool:after", onTool);
+  eventBus.on("model:called", onModel);
+  eventBus.on("text:delta", onTextDelta);
+  eventBus.on("text:end", onTextEnd);
+  eventBus.on("task:created", onTaskCreated);
+  eventBus.on("task:completed", onComplete);
+  eventBus.on("task:failed", onFail);
+
+  const cleanup = () => {
+    eventBus.removeListener("tool:before", onToolBefore);
+    eventBus.removeListener("tool:after", onTool);
+    eventBus.removeListener("model:called", onModel);
+    eventBus.removeListener("text:delta", onTextDelta);
+    eventBus.removeListener("text:end", onTextEnd);
+    eventBus.removeListener("task:created", onTaskCreated);
+    eventBus.removeListener("task:completed", onComplete);
+    eventBus.removeListener("task:failed", onFail);
+  };
+
+  // Keep-alive ping every 20s so proxies / browsers don't drop the stream
+  const pingTimer = setInterval(() => {
+    try { res.write(": ping\n\n"); } catch {}
+  }, 20000);
+  pingTimer.unref?.();
+
+  req.on("close", () => {
+    clearInterval(pingTimer);
+    cleanup();
+  });
+
+  send("stream:opened", { sessionId });
 });
 
 // --- WhatsApp webhook ---
@@ -1364,6 +1507,162 @@ app.post("/api/daemon/:action", (req, res) => {
   }
 });
 
+// --- Voice room token (browser-side LiveKit JWT minting) ---
+// The webview joins the local loopback LiveKit room as a "user" participant.
+// It needs a short-lived access token. We mint it here so the raw dev secret
+// never crosses the wire — the browser just gets an already-signed JWT.
+app.post("/api/voice/token", (req, res) => {
+  try {
+    const identity = (req.body && req.body.identity) || `daemora-user-${Date.now()}`;
+    const room = (req.body && req.body.room) || process.env.DAEMORA_VOICE_ROOM || "daemora-local";
+    const apiKey = process.env.LIVEKIT_API_KEY || "devkey";
+    const apiSecret = process.env.LIVEKIT_API_SECRET || "secret";
+
+    const now = Math.floor(Date.now() / 1000);
+    const payload = {
+      iss: apiKey,
+      nbf: now,
+      exp: now + 6 * 60 * 60,
+      sub: identity,
+      video: {
+        room,
+        roomJoin: true,
+        canPublish: true,
+        canSubscribe: true,
+        canPublishData: true,
+        canUpdateOwnMetadata: true,
+      },
+    };
+    const b64url = (buf) => Buffer.from(buf).toString("base64").replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
+    const header = { alg: "HS256", typ: "JWT" };
+    const headerB = b64url(JSON.stringify(header));
+    const payloadB = b64url(JSON.stringify(payload));
+    const toSign = `${headerB}.${payloadB}`;
+    const sig = createHmac("sha256", apiSecret).update(toSign).digest();
+    const sigB = b64url(sig);
+    const token = `${toSign}.${sigB}`;
+
+    res.json({
+      token,
+      url: process.env.LIVEKIT_URL || "ws://127.0.0.1:7880",
+      room,
+      identity,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// --- Voice sidecar supervisor endpoints ---
+// Daemora spawns the Python voice + desktop sidecar as a managed child
+// process with env inherited directly — no /api/voice/env endpoint (deleted
+// for security: that one leaked raw vault keys to any token-auth caller).
+// The browser calls these proxy endpoints, which forward to the sidecar
+// using a random per-spawn shared token only Daemora knows.
+app.post("/api/voice/sidecar/start", async (req, res) => {
+  try {
+    const supervisor = await import("./voice/sidecarSupervisor.js");
+    supervisor.registerShutdownHook();
+    const spawnState = await supervisor.startSidecar();
+    const voiceRes = await supervisor.sidecarFetch("/voice/start", { method: "POST" });
+    const voiceBody = await voiceRes.json().catch(() => ({}));
+    res.json({ spawn: spawnState, voice: voiceBody });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/voice/sidecar/stop", async (req, res) => {
+  try {
+    const supervisor = await import("./voice/sidecarSupervisor.js");
+    try {
+      await supervisor.sidecarFetch("/voice/stop", { method: "POST" });
+    } catch { /* sidecar may already be down */ }
+    const killKeepAlive = req.body && req.body.killChild === true;
+    if (killKeepAlive) await supervisor.stopSidecar();
+    res.json({ ok: true, ...supervisor.getSidecarStatus() });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// --- Wake word endpoints ---
+app.post("/api/voice/wake/start", async (req, res) => {
+  try {
+    const supervisor = await import("./voice/sidecarSupervisor.js");
+    supervisor.registerShutdownHook();
+    await supervisor.startSidecar();
+    const wakeWord = req.body?.wake_word || process.env.DAEMORA_WAKE_WORD || "hey_jarvis";
+    const r = await supervisor.sidecarFetch("/wake/start", {
+      method: "POST",
+      body: JSON.stringify({ wake_word: wakeWord, threshold: 0.5 }),
+    });
+    res.json(await r.json());
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/voice/wake/stop", async (req, res) => {
+  try {
+    const supervisor = await import("./voice/sidecarSupervisor.js");
+    const r = await supervisor.sidecarFetch("/wake/stop", { method: "POST" });
+    res.json(await r.json());
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get("/api/voice/wake/status", async (req, res) => {
+  try {
+    const supervisor = await import("./voice/sidecarSupervisor.js");
+    const r = await supervisor.sidecarFetch("/wake/status");
+    res.json(await r.json());
+  } catch (e) { res.json({ running: false }); }
+});
+
+// Called by sidecar when wake word fires — broadcast via SSE so UI can react
+app.post("/api/voice/wake-event", (req, res) => {
+  try {
+    eventBus.emit("voice:wake", { model: req.body?.model, score: req.body?.score });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get("/api/voice/sidecar/status", async (req, res) => {
+  try {
+    const supervisor = await import("./voice/sidecarSupervisor.js");
+    const status = supervisor.getSidecarStatus();
+    let voice = null;
+    if (status.running) {
+      try {
+        const r = await supervisor.sidecarFetch("/voice/status");
+        voice = await r.json();
+      } catch { /* best-effort */ }
+    }
+    res.json({ ...status, voice });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// --- Setup status (first-run detection for desktop app / CLI wizard) ---
+app.get("/api/setup/status", (req, res) => {
+  const setupCompleted = configStore.get("SETUP_COMPLETED") || null;
+  const defaultModel = configStore.get("DEFAULT_MODEL") || process.env.DEFAULT_MODEL || null;
+  const hasAnyLlmKey = [
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "GOOGLE_GENERATIVE_AI_API_KEY",
+    "GEMINI_API_KEY",
+    "GROQ_API_KEY",
+  ].some((k) => !!process.env[k]);
+  res.json({
+    completed: !!setupCompleted,
+    completedAt: setupCompleted,
+    vaultExists: secretVault.exists(),
+    vaultUnlocked: secretVault.isUnlocked(),
+    defaultModel,
+    hasAnyLlmKey,
+  });
+});
+
 // --- Vault endpoints ---
 app.get("/api/vault/status", (req, res) => {
   res.json({
@@ -1393,6 +1692,28 @@ app.post("/api/vault/unlock", async (req, res) => {
 app.post("/api/vault/lock", (req, res) => {
   secretVault.lock();
   res.json({ message: "Vault locked" });
+});
+
+// Delete a single key from vault + config (used by Settings UI delete buttons)
+app.delete("/api/settings/:key", async (req, res) => {
+  const key = req.params.key;
+  if (!key) return res.status(400).json({ error: "key is required" });
+  try {
+    // Remove from vault (secrets)
+    if (secretVault.isUnlocked()) {
+      try { secretVault.delete(key); } catch {}
+    }
+    // Remove from config store (non-secrets)
+    try { configStore.delete(key); } catch {}
+    // Remove from process.env
+    delete process.env[key];
+    // Hot-reload to pick up the change
+    await hotReloadAll();
+    console.log(`[Settings] Deleted key: ${key}`);
+    res.json({ ok: true, key });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // --- Exec approvals ---
@@ -1969,6 +2290,7 @@ process.on("SIGTERM", async () => {
   goalPulse.stop();
   taskRunner.stop();
   supervisor.stop();
+  try { const { stopSidecar } = await import("./voice/sidecarSupervisor.js"); await stopSidecar(); } catch {}
   try { const { stopCrew } = await import("./crew/PluginLoader.js"); await stopCrew(); } catch {}
   closeTunnel().then(() =>
     mcpManager.shutdown().then(() =>

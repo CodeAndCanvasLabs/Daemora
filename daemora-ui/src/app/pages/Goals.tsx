@@ -8,6 +8,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../components/ui/alert-dialog";
 import { Input } from "../components/ui/input";
 import { Switch } from "../components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
@@ -137,14 +147,21 @@ export function Goals() {
     }
   };
 
-  const deleteGoal = async (id: string) => {
-    if (!confirm("Delete this goal?")) return;
+  const [deleteGoalTarget, setDeleteGoalTarget] = useState<string | null>(null);
+  const [deletingGoal, setDeletingGoal] = useState(false);
+  const deleteGoal = (id: string) => setDeleteGoalTarget(id);
+  const confirmDeleteGoal = async () => {
+    if (!deleteGoalTarget) return;
+    setDeletingGoal(true);
     try {
-      await apiFetch(`/api/goals/${id}`, { method: "DELETE" });
+      await apiFetch(`/api/goals/${deleteGoalTarget}`, { method: "DELETE" });
       toast.success("Goal deleted");
       fetchGoals();
+      setDeleteGoalTarget(null);
     } catch (e: any) {
       toast.error(e.message);
+    } finally {
+      setDeletingGoal(false);
     }
   };
 
@@ -345,6 +362,32 @@ export function Goals() {
           ))}
         </div>
       )}
+
+      <AlertDialog open={!!deleteGoalTarget} onOpenChange={(open) => !open && setDeleteGoalTarget(null)}>
+        <AlertDialogContent className="bg-slate-950 border-slate-800/80 text-gray-200 font-mono">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white tracking-tight flex items-center gap-2">
+              <Trash2 className="w-4 h-4 text-red-400" />
+              Delete goal
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400 text-sm leading-relaxed">
+              This goal and its check history will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-slate-900 border-slate-800 text-gray-300 hover:bg-slate-800 hover:text-white">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteGoal}
+              disabled={deletingGoal}
+              className="bg-red-600 hover:bg-red-500 text-white border border-red-500/40"
+            >
+              {deletingGoal ? "Deleting..." : "Delete goal"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -8,6 +8,9 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription, AlertDialogAction, AlertDialogCancel } from "../components/ui/alert-dialog";
+
+// Strip voice-mode system prompt from display (it's a hint for the LLM, not user content)
+const stripVoicePrefix = (s: string) => (s || "").replace(/^\[Voice mode:[^\]]+\]\s*/, "");
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -170,7 +173,7 @@ export function TaskDetail() {
           </Button>
         </Link>
         <div className="flex-1 min-w-0">
-          <h2 className="text-xl font-bold text-white font-mono uppercase tracking-tight truncate">{task.input.slice(0, 80)}</h2>
+          <h2 className="text-xl font-bold text-white font-mono uppercase tracking-tight truncate">{stripVoicePrefix(task.input).slice(0, 80)}</h2>
           <p className="text-gray-500 font-mono text-[10px] uppercase tracking-wider mt-1">
             {task.id} // {task.channel} {task.cost?.model && `// ${task.cost.model}`}
           </p>
@@ -264,7 +267,7 @@ export function TaskDetail() {
               <div>
                 <h3 className="text-xs font-mono text-gray-500 uppercase tracking-widest mb-3">Input</h3>
                 <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-                  <pre className="text-gray-300 text-sm font-mono whitespace-pre-wrap">{task.input}</pre>
+                  <pre className="text-gray-300 text-sm font-mono whitespace-pre-wrap">{stripVoicePrefix(task.input)}</pre>
                 </div>
               </div>
               <div>

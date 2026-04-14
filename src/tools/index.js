@@ -45,6 +45,11 @@ import { readPDF } from "./readPDF.js";
 import { createPoll } from "./pollTool.js";
 import { gitTool } from "./gitTool.js";
 import { clipboard } from "./clipboard.js";
+import {
+  desktopClick, desktopMove, desktopType, desktopPressKey, desktopKeyCombo,
+  desktopScroll, desktopScreenshot, desktopListWindows, desktopFocusWindow,
+  desktopFindElement,
+} from "./desktop/index.js";
 // Crew tools NOT imported here - crew members are self-contained sub-agents.
 // Main agent delegates via useCrew(crewId, task).
 import { useCrew } from "./useCrew.js";
@@ -95,6 +100,8 @@ export const toolFunctions = {
   meetingAction,
   generateImage, generateVideo, generateMusic, imageOps, readPDF, createPoll,
   gitTool, clipboard,
+  desktopScreenshot, desktopListWindows, desktopFocusWindow, desktopFindElement,
+  desktopClick, desktopMove, desktopType, desktopPressKey, desktopKeyCombo, desktopScroll,
   discoverCrew,
   broadcast,
   goal,

@@ -1,0 +1,58 @@
+[project]
+name = "daemora-sidecar"
+version = "0.1.0"
+description = "Desktop control + voice pipeline sidecar for Daemora"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.32",
+  "pyautogui>=0.9.54",
+  "pillow>=11.0",
+  "mss>=10.0",
+  "pydantic>=2.9",
+  "httpx>=0.28",
+]
+
+[project.optional-dependencies]
+voice = [
+  # LiveKit pipeline — provider-agnostic, plugins below
+  "livekit>=1.1.5",
+  "livekit-agents>=1.5.2",
+  # VAD — local, always on-device (needed for turn detection)
+  "livekit-plugins-silero>=1.5.2",
+  # STT provider plugins — installed for selection; user picks one in first-run wizard
+  "livekit-plugins-deepgram>=1.5.2",
+  "livekit-plugins-openai>=1.5.2",
+  "livekit-plugins-groq>=1.5.2",
+  "livekit-plugins-google>=1.5.2",
+  "livekit-plugins-assemblyai>=1.5.2",
+  # TTS provider plugins — same
+  "livekit-plugins-elevenlabs>=1.5.2",
+  "livekit-plugins-cartesia>=1.5.2",
+  # Wake word — local, always on-device (cost + privacy — can't stream mic to cloud 24/7)
+  "openwakeword>=0.6",
+  # Audio I/O
+  "sounddevice>=0.5",
+  "numpy>=2.0",
+]
+
+# Opt-in offline mode: local STT/TTS models. Installed with:
+#   uv pip install -e ".[voice,local]"
+# or via bootstrap: ./bootstrap.sh --local
+# First-run wizard in the Tauri shell will expose this as an "Offline mode"
+# toggle. Defaults here are the best 2026 open-source picks; the provider
+# factory is string-dispatched so adding more (Moonshine, Distil-Whisper,
+# OuteTTS, Parler-TTS, XTTS-v2) is a one-branch change in voice_providers.py.
+local = [
+  "faster-whisper>=1.2.1",   # local STT — CTranslate2 port of Whisper, Apache-2.0
+  "kokoro>=0.9.4",           # local TTS — hexgrad Kokoro-82M, Apache-2.0 (better than Piper)
+  "misaki>=0.9",             # Kokoro's G2P phonemizer dep
+  "soundfile>=0.13",         # audio file I/O
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["daemora_sidecar"]

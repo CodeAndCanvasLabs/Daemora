@@ -661,43 +661,9 @@ export const models = {
     tier: "cheap",
   },
 
-  // ─── Ollama (local - no cost) ────────────────────────────────────────────────
-
-  "ollama:llama4:scout": {
-    provider: "ollama", model: "llama4:scout",
-    contextWindow: 512_000, compactAt: 350_000,
-    costPer1kInput: 0, costPer1kOutput: 0,
-    capabilities: ["text", "tools", "vision"],
-    tier: "free",
-  },
-  "ollama:llama4:maverick": {
-    provider: "ollama", model: "llama4:maverick",
-    contextWindow: 1_000_000, compactAt: 700_000,
-    costPer1kInput: 0, costPer1kOutput: 0,
-    capabilities: ["text", "tools", "vision"],
-    tier: "free",
-  },
-  "ollama:llama3.1": {
-    provider: "ollama", model: "llama3.1",
-    contextWindow: 128_000, compactAt: 90_000,
-    costPer1kInput: 0, costPer1kOutput: 0,
-    capabilities: ["text", "tools"],
-    tier: "free",
-  },
-  "ollama:llama3": {
-    provider: "ollama", model: "llama3",
-    contextWindow: 8_192, compactAt: 5_600,
-    costPer1kInput: 0, costPer1kOutput: 0,
-    capabilities: ["text"],
-    tier: "free",
-  },
-  "ollama:qwen2.5-coder": {
-    provider: "ollama", model: "qwen2.5-coder",
-    contextWindow: 32_000, compactAt: 22_000,
-    costPer1kInput: 0, costPer1kOutput: 0,
-    capabilities: ["text", "tools"],
-    tier: "free",
-  },
+  // Ollama models intentionally NOT hardcoded — they're discovered live
+  // from `${OLLAMA_BASE_URL}/api/tags` in ModelRouter.listAvailableModels()
+  // so users only see models they've actually pulled.
 };
 
 /**

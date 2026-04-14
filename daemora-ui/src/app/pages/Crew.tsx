@@ -11,6 +11,16 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Switch } from "../components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../components/ui/alert-dialog";
 import { toast } from "sonner";
 
 interface CrewMemberRecord {
@@ -118,17 +128,23 @@ export function Crew() {
     finally { setInstalling(false); }
   };
 
-  const handleUninstall = async (id: string) => {
-    if (!confirm(`Remove crew member "${id}"? This deletes the folder.`)) return;
+  const [uninstallTarget, setUninstallTarget] = useState<string | null>(null);
+  const [uninstalling, setUninstalling] = useState(false);
+  const handleUninstall = (id: string) => setUninstallTarget(id);
+  const confirmUninstall = async () => {
+    if (!uninstallTarget) return;
+    setUninstalling(true);
     try {
-      const res = await apiFetch(`/api/crew/${id}/uninstall`, { method: "DELETE" });
+      const res = await apiFetch(`/api/crew/${uninstallTarget}/uninstall`, { method: "DELETE" });
       if (res.ok) {
         toast.success("Crew member removed");
         fetchCrew();
+        setUninstallTarget(null);
       } else {
         toast.error((await res.json()).error || "Remove failed");
       }
     } catch { toast.error("Remove failed"); }
+    finally { setUninstalling(false); }
   };
 
   const openConfig = async (member: CrewMemberRecord) => {
@@ -386,6 +402,32 @@ export function Crew() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!uninstallTarget} onOpenChange={(open) => !open && setUninstallTarget(null)}>
+        <AlertDialogContent className="bg-slate-950 border-slate-800/80 text-gray-200 font-mono">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white tracking-tight flex items-center gap-2">
+              <Trash2 className="w-4 h-4 text-red-400" />
+              Remove {uninstallTarget}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400 text-sm leading-relaxed">
+              Deletes the crew member folder. You'll need to reinstall to get it back.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-slate-900 border-slate-800 text-gray-300 hover:bg-slate-800 hover:text-white">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmUninstall}
+              disabled={uninstalling}
+              className="bg-red-600 hover:bg-red-500 text-white border border-red-500/40"
+            >
+              {uninstalling ? "Removing..." : "Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

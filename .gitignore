@@ -69,3 +69,6 @@ daemora-ui/yarn-error.log*
 daemora-ui/pnpm-debug.log*
 
 TASKS.md
+/desktop/app/src-tauri/target/
+/desktop/sidecar/daemora_sidecar/__pycache__/
+/desktop/app/src-tauri/gen/

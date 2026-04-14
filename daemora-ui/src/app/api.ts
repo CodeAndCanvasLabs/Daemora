@@ -2,7 +2,36 @@
  * Authenticated API fetch helper.
  * Reads the auth token from the server-injected <meta name="api-token"> tag
  * and attaches it to all API requests automatically.
+ *
+ * In Tauri desktop mode, window.__DAEMORA_API_BASE is injected by the Rust
+ * supervisor after Daemora starts. All relative /api/* calls get prefixed
+ * with the dynamic localhost URL.
  */
+
+declare global {
+  interface Window {
+    __DAEMORA_API_BASE?: string;
+    __TAURI__?: boolean;
+  }
+}
+
+// Tauri desktop mode detection
+const _tauriConfig = (() => {
+  if ((window as any).__TAURI_INTERNALS__) {
+    window.__TAURI__ = true;
+  }
+  return window.__TAURI__ ? {} : null;
+})();
+
+function getApiBase(): string {
+  return window.__DAEMORA_API_BASE || "";
+}
+
+function resolveUrl(url: string): string {
+  const base = getApiBase();
+  if (!base || url.startsWith("http://") || url.startsWith("https://")) return url;
+  return `${base}${url}`;
+}
 
 function getApiToken(): string {
   const meta = document.querySelector('meta[name="api-token"]');
@@ -21,12 +50,11 @@ export async function apiFetch(url: string, init?: RequestInit): Promise<Respons
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  // Ensure Content-Type is set for JSON bodies
   if (init?.body && typeof init.body === "string" && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
-  return fetch(url, { ...init, headers });
+  return fetch(resolveUrl(url), { ...init, headers });
 }
 
 /**
@@ -59,7 +87,8 @@ export async function apiJson<T = unknown>(
  * (EventSource can't set custom headers).
  */
 export function apiStreamUrl(url: string): string {
+  const resolved = resolveUrl(url);
   const token = getApiToken();
-  const sep = url.includes("?") ? "&" : "?";
-  return token ? `${url}${sep}token=${token}` : url;
+  const sep = resolved.includes("?") ? "&" : "?";
+  return token ? `${resolved}${sep}token=${token}` : resolved;
 }

@@ -315,14 +315,20 @@ export async function runAgentLoop({
     // Other channels (Discord/Telegram/Slack) keep the standard generateText path.
     let result;
     if (streaming) {
+      console.log(`[AgentLoop] streaming ON for task ${taskId?.slice(0,8)}`);
       const streamHandle = streamText(callOpts);
+      let _deltaCount = 0;
       try {
         for await (const delta of streamHandle.textStream) {
-          if (delta) eventBus.emitEvent("text:delta", { taskId, delta });
+          if (delta) {
+            _deltaCount++;
+            eventBus.emitEvent("text:delta", { taskId, delta });
+          }
         }
       } catch (streamErr) {
         throw streamErr;
       }
+      console.log(`[AgentLoop] emitted ${_deltaCount} text:delta events for task ${taskId?.slice(0,8)}`);
       result = {
         text: await streamHandle.text,
         usage: await streamHandle.usage,

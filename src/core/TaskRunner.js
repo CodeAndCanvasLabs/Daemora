@@ -293,6 +293,7 @@ class TaskRunner {
         const systemPrompt = await buildSystemPrompt(task.input, "full", {
           model: resolvedModel,
           agentId: "main",
+          voice: !!task.voice,
         });
 
         // Build message history - filter out raw tool-call/tool-result messages
@@ -345,7 +346,14 @@ class TaskRunner {
         // between tool calls instead of spawning a competing agent loop.
         // streaming: enabled when the originating channel supports it (HTTP/UI only).
         const channelInstance = task.channel ? channelRegistry.get(task.channel) : null;
-        const channelStreaming = !!(channelInstance && channelInstance.supportsStreaming);
+        // Voice tasks don't go through a registered channel — the LiveKit
+        // sidecar's DaemoraLLM plugin subscribes to /api/tasks/:id/stream
+        // directly, and relies on text:delta events to feed TTS. Force
+        // streaming on so those events are emitted.
+        const channelStreaming =
+          !!(channelInstance && channelInstance.supportsStreaming) ||
+          task.voice === true ||
+          task.channel === "voice";
 
         const result = await runAgentLoop({
           messages,

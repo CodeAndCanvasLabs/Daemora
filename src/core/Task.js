@@ -24,6 +24,7 @@ export function createTask({
   agentId = null,           // which agent/sub-agent is executing
   agentCreated = false,     // whether the agent created this task vs system
   extraDestinations = null, // additional channel destinations for watcher multi-delivery
+  voice = false,            // voice-originated task — system prompt appends spoken-prose instructions
 }) {
   return {
     id: uuidv4(),
@@ -43,6 +44,7 @@ export function createTask({
     agentId,              // executing agent/sub-agent ID
     agentCreated,         // true if created by agent via taskManager tool
     extraDestinations,    // watcher multi-delivery: [{channel, channelMeta}]
+    voice,                // true if originated from voice pipeline
     result: null,         // final response text
     error: null,          // error message if failed
     cost: {
