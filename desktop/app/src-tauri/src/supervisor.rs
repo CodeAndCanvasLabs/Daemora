@@ -50,13 +50,23 @@ pub struct Supervisor {
 
 impl Supervisor {
     pub fn new(project_root: PathBuf) -> Self {
+        // Preload saved passphrase from OS keychain so services can spawn
+        // without re-prompting on app restart or sleep-wake.
+        let vault_passphrase = crate::keychain::load();
+        if vault_passphrase.is_some() {
+            info!("supervisor: vault passphrase loaded from keychain");
+        }
         Self {
             daemora: None,
             livekit: None,
             state: None,
             project_root,
-            vault_passphrase: None,
+            vault_passphrase,
         }
+    }
+
+    pub fn has_passphrase(&self) -> bool {
+        self.vault_passphrase.is_some()
     }
 
     pub fn state(&self) -> Option<&ProcessState> {

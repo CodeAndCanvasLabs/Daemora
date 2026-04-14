@@ -166,15 +166,32 @@ def _tts_google(cfg: VoiceConfig):
 
 
 def _tts_groq(cfg: VoiceConfig):
-    from livekit.plugins import openai
-    # Groq Orpheus only accepts "wav" format — OpenAI plugin defaults to "mp3"
-    return openai.TTS(
+    # Use the dedicated livekit-plugins-groq TTS. Pointing openai.TTS at
+    # Groq's base_url breaks because the OpenAI plugin sends a
+    # `stream_format` field Groq's audio/speech endpoint rejects.
+    # We must pass an explicit aiohttp.ClientSession — the plugin's
+    # default session lookup (utils.http_context.http_session) only works
+    # inside a LiveKit Agent Worker JobContext; we run standalone.
+    from livekit.plugins import groq
+    return groq.TTS(
         api_key=_require("GROQ_API_KEY", "Groq Orpheus TTS"),
-        base_url="https://api.groq.com/openai/v1",
-        voice=cfg.tts_voice or _env("DAEMORA_GROQ_TTS_VOICE", "troy"),
-        model=_env("DAEMORA_GROQ_TTS_MODEL", "canopylabs/orpheus-v1-english"),
-        response_format="wav",
+        voice=cfg.tts_voice or _env("DAEMORA_GROQ_TTS_VOICE", "autumn"),
+        model=cfg.tts_model or _env("DAEMORA_GROQ_TTS_MODEL", "canopylabs/orpheus-v1-english"),
+        http_session=_get_aiohttp_session(),
     )
+
+
+_aiohttp_session = None
+
+
+def _get_aiohttp_session():
+    """Process-wide aiohttp ClientSession for plugins that would otherwise
+    fall through to LiveKit's worker-only http_context."""
+    global _aiohttp_session
+    if _aiohttp_session is None or _aiohttp_session.closed:
+        import aiohttp
+        _aiohttp_session = aiohttp.ClientSession()
+    return _aiohttp_session
 
 
 _TTS_REGISTRY: dict[str, Callable[[VoiceConfig], Any]] = {

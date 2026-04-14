@@ -18,6 +18,15 @@
   .dots span:nth-child(3) { animation-delay: 0.4s; }
   .status { font-size: 12px; color: #4a5568; letter-spacing: 1px; font-family: monospace; margin-top: 4px; }
   .logo { animation: spin 20s linear infinite; }
+  .vault { display: none; flex-direction: column; align-items: center; gap: 10px; margin-top: 12px; }
+  .vault label { font-size: 12px; color: #8899aa; }
+  .vault form { display: flex; gap: 8px; align-items: center; }
+  .vault input { padding: 10px 14px; background: #131b2e; border: 1px solid #1e2d45; border-radius: 8px; color: #e2e8f0; font-size: 14px; width: 240px; outline: none; font-family: monospace; transition: border-color 0.2s; }
+  .vault input:focus { border-color: #00d9ff; box-shadow: 0 0 0 2px rgba(0,217,255,0.15); }
+  .vault button.primary { padding: 10px 20px; background: linear-gradient(135deg, #00d9ff, #4ECDC4); color: #0a0f1a; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 13px; letter-spacing: 0.5px; }
+  .vault button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .vault .skip { background: none; border: none; color: #4a5568; font-size: 11px; cursor: pointer; text-decoration: underline; }
+  .vault .err { font-size: 11px; color: #ff4444; min-height: 13px; }
 </style>
 </head>
 <body>
@@ -30,72 +39,118 @@
     </circle>
   </svg>
   <div class="title">DAEMORA</div>
-  <div class="dots"><span></span><span></span><span></span></div>
+  <div class="dots" id="dots"><span></span><span></span><span></span></div>
   <div class="status" id="status">Starting services...</div>
+
+  <div class="vault" id="vault">
+    <label>Vault detected — enter your passphrase</label>
+    <form id="vaultForm">
+      <input id="vaultInput" type="password" placeholder="Passphrase" autocomplete="off" />
+      <button class="primary" id="vaultBtn" type="submit">Unlock</button>
+    </form>
+    <div class="err" id="vaultErr"></div>
+    <button class="skip" id="vaultSkip">Skip (start without vault)</button>
+  </div>
 </div>
 
 <script>
-  // Poll for Daemora to be ready, then navigate to it.
-  // This runs in the splash window (tauri://localhost). Once Daemora is up,
-  // we use location.href to navigate — WKWebView handles this as a normal
-  // same-process navigation, which works reliably.
+  // Boot flow:
+  //   1. Wait for Tauri IPC.
+  //   2. If a passphrase is saved in the OS keychain, use it silently.
+  //   3. Else, if a vault exists on disk, show the passphrase form.
+  //   4. Once services are up, navigate to Daemora.
 
   var statusEl = document.getElementById('status');
-  var ipc = null;
+  var dotsEl = document.getElementById('dots');
+  var vaultEl = document.getElementById('vault');
+  var inputEl = document.getElementById('vaultInput');
+  var btnEl = document.getElementById('vaultBtn');
+  var errEl = document.getElementById('vaultErr');
+  var skipEl = document.getElementById('vaultSkip');
+  var formEl = document.getElementById('vaultForm');
+
+  function showStatus(msg) { statusEl.textContent = msg; statusEl.style.display = 'block'; dotsEl.style.display = 'flex'; vaultEl.style.display = 'none'; }
+  function showVault() { vaultEl.style.display = 'flex'; statusEl.style.display = 'none'; dotsEl.style.display = 'none'; setTimeout(function(){ inputEl.focus(); }, 50); }
+  function fail(msg) { statusEl.textContent = msg; statusEl.style.color = '#ff4444'; dotsEl.style.display = 'none'; }
 
   function waitForIpc(cb) {
     var tries = 0;
     var iv = setInterval(function() {
       tries++;
-      if (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke) {
-        clearInterval(iv);
-        cb(window.__TAURI_INTERNALS__);
-      } else if (tries > 100) {
-        clearInterval(iv);
-        statusEl.textContent = 'Tauri IPC unavailable';
-      }
+      if (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke) { clearInterval(iv); cb(window.__TAURI_INTERNALS__); }
+      else if (tries > 100) { clearInterval(iv); fail('Tauri IPC unavailable'); }
     }, 50);
   }
 
   function pollAndNavigate(port) {
     var url = 'http://127.0.0.1:' + port + '/';
-    statusEl.textContent = 'Connecting to Daemora...';
+    showStatus('Connecting to Daemora...');
     var tries = 0;
     var iv = setInterval(function() {
       tries++;
       fetch(url, { method: 'GET', mode: 'no-cors' })
         .then(function() {
           clearInterval(iv);
-          statusEl.textContent = 'Loading UI...';
+          showStatus('Loading UI...');
           setTimeout(function() { window.location.href = url; }, 100);
         })
         .catch(function() {
-          if (tries > 60) {
-            clearInterval(iv);
-            statusEl.textContent = 'Daemora did not respond';
-            statusEl.style.color = '#ff4444';
-          }
+          if (tries > 60) { clearInterval(iv); fail('Daemora did not respond'); }
         });
     }, 500);
   }
 
+  function onServicesReady(status) {
+    if (status && status.daemora_port) pollAndNavigate(status.daemora_port);
+    else fail('No Daemora port returned');
+  }
+
   waitForIpc(function(t) {
-    t.invoke('get_status').then(function(s) {
-      if (s && s.daemora_port) {
-        pollAndNavigate(s.daemora_port);
-      } else {
-        statusEl.textContent = 'Waiting for services...';
-        // Retry
-        var retry = setInterval(function() {
-          t.invoke('get_status').then(function(s2) {
-            if (s2 && s2.daemora_port) {
-              clearInterval(retry);
-              pollAndNavigate(s2.daemora_port);
-            }
+    t.invoke('has_saved_passphrase').catch(function() { return false; }).then(function(hasSaved) {
+      if (hasSaved) {
+        showStatus('Unlocking from keychain...');
+        t.invoke('unlock_with_saved')
+          .then(onServicesReady)
+          .catch(function(err) {
+            console.warn('[Splash] saved passphrase rejected:', err);
+            bootWithoutSaved(t);
           });
-        }, 1000);
+      } else {
+        bootWithoutSaved(t);
       }
     });
+  });
+
+  function bootWithoutSaved(t) {
+    t.invoke('check_vault').then(function(vaultExists) {
+      if (vaultExists) {
+        showVault();
+      } else {
+        showStatus('Starting without vault...');
+        t.invoke('start_without_vault').then(onServicesReady).catch(function(e) { fail('Failed: ' + e); });
+      }
+    }).catch(function(e) { fail('check_vault failed: ' + e); });
+  }
+
+  formEl.addEventListener('submit', function(e) {
+    e.preventDefault();
+    var t = window.__TAURI_INTERNALS__;
+    var p = inputEl.value;
+    if (!p) return;
+    btnEl.disabled = true; btnEl.textContent = 'Unlocking...';
+    errEl.textContent = '';
+    t.invoke('submit_passphrase', { passphrase: p })
+      .then(function(status) { onServicesReady(status); })
+      .catch(function(err) {
+        btnEl.disabled = false; btnEl.textContent = 'Unlock';
+        errEl.textContent = String(err);
+      });
+  });
+
+  skipEl.addEventListener('click', function() {
+    var t = window.__TAURI_INTERNALS__;
+    showStatus('Starting without vault...');
+    t.invoke('start_without_vault').then(onServicesReady).catch(function(e) { fail('Failed: ' + e); });
   });
 </script>
 </body>

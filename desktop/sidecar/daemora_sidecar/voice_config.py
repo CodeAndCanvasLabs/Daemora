@@ -77,49 +77,57 @@ def _infer_provider(model: str | None, hints: dict[str, str]) -> str | None:
     return None
 
 
-def _pick_stt() -> tuple[str, str | None]:
-    """(provider, model) resolved from Daemora config first, then env."""
-    explicit = os.environ.get("DAEMORA_STT_PROVIDER")
-    stt_model = os.environ.get("STT_MODEL") or None
+import logging as _log
+_resolver_log = _log.getLogger("daemora.voice.config")
 
-    if explicit:
-        return (explicit.lower(), stt_model)
 
-    inferred = _infer_provider(stt_model, _STT_MODEL_HINTS)
+def _resolve_provider(kind, explicit_env, model, hints, fallback_chain):
+    """Resolve provider for STT/TTS. Precedence:
+      1. Provider implied by model name (most specific signal — if the
+         configured model is `canopylabs/orpheus-*`, the user obviously
+         wants Groq regardless of any stale DAEMORA_TTS_PROVIDER).
+      2. Explicit DAEMORA_*_PROVIDER override (only when model doesn't
+         pin a different provider).
+      3. First provider in fallback_chain whose key is present.
+      4. "local"."""
+    inferred = _infer_provider(model, hints) if model else None
+    explicit = os.environ.get(explicit_env)
+    explicit = explicit.lower() if explicit else None
+    if inferred and explicit and inferred != explicit:
+        _resolver_log.warning(
+            "%s: model %r implies provider %r — overriding stale %s=%r",
+            kind, model, inferred, explicit_env, explicit,
+        )
+        return inferred
     if inferred:
-        return (inferred, stt_model)
+        return inferred
+    if explicit:
+        return explicit
+    for provider, key_env in fallback_chain:
+        if os.environ.get(key_env):
+            return provider
+    return "local"
 
-    # Auto-detect from available keys, preferring speed
-    if os.environ.get("GROQ_API_KEY"):       return ("groq", stt_model)
-    if os.environ.get("DEEPGRAM_API_KEY"):   return ("deepgram", stt_model)
-    if os.environ.get("OPENAI_API_KEY"):     return ("openai", stt_model)
-    if os.environ.get("ASSEMBLYAI_API_KEY"): return ("assemblyai", stt_model)
-    # No cloud key → fall back to local (faster-whisper). Works only if the
-    # user installed offline extras: ./bootstrap.sh --local
-    return ("local", stt_model)
+
+def _pick_stt() -> tuple[str, str | None]:
+    stt_model = os.environ.get("STT_MODEL") or None
+    provider = _resolve_provider(
+        "stt", "DAEMORA_STT_PROVIDER", stt_model, _STT_MODEL_HINTS,
+        [("groq","GROQ_API_KEY"),("deepgram","DEEPGRAM_API_KEY"),
+         ("openai","OPENAI_API_KEY"),("assemblyai","ASSEMBLYAI_API_KEY")],
+    )
+    return (provider, stt_model)
 
 
 def _pick_tts() -> tuple[str, str | None, str | None]:
-    """(provider, model, voice) resolved from Daemora config first, then env."""
-    explicit = os.environ.get("DAEMORA_TTS_PROVIDER")
     tts_model = os.environ.get("TTS_MODEL") or os.environ.get("TTS_MODEL_ELEVEN") or None
     tts_voice = os.environ.get("TTS_VOICE") or None
-
-    if explicit:
-        return (explicit.lower(), tts_model, tts_voice)
-
-    inferred = _infer_provider(tts_model, _TTS_MODEL_HINTS)
-    if inferred:
-        return (inferred, tts_model, tts_voice)
-
-    # Groq has Orpheus TTS (canopylabs/orpheus-v1-english), same key as STT
-    if os.environ.get("GROQ_API_KEY"):       return ("groq", tts_model, tts_voice)
-    if os.environ.get("ELEVENLABS_API_KEY"): return ("elevenlabs", tts_model, tts_voice)
-    if os.environ.get("CARTESIA_API_KEY"):   return ("cartesia", tts_model, tts_voice)
-    if os.environ.get("OPENAI_API_KEY"):     return ("openai", tts_model, tts_voice)
-    # No cloud key → fall back to local (Kokoro). Works only if the user
-    # installed offline extras: ./bootstrap.sh --local
-    return ("local", tts_model, tts_voice)
+    provider = _resolve_provider(
+        "tts", "DAEMORA_TTS_PROVIDER", tts_model, _TTS_MODEL_HINTS,
+        [("groq","GROQ_API_KEY"),("elevenlabs","ELEVENLABS_API_KEY"),
+         ("cartesia","CARTESIA_API_KEY"),("openai","OPENAI_API_KEY")],
+    )
+    return (provider, tts_model, tts_voice)
 
 
 @dataclass

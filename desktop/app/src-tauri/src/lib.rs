@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use log::{error, info};
 use tauri::Manager;
 use tokio::sync::Mutex;
 
 mod commands;
+mod keychain;
 mod supervisor;
 mod tray;
 
@@ -64,29 +64,12 @@ pub fn run() {
                 let _ = w.show();
             }
 
-            // Start Daemora immediately (no IPC needed)
-            // Vault unlock happens later via web API
-            tauri::async_runtime::spawn(async move {
-                let sup_state = handle.state::<Arc<Mutex<supervisor::Supervisor>>>();
-                let mut sup = sup_state.lock().await;
-
-                info!("starting daemora + livekit...");
-                match sup.start_all().await {
-                    Ok(state) => {
-                        info!("services ready on port {} — splash page will poll and navigate", state.daemora_port);
-                        // JS in splash polls get_status and handles navigation via location.href
-                    }
-                    Err(e) => {
-                        error!("failed to start: {e}");
-                        if let Some(w) = handle.get_webview_window("main") {
-                            let escaped = e.replace('\'', "\\'");
-                            let _ = w.eval(&format!(
-                                "document.body.innerHTML='<div style=\"display:flex;align-items:center;justify-content:center;height:100vh;background:#0a0f1a;color:#ff4444;font-family:monospace;text-align:center\"><div><h2 style=\"color:#00d9ff\">Daemora</h2><p>Failed to start: {escaped}</p></div></div>';"
-                            ));
-                        }
-                    }
-                }
-            });
+            // Services are started by the frontend now — index.html picks
+            // the right unlock path (saved passphrase / prompt / skip)
+            // and invokes the matching command. This lets us pass
+            // VAULT_PASSPHRASE to Daemora's first spawn instead of
+            // starting without secrets and then restarting.
+            let _ = handle;
 
             tray::setup_tray(&app.handle())
                 .map_err(|e| format!("tray setup failed: {e}"))?;
@@ -110,6 +93,9 @@ pub fn run() {
             commands::restart_services,
             commands::stop_services,
             commands::get_daemora_url,
+            commands::has_saved_passphrase,
+            commands::unlock_with_saved,
+            commands::clear_saved_passphrase,
         ])
         .run(tauri::generate_context!())
         .expect("error running daemora desktop");

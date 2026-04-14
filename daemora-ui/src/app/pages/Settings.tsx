@@ -28,6 +28,16 @@ import {
   Zap,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../components/ui/alert-dialog";
 import { FaTelegram, FaDiscord, FaSlack, FaWhatsapp, FaLine } from "react-icons/fa6";
 import { SiSignal, SiGooglechat, SiOpenai, SiAnthropic, SiGooglegemini } from "react-icons/si";
 import { BsMicrosoftTeams } from "react-icons/bs";
@@ -304,6 +314,36 @@ export function Settings() {
   const [isLoading, setIsLoading] = useState(true);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
+  // Radix AlertDialog for delete confirmation (window.confirm blocks in Tauri WKWebView).
+  const [deleteTarget, setDeleteTarget] = useState<{ key: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  // Which provider keys are configured — used to filter STT/TTS/voice
+  // dropdowns so users only see groups for providers they've set up.
+  const hasKey = (envKey: string) => {
+    const v = data?.vars?.[envKey];
+    return !!v && v !== "";
+  };
+  async function confirmDeleteKey() {
+    if (!deleteTarget) return;
+    const { key, name } = deleteTarget;
+    setDeleting(true);
+    try {
+      const res = await apiFetch(`/api/settings/${key}`, { method: "DELETE" });
+      if (res.ok) {
+        const refreshed = await apiFetch("/api/settings").then((r) => r.json());
+        setData(refreshed);
+        toast.success(`${name} key deleted`);
+        setDeleteTarget(null);
+      } else {
+        const body = await res.text().catch(() => "");
+        toast.error(`Failed to delete ${name} key${body ? ": " + body.slice(0, 80) : ""}`);
+      }
+    } catch (e: any) {
+      toast.error(`Delete failed: ${e?.message || e}`);
+    } finally {
+      setDeleting(false);
+    }
+  }
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -601,22 +641,30 @@ export function Settings() {
                 onChange={(e) => handleConfigChange("sttModel", e.target.value)}
               >
                 <option value="">Auto (detect from API key)</option>
-                <optgroup label="Groq (free tier)">
-                  <option value="whisper-large-v3-turbo">whisper-large-v3-turbo — fast, free</option>
-                  <option value="whisper-large-v3">whisper-large-v3 — accurate, free</option>
-                </optgroup>
-                <optgroup label="OpenAI">
-                  <option value="gpt-4o-mini-transcribe">gpt-4o-mini-transcribe — $0.003/min</option>
-                  <option value="gpt-4o-transcribe">gpt-4o-transcribe — $0.006/min</option>
-                  <option value="whisper-1">whisper-1 — legacy</option>
-                </optgroup>
-                <optgroup label="Deepgram">
-                  <option value="nova-3">nova-3 — best accuracy</option>
-                  <option value="nova-2">nova-2 — stable</option>
-                </optgroup>
-                <optgroup label="AssemblyAI">
-                  <option value="best">best — universal model</option>
-                </optgroup>
+                {hasKey("GROQ_API_KEY") && (
+                  <optgroup label="Groq (free tier)">
+                    <option value="whisper-large-v3-turbo">whisper-large-v3-turbo — fast, free</option>
+                    <option value="whisper-large-v3">whisper-large-v3 — accurate, free</option>
+                  </optgroup>
+                )}
+                {hasKey("OPENAI_API_KEY") && (
+                  <optgroup label="OpenAI">
+                    <option value="gpt-4o-mini-transcribe">gpt-4o-mini-transcribe — $0.003/min</option>
+                    <option value="gpt-4o-transcribe">gpt-4o-transcribe — $0.006/min</option>
+                    <option value="whisper-1">whisper-1 — legacy</option>
+                  </optgroup>
+                )}
+                {hasKey("DEEPGRAM_API_KEY") && (
+                  <optgroup label="Deepgram">
+                    <option value="nova-3">nova-3 — best accuracy</option>
+                    <option value="nova-2">nova-2 — stable</option>
+                  </optgroup>
+                )}
+                {hasKey("ASSEMBLYAI_API_KEY") && (
+                  <optgroup label="AssemblyAI">
+                    <option value="best">best — universal model</option>
+                  </optgroup>
+                )}
               </select>
             </div>
             <div>
@@ -627,22 +675,30 @@ export function Settings() {
                 onChange={(e) => handleConfigChange("ttsModel", e.target.value)}
               >
                 <option value="">Auto (detect from API key)</option>
-                <optgroup label="OpenAI">
-                  <option value="gpt-4o-mini-tts">gpt-4o-mini-tts — steerable, natural</option>
-                  <option value="tts-1">tts-1 — standard</option>
-                  <option value="tts-1-hd">tts-1-hd — high quality</option>
-                </optgroup>
-                <optgroup label="Groq (free tier)">
-                  <option value="canopylabs/orpheus-v1-english">orpheus — ultra-fast, free</option>
-                </optgroup>
-                <optgroup label="ElevenLabs">
-                  <option value="eleven_turbo_v2_5">eleven_turbo_v2.5 — fast</option>
-                  <option value="eleven_multilingual_v2">eleven_multilingual_v2 — quality</option>
-                </optgroup>
-                <optgroup label="Cartesia">
-                  <option value="sonic-english">sonic-english — low latency</option>
-                  <option value="sonic-multilingual">sonic-multilingual</option>
-                </optgroup>
+                {hasKey("OPENAI_API_KEY") && (
+                  <optgroup label="OpenAI">
+                    <option value="gpt-4o-mini-tts">gpt-4o-mini-tts — steerable, natural</option>
+                    <option value="tts-1">tts-1 — standard</option>
+                    <option value="tts-1-hd">tts-1-hd — high quality</option>
+                  </optgroup>
+                )}
+                {hasKey("GROQ_API_KEY") && (
+                  <optgroup label="Groq (free tier)">
+                    <option value="canopylabs/orpheus-v1-english">orpheus — ultra-fast, free</option>
+                  </optgroup>
+                )}
+                {hasKey("ELEVENLABS_API_KEY") && (
+                  <optgroup label="ElevenLabs">
+                    <option value="eleven_turbo_v2_5">eleven_turbo_v2.5 — fast</option>
+                    <option value="eleven_multilingual_v2">eleven_multilingual_v2 — quality</option>
+                  </optgroup>
+                )}
+                {hasKey("CARTESIA_API_KEY") && (
+                  <optgroup label="Cartesia">
+                    <option value="sonic-english">sonic-english — low latency</option>
+                    <option value="sonic-multilingual">sonic-multilingual</option>
+                  </optgroup>
+                )}
               </select>
             </div>
           </div>
@@ -656,25 +712,29 @@ export function Settings() {
                 onChange={(e) => handleConfigChange("ttsVoice", e.target.value)}
               >
                 <option value="">Auto (provider default)</option>
-                <optgroup label="OpenAI Voices">
-                  <option value="nova">nova — warm female</option>
-                  <option value="alloy">alloy — neutral</option>
-                  <option value="echo">echo — male</option>
-                  <option value="fable">fable — British</option>
-                  <option value="onyx">onyx — deep male</option>
-                  <option value="shimmer">shimmer — soft female</option>
-                  <option value="ash">ash — conversational male</option>
-                  <option value="coral">coral — conversational female</option>
-                  <option value="sage">sage — calm</option>
-                </optgroup>
-                <optgroup label="Groq Orpheus Voices">
-                  <option value="troy">troy — male</option>
-                  <option value="hannah">hannah — female</option>
-                  <option value="austin">austin — male</option>
-                  <option value="diana">diana — female</option>
-                  <option value="autumn">autumn — female</option>
-                  <option value="daniel">daniel — male</option>
-                </optgroup>
+                {hasKey("OPENAI_API_KEY") && (
+                  <optgroup label="OpenAI Voices">
+                    <option value="nova">nova — warm female</option>
+                    <option value="alloy">alloy — neutral</option>
+                    <option value="echo">echo — male</option>
+                    <option value="fable">fable — British</option>
+                    <option value="onyx">onyx — deep male</option>
+                    <option value="shimmer">shimmer — soft female</option>
+                    <option value="ash">ash — conversational male</option>
+                    <option value="coral">coral — conversational female</option>
+                    <option value="sage">sage — calm</option>
+                  </optgroup>
+                )}
+                {hasKey("GROQ_API_KEY") && (
+                  <optgroup label="Groq Orpheus Voices">
+                    <option value="troy">troy — male</option>
+                    <option value="hannah">hannah — female</option>
+                    <option value="austin">austin — male</option>
+                    <option value="diana">diana — female</option>
+                    <option value="autumn">autumn — female</option>
+                    <option value="daniel">daniel — male</option>
+                  </optgroup>
+                )}
               </select>
             </div>
             <div>
@@ -978,14 +1038,7 @@ export function Settings() {
                   </button>
                   {isSet && (
                     <button
-                      onClick={async () => {
-                        if (!confirm(`Delete ${name} key?`)) return;
-                        try {
-                          const res = await apiFetch(`/api/settings/${key}`, { method: "DELETE" });
-                          if (res.ok) { mutate(); toast.success(`${name} key deleted`); }
-                          else toast.error(`Failed to delete ${name} key`);
-                        } catch { toast.error("Delete failed"); }
-                      }}
+                      onClick={() => setDeleteTarget({ key, name })}
                       className="p-2.5 text-gray-500 hover:text-red-400 transition-colors rounded-xl hover:bg-red-500/10"
                       title={`Delete ${name} key`}
                     >
@@ -1043,14 +1096,7 @@ export function Settings() {
                   )}
                   {isSet && (
                     <button
-                      onClick={async () => {
-                        if (!confirm(`Delete ${name} key?`)) return;
-                        try {
-                          const res = await apiFetch(`/api/settings/${key}`, { method: "DELETE" });
-                          if (res.ok) { mutate(); toast.success(`${name} key deleted`); }
-                          else toast.error(`Failed to delete ${name} key`);
-                        } catch { toast.error("Delete failed"); }
-                      }}
+                      onClick={() => setDeleteTarget({ key, name })}
                       className="p-2.5 text-gray-500 hover:text-red-400 transition-colors rounded-xl hover:bg-red-500/10"
                       title={`Delete ${name} key`}
                     >
@@ -1117,6 +1163,32 @@ export function Settings() {
           })}
         </div>
       </Section>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent className="bg-slate-950 border-slate-800/80 text-gray-200 font-mono">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white tracking-tight flex items-center gap-2">
+              <Trash2 className="w-4 h-4 text-red-400" />
+              Delete {deleteTarget?.name} key
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400 text-sm leading-relaxed">
+              The key will be removed from the vault and any models that depend on it will stop working until you paste it back.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-slate-900 border-slate-800 text-gray-300 hover:bg-slate-800 hover:text-white">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteKey}
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-500 text-white border border-red-500/40"
+            >
+              {deleting ? "Deleting..." : "Delete key"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

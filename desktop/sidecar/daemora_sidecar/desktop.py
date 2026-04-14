@@ -69,16 +69,29 @@ def _snapshot(action: str) -> str:
     return str(path)
 
 
+_scale_cache: tuple[float, float] | None = None
+
+
 def _scale_factor() -> tuple[float, float]:
+    """Compute (sx, sy) between physical pixels and pyautogui's logical
+    coordinates. Cached — the only reliable way on macOS is to take a
+    screenshot, which triggers TCC's screen-recording prompt every time.
+    We want that prompt once, on first actual desktop tool use, not on
+    every /health poll."""
+    global _scale_cache
+    if _scale_cache is not None:
+        return _scale_cache
     try:
         logical_w, logical_h = pyautogui.size()
         shot = pyautogui.screenshot()
         phys_w, phys_h = shot.size
         sx = phys_w / logical_w if logical_w else 1.0
         sy = phys_h / logical_h if logical_h else 1.0
-        return sx, sy
+        _scale_cache = (sx, sy)
+        return _scale_cache
     except Exception:
-        return 1.0, 1.0
+        _scale_cache = (1.0, 1.0)
+        return _scale_cache
 
 
 def _gate(action: str, params: dict) -> str:
@@ -144,17 +157,20 @@ def screenshot(region: dict | None = None) -> dict:
     return {"ok": True, "path": str(path), "width": w, "height": h}
 
 
-def screen_size() -> dict:
+def screen_size(include_scale: bool = False) -> dict:
+    """Return logical screen size. Pass include_scale=True only when you
+    actually need the physical/scale fields — that path screenshots on
+    macOS, which triggers TCC. /health uses include_scale=False so it
+    stays a cheap, no-permission ping."""
     w, h = pyautogui.size()
-    sx, sy = _scale_factor()
-    return {
-        "width": int(w),
-        "height": int(h),
-        "physicalWidth": int(round(w * sx)),
-        "physicalHeight": int(round(h * sy)),
-        "scaleX": round(sx, 3),
-        "scaleY": round(sy, 3),
-    }
+    out = {"width": int(w), "height": int(h)}
+    if include_scale:
+        sx, sy = _scale_factor()
+        out["physicalWidth"] = int(round(w * sx))
+        out["physicalHeight"] = int(round(h * sy))
+        out["scaleX"] = round(sx, 3)
+        out["scaleY"] = round(sy, 3)
+    return out
 
 
 def list_windows() -> dict:

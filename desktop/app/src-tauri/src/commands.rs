@@ -48,18 +48,65 @@ pub async fn submit_passphrase(
     supervisor: State<'_, Arc<Mutex<Supervisor>>>,
 ) -> Result<AppStatus, String> {
     let mut sup = supervisor.lock().await;
-    sup.set_vault_passphrase(passphrase);
+    sup.set_vault_passphrase(passphrase.clone());
     sup.stop_all().await;
     let state = sup.start_all().await?;
     let token = read_auth_token(sup.project_root()).await;
 
-    // Return port + auth token to JS — JS controls navigation
+    // Services came up cleanly — passphrase is correct. Persist it so
+    // future launches and sleep-wake respawns don't require retyping.
+    if let Err(e) = crate::keychain::save(&passphrase) {
+        log::warn!("keychain: could not persist passphrase: {e}");
+    }
+
     Ok(AppStatus {
         running: true,
         daemora_port: Some(state.daemora_port),
         livekit_port: Some(state.livekit_port),
         auth_token: Some(token),
     })
+}
+
+#[tauri::command]
+pub async fn has_saved_passphrase(
+    supervisor: State<'_, Arc<Mutex<Supervisor>>>,
+) -> Result<bool, String> {
+    let sup = supervisor.lock().await;
+    Ok(sup.has_passphrase())
+}
+
+#[tauri::command]
+pub async fn unlock_with_saved(
+    supervisor: State<'_, Arc<Mutex<Supervisor>>>,
+) -> Result<AppStatus, String> {
+    let mut sup = supervisor.lock().await;
+    if !sup.has_passphrase() {
+        return Err("no saved passphrase".into());
+    }
+    sup.stop_all().await;
+    match sup.start_all().await {
+        Ok(state) => {
+            let token = read_auth_token(sup.project_root()).await;
+            Ok(AppStatus {
+                running: true,
+                daemora_port: Some(state.daemora_port),
+                livekit_port: Some(state.livekit_port),
+                auth_token: Some(token),
+            })
+        }
+        Err(e) => {
+            // Saved passphrase rejected — likely rotated. Clear it so
+            // the UI falls back to the prompt on retry.
+            log::warn!("unlock_with_saved failed, clearing keychain: {e}");
+            let _ = crate::keychain::clear();
+            Err(e)
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn clear_saved_passphrase() -> Result<(), String> {
+    crate::keychain::clear()
 }
 
 #[tauri::command]
