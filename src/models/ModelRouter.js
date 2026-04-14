@@ -1,7 +1,10 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOllama } from "ollama-ai-provider";
+// ollama-ai-provider-v2 implements AI SDK spec v2 (required for AI SDK 5+).
+// The older `ollama-ai-provider` throws "Unsupported model version v1" and
+// isn't installed anymore — importing it here crashed Node on startup.
+import { createOllama } from "ollama-ai-provider-v2";
 import { models, fallbackChains } from "../config/models.js";
 
 /**
@@ -74,20 +77,24 @@ export function getModel(modelId, apiKeys = {}) {
 
   // Passthrough: if model isn't in the registry but follows "provider:model" format,
   // create a dynamic entry so new models work without updating the registry.
+  // Split on first colon only — Ollama tags contain colons ("gemma4:latest").
   if (!meta && modelId.includes(":")) {
-    const [providerName, modelName] = modelId.split(":", 2);
+    const sep = modelId.indexOf(":");
+    const providerName = modelId.slice(0, sep);
+    const modelName = modelId.slice(sep + 1);
     const knownProviders = Object.keys(PROVIDERS);
     if (knownProviders.includes(providerName)) {
       console.log(`[ModelRouter] Model "${modelId}" not in registry - using dynamic passthrough`);
+      const isLocal = providerName === "ollama";
       meta = {
         provider: providerName,
         model: modelName,
         contextWindow: 128_000,
         compactAt: 90_000,
-        costPer1kInput: 0.001,
-        costPer1kOutput: 0.004,
+        costPer1kInput: isLocal ? 0 : 0.001,
+        costPer1kOutput: isLocal ? 0 : 0.004,
         capabilities: ["text", "tools"],
-        tier: "standard",
+        tier: isLocal ? "local" : "standard",
       };
     }
   }
@@ -155,22 +162,29 @@ export function resolveDefaultModel(apiKeys = {}) {
 
   const available = _availableProviders(apiKeys);
 
-  // Preferred defaults per provider (best standard-tier model for each)
+  // Preferred defaults per provider (best standard-tier model for each).
   const providerDefaults = [
-    { provider: "anthropic", model: "anthropic:claude-sonnet-4-6" },
-    { provider: "openai",    model: "openai:gpt-5.2" },
-    { provider: "google",    model: "google:gemini-2.5-pro" },
-    { provider: "xai",       model: "xai:grok-4" },
-    { provider: "deepseek",  model: "deepseek:deepseek-chat" },
-    { provider: "mistral",   model: "mistral:mistral-large-latest" },
-    { provider: "ollama",    model: "ollama:llama3.1" },
+    { provider: "anthropic",  model: "anthropic:claude-sonnet-4-6" },
+    { provider: "openai",     model: "openai:gpt-5.2" },
+    { provider: "google",     model: "google:gemini-2.5-pro" },
+    { provider: "xai",        model: "xai:grok-4" },
+    { provider: "groq",       model: "groq:openai/gpt-oss-120b" },
+    { provider: "deepseek",   model: "deepseek:deepseek-chat" },
+    { provider: "mistral",    model: "mistral:mistral-large-latest" },
+    { provider: "openrouter", model: "openrouter:anthropic/claude-sonnet-4" },
+    { provider: "ollama",     model: "ollama:llama3.1" },
   ];
 
   for (const { provider, model } of providerDefaults) {
-    if (available.has(provider)) return model;
+    if (!available.has(provider)) continue;
+    // Ollama: use the first actually-installed model, not a hardcoded name.
+    if (provider === "ollama") {
+      const installed = _discoverOllamaModelsCached();
+      if (installed.length > 0) return installed[0].id;
+    }
+    return model;
   }
 
-  // Absolute last resort (should never reach here - ollama is always available)
   return "ollama:llama3.1";
 }
 
@@ -235,20 +249,70 @@ export function getCheapModel(apiKeys = {}) {
 }
 
 /**
- * List all available models (ones that have API keys configured).
+ * List all available models. Cloud providers come from the static registry;
+ * Ollama models are discovered live from `${OLLAMA_BASE_URL}/api/tags` so
+ * users only see what they've actually pulled. Discovery is cached for 60s.
  */
 export function listAvailableModels() {
   const available = [];
   for (const modelId of Object.keys(models)) {
+    if (modelId.startsWith("ollama:")) continue;
     try {
       getModel(modelId);
       available.push({ id: modelId, ...models[modelId] });
-    } catch {
-      // skip unavailable
-    }
+    } catch { /* skip unavailable */ }
   }
+  for (const m of _discoverOllamaModelsCached()) available.push(m);
   return available;
 }
+
+let _ollamaCache = { at: 0, models: [] };
+let _ollamaRefreshPromise = null;
+const _OLLAMA_TTL_MS = 60_000;
+
+function _discoverOllamaModelsCached() {
+  const now = Date.now();
+  if (now - _ollamaCache.at < _OLLAMA_TTL_MS) return _ollamaCache.models;
+  if (!_ollamaRefreshPromise) {
+    _ollamaRefreshPromise = _refreshOllamaModels()
+      .catch(() => {})
+      .finally(() => { _ollamaRefreshPromise = null; });
+  }
+  return _ollamaCache.models;
+}
+
+async function _refreshOllamaModels() {
+  const raw = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+  const base = raw.replace(/\/+$/, "").replace(/\/(api|v1)$/, "");
+  try {
+    const res = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(2000) });
+    if (!res.ok) throw new Error(`tags ${res.status}`);
+    const data = await res.json();
+    _ollamaCache = {
+      at: Date.now(),
+      models: (data.models || []).map((m) => ({
+        id: `ollama:${m.name}`,
+        provider: "ollama",
+        model: m.name,
+        contextWindow: 8192,
+        compactAt: 6500,
+        costPer1kInput: 0,
+        costPer1kOutput: 0,
+        capabilities: ["text", "tools"],
+        tier: "local",
+      })),
+    };
+  } catch {
+    _ollamaCache = { at: Date.now(), models: [] };
+  }
+}
+
+export async function refreshOllamaNow() {
+  await _refreshOllamaModels();
+  return _ollamaCache.models;
+}
+
+_refreshOllamaModels().catch(() => {});
 
 // ── Thinking Level Resolution ──────────────────────────────────────────────────
 

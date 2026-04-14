@@ -6,7 +6,7 @@ import { createHmac, randomBytes } from "crypto";
 import { toolFunctions } from "./tools/index.js";
 import { getSession, listSessions, createSession, clearSession } from "./services/sessions.js";
 import { config, reloadFromDb } from "./config/default.js";
-import { listAvailableModels, resolveDefaultModel, clearProviderCache } from "./models/ModelRouter.js";
+import { listAvailableModels, resolveDefaultModel, clearProviderCache, refreshOllamaNow } from "./models/ModelRouter.js";
 import { models as modelRegistry } from "./config/models.js";
 import taskQueue from "./core/TaskQueue.js";
 import taskRunner from "./core/TaskRunner.js";
@@ -453,7 +453,10 @@ app.get("/api/config", (req, res) => {
 });
 
 // --- Models endpoint ---
-app.get("/api/models", (req, res) => {
+app.get("/api/models", async (req, res) => {
+  if (req.query.refresh === "1") {
+    try { await refreshOllamaNow(); } catch { /* soft fail */ }
+  }
   const available = listAvailableModels();
   res.json({
     default: config.defaultModel,
@@ -467,17 +470,37 @@ app.get("/api/models", (req, res) => {
   });
 });
 
-// --- All models (registry) endpoint ---
-app.get("/api/models/all", (req, res) => {
-  const available = new Set(listAvailableModels().map(m => m.id));
+// --- All models (registry + live-discovered) endpoint ---
+app.get("/api/models/all", async (req, res) => {
+  if (req.query.refresh === "1") {
+    try { await refreshOllamaNow(); } catch { /* soft fail */ }
+  }
+  const availableList = listAvailableModels();
+  const availableIds = new Set(availableList.map(m => m.id));
   const all = Object.entries(modelRegistry).map(([id, m]) => ({
     id,
     provider: m.provider,
     model: m.model,
     tier: m.tier,
     contextWindow: m.contextWindow,
-    available: available.has(id),
+    available: availableIds.has(id),
   }));
+  // Merge dynamically discovered models (Ollama) into the "All" list so
+  // whatever the user has actually pulled shows up — otherwise this
+  // endpoint only returns static cloud presets.
+  const registryIds = new Set(Object.keys(modelRegistry));
+  for (const m of availableList) {
+    if (!registryIds.has(m.id)) {
+      all.push({
+        id: m.id,
+        provider: m.provider,
+        model: m.model,
+        tier: m.tier,
+        contextWindow: m.contextWindow,
+        available: true,
+      });
+    }
+  }
   res.json({ models: all });
 });
 
