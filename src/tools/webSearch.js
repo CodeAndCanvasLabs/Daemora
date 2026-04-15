@@ -1,6 +1,8 @@
 /**
  * Web Search - multi-provider with auto-detection and fallback chain.
- * Providers: Tavily > Perplexity > Brave > SearXNG > DuckDuckGo (free fallback).
+ * When EXA_API_KEY is set: Exa → DuckDuckGo (Exa covers primary search; DDG is the free fallback).
+ * Otherwise: Tavily → Perplexity → Brave → SearXNG → DuckDuckGo.
+ * Any provider can still be forced explicitly via `provider` option.
  */
 import { resolveKey } from "./_env.js";
 import { mergeLegacyOptions as _mergeLegacyOpts } from "../utils/mergeToolParams.js";
@@ -15,6 +17,7 @@ const FRESHNESS_TO_BRAVE = { day: "pd", week: "pw", month: "pm", year: "py" };
 const FRESHNESS_TO_TAVILY_DAYS = { day: 1, week: 7, month: 30, year: 365 };
 const FRESHNESS_TO_SEARXNG = { day: "day", week: "week", month: "month", year: "year" };
 const FRESHNESS_TO_PERPLEXITY = { day: "day", week: "week", month: "month", year: "year" };
+const FRESHNESS_TO_EXA_DAYS = { day: 1, week: 7, month: 30, year: 365 };
 
 const HTML_ENTITIES = {
   "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"',
@@ -77,10 +80,17 @@ async function fetchWithRetry(url, opts, retries = 1) {
 }
 
 // --- Provider detection ---
-const PROVIDERS = ["tavily", "perplexity", "brave", "searxng", "ddg"];
+const PROVIDERS = ["exa", "tavily", "perplexity", "brave", "searxng", "ddg"];
 
 function detectProviders() {
   const available = [];
+  // When Exa is configured, it handles primary search and DDG is the only fallback.
+  // Other configured providers are still reachable via an explicit `provider` override.
+  if (resolveKey("EXA_API_KEY")) {
+    available.push("exa");
+    available.push("ddg");
+    return available;
+  }
   if (resolveKey("TAVILY_API_KEY")) available.push("tavily");
   if (resolveKey("PERPLEXITY_API_KEY")) available.push("perplexity");
   if (resolveKey("BRAVE_API_KEY")) available.push("brave");
@@ -273,6 +283,64 @@ async function searchPerplexity(query, limit, freshness) {
   return { results, provider: "Perplexity", aiAnswer: content || null };
 }
 
+// --- Exa ---
+// AI-powered semantic search. Returns full content, highlights, and summaries.
+// Docs: https://exa.ai/docs/reference/search
+async function searchExa(query, limit, freshness, language) {
+  const key = resolveKey("EXA_API_KEY");
+  if (!key) throw new Error("EXA_API_KEY not configured");
+
+  const body = {
+    query,
+    type: "auto",
+    numResults: limit,
+    contents: {
+      text: { maxCharacters: 500 },
+      highlights: { maxCharacters: 300 },
+      summary: {},
+    },
+  };
+  if (freshness && FRESHNESS_TO_EXA_DAYS[freshness]) {
+    const days = FRESHNESS_TO_EXA_DAYS[freshness];
+    const start = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    body.startPublishedDate = start.toISOString();
+  }
+  if (language && typeof language === "string" && language.length === 2) {
+    body.userLocation = language.toUpperCase();
+  }
+
+  const res = await fetchWithRetry("https://api.exa.ai/search", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": key,
+      "x-exa-integration": "daemora",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Exa API ${res.status}: ${await res.text().catch(() => "")}`);
+
+  const data = await res.json();
+  const results = (data.results || []).slice(0, limit).map((r) => ({
+    title: r.title || "",
+    url: r.url || "",
+    snippet: extractExaSnippet(r),
+  }));
+  return { results, provider: "Exa" };
+}
+
+// Cascade through summary > highlights > text for the snippet field.
+// The API may return any combination - pick whichever is populated.
+export function extractExaSnippet(result) {
+  if (!result) return "";
+  if (typeof result.summary === "string" && result.summary.trim()) return result.summary.trim();
+  if (Array.isArray(result.highlights) && result.highlights.length > 0) {
+    return result.highlights.filter(Boolean).join(" ... ").trim();
+  }
+  if (typeof result.text === "string" && result.text.trim()) return result.text.trim();
+  return "";
+}
+
 // --- SearXNG ---
 async function searchSearXNG(query, limit, freshness, language) {
   const baseUrl = resolveKey("SEARXNG_URL");
@@ -298,6 +366,7 @@ async function searchSearXNG(query, limit, freshness, language) {
 
 // --- Provider dispatch ---
 const PROVIDER_FN = {
+  exa: searchExa,
   tavily: searchTavily,
   perplexity: searchPerplexity,
   brave: searchBrave,
@@ -354,4 +423,4 @@ export async function webSearch(params) {
 }
 
 export const webSearchDescription =
-  'webSearch(query: string, optionsJson?: string) - Search the web. optionsJson: {"maxResults":5,"freshness":"day|week|month|year","provider":"tavily|perplexity|brave|searxng|ddg","language":"en"}. Auto-detects best available provider (Tavily > Perplexity > Brave > SearXNG > DuckDuckGo). Falls back through chain on failure. Results cached 5 minutes.';
+  'webSearch(query: string, optionsJson?: string) - Search the web. optionsJson: {"maxResults":5,"freshness":"day|week|month|year","provider":"exa|tavily|perplexity|brave|searxng|ddg","language":"en"}. Auto-detects best available provider: Exa → DuckDuckGo when EXA_API_KEY is set, otherwise Tavily → Perplexity → Brave → SearXNG → DuckDuckGo. Any provider can be forced via the `provider` option. Results cached 5 minutes.';
