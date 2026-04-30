@@ -42,7 +42,10 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies (root)
-        run: npm ci
+        # `--legacy-peer-deps` resolves the ollama-ai-provider-v2 vs zod
+        # peer-dep mismatch (it wants zod ^4 while the rest of @ai-sdk/*
+        # accepts ^3 || ^4). Without this flag npm 7+ refuses to install.
+        run: npm ci --legacy-peer-deps
 
       - name: Install dependencies (ui)
         run: npm ci
