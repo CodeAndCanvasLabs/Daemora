@@ -93,7 +93,7 @@
     "pptxgenjs": "^4.0.1",
     "ws": "^8.20.0",
     "yaml": "^2.7.0",
-    "zod": "^3.25.76"
+    "zod": "^4.4.1"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
