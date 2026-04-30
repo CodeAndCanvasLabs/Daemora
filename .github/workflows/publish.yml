@@ -1,0 +1,207 @@
+name: Publish to npm
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to publish from'
+        type: choice
+        options:
+          - main
+          - dev
+        default: main
+      dry_run:
+        description: 'Dry run - show what would be published without actually publishing'
+        type: boolean
+        default: false
+
+# Prevent concurrent publishes of the same ref
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish (${{ github.ref_name }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # required for npm provenance
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - name: Install dependencies (root)
+        run: npm ci
+
+      - name: Install dependencies (ui)
+        run: npm ci
+        working-directory: ui
+
+      # ── Determine version + npm dist-tag based on what triggered the workflow ──
+      #
+      # Logic:
+      #   • Tag push (vX.Y.Z) → publishes pkg version, dist-tag = "latest" for
+      #     stable, or matched pre-release tag (alpha/beta/rc) when version
+      #     contains one.
+      #   • main branch → publishes only if version not already on npm.
+      #     Pre-release versions (1.0.0-alpha.0) auto-route to their tag
+      #     (alpha) instead of clobbering "latest".
+      #   • dev / beta / next branch → stamps a unique pre-release suffix
+      #     (date + short SHA) and publishes to that channel's tag.
+
+      - name: Resolve publish config
+        id: config
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          REF_TYPE="${{ github.ref_type }}"
+          BRANCH="${{ inputs.branch }}"
+
+          # Extract pre-release tag from version (e.g. "1.0.0-alpha.0" → "alpha").
+          # Empty for stable versions like "1.0.0".
+          PRE_TAG=$(node -e "const v=require('./package.json').version; const m=v.match(/-([a-z]+)\.[0-9]+/); process.stdout.write(m?m[1]:'')")
+
+          if [[ "$REF_TYPE" == "tag" ]]; then
+            # Explicit tag (e.g. v1.2.3 or v1.2.3-rc.1)
+            if [[ -n "$PRE_TAG" ]]; then
+              echo "npm_tag=$PRE_TAG" >> $GITHUB_OUTPUT
+              echo "channel=pre-release ($PRE_TAG, tag $BRANCH)" >> $GITHUB_OUTPUT
+            else
+              echo "npm_tag=latest" >> $GITHUB_OUTPUT
+              echo "channel=stable (tag $BRANCH)" >> $GITHUB_OUTPUT
+            fi
+            echo "version=$PKG_VERSION" >> $GITHUB_OUTPUT
+
+          elif [[ "$BRANCH" == "main" ]]; then
+            # Main branch - publish only if this version isn't on npm yet
+            ALREADY=$(npm view daemora@"$PKG_VERSION" version 2>/dev/null || true)
+            if [[ -n "$ALREADY" ]]; then
+              echo "skip=true" >> $GITHUB_OUTPUT
+              echo "skip_reason=v$PKG_VERSION is already on npm - bump package.json version to publish" >> $GITHUB_OUTPUT
+            else
+              if [[ -n "$PRE_TAG" ]]; then
+                echo "npm_tag=$PRE_TAG" >> $GITHUB_OUTPUT
+                echo "channel=pre-release ($PRE_TAG)" >> $GITHUB_OUTPUT
+              else
+                echo "npm_tag=latest" >> $GITHUB_OUTPUT
+                echo "channel=stable" >> $GITHUB_OUTPUT
+              fi
+              echo "version=$PKG_VERSION" >> $GITHUB_OUTPUT
+            fi
+
+          elif [[ "$BRANCH" == "dev" || "$BRANCH" == "beta" || "$BRANCH" == "next" ]]; then
+            # Pre-release branches - append date + short SHA so every commit gets a unique version
+            SHORT_SHA=$(git rev-parse --short=7 HEAD)
+            DATE=$(date -u +%Y%m%d)
+            BASE="${PKG_VERSION%%-*}"          # strip any existing pre-release suffix
+            PRE_VERSION="${BASE}-${BRANCH}.${DATE}.${SHORT_SHA}"
+            echo "npm_tag=$BRANCH" >> $GITHUB_OUTPUT
+            echo "version=$PRE_VERSION" >> $GITHUB_OUTPUT
+            echo "channel=pre-release ($BRANCH)" >> $GITHUB_OUTPUT
+
+          else
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "skip_reason=Branch '$BRANCH' is not a publish branch" >> $GITHUB_OUTPUT
+          fi
+
+      # ── Skip early if nothing to publish ────────────────────────────────────
+
+      - name: Skip - ${{ steps.config.outputs.skip_reason }}
+        if: steps.config.outputs.skip == 'true'
+        run: |
+          echo "${{ steps.config.outputs.skip_reason }}"
+
+      # ── Stamp pre-release version into package.json (only for dev/beta/next branches) ──
+
+      - name: Bump package.json to pre-release version
+        if: |
+          steps.config.outputs.skip != 'true' &&
+          (inputs.branch == 'dev' || inputs.branch == 'beta' || inputs.branch == 'next')
+        run: npm version "${{ steps.config.outputs.version }}" --no-git-tag-version
+
+      # ── Build before publish (typecheck + compile + ui + voice bundle) ─────
+
+      - name: Typecheck
+        if: steps.config.outputs.skip != 'true'
+        run: npm run typecheck
+
+      - name: Build
+        if: steps.config.outputs.skip != 'true'
+        run: npm run build
+
+      # ── Publish ──────────────────────────────────────────────────────────────
+
+      - name: Publish to npm - ${{ steps.config.outputs.channel }}
+        if: |
+          steps.config.outputs.skip != 'true' &&
+          inputs.dry_run != true
+        run: |
+          npm publish \
+            --tag "${{ steps.config.outputs.npm_tag }}" \
+            --access public \
+            --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Dry run (no publish)
+        if: |
+          steps.config.outputs.skip != 'true' &&
+          inputs.dry_run == true
+        run: |
+          echo "Dry run - would publish:"
+          echo "   Package : daemora@${{ steps.config.outputs.version }}"
+          echo "   npm tag : ${{ steps.config.outputs.npm_tag }}"
+          echo "   Channel : ${{ steps.config.outputs.channel }}"
+          npm publish --dry-run --tag "${{ steps.config.outputs.npm_tag }}"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # ── Job summary (visible in GitHub Actions UI) ───────────────────────────
+
+      - name: Write job summary
+        if: always()
+        run: |
+          {
+            echo "### npm Publish Summary"
+            echo ""
+            if [[ "${{ steps.config.outputs.skip }}" == "true" ]]; then
+              echo "**Status:** Skipped"
+              echo ""
+              echo "${{ steps.config.outputs.skip_reason }}"
+            elif [[ "${{ inputs.dry_run }}" == "true" ]]; then
+              echo "**Status:** Dry run only (not published)"
+            else
+              echo "**Status:** Published"
+            fi
+            echo ""
+            echo "| Field   | Value |"
+            echo "|---------|-------|"
+            echo "| Package | \`daemora@${{ steps.config.outputs.version }}\` |"
+            echo "| npm tag | \`${{ steps.config.outputs.npm_tag }}\` |"
+            echo "| Channel | ${{ steps.config.outputs.channel }} |"
+            echo "| Ref     | \`${{ github.ref_name }}\` |"
+            echo "| Commit  | \`${{ github.sha }}\` |"
+            echo ""
+            if [[ "${{ steps.config.outputs.skip }}" != "true" && "${{ inputs.dry_run }}" != "true" ]]; then
+              echo "**Install:**"
+              if [[ "${{ steps.config.outputs.npm_tag }}" == "latest" ]]; then
+                echo "\`\`\`"
+                echo "npm install -g daemora"
+                echo "\`\`\`"
+              else
+                echo "\`\`\`"
+                echo "npm install -g daemora@${{ steps.config.outputs.npm_tag }}"
+                echo "\`\`\`"
+              fi
+            fi
+          } >> $GITHUB_STEP_SUMMARY

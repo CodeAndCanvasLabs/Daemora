@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, dev]
+
+# Cancel older runs on the same branch when a new push lands.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: typecheck + test + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm run test
+
+      - name: Build server + voice
+        run: |
+          npm run build:server
+          npm run build:voice
+
+      - name: Install ui dependencies
+        run: npm ci
+        working-directory: ui
+
+      - name: Build ui
+        run: npm run build
+        working-directory: ui
+
+      # Sanity-check the packed tarball — catches regressions where `files`
+      # whitelist drifts and accidentally drops dist/ or ui/dist/.
+      - name: Verify pack contents
+        run: |
+          npm pack --dry-run 2>&1 | tee /tmp/pack.log
+          grep -q "dist/cli/index.js" /tmp/pack.log || { echo "::error::dist/cli/index.js missing from pack"; exit 1; }
+          grep -q "ui/dist/index.html" /tmp/pack.log || { echo "::error::ui/dist/index.html missing from pack"; exit 1; }
+          grep -q "dist/voice-worker.mjs" /tmp/pack.log || { echo "::error::dist/voice-worker.mjs missing from pack"; exit 1; }
+
+      - name: Smoke-test CLI binary
+        run: |
+          node dist/cli/index.js --version
+          node dist/cli/index.js --help

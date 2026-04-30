@@ -1,0 +1,53 @@
+# Local Daemora stack — dev mode (tsx watch).
+#
+# Source dirs are bind-mounted so any .ts edit on the host is picked up
+# inside the container instantly; tsx watch restarts the process. No
+# rebuild needed for code changes — only for package.json / lockfile /
+# Dockerfile updates.
+#
+# Bind-mounts ./data so vault, sqlite, OAuth tokens, and logs survive
+# `docker compose down`. New users get an empty data dir → UI walks
+# them through vault setup. Existing users with a populated ./data on
+# the host carry their keys straight in.
+
+services:
+  daemora:
+    build: .
+    image: daemora:local
+    restart: unless-stopped
+    # Bind to localhost only so the container isn't exposed on the LAN.
+    ports:
+      - "127.0.0.1:8081:8081"
+    env_file:
+      - .env
+    environment:
+      DAEMORA_DATA_DIR: /app/data
+      PORT: "8081"
+    # tsx watches src/ and restarts on any .ts change — no rebuild loop.
+    # build:voice runs once before tsx watch picks up server changes.
+    command: ["pnpm", "dev"]
+    volumes:
+      - ./data:/app/data
+      # Source bind-mounts for hot reload. node_modules and dist are
+      # NOT mounted — the image's own copies must win (host's
+      # node_modules is built for darwin-arm64; container needs
+      # linux-arm64 prebuilt natives).
+      - ./src:/app/src
+      - ./agents:/app/agents
+      - ./crew:/app/crew
+      - ./skills:/app/skills
+      - ./public:/app/public
+      # ui/dist is built on the host (`pnpm --filter ./ui build`) and
+      # bind-mounted so UI changes reflect without rebuilding the image.
+      - ./ui/dist:/app/ui/dist
+      - ./package.json:/app/package.json
+      - ./tsconfig.json:/app/tsconfig.json
+      - ./tsconfig.build.json:/app/tsconfig.build.json
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # tsx first-boot is slower than compiled — give it 90s before the
+      # healthcheck starts marking it unhealthy.
+      start_period: 90s

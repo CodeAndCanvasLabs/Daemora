@@ -1,0 +1,37 @@
+# Note: package.json `files` field is the authoritative whitelist.
+# This .npmignore is belt-and-suspenders against junk that might
+# land inside shipped directories (dist/, ui/dist/, crew/, skills/, public/).
+
+# Editor / OS cruft
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Build intermediates / caches that could sneak into dist
+*.tsbuildinfo
+*.log
+.turbo/
+.cache/
+.parcel-cache/
+
+# Nested node_modules (e.g. inside crew/<name>/ or skills/<name>/)
+**/node_modules/
+
+# Local runtime state / scratch
+data/
+*.sqlite
+*.sqlite-journal
+*.db
+
+# Source maps are kept (declarationMap/sourceMap true in tsconfig.build.json)
+# so stacktraces point at real source. Remove the next two lines to strip them.
+# **/*.js.map
+# **/*.d.ts.map
+
+# Secrets / env — never ship
+.env
+.env.*
+!.env.example

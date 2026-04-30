@@ -1,0 +1,264 @@
+@import './fonts.css';
+@import './tailwind.css';
+@import './theme.css';
+
+* {
+  scroll-behavior: smooth;
+}
+
+/* ── Scrollbars ──────────────────────────────────────────────────────────── */
+/* WKWebView's default scrollbar is invisible against the dark theme. Style
+   them for both WebKit/Blink (Tauri Mac/iOS, Chrome) and Firefox. */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56, 189, 248, 0.25) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.18);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background 0.2s;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(56, 189, 248, 0.4);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background: rgba(56, 189, 248, 0.55);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ── Typography ──────────────────────────────────────────────────────────── */
+
+body {
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* JetBrains Mono for code and pre only */
+code, pre {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Override font-mono to Inter across all pages.
+   382 instances of font-mono used on labels, buttons, descriptions.
+   JetBrains Mono re-applied below only where it belongs. */
+.font-mono {
+  font-family: 'Inter', -apple-system, system-ui, sans-serif !important;
+}
+
+/* Re-apply JetBrains Mono for actual data inputs */
+input, textarea, select {
+  font-family: 'JetBrains Mono', monospace;
+}
+code, pre, code.font-mono, pre.font-mono {
+  font-family: 'JetBrains Mono', monospace !important;
+}
+
+/* ── Font Size Normalization ─────────────────────────────────────────────── */
+/* Bump tiny text in main content + dialogs - sidebar untouched */
+
+main .text-\[7px\],  [role="dialog"] .text-\[7px\]  { font-size: 0.625rem !important; }   /* 7→10px */
+main .text-\[8px\],  [role="dialog"] .text-\[8px\]  { font-size: 0.6875rem !important; }  /* 8→11px */
+main .text-\[9px\],  [role="dialog"] .text-\[9px\]  { font-size: 0.6875rem !important; }  /* 9→11px */
+main .text-\[10px\], [role="dialog"] .text-\[10px\] { font-size: 0.75rem !important; }    /* 10→12px */
+main .text-\[11px\], [role="dialog"] .text-\[11px\] { font-size: 0.8125rem !important; }  /* 11→13px */
+main .text-xs,       [role="dialog"] .text-xs       { font-size: 0.8125rem !important; }  /* 12→13px */
+
+/* ── Uppercase Normalization ─────────────────────────────────────────────── */
+/* Remove uppercase from labels/headings in main content - keep for badges only */
+
+main .uppercase {
+  text-transform: none !important;
+}
+
+/* Preserve uppercase for small badge-like text and specific UI elements */
+main .text-\[7px\].uppercase,
+main .text-\[8px\].uppercase,
+main .text-\[9px\].uppercase,
+main span.uppercase,
+[role="dialog"] .text-\[7px\].uppercase,
+[role="dialog"] .text-\[8px\].uppercase,
+[role="dialog"] .text-\[9px\].uppercase {
+  text-transform: uppercase !important;
+}
+
+/* ── Tracking Normalization ──────────────────────────────────────────────── */
+main .tracking-widest  { letter-spacing: 0.025em !important; }
+main .tracking-tighter { letter-spacing: -0.01em !important; }
+
+/* ── Color Normalization ─────────────────────────────────────────────────── */
+/* Soften #00d9ff → #38bdf8 across main content and dialogs */
+
+main [class*="text-\[#00d9ff\]"],
+[role="dialog"] [class*="text-\[#00d9ff\]"] {
+  color: #38bdf8 !important;
+}
+
+main [class*="border-\[#00d9ff\]"],
+[role="dialog"] [class*="border-\[#00d9ff\]"] {
+  border-color: rgba(56, 189, 248, 0.3) !important;
+}
+
+main [class*="hover\:text-\[#00d9ff\]"]:hover,
+[role="dialog"] [class*="hover\:text-\[#00d9ff\]"]:hover {
+  color: #38bdf8 !important;
+}
+
+main [class*="focus\:border-\[#00d9ff\]"]:focus,
+[role="dialog"] [class*="focus\:border-\[#00d9ff\]"]:focus {
+  border-color: rgba(56, 189, 248, 0.5) !important;
+}
+
+/* Soften glow/shadow effects */
+main [class*="shadow-\[0_0"] {
+  box-shadow: none !important;
+}
+
+/* ── Button Normalization ────────────────────────────────────────────────── */
+/* Make gradient buttons darker so white text is readable */
+main [class*="from-\[#00d9ff\]"] {
+  --tw-gradient-from: #0891b2 !important;
+}
+main [class*="to-\[#4ECDC4\]"] {
+  --tw-gradient-to: #0d9488 !important;
+}
+
+/* ── Modal / Dialog ──────────────────────────────────────────────────────── */
+[role="dialog"] {
+  max-width: 44rem !important;
+}
+[role="dialog"] .uppercase {
+  text-transform: none !important;
+}
+
+/* ── Markdown Prose (dark theme) ─────────────────────────────────────────── */
+.prose-invert {
+  color: #e2e8f0;
+}
+
+.prose-invert code {
+  color: #38bdf8;
+  background-color: rgba(56, 189, 248, 0.1);
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+}
+
+.prose-invert pre {
+  background-color: #1e293b;
+  border: 1px solid #334155;
+}
+
+.prose-invert pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+.prose-invert a {
+  color: #38bdf8;
+  text-decoration: none;
+}
+
+.prose-invert a:hover {
+  color: #4ECDC4;
+}
+
+.prose-invert strong {
+  color: #f0f0f3;
+}
+
+.prose-invert h1,
+.prose-invert h2,
+.prose-invert h3,
+.prose-invert h4 {
+  color: #f1f5f9;
+  font-weight: 600;
+  margin-top: 1.25em;
+  margin-bottom: 0.5em;
+}
+
+.prose-invert h1 { font-size: 1.25em; }
+.prose-invert h2 { font-size: 1.125em; }
+.prose-invert h3 { font-size: 1em; }
+
+.prose-invert ul,
+.prose-invert ol {
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+
+.prose-invert ul { list-style-type: disc; }
+.prose-invert ol { list-style-type: decimal; }
+
+.prose-invert li {
+  margin: 0.25em 0;
+}
+
+.prose-invert li::marker {
+  color: #64748b;
+}
+
+.prose-invert blockquote {
+  border-left: 3px solid #38bdf8;
+  padding-left: 1em;
+  margin: 0.75em 0;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.prose-invert hr {
+  border-color: #334155;
+  margin: 1em 0;
+}
+
+.prose-invert table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75em 0;
+}
+
+.prose-invert th,
+.prose-invert td {
+  border: 1px solid #334155;
+  padding: 0.375em 0.75em;
+  text-align: left;
+}
+
+.prose-invert th {
+  background-color: #1e293b;
+  color: #f1f5f9;
+  font-weight: 600;
+}
+
+.prose-invert p {
+  margin: 0.5em 0;
+}
+
+.prose-invert p:first-child {
+  margin-top: 0;
+}
+
+.prose-invert p:last-child {
+  margin-bottom: 0;
+}

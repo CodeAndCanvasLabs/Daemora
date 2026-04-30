@@ -1,0 +1,15 @@
+node_modules
+ui/node_modules
+dist
+ui/dist
+data
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+.vscode
+.idea
+agents
