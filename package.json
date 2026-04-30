@@ -1,6 +1,6 @@
 {
   "name": "daemora",
-  "version": "1.0.0-alpha.0",
+  "version": "1.0.0-alpha.1",
   "description": "Self-hosted AI agent platform — autonomous, multi-channel, multi-model.",
   "type": "module",
   "license": "AGPL-3.0-or-later",
