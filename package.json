@@ -76,7 +76,7 @@
     "@livekit/rtc-node": "^0.13.25",
     "@types/nodemailer": "^8.0.0",
     "ai": "^6.0.105",
-    "better-sqlite3": "^11.8.1",
+    "better-sqlite3": "^12.9.0",
     "docx": "^9.6.1",
     "exceljs": "^4.4.0",
     "express": "^4.21.2",
