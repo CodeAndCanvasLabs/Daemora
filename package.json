@@ -61,10 +61,10 @@
     "prepublishOnly": "npm run clean && npm run typecheck && npm run build"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.50",
-    "@ai-sdk/google": "^3.0.34",
-    "@ai-sdk/google-vertex": "^4.0.112",
-    "@ai-sdk/openai": "^3.0.37",
+    "@ai-sdk/anthropic": "^3.0.73",
+    "@ai-sdk/google": "^3.0.66",
+    "@ai-sdk/google-vertex": "^4.0.115",
+    "@ai-sdk/openai": "^3.0.55",
     "@clack/prompts": "^1.2.0",
     "@livekit/agents": "^1.2.7",
     "@livekit/agents-plugin-cartesia": "^1.2.7",
@@ -75,7 +75,7 @@
     "@livekit/agents-plugin-silero": "^1.2.7",
     "@livekit/rtc-node": "^0.13.25",
     "@types/nodemailer": "^8.0.0",
-    "ai": "^6.0.105",
+    "ai": "^6.0.172",
     "better-sqlite3": "^11.8.1",
     "docx": "^9.6.1",
     "exceljs": "^4.4.0",
