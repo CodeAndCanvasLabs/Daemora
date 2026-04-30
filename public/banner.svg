@@ -1,0 +1,141 @@
+<svg width="3840" height="960" viewBox="0 0 3840 960" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="3840" y2="1200" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#06061a"/>
+      <stop offset="50%" stop-color="#0c0c30"/>
+      <stop offset="100%" stop-color="#06061a"/>
+    </linearGradient>
+    <linearGradient id="textGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#e0e0e8"/>
+      <stop offset="50%" stop-color="#b8d8e8"/>
+      <stop offset="100%" stop-color="#0098b3"/>
+    </linearGradient>
+    <linearGradient id="lstroke" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ff4458"/>
+      <stop offset="55%" stop-color="#00d9ff"/>
+      <stop offset="100%" stop-color="#ff4458"/>
+    </linearGradient>
+    <linearGradient id="body" x1="50" y1="2" x2="50" y2="98" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1a0812"/>
+      <stop offset="100%" stop-color="#060308"/>
+    </linearGradient>
+    <radialGradient id="eye" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ff6a00"/>
+      <stop offset="40%" stop-color="#ff4458"/>
+      <stop offset="100%" stop-color="#aa1122" stop-opacity="0.6"/>
+    </radialGradient>
+    <radialGradient id="eyeglow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ff4458" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#ff4458" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ff4458" stop-opacity="0"/>
+      <stop offset="30%" stop-color="#ff4458" stop-opacity="0.5"/>
+      <stop offset="50%" stop-color="#00d9ff" stop-opacity="0.7"/>
+      <stop offset="70%" stop-color="#4ECDC4" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#4ECDC4" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="borderGrad" x1="0" y1="0" x2="3840" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ff4458" stop-opacity="0"/>
+      <stop offset="25%" stop-color="#ff4458" stop-opacity="0.3"/>
+      <stop offset="50%" stop-color="#00d9ff" stop-opacity="0.35"/>
+      <stop offset="75%" stop-color="#ff4458" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#ff4458" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="3840" height="960" fill="url(#bg)"/>
+
+  <!-- Grid -->
+  <g opacity="0.03">
+    <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
+      <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#00d9ff" stroke-width="0.5"/>
+    </pattern>
+    <rect width="3840" height="960" fill="url(#grid)"/>
+  </g>
+
+  <!-- Corner accents -->
+  <g opacity="0.2" stroke-width="2">
+    <line x1="80" y1="80" x2="200" y2="80" stroke="#00d9ff"/>
+    <line x1="80" y1="80" x2="80" y2="200" stroke="#00d9ff"/>
+    <line x1="3760" y1="80" x2="3640" y2="80" stroke="#00d9ff"/>
+    <line x1="3760" y1="80" x2="3760" y2="200" stroke="#00d9ff"/>
+    <line x1="80" y1="880" x2="200" y2="880" stroke="#ff4458"/>
+    <line x1="80" y1="880" x2="80" y2="760" stroke="#ff4458"/>
+    <line x1="3760" y1="880" x2="3640" y2="880" stroke="#ff4458"/>
+    <line x1="3760" y1="880" x2="3760" y2="760" stroke="#ff4458"/>
+  </g>
+
+  <!-- ══ LOGO + TEXT side by side, centered ══ -->
+
+  <!-- Logo at scale 4, positioned left of center -->
+  <g transform="translate(1050, 160) scale(4)">
+    <polygon points="30,28 22,6 38,22" fill="#ff4458" opacity="0.85"/>
+    <polygon points="70,28 78,6 62,22" fill="#ff4458" opacity="0.85"/>
+    <polygon points="30,28 70,28 84,40 88,60 76,80 62,92 50,96 38,92 24,80 12,60 16,40" fill="url(#body)" stroke="url(#lstroke)" stroke-width="2"/>
+    <polygon points="33,33 67,33 79,43 82,61 72,78 61,88 50,91 39,88 28,78 18,61 21,43" fill="none" stroke="#ff4458" stroke-width="0.4" stroke-opacity="0.2"/>
+    <line x1="22" y1="46" x2="44" y2="53" stroke="#ff4458" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="78" y1="46" x2="56" y2="53" stroke="#ff4458" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="36" y1="50" x2="44" y2="53" stroke="#ff4458" stroke-width="1" stroke-linecap="round" stroke-opacity="0.5"/>
+    <line x1="64" y1="50" x2="56" y2="53" stroke="#ff4458" stroke-width="1" stroke-linecap="round" stroke-opacity="0.5"/>
+    <ellipse cx="50" cy="62" rx="26" ry="12" fill="url(#eyeglow)"/>
+    <ellipse cx="50" cy="62" rx="22" ry="11" fill="#050208"/>
+    <ellipse cx="50" cy="62" rx="22" ry="11" fill="none" stroke="#ff4458" stroke-width="0.8" stroke-opacity="0.4"/>
+    <ellipse cx="50" cy="62" rx="14" ry="8" fill="url(#eye)"/>
+    <ellipse cx="50" cy="62" rx="3.5" ry="7.5" fill="#000"/>
+    <ellipse cx="46" cy="58" rx="2" ry="1.2" fill="white" fill-opacity="0.4"/>
+    <line x1="28" y1="62" x2="72" y2="62" stroke="#ff6a00" stroke-width="0.7" stroke-opacity="0.3"/>
+    <line x1="44" y1="81" x2="50" y2="86" stroke="#ff4458" stroke-width="1.2" stroke-linecap="round" stroke-opacity="0.55"/>
+    <line x1="56" y1="81" x2="50" y2="86" stroke="#ff4458" stroke-width="1.2" stroke-linecap="round" stroke-opacity="0.55"/>
+    <circle cx="20" cy="60" r="1.5" fill="#00d9ff" opacity="0.7"/>
+    <circle cx="80" cy="60" r="1.5" fill="#00d9ff" opacity="0.7"/>
+    <circle cx="22" cy="6" r="2" fill="#ff4458" opacity="0.9"/>
+    <circle cx="78" cy="6" r="2" fill="#ff4458" opacity="0.9"/>
+  </g>
+
+  <!-- DAEMORA text - right of logo -->
+  <text x="1520" y="440" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif" font-weight="900" font-size="200" letter-spacing="20" fill="url(#textGrad)">DAEMORA</text>
+
+  <!-- Tagline -->
+  <text x="1530" y="530" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif" font-weight="500" font-size="42" fill="#94a3b8" letter-spacing="12">AUTONOMOUS  AI  AGENT</text>
+
+  <!-- Divider -->
+  <line x1="600" y1="640" x2="3240" y2="640" stroke="url(#lineGrad)" stroke-width="1.5" opacity="0.5"/>
+
+  <!-- Feature pills - single row, muted colors -->
+  <g font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif" font-size="24" font-weight="600">
+    <rect x="240" y="720" width="220" height="48" rx="24" fill="#ff4458" fill-opacity="0.1" stroke="#ff4458" stroke-opacity="0.35" stroke-width="1"/>
+    <text x="350" y="752" text-anchor="middle" fill="#ccc0c0">60+ Tools</text>
+
+    <rect x="490" y="720" width="260" height="48" rx="24" fill="#00d9ff" fill-opacity="0.1" stroke="#00d9ff" stroke-opacity="0.35" stroke-width="1"/>
+    <text x="620" y="752" text-anchor="middle" fill="#b0d8e8">22 Channels</text>
+
+    <rect x="780" y="720" width="260" height="48" rx="24" fill="#4ECDC4" fill-opacity="0.1" stroke="#4ECDC4" stroke-opacity="0.35" stroke-width="1"/>
+    <text x="910" y="752" text-anchor="middle" fill="#a8d8d2">Self-Hosted</text>
+
+    <rect x="1070" y="720" width="330" height="48" rx="24" fill="#00ff88" fill-opacity="0.08" stroke="#00ff88" stroke-opacity="0.3" stroke-width="1"/>
+    <text x="1235" y="752" text-anchor="middle" fill="#a8d8b8">10 Security Layers</text>
+
+    <rect x="1430" y="720" width="280" height="48" rx="24" fill="#ffaa00" fill-opacity="0.1" stroke="#ffaa00" stroke-opacity="0.35" stroke-width="1"/>
+    <text x="1570" y="752" text-anchor="middle" fill="#d8c8a0">4 AI Providers</text>
+
+    <rect x="1740" y="720" width="240" height="48" rx="24" fill="#ff00ff" fill-opacity="0.08" stroke="#ff00ff" stroke-opacity="0.3" stroke-width="1"/>
+    <text x="1860" y="752" text-anchor="middle" fill="#c8a8c8">MCP Ready</text>
+
+    <rect x="2010" y="720" width="270" height="48" rx="24" fill="#ff6a00" fill-opacity="0.1" stroke="#ff6a00" stroke-opacity="0.35" stroke-width="1"/>
+    <text x="2145" y="752" text-anchor="middle" fill="#d8b8a0">Open Source</text>
+
+    <rect x="2310" y="720" width="380" height="48" rx="24" fill="#00d9ff" fill-opacity="0.08" stroke="#00d9ff" stroke-opacity="0.3" stroke-width="1"/>
+    <text x="2500" y="752" text-anchor="middle" fill="#b0d8e8">Works While You Sleep</text>
+
+    <rect x="2720" y="720" width="240" height="48" rx="24" fill="#4ECDC4" fill-opacity="0.08" stroke="#4ECDC4" stroke-opacity="0.3" stroke-width="1"/>
+    <text x="2840" y="752" text-anchor="middle" fill="#a8d8d2">Cron Jobs</text>
+
+    <rect x="2990" y="720" width="260" height="48" rx="24" fill="#ff4458" fill-opacity="0.08" stroke="#ff4458" stroke-opacity="0.3" stroke-width="1"/>
+    <text x="3120" y="752" text-anchor="middle" fill="#ccc0c0">Multi-Agent</text>
+  </g>
+
+  <!-- Border -->
+  <rect x="3" y="3" width="3834" height="954" rx="20" ry="20" fill="none" stroke="url(#borderGrad)" stroke-width="2"/>
+</svg>

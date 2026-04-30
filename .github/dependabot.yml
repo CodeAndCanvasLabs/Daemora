@@ -1,0 +1,78 @@
+version: 2
+
+updates:
+  # ── Root npm package ────────────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "deps"
+    groups:
+      ai-providers:
+        patterns:
+          - "@ai-sdk/*"
+          - "ai"
+          - "ollama-*"
+      livekit:
+        patterns:
+          - "@livekit/*"
+          - "livekit-*"
+      types:
+        patterns:
+          - "@types/*"
+        update-types:
+          - "minor"
+          - "patch"
+      dev-deps:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # ── UI npm package ──────────────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/ui"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ui"
+    commit-message:
+      prefix: "deps(ui)"
+    groups:
+      radix:
+        patterns:
+          - "@radix-ui/*"
+      mui:
+        patterns:
+          - "@mui/*"
+          - "@emotion/*"
+      types:
+        patterns:
+          - "@types/*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # ── GitHub Actions ──────────────────────────────────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"

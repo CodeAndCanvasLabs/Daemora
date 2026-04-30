@@ -1,0 +1,18 @@
+{
+  "id": "my-crew",
+  "name": "My Custom Crew",
+  "description": "One-liner the main agent reads when deciding whether to delegate. <140 chars.",
+  "version": "1.0.0",
+  "profile": {
+    "systemPrompt": "Role: [your role]. [What this crew does, how, and what output shape to produce.]",
+    "temperature": 0.3,
+    "model": null
+  },
+  "tools": [
+    "read_file", "write_file", "edit_file", "list_directory",
+    "execute_command", "web_search", "fetch_url",
+    "memory_save", "memory_recall"
+  ],
+  "skills": [],
+  "skillsExclude": ["orchestration"]
+}
