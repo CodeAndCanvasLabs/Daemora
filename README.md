@@ -47,6 +47,7 @@ https://github.com/user-attachments/assets/be0fadad-c307-4487-a4fd-2adc0f967421
 | **Loop Detection** | Prevents agents from burning tokens in repetitive patterns - exact repeat, ping-pong, semantic repeat, and polling detection with smart exclusions for legitimate workflows. |
 | **Live Status** | Typing indicators on Discord/Telegram while processing. Status reactions track task progress (queued → thinking → working → done). |
 | **Continuous Brain** | Three-layer memory (semantic/episodic/procedural) with automatic extraction, composite-scored recall, confidence decay, and context pruning. Learns from every task - no manual saving needed. Unified session across all channels. |
+| **Integrations** | One-click OAuth connect to X/Twitter, Gmail, Google Calendar, LinkedIn, Reddit, TikTok, YouTube, Facebook, Instagram, GitHub, Notion. Tokens stored encrypted in the vault, auto-refreshed in the background — connect once, the agent posts/reads/replies on your behalf. |
 | **Tools** | Connect to any MCP server - create Notion pages, open GitHub issues, update Linear tasks, manage Shopify products, query databases. |
 | **Voice & Meetings** | Join any meeting (Google Meet, Zoom, Teams) via phone dial-in. OpenAI Realtime STT + ElevenLabs/OpenAI TTS. Voice cloning. Outbound voice calls. Auto-transcription + meeting summaries. |
 | **Multi-Agent** | Spawn parallel sub-agents (researcher + coder + writer working simultaneously). Create agent teams with shared task lists, dependencies, and inter-agent messaging. |
@@ -230,6 +231,36 @@ Enable only what you need. Each channel supports `{CHANNEL}_ALLOWLIST` and `{CHA
 Channels are configured from the **Channels page** in the web UI, or by setting
 the required env vars before `daemora start`. Once secrets are present and the
 vault is unlocked, the channel boots automatically.
+
+### Integrations (one-click OAuth)
+
+Channels are *chat platforms*. **Integrations** are the OAuth-backed services
+the agent acts on — read your inbox, post a thread, search a subreddit, upload
+to YouTube. Connect from the **Integrations page** in the web UI: click the
+provider, sign in, done. Tokens are stored encrypted in the vault, refreshed
+automatically (30-minute background sweep plus per-account early-refresh timers
+for short-TTL tokens), and revoked instantly when you disconnect.
+
+| Provider | What the agent can do | Auth |
+|---|---|---|
+| **X / Twitter** | Post, search, reply, like, read timeline | OAuth 2.0 + PKCE |
+| **Gmail** | Read, send, label, search threads, manage drafts | Google OAuth |
+| **Google Calendar** | Read events, create/update/delete, RSVP | Google OAuth |
+| **Google Drive** | List, search, read, upload files | Google OAuth |
+| **LinkedIn** | Post, read profile, share articles | LinkedIn OAuth |
+| **Reddit** | Post, comment, vote, search subreddits, read inbox | Reddit OAuth |
+| **TikTok** | Upload videos, read account info | TikTok OAuth |
+| **YouTube** | Upload, list videos, manage comments, read analytics | Google OAuth |
+| **Facebook** | Page posts, comments, insights | Meta OAuth |
+| **Instagram** | Publish, comments, insights, basic profile | Meta OAuth |
+| **GitHub** | Issues, PRs, repo browsing, gists | GitHub OAuth |
+| **Notion** | Pages, databases, search, block edits | Notion OAuth |
+
+Each provider auto-spawns a matching **crew member** the moment a token lands —
+e.g. connecting X enables `useCrew("twitter", ...)` and the related tools
+(`twitter_post`, `twitter_search`, etc.) without a restart. Multiple accounts
+per provider are supported (post from `@brand` and reply from `@personal`); the
+agent picks per call or you can pass an explicit `accountId`.
 
 ### Cost Limits
 

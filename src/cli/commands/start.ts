@@ -30,6 +30,7 @@ import { IntegrationManager } from "../../integrations/IntegrationManager.js";
 import { IntegrationStore } from "../../integrations/IntegrationStore.js";
 import { registerIntegrationTools } from "../../integrations/tools.js";
 import { makeCronTool } from "../../tools/core/cronTool.js";
+import { makeReplyToUserTool } from "../../tools/core/replyToUser.js";
 import { makeGoalTool } from "../../tools/core/goalTool.js";
 import { makeWatcherTool } from "../../tools/core/watcherTool.js";
 import { makePollTool } from "../../tools/core/pollTool.js";
@@ -291,6 +292,21 @@ export async function startCommand(): Promise<void> {
   agent.tools.register(makeManageAgentsTool({ sessions, crews }) as unknown as ToolDef);
   agent.tools.register(makePollTool(channelManager) as unknown as ToolDef);
   agent.tools.register(makeReloadTool({ mcp: mcpManager, mcpStore, scheduler: cronScheduler, channels: channelManager }) as unknown as ToolDef);
+
+  // Swap the bare reply_to_user (registered at AgentLoop construction
+  // before ChannelManager existed) for the channel-aware variant. Now
+  // the agent can pass `channels: ["telegram", "discord", ...]` and
+  // the message is routed via DeliveryPresetStore (preset name) or via
+  // a channel id with the `<CHANNEL>_DEFAULT_CHAT_ID` setting fallback.
+  const deliveryPresetStore = new DeliveryPresetStore(cfg.database);
+  agent.tools.unregister("reply_to_user");
+  agent.tools.register(
+    makeReplyToUserTool({
+      channels: channelManager,
+      deliveryPresets: deliveryPresetStore,
+      cfg,
+    }) as unknown as ToolDef,
+  );
   const dailyLog = new DailyLog({ bus, dataDir: cfg.env.dataDir });
   dailyLog.start();
   const goalPulse = new GoalPulse(goals, runner);
@@ -385,7 +401,7 @@ export async function startCommand(): Promise<void> {
     watchers, watcherRunner, goals, tasks: taskStore, skills, mcp: mcpManager,
     mcpStore, channels, channelManager, teamStore,
     auth, authEnabled, webhookTokens, getPublicUrl: () => publicUrl, tunnel,
-    deliveryPresets: new DeliveryPresetStore(cfg.database),
+    deliveryPresets: deliveryPresetStore,
     integrations,
     guard,
     skillLoader,
