@@ -266,7 +266,8 @@ export const PROVIDER_CATALOG: readonly ProviderDef[] = [
       { id: "whisper-large-v3-turbo", name: "Whisper v3 Turbo", tier: "fast" },
     ],
     ttsModels: [
-      { id: "playai-tts", name: "Orpheus TTS", tier: "fast" },
+      { id: "canopylabs/orpheus-v1-english", name: "Orpheus v1 English", tier: "fast" },
+      { id: "canopylabs/orpheus-arabic-saudi", name: "Orpheus Arabic (Saudi)", tier: "fast" },
     ],
     ttsVoices: [
       { id: "troy", name: "Troy" }, { id: "hannah", name: "Hannah" },

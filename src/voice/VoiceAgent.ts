@@ -223,11 +223,15 @@ async function buildTTS(): Promise<ttsNs.TTS> {
       // pipeline.
       const apiKey = process.env["GROQ_API_KEY"];
       if (!apiKey) throw new Error("GROQ_API_KEY not set");
+      // Groq deprecated `playai-tts` on 2025-12-23; the current Groq TTS
+      // model is `canopylabs/orpheus-v1-english` (Orpheus). Default voice
+      // must be one of [autumn, diana, hannah, austin, daniel, troy] —
+      // anything else 400s.
       const { GroqTTS } = await import("./GroqTTS.js");
       return new GroqTTS({
         apiKey,
-        model: model ?? "playai-tts-english",
-        voice: voice ?? "Fritz-PlayAI",
+        model: model ?? "canopylabs/orpheus-v1-english",
+        voice: voice ?? "troy",
       });
     }
     case "openai":
