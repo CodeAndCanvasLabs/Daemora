@@ -21,15 +21,13 @@ import { type APIConnectOptions, AudioByteStream, tts } from "@livekit/agents";
 
 /**
  * Default per-model sample rates. Groq's `/v1/audio/speech` returns
- * WAV at different rates depending on the model — PlayAI is 48 kHz,
- * Orpheus is 24 kHz. If LiveKit is told the wrong rate, playback runs
- * at the wrong speed (24 kHz played as 48 kHz = double-speed chipmunk).
+ * WAV at 24 kHz for the current Orpheus models. (PlayAI was 48 kHz but
+ * was deprecated 2025-12-23.) If LiveKit is told the wrong rate, playback
+ * runs at the wrong speed (24 kHz played as 48 kHz = chipmunk).
  */
 const SAMPLE_RATE_BY_MODEL: Record<string, number> = {
-  "playai-tts": 48_000,
-  "playai-tts-english": 48_000,
-  "playai-tts-arabic": 48_000,
   "canopylabs/orpheus-v1-english": 24_000,
+  "canopylabs/orpheus-arabic-saudi": 24_000,
   "orpheus-v1-english": 24_000,
 };
 const DEFAULT_SAMPLE_RATE = 24_000;
@@ -38,23 +36,15 @@ const WAV_HEADER_BYTES = 44;
 
 /**
  * Default voice per Groq TTS model. Groq rejects requests without a voice
- * with `400 voice is required`, and the right voice depends on the model
- * family (PlayAI uses "Fritz-PlayAI" / "Celeste-PlayAI" / etc., Orpheus
- * uses "tara" / "leah" / etc.). Picking the wrong family also 400s, so a
- * single global default isn't safe — match by model.
+ * with `400 voice is required`. Orpheus accepts only the six voices in
+ * ORPHEUS_VOICES below — picking anything else 400s.
  */
 const DEFAULT_VOICE_BY_MODEL: Record<string, string> = {
-  "playai-tts": "Fritz-PlayAI",
-  "playai-tts-english": "Fritz-PlayAI",
-  "playai-tts-arabic": "Ahmad-PlayAI",
-  // Groq Orpheus accepts only [autumn, diana, hannah, austin, daniel, troy]
-  // — older "tara" / "leah" names from upstream Orpheus are rejected
-  // (400 invalid_request_error). Picking `troy` as a neutral male voice;
-  // override per-deploy via TTS_VOICE setting.
   "canopylabs/orpheus-v1-english": "troy",
+  "canopylabs/orpheus-arabic-saudi": "troy",
   "orpheus-v1-english": "troy",
 };
-const FALLBACK_VOICE = "Fritz-PlayAI";
+const FALLBACK_VOICE = "troy";
 
 /** Voices Groq's Orpheus model currently accepts. Used to validate TTS_VOICE. */
 const ORPHEUS_VOICES = new Set(["autumn", "diana", "hannah", "austin", "daniel", "troy"]);

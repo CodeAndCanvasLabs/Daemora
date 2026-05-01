@@ -156,6 +156,20 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      # Promote the just-published version to `latest` so plain
+      # `npm install daemora` (no tag) gets the new code. Without this,
+      # `latest` stays pinned to whatever stable was published before
+      # (e.g. 2026.1.2-beta.2) and pre-release publishes would only be
+      # reachable via `npm install daemora@alpha`.
+      - name: Promote to latest dist-tag
+        if: |
+          steps.config.outputs.skip != 'true' &&
+          inputs.dry_run != true
+        run: |
+          npm dist-tag add "daemora@${{ steps.config.outputs.version }}" latest
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Dry run (no publish)
         if: |
           steps.config.outputs.skip != 'true' &&

@@ -6,6 +6,9 @@
  */
 
 import { exec } from "node:child_process";
+import type { Server } from "node:http";
+
+import type { Express } from "express";
 
 import { ChannelManager } from "../../channels/ChannelManager.js";
 import { ChannelRegistry } from "../../channels/ChannelRegistry.js";
@@ -374,15 +377,6 @@ export async function startCommand(): Promise<void> {
   let publicUrl = configuredPublic.length > 0
     ? configuredPublic.replace(/\/$/, "")
     : `http://localhost:${cfg.env.port}`;
-  if (!configuredPublic) {
-    tunnel.start({ port: cfg.env.port }).then((res) => {
-      if (res.kind !== "none") {
-        publicUrl = res.url;
-        log.info({ kind: res.kind, url: res.url }, "public URL updated from tunnel");
-      }
-    }).catch((e) => log.warn({ err: (e as Error).message }, "tunnel start crashed"));
-  }
-  log.info({ authEnabled, publicUrl }, "auth + webhooks ready");
 
   const app = createApp({
     cfg, agent, runner, sessions, memory, declarativeMemory,
@@ -398,19 +392,42 @@ export async function startCommand(): Promise<void> {
     customSkillsDir,
   });
 
-  const server = app.listen(cfg.env.port, () => {
-    const url = `http://localhost:${cfg.env.port}`;
-    const banner = box([
-      `Daemora-TS running at`,
-      `  ${url}`,
-      cfg.vault.exists() ? "Vault detected — unlock from the UI to start chatting." : "Open the URL above to set up your first provider.",
-    ]);
-    console.log("\n" + banner + "\n");
+  // Bind the HTTP server. If the configured port is already in use,
+  // fall back to an OS-assigned random port so `daemora start` never
+  // hard-fails just because something else is on 8081. The actual bound
+  // port is then threaded through tunnel/banner/autoOpen so the URL
+  // printed to the user matches reality.
+  const server = await listenWithFallback(app, cfg.env.port, log);
+  const addr = server.address();
+  const boundPort = typeof addr === "object" && addr ? addr.port : cfg.env.port;
+  if (boundPort !== cfg.env.port) {
+    log.warn({ requested: cfg.env.port, bound: boundPort }, "configured port in use — fell back to random port");
+  }
+  if (configuredPublic.length === 0) {
+    publicUrl = `http://localhost:${boundPort}`;
+  }
 
-    if (process.stdout.isTTY && !cfg.env.daemonMode && process.env["DAEMORA_NO_OPEN"] !== "1") {
-      autoOpen(url);
-    }
-  });
+  if (!configuredPublic) {
+    tunnel.start({ port: boundPort }).then((res) => {
+      if (res.kind !== "none") {
+        publicUrl = res.url;
+        log.info({ kind: res.kind, url: res.url }, "public URL updated from tunnel");
+      }
+    }).catch((e) => log.warn({ err: (e as Error).message }, "tunnel start crashed"));
+  }
+  log.info({ authEnabled, publicUrl, port: boundPort }, "auth + webhooks ready");
+
+  const url = `http://localhost:${boundPort}`;
+  const banner = box([
+    `Daemora-TS running at`,
+    `  ${url}`,
+    cfg.vault.exists() ? "Vault detected — unlock from the UI to start chatting." : "Open the URL above to set up your first provider.",
+  ]);
+  console.log("\n" + banner + "\n");
+
+  if (process.stdout.isTTY && !cfg.env.daemonMode && process.env["DAEMORA_NO_OPEN"] !== "1") {
+    autoOpen(url);
+  }
 
   const shutdown = (signal: NodeJS.Signals) => {
     log.info({ signal }, "shutting down");
@@ -459,6 +476,29 @@ function box(lines: readonly string[]): string {
   const bot = `╰${horiz}╯`;
   const middle = lines.map((l) => `│  ${l.padEnd(width - 4)}  │`).join("\n");
   return `${top}\n${middle}\n${bot}`;
+}
+
+/**
+ * Bind the HTTP server to `port`. If that port is already in use,
+ * fall back to port 0 (OS-assigned random) instead of crashing —
+ * caller reads `server.address().port` to discover the actual port.
+ * Any other listen error (EACCES, etc.) is propagated as-is.
+ */
+function listenWithFallback(app: Express, port: number, log: { warn: (o: object, m: string) => void }): Promise<Server> {
+  return new Promise<Server>((resolve, reject) => {
+    const server = app.listen(port);
+    server.once("listening", () => resolve(server));
+    server.once("error", (err: NodeJS.ErrnoException) => {
+      if (err.code !== "EADDRINUSE") {
+        reject(err);
+        return;
+      }
+      log.warn({ port, err: err.message }, "port in use — retrying on a random port");
+      const fallback = app.listen(0);
+      fallback.once("listening", () => resolve(fallback));
+      fallback.once("error", reject);
+    });
+  });
 }
 
 function autoOpen(url: string): void {
