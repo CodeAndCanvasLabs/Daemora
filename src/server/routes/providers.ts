@@ -19,6 +19,7 @@ import {
   invalidateVoiceCache,
   type DiscoveredModel,
 } from "../../models/discovery.js";
+import { validateApiKey } from "../../models/validateKey.js";
 import {
   PROVIDER_CATALOG,
   PROVIDERS_BY_ID,
@@ -165,6 +166,39 @@ export function mountProviderRoutes(app: Express, deps: ServerDeps): void {
       provider: id,
       configured: isConfigured(def, deps),
       models: models.map((m) => ({ id: `${id}:${m.id}`, name: m.name, ownedBy: m.ownedBy })),
+    });
+  });
+
+  /**
+   * POST /api/providers/:id/validate — verify a provider key without saving.
+   *
+   * Body: { key: string, baseUrl?: string }
+   *
+   * Used by the Settings UI before persisting a key — gives the user
+   * immediate "key works / key rejected" feedback and a live model list
+   * to pick the default from.
+   */
+  app.post("/api/providers/:id/validate", async (req: Request, res: Response) => {
+    const id = req.params.id ?? "";
+    const def = PROVIDERS_BY_ID.get(id);
+    if (!def) return res.status(404).json({ error: `Unknown provider: ${id}` });
+
+    const body = req.body as { key?: unknown; baseUrl?: unknown };
+    const key = typeof body.key === "string" ? body.key.trim() : "";
+    if (!key) return res.status(400).json({ error: "Missing key" });
+    const baseUrl = typeof body.baseUrl === "string" ? body.baseUrl : undefined;
+
+    const opts = baseUrl !== undefined ? { baseUrl } : {};
+    const result = await validateApiKey(id, key, opts);
+    if (!result.ok) {
+      return res.status(200).json({ ok: false, status: result.status, message: result.message });
+    }
+    if ("skipped" in result && result.skipped) {
+      return res.json({ ok: true, skipped: true, reason: result.reason, models: [] });
+    }
+    return res.json({
+      ok: true,
+      models: result.models.map((m) => ({ id: `${id}:${m.id}`, name: m.name, ownedBy: m.ownedBy })),
     });
   });
 

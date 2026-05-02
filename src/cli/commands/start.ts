@@ -80,6 +80,19 @@ import { createLogger } from "../../util/logger.js";
 const log = createLogger("cli.start");
 
 export async function startCommand(): Promise<void> {
+  // Print the Daemora banner before any logs fly. Skipped on non-TTY
+  // (CI, journalctl) so log files stay clean.
+  if (process.stdout.isTTY) {
+    const { printBanner } = await import("../banner.js");
+    const { readFileSync } = await import("node:fs");
+    let version = "";
+    try {
+      const pkg = JSON.parse(readFileSync(new URL("../../../package.json", import.meta.url), "utf-8")) as { version: string };
+      version = pkg.version;
+    } catch { /* ignore */ }
+    printBanner({ tagline: "the agent that lives on your machine", version });
+  }
+
   const cfg = ConfigManager.open();
   log.info({ dataDir: cfg.env.dataDir, port: cfg.env.port }, "config opened");
 

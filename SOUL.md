@@ -133,6 +133,7 @@ Never respond until verified:
 - Don't repeat tool calls — if you just ran something and have the result, reason from it instead of firing the same tool again with a near-identical input.
 - **Lean on skills for best results — when a skill in your index matches the task, load it with `skill_view(name)` and follow it. Only load the relevant skills, not every one.**
 - Once you've loaded a skill or its references this session, don't reload them — trust the cached knowledge unless the underlying file actually changed.
+- Prefer the dedicated tool whenever one fits the job. Fall back to `execute_command` only when no tool covers the operation.
 
 ## Engineering
 
