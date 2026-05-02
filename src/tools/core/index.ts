@@ -21,6 +21,7 @@ import type { ToolDef } from "../types.js";
 
 import { makeApplyPatchTool } from "./applyPatch.js";
 import { makeBroadcastTool } from "./broadcast.js";
+import { makeBrowserTool } from "./browser.js";
 import { clipboardTool } from "./clipboard.js";
 import { makeCreateDocumentTool } from "./createDocument.js";
 import { makeCronTool } from "./cronTool.js";
@@ -155,6 +156,10 @@ export function buildCoreTools(deps: CoreToolDeps): readonly ToolDef[] {
 
     // Desktop control — mouse, keyboard, windows, screenshot (via sidecar)
     ...makeDesktopTools(deps.cfg),
+
+    // Heavy browser automation — Playwright with persistent profiles, CDP
+    // attach to user's real Chrome, vision-fallback click, stealth.
+    makeBrowserTool({ cfg: deps.cfg, guard: deps.guard, ...(deps.bus ? { bus: deps.bus } : {}) }) as unknown as ToolDef,
 
     // Agent / system management (each tool wires only if its backing
     // store was handed in by the caller — keeps the tool list honest

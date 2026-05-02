@@ -90,7 +90,10 @@
     "pdfkit": "^0.18.0",
     "pino": "^9.5.0",
     "pino-pretty": "^11.3.0",
+    "playwright": "^1.59.1",
+    "playwright-extra": "^4.3.6",
     "pptxgenjs": "^4.0.1",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "ws": "^8.20.0",
     "yaml": "^2.7.0",
     "zod": "^3.25.76"
