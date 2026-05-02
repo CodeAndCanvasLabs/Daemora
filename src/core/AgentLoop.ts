@@ -366,6 +366,22 @@ export class AgentLoop {
 
     const sections: string[] = [AgentLoop._soulPrompt];
 
+    // Plan Mode — when on, the agent must ask before every destructive
+    // action via reply_to_user and wait for explicit approval. Injected
+    // here so the prefix cache picks it up per turn (the setting can
+    // change at runtime).
+    const planMode = this.cfg.settings.getGeneric("PLAN_MODE");
+    if (planMode === true || planMode === "true" || planMode === 1) {
+      sections.push([
+        "",
+        "## ⚠️ Plan Mode is ON",
+        "Before EVERY destructive or side-effectful action — `write_file`, `edit_file`, `apply_patch`, `execute_command`, `send_email`, `send_file`, `broadcast`, `message_channel`, `cron`, `manage_*`, browser non-read actions (navigate / click / fill / type / submit), `generate_video`, `generate_music`, `generate_image`, deleting anything — you MUST first call `reply_to_user` describing exactly what you're about to do and ask for approval. Then STOP and wait for the user's next message.",
+        "Only proceed if the user replies with an affirmative (yes / go / approve / proceed / sure / ok / do it). If they reply with stop / no / cancel / deny, abort that action and ask what to do instead.",
+        "Read-only ops are exempt: `read_file`, `list_directory`, `glob`, `grep`, `web_search`, `web_fetch`, `snapshot`, `getText`, `getCookies`, etc.",
+        "Voice mode: still ask, but in spoken form — \"Want me to do X?\" and wait for \"yeah\"/\"go\". Don't enumerate paths or IDs aloud.",
+      ].join("\n"));
+    }
+
     // Declarative memory — frozen snapshots injected once per session
     // so the prefix cache stays warm across every turn.
     if (this.declarativeMemory) {
