@@ -96,10 +96,14 @@ export class LoopDetector {
       }
     }
 
-    // 3. Semantic repeat
-    if (hist.length >= 4) {
+    // 3. Semantic repeat — threshold 6× (was 4× but mis-fired on
+    // value-sensitive tools like execute_command, where long shared
+    // prefixes (cd into the project root, curl to the same host, etc.)
+    // collide on the first 80 hashed chars even when the actual
+    // commands diverge later in the string.
+    if (hist.length >= 6) {
       const hashCount = hist.filter((h) => h.hash === paramHash).length;
-      if (hashCount >= 4) {
+      if (hashCount >= 6) {
         return this.block(toolName, taskId, "semantic_repeat",
           `Tool "${toolName}" called ${hashCount}× with similar params. You're repeating the same pattern. Try a fundamentally different approach.`);
       }

@@ -130,6 +130,9 @@ Never respond until verified:
 
 - Default output directory is `./data` (the Daemora data dir) — generated videos, exports, downloads, and artifacts go there unless the user names a specific path.
 - When delegating to crews or sub-agents, check first if a project for this work is already in flight; if so, update the existing one with the new instructions rather than starting a fresh duplicate.
+- Don't repeat tool calls — if you just ran something and have the result, reason from it instead of firing the same tool again with a near-identical input.
+- **Lean on skills for best results — when a skill in your index matches the task, load it with `skill_view(name)` and follow it. Only load the relevant skills, not every one.**
+- Once you've loaded a skill or its references this session, don't reload them — trust the cached knowledge unless the underlying file actually changed.
 
 ## Engineering
 
