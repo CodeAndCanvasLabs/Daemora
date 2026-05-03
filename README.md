@@ -47,6 +47,7 @@ https://github.com/user-attachments/assets/be0fadad-c307-4487-a4fd-2adc0f967421
 | **Loop Detection** | Prevents agents from burning tokens in repetitive patterns - exact repeat, ping-pong, semantic repeat, and polling detection with smart exclusions for legitimate workflows. |
 | **Live Status** | Typing indicators on Discord/Telegram while processing. Status reactions track task progress (queued → thinking → working → done). |
 | **Continuous Brain** | Three-layer memory (semantic/episodic/procedural) with automatic extraction, composite-scored recall, confidence decay, and context pruning. Learns from every task - no manual saving needed. Unified session across all channels. |
+| **Integrations** | One-click OAuth connect to X/Twitter, Gmail, Google Calendar, LinkedIn, Reddit, TikTok, YouTube, Facebook, Instagram, GitHub, Notion. Tokens stored encrypted in the vault, auto-refreshed in the background — connect once, the agent posts/reads/replies on your behalf. |
 | **Tools** | Connect to any MCP server - create Notion pages, open GitHub issues, update Linear tasks, manage Shopify products, query databases. |
 | **Voice & Meetings** | Join any meeting (Google Meet, Zoom, Teams) via phone dial-in. OpenAI Realtime STT + ElevenLabs/OpenAI TTS. Voice cloning. Outbound voice calls. Auto-transcription + meeting summaries. |
 | **Multi-Agent** | Spawn parallel sub-agents (researcher + coder + writer working simultaneously). Create agent teams with shared task lists, dependencies, and inter-agent messaging. |
@@ -231,6 +232,36 @@ Channels are configured from the **Channels page** in the web UI, or by setting
 the required env vars before `daemora start`. Once secrets are present and the
 vault is unlocked, the channel boots automatically.
 
+### Integrations (one-click OAuth)
+
+Channels are *chat platforms*. **Integrations** are the OAuth-backed services
+the agent acts on — read your inbox, post a thread, search a subreddit, upload
+to YouTube. Connect from the **Integrations page** in the web UI: click the
+provider, sign in, done. Tokens are stored encrypted in the vault, refreshed
+automatically (30-minute background sweep plus per-account early-refresh timers
+for short-TTL tokens), and revoked instantly when you disconnect.
+
+| Provider | What the agent can do | Auth |
+|---|---|---|
+| **X / Twitter** | Post, search, reply, like, read timeline | OAuth 2.0 + PKCE |
+| **Gmail** | Read, send, label, search threads, manage drafts | Google OAuth |
+| **Google Calendar** | Read events, create/update/delete, RSVP | Google OAuth |
+| **Google Drive** | List, search, read, upload files | Google OAuth |
+| **LinkedIn** | Post, read profile, share articles | LinkedIn OAuth |
+| **Reddit** | Post, comment, vote, search subreddits, read inbox | Reddit OAuth |
+| **TikTok** | Upload videos, read account info | TikTok OAuth |
+| **YouTube** | Upload, list videos, manage comments, read analytics | Google OAuth |
+| **Facebook** | Page posts, comments, insights | Meta OAuth |
+| **Instagram** | Publish, comments, insights, basic profile | Meta OAuth |
+| **GitHub** | Issues, PRs, repo browsing, gists | GitHub OAuth |
+| **Notion** | Pages, databases, search, block edits | Notion OAuth |
+
+Each provider auto-spawns a matching **crew member** the moment a token lands —
+e.g. connecting X enables `useCrew("twitter", ...)` and the related tools
+(`twitter_post`, `twitter_search`, etc.) without a restart. Multiple accounts
+per provider are supported (post from `@brand` and reply from `@personal`); the
+agent picks per call or you can pass an explicit `accountId`.
+
 ### Cost Limits
 
 ```env
@@ -283,6 +314,53 @@ daemora mcp remove github     # Remove permanently
 | Filesystem | `npx -y @modelcontextprotocol/server-filesystem` |
 | Brave Search | `npx -y @anthropic-ai/brave-search-mcp-server` |
 | Puppeteer | `npx -y @modelcontextprotocol/server-puppeteer` |
+
+---
+
+## Browser Automation
+
+Daemora drives a real Chromium browser via [Microsoft's Playwright MCP](https://github.com/microsoft/playwright-mcp). It's auto-registered, enabled by default, and uses a **persistent profile** so your logins survive across agent runs.
+
+### How logins work
+
+The agent's browser launches with `--user-data-dir <dataDir>/browser/<profile>/`. Anything you log into in that profile (Gmail, X, GitHub, banks, anything) is saved to disk and inherited by the agent on every future browser action — until you clear the profile or switch to a different one.
+
+You log in **once**, in a real browser window you control. The agent never sees your password.
+
+### One-time setup per profile
+
+```bash
+# Open Chromium with the default profile and log into your accounts
+daemora browser
+
+# Or create a separate "work" profile for work-only accounts
+daemora browser --profile work
+
+# List all profiles you've created and which one the agent uses
+daemora browser --list
+```
+
+The window opens. Sign into Google, X, LinkedIn, your bank — whatever the agent will need. **Close the window when done.** Cookies, session tokens, and saved state flush to disk. Re-running `daemora browser` later opens the same profile with everything still logged in.
+
+### Switching which profile the agent uses
+
+The agent uses **one** profile at a time, controlled by you:
+
+- **From Settings UI** — Settings → "Browser Profile" → pick from dropdown. Saves and restarts the Playwright MCP server in ~1 second.
+- **From the API** — `PUT /api/browser/profile` with `{ "name": "work" }`.
+- **From CLI** — set the `DAEMORA_BROWSER_PROFILE` setting and restart daemora.
+
+Switching profiles is instant from the user's side and gives the agent full access to whichever account set you've chosen.
+
+### Tips
+
+- **One profile per identity.** Use `default` for personal accounts, `work` for work, `client-acme` for a client. Each gets its own logins, no cross-contamination.
+- **2FA / MFA accounts work fine** — log in once via `daemora browser`, complete the 2FA flow yourself in the visible window, close. Future agent sessions inherit the trusted-device cookie.
+- **Browser extensions** installed via `daemora browser` persist in the profile and are active when the agent runs.
+- **Profile dirs** live at `<dataDir>/browser/<name>/`. Delete a dir to wipe a profile; create a new one with `daemora browser --profile <name>`.
+- **Anti-bot sites** (Cloudflare, banks): the persistent profile + a real prior login defeats most challenges. For the rest, attach to your already-running Chrome via Playwright MCP's `--cdp-endpoint` flag.
+
+The agent reaches the browser via the `browser-pilot` crew. The main agent never calls Playwright directly — `use_crew("browser-pilot", task)` is the only path. This keeps browser discipline contained and avoids the main agent burning tokens on snapshot/click cycles.
 
 ---
 
@@ -344,7 +422,7 @@ daemora crew reload        # Hot-reload all crew members
 | **Files** | readFile, writeFile, editFile, listDirectory, applyPatch |
 | **Search** | glob, grep |
 | **Shell** | executeCommand (foreground + background) |
-| **Web** | webFetch, webSearch, browserAction (navigate, click, fill, screenshot) |
+| **Web** | webFetch, webSearch (browser automation lives in the `browser-pilot` crew via Playwright MCP — see [Browser Automation](#browser-automation)) |
 | **Vision** | imageAnalysis, screenCapture |
 | **Communication** | sendEmail, messageChannel, sendFile, replyWithFile, replyToUser, makeVoiceCall, meetingAction, transcribeAudio, textToSpeech |
 | **Documents** | createDocument (Markdown, PDF, DOCX), readPDF |

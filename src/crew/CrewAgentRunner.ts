@@ -11,6 +11,21 @@
  *     keeps the main agent's tool call semantics simple: one call in,
  *     one result out, tool errors propagate as DaemoraError.
  *
+ * Delegation contract:
+ *   - The tool-facing schema (use_crew) requires task + context +
+ *     constraints + successCriteria. The runner accepts them as optional
+ *     so internal callers (teams, webhooks, watchers, channels) can keep
+ *     passing a single `task` string. When the rich fields are present,
+ *     they get formatted into an XML-tagged user message so the crew
+ *     sees a structured contract instead of a wall of prose.
+ *
+ * Forced summary:
+ *   - Crews regularly returned `text:""` when the model hit the step
+ *     ceiling on a tool-call and never wrote a final reply. After the
+ *     primary stream finishes, if no text was produced we run a single
+ *     follow-up turn that asks for a plain-text summary, capped once
+ *     per delegation.
+ *
  * What this deliberately does NOT do:
  *   - Stream deltas to the outer SSE — the main agent gets the final
  *     answer, not the crew's thought process. Crew internals stay inside
@@ -34,8 +49,11 @@ import type { LoadedCrew } from "./types.js";
 
 const log = createLogger("crew.runner");
 
-/** Max tool-call iterations inside a crew. Bounded to keep spawns cheap. */
-const DEFAULT_CREW_MAX_STEPS = 15;
+/** Max tool-call iterations inside a crew. High enough that real work doesn't fail mid-flow. */
+const DEFAULT_CREW_MAX_STEPS = 60;
+
+/** Forced-summary follow-up budget. One short turn to produce the final reply. */
+const SUMMARY_FOLLOWUP_STEPS = 2;
 
 /** Tools a crew may NEVER see, regardless of manifest. Prevents recursion. */
 const NEVER_ALLOWED: ReadonlySet<string> = new Set(["use_crew", "parallel_crew"]);
@@ -51,9 +69,23 @@ const ALWAYS_CREW_TOOLS: ReadonlySet<string> = new Set([
   "skill_view", "skill_manage", "memory_save", "memory_recall",
 ]);
 
+export interface CrewReference {
+  readonly kind: "file" | "url" | "note";
+  readonly value: string;
+  readonly why?: string | undefined;
+}
+
 export interface CrewRunInput {
   readonly crewId: string;
   readonly task: string;
+  /** Background the crew can't see otherwise. Optional for internal callers. */
+  readonly context?: string;
+  /** Hard limits the crew must respect. Optional for internal callers. */
+  readonly constraints?: string;
+  /** What "done" looks like + how it'll be verified. Optional for internal callers. */
+  readonly successCriteria?: string;
+  /** Source material (files, URLs, notes). Optional. */
+  readonly references?: readonly CrewReference[];
   readonly parentTaskId: string;
   readonly parentModelId: string;
   readonly maxSteps?: number;
@@ -118,7 +150,8 @@ export class CrewAgentRunner {
 
     // Persist the delegating task up front so a mid-stream disconnect
     // still leaves the user-visible delegation recorded.
-    const userMsg: ModelMessage = { role: "user", content: input.task };
+    const userMsgContent = formatDelegationMessage(input);
+    const userMsg: ModelMessage = { role: "user", content: userMsgContent };
     this.sessions.appendMessage(session.id, userMsg, estimateMessageTokens(userMsg));
 
     const crewToolset = this.buildCrewTools(crew, input);
@@ -141,60 +174,161 @@ export class CrewAgentRunner {
         toolCount: Object.keys(crewToolset).length,
         dropped: crew.droppedTools,
         historyMessages: history.length,
+        hasContext: Boolean(input.context),
+        hasConstraints: Boolean(input.constraints),
+        hasSuccessCriteria: Boolean(input.successCriteria),
+        referenceCount: input.references?.length ?? 0,
       },
       "crew run starting",
     );
 
-    const stream = streamText({
-      model: resolved.model,
-      system: systemPrompt,
-      messages: [...history, userMsg],
-      tools: crewToolset,
-      temperature: crew.manifest.profile.temperature,
-      stopWhen: stepCountIs(input.maxSteps ?? DEFAULT_CREW_MAX_STEPS),
-      abortSignal: input.abortSignal,
-    });
+    const runStream = async (
+      messages: ModelMessage[],
+      stepBudget: number,
+    ): Promise<{
+      text: string;
+      toolCalls: number;
+      steps: number;
+      inputTokens: number;
+      outputTokens: number;
+      respMessages: ModelMessage[];
+    }> => {
+      const stream = streamText({
+        model: resolved.model,
+        system: systemPrompt,
+        messages,
+        tools: crewToolset,
+        temperature: crew.manifest.profile.temperature,
+        stopWhen: stepCountIs(stepBudget),
+        abortSignal: input.abortSignal,
+      });
 
-    // Exhaust the stream. We don't forward deltas — the main agent gets
-    // the final answer via the tool result only. Iteration still drives
-    // streamText's internal tool-call loop.
-    let toolCalls = 0;
-    let steps = 0;
-    let streamError: string | null = null;
-    try {
-      for await (const part of stream.fullStream as AsyncIterable<{ type: string }>) {
-        if (part.type === "tool-call") toolCalls++;
-        if (part.type === "finish-step") steps++;
-        if (part.type === "error") {
-          streamError = (part as { error?: { message?: string } }).error?.message ?? "stream error";
+      let toolCalls = 0;
+      let steps = 0;
+      let streamError: string | null = null;
+      try {
+        for await (const part of stream.fullStream as AsyncIterable<{ type: string; [k: string]: unknown }>) {
+          if (part.type === "tool-call") {
+            toolCalls++;
+            const p = part as unknown as { toolName?: string; args?: unknown; input?: unknown };
+            log.info(
+              { crewId: crew.manifest.id, step: steps, tool: p.toolName ?? "?", argsPreview: previewArgs(p) },
+              "crew tool-call",
+            );
+          } else if (part.type === "tool-result") {
+            const p = part as unknown as { toolName?: string; result?: unknown; output?: unknown };
+            log.info(
+              {
+                crewId: crew.manifest.id,
+                step: steps,
+                tool: p.toolName ?? "?",
+                resultPreview: previewResult(p),
+              },
+              "crew tool-result",
+            );
+          } else if (part.type === "finish-step") {
+            steps++;
+          } else if (part.type === "error") {
+            streamError = (part as { error?: { message?: string } }).error?.message ?? "stream error";
+          }
         }
+      } catch (e) {
+        streamError = toDaemoraError(e).message;
       }
-    } catch (e) {
-      streamError = toDaemoraError(e).message;
-    }
 
-    if (streamError !== null) {
-      log.error({ crewId: crew.manifest.id, error: streamError }, "crew run failed");
-      throw toDaemoraError(new Error(streamError));
-    }
+      if (streamError !== null) {
+        log.error({ crewId: crew.manifest.id, error: streamError }, "crew run failed");
+        throw toDaemoraError(new Error(streamError));
+      }
 
-    const resp = await stream.response;
-    for (const msg of resp.messages) {
-      const m = msg as ModelMessage;
+      const resp = await stream.response;
+      const text = await stream.text;
+      const usage = await stream.totalUsage;
+
+      return {
+        text,
+        toolCalls,
+        steps,
+        inputTokens: usage.inputTokens ?? 0,
+        outputTokens: usage.outputTokens ?? 0,
+        respMessages: resp.messages as ModelMessage[],
+      };
+    };
+
+    const primaryBudget = input.maxSteps ?? DEFAULT_CREW_MAX_STEPS;
+    const primary = await runStream([...history, userMsg], primaryBudget);
+
+    for (const m of primary.respMessages) {
       this.sessions.appendMessage(session.id, m, estimateMessageTokens(m));
     }
 
-    const text = await stream.text;
-    const usage = await stream.totalUsage;
+    let finalText = primary.text;
+    let totalToolCalls = primary.toolCalls;
+    let totalSteps = primary.steps;
+    let totalInputTokens = primary.inputTokens;
+    let totalOutputTokens = primary.outputTokens;
+
+    // Forced-summary retry: crews sometimes hit the ceiling on a tool-call
+    // and never produce a final text reply. Without a summary the main
+    // agent has no idea what was done or what failed. One synthetic turn
+    // to extract the summary, capped to a tiny step budget so we don't
+    // accidentally let the crew start a new sub-task.
+    if (finalText.trim() === "") {
+      log.warn(
+        {
+          crewId: crew.manifest.id,
+          steps: totalSteps,
+          toolCalls: totalToolCalls,
+        },
+        "crew returned empty text — forcing summary",
+      );
+      const synthMsg: ModelMessage = {
+        role: "user",
+        content:
+          "Your previous turn ended without a final reply. Summarise plainly: what you did, what worked, what failed, what's left, and the deliverable (path/URL/exact text). Reply in plain text only — do NOT call any more tools.",
+      };
+      this.sessions.appendMessage(session.id, synthMsg, estimateMessageTokens(synthMsg));
+
+      const followupHistory: ModelMessage[] = [
+        ...history,
+        userMsg,
+        ...primary.respMessages,
+        synthMsg,
+      ];
+      const followup = await runStream(followupHistory, SUMMARY_FOLLOWUP_STEPS);
+
+      for (const m of followup.respMessages) {
+        this.sessions.appendMessage(session.id, m, estimateMessageTokens(m));
+      }
+
+      finalText = followup.text;
+      totalToolCalls += followup.toolCalls;
+      totalSteps += followup.steps;
+      totalInputTokens += followup.inputTokens;
+      totalOutputTokens += followup.outputTokens;
+    }
+
+    log.info(
+      {
+        crewId: crew.manifest.id,
+        sessionId: session.id,
+        steps: totalSteps,
+        toolCalls: totalToolCalls,
+        inputTokens: totalInputTokens,
+        outputTokens: totalOutputTokens,
+        textLen: finalText.length,
+      },
+      "crew run finished",
+    );
 
     return {
       crewId: crew.manifest.id,
       sessionId: session.id,
-      text,
-      toolCalls,
-      steps,
-      inputTokens: usage.inputTokens ?? 0,
-      outputTokens: usage.outputTokens ?? 0,
+      text: finalText,
+      toolCalls: totalToolCalls,
+      steps: totalSteps,
+      inputTokens: totalInputTokens,
+      outputTokens: totalOutputTokens,
     };
   }
 
@@ -236,7 +370,7 @@ function buildCrewSystemPrompt(crew: LoadedCrew, skillsIndex: string): string {
     crew.manifest.profile.systemPrompt,
     "",
     "— You are being called as a specialist by the main Daemora agent.",
-    "— Do the requested work and return a concise, structured result.",
+    "— Your last message MUST be a plain-text summary for the main agent: what you did, what worked, what failed, what's left, and the deliverable (path/URL/exact text). Never end on a tool call. Never reply empty.",
     "— You DO NOT have access to delegate further. Complete the task with the tools you have.",
     "— If you lack a tool required for the task, say so explicitly and return what partial result you can.",
   ];
@@ -244,4 +378,64 @@ function buildCrewSystemPrompt(crew: LoadedCrew, skillsIndex: string): string {
     lines.push("", skillsIndex);
   }
   return lines.join("\n");
+}
+
+/**
+ * Format the delegation contract into the user message the crew sees.
+ *
+ * If only `task` is present (internal callers like webhooks/watchers/
+ * teams), pass it through verbatim so we don't bloat their existing
+ * prose with empty tags. When the rich fields are present, wrap each
+ * one in a tag so the crew can parse the contract structurally.
+ */
+function formatDelegationMessage(input: CrewRunInput): string {
+  const hasRich =
+    Boolean(input.context) ||
+    Boolean(input.constraints) ||
+    Boolean(input.successCriteria) ||
+    (input.references?.length ?? 0) > 0;
+
+  if (!hasRich) return input.task;
+
+  const parts: string[] = [];
+  parts.push(`<task>\n${input.task.trim()}\n</task>`);
+  if (input.context && input.context.trim()) {
+    parts.push(`<context>\n${input.context.trim()}\n</context>`);
+  }
+  if (input.constraints && input.constraints.trim()) {
+    parts.push(`<constraints>\n${input.constraints.trim()}\n</constraints>`);
+  }
+  if (input.successCriteria && input.successCriteria.trim()) {
+    parts.push(`<success-criteria>\n${input.successCriteria.trim()}\n</success-criteria>`);
+  }
+  if (input.references && input.references.length > 0) {
+    const lines = input.references.map((r) => {
+      const tail = r.why ? ` — ${r.why}` : "";
+      return `- [${r.kind}] ${r.value}${tail}`;
+    });
+    parts.push(`<references>\n${lines.join("\n")}\n</references>`);
+  }
+  return parts.join("\n\n");
+}
+
+function previewArgs(part: { args?: unknown; input?: unknown }): string {
+  const a = part.args ?? part.input;
+  if (a === undefined || a === null) return "";
+  try {
+    const s = JSON.stringify(a);
+    return s.length > 240 ? `${s.slice(0, 240)}…` : s;
+  } catch {
+    return "<unserializable>";
+  }
+}
+
+function previewResult(part: { result?: unknown; output?: unknown }): string {
+  const r = part.result ?? part.output;
+  if (r === undefined || r === null) return "";
+  try {
+    const s = typeof r === "string" ? r : JSON.stringify(r);
+    return s.length > 240 ? `${s.slice(0, 240)}…` : s;
+  } catch {
+    return "<unserializable>";
+  }
 }

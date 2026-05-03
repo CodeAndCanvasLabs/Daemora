@@ -156,6 +156,14 @@ export function buildCoreTools(deps: CoreToolDeps): readonly ToolDef[] {
     // Desktop control — mouse, keyboard, windows, screenshot (via sidecar)
     ...makeDesktopTools(deps.cfg),
 
+    // Browser automation lives in the `playwright` MCP server (Microsoft's
+    // official Playwright MCP). It auto-starts on daemon boot, points its
+    // user-data-dir at <dataDir>/browser/default, and exposes
+    // `browser_navigate`, `browser_click`, `browser_type`,
+    // `browser_file_upload`, `browser_snapshot`, etc. The `browser-pilot`
+    // crew gates access — main agent must `use_crew("browser-pilot", ...)`.
+    // See src/mcp/defaults.ts and crew/browser-pilot/plugin.json.
+
     // Agent / system management (each tool wires only if its backing
     // store was handed in by the caller — keeps the tool list honest
     // for callers that don't run the full server).

@@ -44,6 +44,9 @@ playwright.config.ts
 /playwright/.cache/
 /playwright/.auth/
 
+# ── Playwright MCP scratch (downloads, traces, screenshots) ──────────────────
+.playwright-mcp/
+
 # ── Build artifacts ────────────────────────────────────────────────────────────
 dist/
 build/

@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync, statSync } from "node:fs";
 import { z } from "zod";
 
 import type { FilesystemGuard } from "../../safety/FilesystemGuard.js";
@@ -41,12 +42,43 @@ export function makeExecuteCommandTool(guard: FilesystemGuard): ToolDef<typeof i
       guard.ensureCommandAllowed(command);
       if (cwd) guard.ensureAllowed(cwd, "read");
 
+      // In sandbox/strict mode, when no cwd was given, force the spawn
+      // cwd to a safe directory inside the allow-list so the command
+      // doesn't inherit the daemon's own cwd (typically the install dir,
+      // which the agent shouldn't have free reign over).
+      const effectiveCwd = (() => {
+        if (cwd) return cwd;
+        const desc = guard.describe();
+        if (desc.mode === "sandbox" || desc.mode === "strict") {
+          // Prefer dataDir; if not in the allow-list, fall back to the
+          // first allow entry. If neither exists, we have no safe cwd —
+          // refuse rather than silently letting the daemon's cwd leak.
+          if (desc.dataDir) return desc.dataDir;
+          if (desc.allow.length > 0) return desc.allow[0];
+          throw new ValidationError(`${desc.mode} mode requires a cwd inside the allow-list, and none is configured.`);
+        }
+        return undefined;
+      })();
+
+      // Validate cwd up front — Node returns a misleading
+      // `spawn /bin/bash ENOENT` when the cwd doesn't exist, which makes
+      // the agent retry with different shells fruitlessly. Catch it here
+      // so the failure points at the actual problem.
+      if (effectiveCwd) {
+        if (!existsSync(effectiveCwd)) {
+          throw new ValidationError(`cwd does not exist: ${effectiveCwd}`);
+        }
+        if (!statSync(effectiveCwd).isDirectory()) {
+          throw new ValidationError(`cwd is not a directory: ${effectiveCwd}`);
+        }
+      }
+
       const started = Date.now();
       const useShell = shell ?? (process.platform === "win32" ? true : "/bin/bash");
 
       return await new Promise<ExecResult>((resolvePromise, rejectPromise) => {
         const child = spawn(command, {
-          ...(cwd ? { cwd } : {}),
+          ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
           shell: useShell,
           stdio: ["ignore", "pipe", "pipe"],
           signal: abortSignal,

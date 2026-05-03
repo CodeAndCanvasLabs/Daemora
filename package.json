@@ -1,6 +1,6 @@
 {
   "name": "daemora",
-  "version": "1.0.0-alpha.2",
+  "version": "1.0.0-alpha.3",
   "description": "Self-hosted AI agent platform — autonomous, multi-channel, multi-model.",
   "type": "module",
   "license": "AGPL-3.0-or-later",
@@ -74,6 +74,7 @@
     "@livekit/agents-plugin-openai": "^1.2.7",
     "@livekit/agents-plugin-silero": "^1.2.7",
     "@livekit/rtc-node": "^0.13.25",
+    "@playwright/mcp": "^0.0.73",
     "@types/nodemailer": "^8.0.0",
     "ai": "^6.0.105",
     "better-sqlite3": "^11.8.1",
@@ -90,6 +91,7 @@
     "pdfkit": "^0.18.0",
     "pino": "^9.5.0",
     "pino-pretty": "^11.3.0",
+    "playwright": "^1.59.1",
     "pptxgenjs": "^4.0.1",
     "ws": "^8.20.0",
     "yaml": "^2.7.0",
