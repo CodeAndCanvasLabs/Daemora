@@ -317,6 +317,53 @@ daemora mcp remove github     # Remove permanently
 
 ---
 
+## Browser Automation
+
+Daemora drives a real Chromium browser via [Microsoft's Playwright MCP](https://github.com/microsoft/playwright-mcp). It's auto-registered, enabled by default, and uses a **persistent profile** so your logins survive across agent runs.
+
+### How logins work
+
+The agent's browser launches with `--user-data-dir <dataDir>/browser/<profile>/`. Anything you log into in that profile (Gmail, X, GitHub, banks, anything) is saved to disk and inherited by the agent on every future browser action — until you clear the profile or switch to a different one.
+
+You log in **once**, in a real browser window you control. The agent never sees your password.
+
+### One-time setup per profile
+
+```bash
+# Open Chromium with the default profile and log into your accounts
+daemora browser
+
+# Or create a separate "work" profile for work-only accounts
+daemora browser --profile work
+
+# List all profiles you've created and which one the agent uses
+daemora browser --list
+```
+
+The window opens. Sign into Google, X, LinkedIn, your bank — whatever the agent will need. **Close the window when done.** Cookies, session tokens, and saved state flush to disk. Re-running `daemora browser` later opens the same profile with everything still logged in.
+
+### Switching which profile the agent uses
+
+The agent uses **one** profile at a time, controlled by you:
+
+- **From Settings UI** — Settings → "Browser Profile" → pick from dropdown. Saves and restarts the Playwright MCP server in ~1 second.
+- **From the API** — `PUT /api/browser/profile` with `{ "name": "work" }`.
+- **From CLI** — set the `DAEMORA_BROWSER_PROFILE` setting and restart daemora.
+
+Switching profiles is instant from the user's side and gives the agent full access to whichever account set you've chosen.
+
+### Tips
+
+- **One profile per identity.** Use `default` for personal accounts, `work` for work, `client-acme` for a client. Each gets its own logins, no cross-contamination.
+- **2FA / MFA accounts work fine** — log in once via `daemora browser`, complete the 2FA flow yourself in the visible window, close. Future agent sessions inherit the trusted-device cookie.
+- **Browser extensions** installed via `daemora browser` persist in the profile and are active when the agent runs.
+- **Profile dirs** live at `<dataDir>/browser/<name>/`. Delete a dir to wipe a profile; create a new one with `daemora browser --profile <name>`.
+- **Anti-bot sites** (Cloudflare, banks): the persistent profile + a real prior login defeats most challenges. For the rest, attach to your already-running Chrome via Playwright MCP's `--cdp-endpoint` flag.
+
+The agent reaches the browser via the `browser-pilot` crew. The main agent never calls Playwright directly — `use_crew("browser-pilot", task)` is the only path. This keeps browser discipline contained and avoids the main agent burning tokens on snapshot/click cycles.
+
+---
+
 ## Crew System
 
 Crew members are self-contained specialist sub-agents. Each has its own tools, profile, skills, and persistent session. The main agent delegates via `useCrew(crewId, task)`.
@@ -375,7 +422,7 @@ daemora crew reload        # Hot-reload all crew members
 | **Files** | readFile, writeFile, editFile, listDirectory, applyPatch |
 | **Search** | glob, grep |
 | **Shell** | executeCommand (foreground + background) |
-| **Web** | webFetch, webSearch, browserAction (navigate, click, fill, screenshot) |
+| **Web** | webFetch, webSearch (browser automation lives in the `browser-pilot` crew via Playwright MCP — see [Browser Automation](#browser-automation)) |
 | **Vision** | imageAnalysis, screenCapture |
 | **Communication** | sendEmail, messageChannel, sendFile, replyWithFile, replyToUser, makeVoiceCall, meetingAction, transcribeAudio, textToSpeech |
 | **Documents** | createDocument (Markdown, PDF, DOCX), readPDF |

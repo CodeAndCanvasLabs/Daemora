@@ -14,6 +14,7 @@
  */
 
 import { homedir } from "node:os";
+import { join } from "node:path";
 
 import type { MCPServerConfig } from "./MCPStore.js";
 
@@ -258,12 +259,56 @@ export const MCP_DEFAULTS: Readonly<Record<string, MCPDefault>> = {
     },
     requiredEnv: ["UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"],
   },
+  playwright: {
+    description: "Browser control — Microsoft Playwright MCP. Persistent profile shared with `daemora browser` CLI logins.",
+    config: {
+      command: "npx",
+      args: [
+        "-y",
+        "@playwright/mcp@latest",
+        "--browser", "chromium",
+        "--caps", "vision,storage,network",
+        // --user-data-dir is injected at seed time by getBuiltinMcpServers()
+        // so the profile path lives under the user's actual dataDir rather
+        // than a placeholder. See MCPStore.load().
+      ],
+      enabled: true,
+    },
+    docsUrl: "https://github.com/microsoft/playwright-mcp",
+  },
 };
 
 /** Backwards-compat export — the plain config map used by MCPStore seeding. */
 export const BUILTIN_MCP_SERVERS: Readonly<Record<string, MCPServerConfig>> = Object.fromEntries(
   Object.entries(MCP_DEFAULTS).map(([name, def]) => [name, def.config]),
 );
+
+/**
+ * Resolve the built-in catalog with `dataDir`-aware paths injected.
+ * The playwright MCP server's `--user-data-dir` is derived from the
+ * `profileName` arg — the same dir that `daemora browser --profile <name>`
+ * writes to. So any login done via the CLI is automatically inherited
+ * by the agent's MCP-driven browser, as long as the active profile
+ * matches.
+ *
+ * The active profile is owned by the user (via the
+ * `DAEMORA_BROWSER_PROFILE` setting). Defaults to `default` for first
+ * boot. Changing it triggers an MCP restart — see
+ * `src/mcp/playwrightProfile.ts`.
+ */
+export function getBuiltinMcpServers(dataDir: string, profileName: string = "default"): Record<string, MCPServerConfig> {
+  const profileDir = join(dataDir, "browser", profileName);
+  const out: Record<string, MCPServerConfig> = {};
+  for (const [name, cfg] of Object.entries(BUILTIN_MCP_SERVERS)) {
+    if (name === "playwright") {
+      const args = [...(cfg.args ?? []), "--user-data-dir", profileDir];
+      out[name] = { ...cfg, args };
+    } else {
+      out[name] = cfg;
+    }
+  }
+  return out;
+}
 
 /** Look up required env keys for a built-in server. Returns empty array for unknown servers. */
 export function requiredEnvFor(name: string): readonly string[] {

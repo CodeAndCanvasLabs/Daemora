@@ -74,6 +74,7 @@
     "@livekit/agents-plugin-openai": "^1.2.7",
     "@livekit/agents-plugin-silero": "^1.2.7",
     "@livekit/rtc-node": "^0.13.25",
+    "@playwright/mcp": "^0.0.73",
     "@types/nodemailer": "^8.0.0",
     "ai": "^6.0.105",
     "better-sqlite3": "^11.8.1",
@@ -91,9 +92,7 @@
     "pino": "^9.5.0",
     "pino-pretty": "^11.3.0",
     "playwright": "^1.59.1",
-    "playwright-extra": "^4.3.6",
     "pptxgenjs": "^4.0.1",
-    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "ws": "^8.20.0",
     "yaml": "^2.7.0",
     "zod": "^3.25.76"

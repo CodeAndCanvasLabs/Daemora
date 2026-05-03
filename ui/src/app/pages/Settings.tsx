@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   Lock,
   Unlock,
+  Globe,
   Cpu,
   DollarSign,
   Zap,
@@ -393,6 +394,47 @@ export function Settings() {
     }
   }
 
+  // ── Browser profile state (which dir the playwright MCP uses) ──────
+  type BrowserProfile = { name: string; hasLoginData: boolean };
+  type BrowserProfileState = {
+    active: string;
+    profiles: BrowserProfile[];
+    profileDir: string;
+    defaultProfile: string;
+  };
+  const [browserProfile, setBrowserProfile] = useState<BrowserProfileState | null>(null);
+  const [browserProfileSaving, setBrowserProfileSaving] = useState(false);
+
+  useEffect(() => {
+    apiFetch("/api/browser/profile").then((r) => r.json()).then((s: BrowserProfileState) => setBrowserProfile(s)).catch(() => { /* ignore */ });
+  }, []);
+
+  async function switchBrowserProfile(name: string) {
+    if (!browserProfile || name === browserProfile.active) return;
+    setBrowserProfileSaving(true);
+    try {
+      const res = await apiFetch("/api/browser/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast.error(`Switch failed: ${body.error ?? res.statusText}`);
+        return;
+      }
+      // Refetch to update hasLoginData state in case the new profile dir
+      // didn't exist before.
+      const fresh = await apiFetch("/api/browser/profile").then((r) => r.json());
+      setBrowserProfile(fresh);
+      toast.success(`Browser profile switched to "${name}". Agent now uses this profile.`);
+    } catch (e: any) {
+      toast.error(`Switch failed: ${e?.message ?? "network error"}`);
+    } finally {
+      setBrowserProfileSaving(false);
+    }
+  }
+
   // vault env-var key → provider id used by /api/providers/:id/validate
   const KEY_TO_PROVIDER: Record<string, string> = {
     OPENAI_API_KEY: "openai",
@@ -562,6 +604,7 @@ export function Settings() {
           heartbeatEnabled: "HEARTBEAT_ENABLED",
           wakeWordEnabled:  "WAKE_WORD_ENABLED",
           authEnabled:      "AUTH_ENABLED",
+          planMode:         "PLAN_MODE",
         };
         for (const [uiKey, envKey] of Object.entries(boolMap)) {
           const v = vars[envKey];
@@ -1312,6 +1355,53 @@ export function Settings() {
 
       {/* ── AI Provider Keys ──────────────────────────────────────────── */}
       {/* ── Filesystem Guard ───────────────────────────────────────── */}
+      {browserProfile && (
+        <Section
+          icon={Globe}
+          title="Browser Profile"
+          subtitle="Which Chromium profile the agent's browser uses. Logins persist per profile."
+          badge={
+            <span className="text-[9px] font-mono px-2 py-0.5 rounded-md border text-[#00d9ff] bg-[#00d9ff]/10 border-[#00d9ff]/20">
+              {browserProfile.active}
+            </span>
+          }
+        >
+          <div className="space-y-3 text-[11px] font-mono">
+            <p className="text-gray-400 leading-relaxed">
+              The agent's browser launches with a persistent profile dir. Anything you log into via
+              <code className="px-1 mx-1 bg-slate-800/60 rounded border border-slate-800">daemora browser --profile &lt;name&gt;</code>
+              persists in that profile and is reused on every agent browser action — until you switch profiles below.
+            </p>
+            <div>
+              <label className="block text-gray-300 mb-1">Active profile (used by the agent)</label>
+              <Select
+                value={browserProfile.active}
+                onValueChange={(v) => switchBrowserProfile(v)}
+                disabled={browserProfileSaving}
+              >
+                <SelectTrigger className="w-full bg-slate-900/60 border-slate-800/60 text-[11px] font-mono">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {browserProfile.profiles.map((p) => (
+                    <SelectItem key={p.name} value={p.name}>
+                      {p.name}{p.hasLoginData ? "  ✓ has saved logins" : "  (empty — no saved logins yet)"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] font-mono text-gray-500 mt-1">
+                Switching restarts the Playwright MCP server with the new profile. Takes ~1 second.
+              </p>
+            </div>
+            <div className="text-[10px] font-mono text-gray-500 space-y-1">
+              <div>Profile dir: {browserProfile.profileDir}</div>
+              <div>To add a new profile: run <code className="px-1 bg-slate-800/60 rounded border border-slate-800">daemora browser --profile &lt;name&gt;</code> in a terminal, log in, close the window. It will appear here.</div>
+            </div>
+          </div>
+        </Section>
+      )}
+
       {fsGuard && (
         <Section
           icon={Shield}
@@ -1366,7 +1456,7 @@ export function Settings() {
                   <SelectItem value="sandbox">sandbox — only allow-list reachable, $HOME blocked</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-[10px] font-mono text-gray-500 mt-1">{fsGuard.doc[fsGuard.mode]}</p>
+              <p className="text-[10px] font-mono text-gray-500 mt-1">{fsGuard.doc?.[fsGuard.mode] ?? ""}</p>
             </div>
 
             {(fsGuard.mode === "strict" || fsGuard.mode === "sandbox") && (

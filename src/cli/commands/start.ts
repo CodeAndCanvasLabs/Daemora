@@ -148,6 +148,12 @@ export async function startCommand(): Promise<void> {
   void decay;       // run via cron job in future
   const mcpStore = new MCPStore(cfg.env.dataDir);
   const mcpManager = new MCPManager(mcpStore, cfg.vault);
+  // Sync the playwright MCP entry's --user-data-dir against the
+  // DAEMORA_BROWSER_PROFILE setting before connect. The setting is the
+  // canonical source of truth for the active browser profile; mcp.json
+  // is just a cache that gets rewritten when the user changes profiles.
+  const { getActiveProfile, syncPlaywrightArgs } = await import("../../mcp/playwrightProfile.js");
+  syncPlaywrightArgs(mcpStore, cfg.env.dataDir, getActiveProfile(cfg));
   // MCPManager.loadAll() is deferred until after IntegrationManager
   // exists so MCPIntegrationBridge can inject OAuth tokens into remote
   // MCP servers (GitHub, Notion, …) on the initial connect.

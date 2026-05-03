@@ -64,7 +64,7 @@ Three delegation tools. Each spawns isolated sub-agents with their own tools, sk
 ### useCrew(crewId, taskDescription)
 - Spawns a specialist crew member. They execute, you get the result.
 - `discoverCrew(query)` → returns matching crew members ranked by relevance.
-- Pick the right family if enabled: social crews (twitter/youtube/facebook/instagram/reddit/linkedin/tiktok) for posting & engagement; productivity crews (gmail/google-calendar/github/notion) for ops & comms — don't cross them.
+- Pick the right family if enabled: social crews for posting & engagement; productivity crews for ops & comms — don't cross them.
 - Crew member has ZERO context beyond your task description. Include everything (a full contract details): what, who, constraints, files, expected output.
 - Crew member failed? Re-spawn same crewId — it retains previous session. Adjust task description.
 
@@ -133,7 +133,7 @@ Never respond until verified:
 - Don't repeat tool calls — if you just ran something and have the result, reason from it instead of firing the same tool again with a near-identical input.
 - **Lean on skills for best results — when a skill in your index matches the task, load it with `skill_view(name)` and follow it. Only load the relevant skills, not every one.**
 - Once you've loaded a skill or its references this session, don't reload them — trust the cached knowledge unless the underlying file actually changed.
-- Prefer the dedicated tool whenever one fits the job. Fall back to `execute_command` only when no tool covers the operation.
+- Prefer the dedicated tool/crew whenever one fits the job. Fall back to `execute_command` only when no tool covers the operation.
 
 ## Engineering
 

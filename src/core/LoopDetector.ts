@@ -40,6 +40,24 @@ const VALUE_SENSITIVE_TOOLS: ReadonlySet<string> = new Set([
   "cron", "goal", "watcher", "manage_mcp", "manage_agents", "poll", "reload",
 ]);
 
+/**
+ * Tools that dispatch via an `action` field — a single tool name covers
+ * many distinct operations (browser.snapshot vs browser.upload, etc.).
+ * For these we treat `(tool, action)` as the effective tool key so
+ * polling/ping-pong/exact-repeat checks differentiate by action. Without
+ * this, a recovery `snapshot` after 7 failed `upload`s gets blocked by
+ * the polling check just for sharing the tool name.
+ */
+const MULTI_ACTION_TOOLS: ReadonlySet<string> = new Set([
+  "browser",
+]);
+
+function extractAction(toolName: string, params: unknown): string | undefined {
+  if (!MULTI_ACTION_TOOLS.has(toolName) || !params || typeof params !== "object") return undefined;
+  const action = (params as Record<string, unknown>)["action"];
+  return typeof action === "string" ? action : undefined;
+}
+
 export type LoopPattern = "exact_repeat" | "ping_pong" | "semantic_repeat" | "polling";
 
 export interface LoopCheckResult {
@@ -50,6 +68,12 @@ export interface LoopCheckResult {
 
 interface HistoryEntry {
   readonly tool: string;
+  /** For multi-action tools (`browser`, ...) — the value of the `action`
+   *  field on the call. Used by the polling check so a recovery
+   *  `browser.snapshot` after seven failed `browser.upload`s isn't lumped
+   *  into the same bucket as the failures. `undefined` for single-action
+   *  tools and for malformed calls. */
+  readonly action: string | undefined;
   readonly exact: string;
   readonly hash: string;
 }
@@ -65,9 +89,10 @@ export class LoopDetector {
     let hist = this.history.get(key);
     if (!hist) { hist = []; this.history.set(key, hist); }
 
+    const action = extractAction(toolName, params);
     const paramHash = hashParams(toolName, params);
     const exact = safeJson({ tool: toolName, params });
-    hist.push({ tool: toolName, exact, hash: paramHash });
+    hist.push({ tool: toolName, action, exact, hash: paramHash });
     if (hist.length > WINDOW_SIZE) hist.shift();
 
     // 1. Exact repeat
@@ -109,11 +134,23 @@ export class LoopDetector {
       }
     }
 
-    // 4. Polling (high threshold — read/execute are legitimately frequent)
-    const toolCount = hist.filter((h) => h.tool === toolName).length;
+    // 4. Polling (high threshold — read/execute are legitimately frequent).
+    // For multi-action tools (`browser`, ...) we count by (tool, action)
+    // so a recovery `browser.snapshot` after seven failed `browser.upload`s
+    // isn't lumped into the same bucket as the failures. The other three
+    // checks intentionally still use raw tool name + paramHash; a real
+    // ping-pong or exact-repeat across actions still indicates a stuck
+    // model.
+    const isMultiAction = MULTI_ACTION_TOOLS.has(toolName);
+    const toolCount = hist.filter((h) => {
+      if (h.tool !== toolName) return false;
+      if (!isMultiAction) return true;
+      return h.action === action;
+    }).length;
     if (toolCount >= 8) {
+      const display = isMultiAction && action ? `${toolName}.${action}` : toolName;
       return this.block(toolName, taskId, "polling",
-        `Tool "${toolName}" called ${toolCount}× in the last ${WINDOW_SIZE} steps. If polling for a result, stop and report the current status instead.`);
+        `Tool "${display}" called ${toolCount}× in the last ${WINDOW_SIZE} steps. If polling for a result, stop and report the current status instead.`);
     }
 
     return { blocked: false };
