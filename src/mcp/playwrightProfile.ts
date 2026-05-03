@@ -24,6 +24,15 @@ import type { MCPStore } from "./MCPStore.js";
 export const ACTIVE_PROFILE_SETTING = "DAEMORA_BROWSER_PROFILE";
 export const DEFAULT_PROFILE = "default";
 
+/**
+ * Default viewport size for the Playwright MCP-driven browser.
+ * Without this flag the MCP defaults to 1280x720, which renders at
+ * roughly half-screen on modern monitors. 1920x1080 fills most
+ * displays. Users can override by editing the playwright entry in
+ * mcp.json directly.
+ */
+export const DEFAULT_VIEWPORT = "1920,1080";
+
 /** Read the active profile from settings, with fallback. */
 export function getActiveProfile(cfg: ConfigManager): string {
   const v = cfg.settings.getGeneric(ACTIVE_PROFILE_SETTING);
@@ -53,24 +62,41 @@ export function profileUserDataDir(dataDir: string, profileName: string): string
 }
 
 /**
- * Rewrite the `--user-data-dir` arg in the playwright entry to match
- * `profileName`. No-op if mcp.json doesn't have a playwright entry
- * (e.g. the user disabled it). Returns true if a change was written.
+ * Sync the playwright entry's args:
+ *   - `--user-data-dir <profileDir>` (matches the active profile)
+ *   - `--viewport-size <DEFAULT_VIEWPORT>` (added once for legacy entries
+ *     that pre-date the viewport flag; user-provided values are kept)
+ * No-op if mcp.json doesn't have a playwright entry. Returns true if
+ * any change was written.
  */
 export function syncPlaywrightArgs(store: MCPStore, dataDir: string, profileName: string): boolean {
   const entry = store.get("playwright");
   if (!entry) return false;
   const desired = profileUserDataDir(dataDir, profileName);
   const args = [...(entry.args ?? [])];
-  const idx = args.indexOf("--user-data-dir");
-  if (idx >= 0 && idx + 1 < args.length) {
-    if (args[idx + 1] === desired) return false;
-    args[idx + 1] = desired;
+  let changed = false;
+
+  // --user-data-dir
+  const dirIdx = args.indexOf("--user-data-dir");
+  if (dirIdx >= 0 && dirIdx + 1 < args.length) {
+    if (args[dirIdx + 1] !== desired) {
+      args[dirIdx + 1] = desired;
+      changed = true;
+    }
   } else {
     args.push("--user-data-dir", desired);
+    changed = true;
   }
-  store.update("playwright", { args });
-  return true;
+
+  // --viewport-size (only inject if absent — respect user overrides)
+  const vpIdx = args.indexOf("--viewport-size");
+  if (vpIdx < 0) {
+    args.push("--viewport-size", DEFAULT_VIEWPORT);
+    changed = true;
+  }
+
+  if (changed) store.update("playwright", { args });
+  return changed;
 }
 
 /**

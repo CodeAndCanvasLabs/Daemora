@@ -268,6 +268,11 @@ export const MCP_DEFAULTS: Readonly<Record<string, MCPDefault>> = {
         "@playwright/mcp@latest",
         "--browser", "chromium",
         "--caps", "vision,storage,network",
+        // Playwright MCP defaults to a 1280x720 viewport which renders at
+        // roughly half-screen on modern displays. Pinning to 1920x1080
+        // gives the agent a full-HD canvas and the visible window fills
+        // most monitors. Users on ultrawide/4K can override via mcp.json.
+        "--viewport-size", "1920,1080",
         // --user-data-dir is injected at seed time by getBuiltinMcpServers()
         // so the profile path lives under the user's actual dataDir rather
         // than a placeholder. See MCPStore.load().

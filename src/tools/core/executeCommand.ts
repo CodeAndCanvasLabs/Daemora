@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync, statSync } from "node:fs";
 import { z } from "zod";
 
 import type { FilesystemGuard } from "../../safety/FilesystemGuard.js";
@@ -58,6 +59,19 @@ export function makeExecuteCommandTool(guard: FilesystemGuard): ToolDef<typeof i
         }
         return undefined;
       })();
+
+      // Validate cwd up front — Node returns a misleading
+      // `spawn /bin/bash ENOENT` when the cwd doesn't exist, which makes
+      // the agent retry with different shells fruitlessly. Catch it here
+      // so the failure points at the actual problem.
+      if (effectiveCwd) {
+        if (!existsSync(effectiveCwd)) {
+          throw new ValidationError(`cwd does not exist: ${effectiveCwd}`);
+        }
+        if (!statSync(effectiveCwd).isDirectory()) {
+          throw new ValidationError(`cwd is not a directory: ${effectiveCwd}`);
+        }
+      }
 
       const started = Date.now();
       const useShell = shell ?? (process.platform === "win32" ? true : "/bin/bash");
