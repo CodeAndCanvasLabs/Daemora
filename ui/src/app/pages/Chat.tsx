@@ -448,10 +448,34 @@ export function Chat() {
       return "";
     };
 
+    // Friendly name for tool chips. For crew-delegation tools we want
+    // the user to see WHICH crew is running, not just the generic
+    // "USE_CREW" tool label — that's noise. Same idea for parallel_crew.
+    const friendlyToolName = (toolName: string, params: unknown): string => {
+      try {
+        if (toolName === "use_crew" && params && typeof params === "object") {
+          const crew = (params as Record<string, unknown>)["crew"];
+          if (typeof crew === "string" && crew) return `crew · ${crew}`;
+        }
+        if (toolName === "parallel_crew" && params && typeof params === "object") {
+          const tasks = (params as Record<string, unknown>)["tasks"];
+          if (Array.isArray(tasks) && tasks.length > 0) {
+            const names = tasks
+              .map((t) => (t && typeof t === "object" ? (t as Record<string, unknown>)["crew"] : undefined))
+              .filter((c): c is string => typeof c === "string" && c.length > 0);
+            if (names.length > 0) return `parallel · ${names.join(", ")}`;
+          }
+          return "parallel crew";
+        }
+      } catch { /* ignore */ }
+      return toolName;
+    };
+
     es.addEventListener("tool:before", (e) => {
       try {
         const data = JSON.parse(e.data);
-        const name = data.tool_name || data.tool || "tool";
+        const rawName = data.tool_name || data.tool || "tool";
+        const name = friendlyToolName(rawName, data.params);
         const preview = summarizeParams(data.params);
         const id = `${name}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         setToolEvents((prev) => [...prev, { id, name, status: "running", preview }]);
@@ -462,7 +486,8 @@ export function Chat() {
     es.addEventListener("tool:after", (e) => {
       try {
         const data = JSON.parse(e.data);
-        const name = data.tool_name || data.tool || "tool";
+        const rawName = data.tool_name || data.tool || "tool";
+        const name = friendlyToolName(rawName, data.params);
         const duration = typeof data.duration === "number" ? data.duration : undefined;
         const nextStatus: "done" | "error" = data.error ? "error" : "done";
         setToolEvents((prev) => {
@@ -519,8 +544,35 @@ export function Chat() {
       } catch { /* ignore */ }
     });
 
-    es.addEventListener("text:end", () => {
-      streamingActive = false;
+    es.addEventListener("text:end", (e) => {
+      // Two paths arrive on this event:
+      //   1. End of normal token-by-token streaming — text:delta has
+      //      already populated the last assistant bubble. Just flip the
+      //      flag off; rendering the finalText would duplicate it.
+      //   2. `reply_to_user` mid-task — the server emits text:end
+      //      directly with the message body (no preceding deltas) so the
+      //      user sees what the agent said. Render it as a fresh bubble.
+      if (streamingActive) {
+        streamingActive = false;
+        return;
+      }
+      try {
+        const data = JSON.parse(e.data || "{}");
+        const finalText = typeof data.finalText === "string" ? data.finalText : "";
+        if (!finalText) return;
+        setMessages((prev) => {
+          // Avoid an exact duplicate if the same finalText arrived twice
+          // (defensive — the runner only emits it once today).
+          const last = prev[prev.length - 1];
+          if (last && last.role === "assistant" && last.content === finalText) return prev;
+          return [...prev, {
+            role: "assistant",
+            content: finalText,
+            timestamp: new Date().toISOString(),
+          }];
+        });
+        setStreamStatus(null);
+      } catch { /* ignore */ }
     });
 
     es.addEventListener("task:completed", (e) => {

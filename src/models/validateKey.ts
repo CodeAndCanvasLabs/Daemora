@@ -19,6 +19,7 @@
  * caller doesn't block the user on a check that can't pass.
  */
 
+import { assertSafeProviderUrl, stripTrailingSlashes } from "../util/safeUrl.js";
 import { discoverModelsForProvider, type DiscoveredModel } from "./discovery.js";
 
 export type ValidateResult =
@@ -119,16 +120,22 @@ async function directProbe(
   }
 
   if (providerId === "ollama") {
-    const base = (baseUrl ?? "http://localhost:11434").replace(/\/+$/, "");
-    const r = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(3_000) });
+    const base = stripTrailingSlashes(baseUrl ?? "http://localhost:11434");
+    const ollamaUrl = `${base}/api/tags`;
+    assertSafeProviderUrl(ollamaUrl);
+    const r = await fetch(ollamaUrl, { signal: AbortSignal.timeout(3_000) });
     return r.ok
       ? { ok: true, models: [] }
       : { ok: false, status: r.status, message: `Ollama not reachable at ${base}` };
   }
 
   // OpenAI-compatible default
-  const base = (baseUrl ?? defaultBaseUrl(providerId)).replace(/\/+$/, "");
-  const r = await fetch(`${base}/models`, {
+  const base = stripTrailingSlashes(baseUrl ?? defaultBaseUrl(providerId));
+  const probeUrl = `${base}/models`;
+  // SSRF guard: the Bearer header carries the user's API key, so a bad
+  // baseUrl could leak it. Validate before fetch.
+  assertSafeProviderUrl(probeUrl);
+  const r = await fetch(probeUrl, {
     headers: { Authorization: `Bearer ${apiKey}` },
     signal: AbortSignal.timeout(TIMEOUT),
   });

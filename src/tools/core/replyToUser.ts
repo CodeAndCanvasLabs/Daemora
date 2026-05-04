@@ -55,14 +55,15 @@ export function makeReplyToUserTool(opts?: ReplyToUserOpts): ToolDef<z.ZodTypeAn
   if (cm) {
     baseShape.channels = z.array(z.string().min(1)).optional()
       .describe(
-        `Optional. Route the message to one or more channels. Each entry is a delivery-preset name OR a running channel id. ${describeTargets(cm, presets)} ` +
-        "If omitted, replies in the current conversation/source channel.",
+        `Optional. Override the default broadcast and target specific channels only. Each entry is a delivery-preset name OR a running channel id. ${describeTargets(cm, presets)} ` +
+        "Pass an empty array `[]` to send only via the source surface (no outbound fan-out). " +
+        "Omit the field entirely to broadcast to every running channel with a default chat id (the usual case).",
       ) as unknown as z.ZodArray<z.ZodString>;
   }
   const inputSchema = z.object(baseShape);
 
   const description = cm
-    ? `Send a message to the user mid-task without stopping. Default delivery is the current conversation. Pass \`channels\` to fan out to other targets. ${describeTargets(cm, presets)}`
+    ? `Send a message to the user mid-task without stopping. By DEFAULT it broadcasts to every connected channel (Discord, Slack, etc.) so the user sees it wherever they are. Pass \`channels\` to override and target specific ones. ${describeTargets(cm, presets)}`
     : "Send a message to the user mid-task without stopping. Use for progress updates or acknowledgements while continuing work.";
 
   return {
@@ -74,24 +75,50 @@ export function makeReplyToUserTool(opts?: ReplyToUserOpts): ToolDef<z.ZodTypeAn
     inputSchema,
     async execute(input: { message: string; channels?: readonly string[] }, { logger }) {
       const message = input.message;
-      const targets = input.channels ?? [];
 
-      // Mode 1 — current behavior. Logged here, surfaced on SSE by the
-      // agent loop's text-delta shim.
+      // Resolve the target list.
+      //   - `channels` explicitly passed → use it as-is (targeted fan-out).
+      //   - `channels` omitted → broadcast to every running channel that
+      //     has a default chat id configured. The user said "send to all
+      //     channels connect ones" — they want the agent's mid-task pings
+      //     to surface wherever they're listening (Discord, Slack, etc.),
+      //     not only on the surface that spawned the task.
+      let targets: readonly string[];
+      let mode: "explicit" | "broadcast" | "noop";
+      if (Array.isArray(input.channels)) {
+        targets = input.channels;
+        mode = "explicit";
+      } else if (cm) {
+        targets = [...cm.runningSet()].sort();
+        mode = "broadcast";
+      } else {
+        targets = [];
+        mode = "noop";
+      }
+
       if (targets.length === 0 || !cm) {
-        logger.info("reply_to_user called", { messageLength: message.length });
+        // SSE mirror handles the chat-UI / source-channel surface; no
+        // outbound channels to fan out to.
+        logger.info("reply_to_user called", { messageLength: message.length, mode });
         return { delivered: true };
       }
 
-      // Mode 2 — explicit channel fan-out.
       const results: ChannelDelivery[] = [];
       for (const target of targets) {
         const r = await deliver(target, message, cm, presets, cfg);
+        // In broadcast mode, "no default chat id" is a soft skip — the
+        // channel just isn't configured for unsolicited pings yet.
+        // Don't surface that as a noisy error.
+        if (mode === "broadcast" && !r.ok && r.resolvedAs === "unresolved") {
+          continue;
+        }
         results.push(r);
-        if (!r.ok) logger.warn("reply_to_user delivery failed", { target, error: r.error });
+        if (!r.ok) logger.warn("reply_to_user delivery failed", { target, error: r.error, mode });
       }
       const okCount = results.filter((r) => r.ok).length;
-      return { delivered: okCount > 0, channels: results };
+      // In broadcast mode, "delivered" reflects whether ANY channel got
+      // it; the SSE mirror already covers the source surface.
+      return { delivered: mode === "broadcast" ? true : okCount > 0, channels: results };
     },
   };
 }

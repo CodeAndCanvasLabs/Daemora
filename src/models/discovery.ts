@@ -15,6 +15,7 @@
 
 import { existsSync } from "node:fs";
 import { createLogger } from "../util/logger.js";
+import { assertSafeProviderUrl, stripTrailingSlashes } from "../util/safeUrl.js";
 import { PROVIDERS_BY_ID } from "./providers.js";
 
 const log = createLogger("models.discovery");
@@ -71,7 +72,11 @@ async function discoverOpenAICompat(
   const hit = cached(providerId);
   if (hit) return hit;
 
-  const url = `${baseUrl.replace(/\/+$/, "")}/models`;
+  const url = `${stripTrailingSlashes(baseUrl)}/models`;
+  // SSRF guard: the OpenAI-compat path attaches the user's API key as a
+  // Bearer header, so a bogus baseUrl that points at cloud-metadata
+  // would leak the key. Validate before fetch.
+  assertSafeProviderUrl(url);
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
     signal: AbortSignal.timeout(TIMEOUT),
@@ -219,8 +224,13 @@ async function discoverOllama(baseUrl: string): Promise<DiscoveredModel[]> {
   const hit = cached("ollama");
   if (hit) return hit;
 
-  const base = baseUrl.replace(/\/+$/, "");
-  const res = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(3_000) });
+  const base = stripTrailingSlashes(baseUrl);
+  // Ollama runs locally by default — localhost passes the safety check
+  // unchanged. The guard only kicks in if the user pointed Ollama at a
+  // cloud-metadata URL by mistake.
+  const ollamaUrl = `${base}/api/tags`;
+  assertSafeProviderUrl(ollamaUrl);
+  const res = await fetch(ollamaUrl, { signal: AbortSignal.timeout(3_000) });
   if (!res.ok) throw new Error(`Ollama /api/tags ${res.status}`);
   const data = (await res.json()) as { models?: { name: string }[] };
 
@@ -438,8 +448,10 @@ async function discoverGroqVoice(apiKey: string, baseUrl?: string): Promise<Voic
   const hit = voiceCached("groq");
   if (hit) return hit;
 
-  const base = (baseUrl ?? "https://api.groq.com/openai/v1").replace(/\/+$/, "");
-  const res = await fetch(`${base}/models`, {
+  const base = stripTrailingSlashes(baseUrl ?? "https://api.groq.com/openai/v1");
+  const groqVoiceUrl = `${base}/models`;
+  assertSafeProviderUrl(groqVoiceUrl);
+  const res = await fetch(groqVoiceUrl, {
     headers: { Authorization: `Bearer ${apiKey}` },
     signal: AbortSignal.timeout(TIMEOUT),
   });
