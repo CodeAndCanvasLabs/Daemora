@@ -314,6 +314,11 @@ export class TaskRunner {
     let currentFiles = userFiles;
     let lastResult = "";
     let lastModelId = "";
+    // One-shot: when an iteration ends with tool calls but no text/reasoning
+    // we inject a synthetic "summarise" prompt to force a final reply.
+    // Capped at one retry per task so a model that refuses to text doesn't
+    // loop forever.
+    let forcedSummaryRetry = false;
 
     try {
       let outerIteration = 0;
@@ -375,6 +380,18 @@ export class TaskRunner {
               lastToolStartedAt = Date.now();
               emit("tool:before", { tool_name: ev.name, tool: ev.name, params: ev.args });
               this.bus.emit("task:tool:before", { taskId, name: ev.name, args: ev.args });
+              // reply_to_user is a narration tool: its output is just
+              // {delivered: true}. The actual message lives in the
+              // *args*. Mirror it into the chat as a discrete assistant
+              // bubble so the user actually sees what the agent said.
+              if (ev.name === "reply_to_user" && ev.args && typeof ev.args === "object") {
+                const msg = (ev.args as { message?: unknown }).message;
+                if (typeof msg === "string" && msg.length > 0) {
+                  emit("text:end", { finalText: msg });
+                  this.bus.emit("task:text:end", { taskId, finalText: msg });
+                  assistantText += (assistantText ? "\n\n" : "") + msg;
+                }
+              }
               break;
             case "tool-result":
               this.tasks.recordToolCall(taskId, ev.name, lastToolArgs, ev.result, undefined, Date.now() - lastToolStartedAt);
@@ -460,6 +477,22 @@ export class TaskRunner {
           || (reasoningText ? reasoningText.trim() : "")
           || (toolCallCount > 0 ? `(completed ${toolCallCount} tool calls without final summary)` : "(no text output)");
         lastResult = iterationResult;
+
+        // Force a final summary when the model finished with only tool
+        // calls and no user-facing text. Inject a synthetic user turn
+        // that explicitly forbids further tool calls. One retry max so
+        // a stubborn model can't loop here.
+        const noTextOutput = !assistantText && !reasoningText && toolCallCount > 0;
+        if (noTextOutput && !forcedSummaryRetry) {
+          forcedSummaryRetry = true;
+          const synth = "Briefly summarise what you just did and the outcome for the user. Reply in plain text only — do NOT call any more tools.";
+          const injected: ModelMessage = { role: "user", content: synth };
+          this.sessions.appendMessage(sessionId, injected, estimateMessageTokens(injected));
+          currentUserMessage = synth;
+          currentImages = [];
+          currentFiles = [];
+          continue;
+        }
 
         // Emit the per-iteration assistant final text. UI renders this as
         // a complete assistant message in the conversation.

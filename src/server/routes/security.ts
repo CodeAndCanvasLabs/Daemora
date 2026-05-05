@@ -122,6 +122,13 @@ export function mountSecurityRoutes(app: Express, deps: ServerDeps): void {
         deny: live.deny,
         dataDir: live.dataDir ?? null,
       },
+      modes: MODES,
+      doc: {
+        off: "No checks. Escape hatch — only for trusted environments.",
+        moderate: "Block sensitive dirs (.ssh, .aws, /etc, ...) + Daemora's own DB. Default.",
+        strict: "Only $HOME and the configured allow-list paths are reachable.",
+        sandbox: "Only the configured allow-list paths are reachable. $HOME is NOT auto-included — use this to confine the agent to a specific project directory.",
+      },
     });
   });
 }

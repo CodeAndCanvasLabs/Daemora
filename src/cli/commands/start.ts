@@ -30,6 +30,7 @@ import { IntegrationManager } from "../../integrations/IntegrationManager.js";
 import { IntegrationStore } from "../../integrations/IntegrationStore.js";
 import { registerIntegrationTools } from "../../integrations/tools.js";
 import { makeCronTool } from "../../tools/core/cronTool.js";
+import { makeReplyToUserTool } from "../../tools/core/replyToUser.js";
 import { makeGoalTool } from "../../tools/core/goalTool.js";
 import { makeWatcherTool } from "../../tools/core/watcherTool.js";
 import { makePollTool } from "../../tools/core/pollTool.js";
@@ -79,6 +80,19 @@ import { createLogger } from "../../util/logger.js";
 const log = createLogger("cli.start");
 
 export async function startCommand(): Promise<void> {
+  // Print the Daemora banner before any logs fly. Skipped on non-TTY
+  // (CI, journalctl) so log files stay clean.
+  if (process.stdout.isTTY) {
+    const { printBanner } = await import("../banner.js");
+    const { readFileSync } = await import("node:fs");
+    let version = "";
+    try {
+      const pkg = JSON.parse(readFileSync(new URL("../../../package.json", import.meta.url), "utf-8")) as { version: string };
+      version = pkg.version;
+    } catch { /* ignore */ }
+    printBanner({ tagline: "the agent that lives on your machine", version });
+  }
+
   const cfg = ConfigManager.open();
   log.info({ dataDir: cfg.env.dataDir, port: cfg.env.port }, "config opened");
 
@@ -134,6 +148,12 @@ export async function startCommand(): Promise<void> {
   void decay;       // run via cron job in future
   const mcpStore = new MCPStore(cfg.env.dataDir);
   const mcpManager = new MCPManager(mcpStore, cfg.vault);
+  // Sync the playwright MCP entry's --user-data-dir against the
+  // DAEMORA_BROWSER_PROFILE setting before connect. The setting is the
+  // canonical source of truth for the active browser profile; mcp.json
+  // is just a cache that gets rewritten when the user changes profiles.
+  const { getActiveProfile, syncPlaywrightArgs } = await import("../../mcp/playwrightProfile.js");
+  syncPlaywrightArgs(mcpStore, cfg.env.dataDir, getActiveProfile(cfg));
   // MCPManager.loadAll() is deferred until after IntegrationManager
   // exists so MCPIntegrationBridge can inject OAuth tokens into remote
   // MCP servers (GitHub, Notion, …) on the initial connect.
@@ -291,6 +311,21 @@ export async function startCommand(): Promise<void> {
   agent.tools.register(makeManageAgentsTool({ sessions, crews }) as unknown as ToolDef);
   agent.tools.register(makePollTool(channelManager) as unknown as ToolDef);
   agent.tools.register(makeReloadTool({ mcp: mcpManager, mcpStore, scheduler: cronScheduler, channels: channelManager }) as unknown as ToolDef);
+
+  // Swap the bare reply_to_user (registered at AgentLoop construction
+  // before ChannelManager existed) for the channel-aware variant. Now
+  // the agent can pass `channels: ["telegram", "discord", ...]` and
+  // the message is routed via DeliveryPresetStore (preset name) or via
+  // a channel id with the `<CHANNEL>_DEFAULT_CHAT_ID` setting fallback.
+  const deliveryPresetStore = new DeliveryPresetStore(cfg.database);
+  agent.tools.unregister("reply_to_user");
+  agent.tools.register(
+    makeReplyToUserTool({
+      channels: channelManager,
+      deliveryPresets: deliveryPresetStore,
+      cfg,
+    }) as unknown as ToolDef,
+  );
   const dailyLog = new DailyLog({ bus, dataDir: cfg.env.dataDir });
   dailyLog.start();
   const goalPulse = new GoalPulse(goals, runner);
@@ -385,7 +420,7 @@ export async function startCommand(): Promise<void> {
     watchers, watcherRunner, goals, tasks: taskStore, skills, mcp: mcpManager,
     mcpStore, channels, channelManager, teamStore,
     auth, authEnabled, webhookTokens, getPublicUrl: () => publicUrl, tunnel,
-    deliveryPresets: new DeliveryPresetStore(cfg.database),
+    deliveryPresets: deliveryPresetStore,
     integrations,
     guard,
     skillLoader,

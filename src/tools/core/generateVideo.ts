@@ -13,7 +13,6 @@
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 
@@ -68,21 +67,23 @@ export function makeGenerateVideoTool(cfg: ConfigManager, guard: FilesystemGuard
     async execute({ prompt, provider, model, duration, size, style, outputPath }, { abortSignal, logger }) {
       const resolved = resolveProviderAndModel(cfg, provider, model);
 
+      const dataDir = cfg.env.dataDir;
+
       // DAEMORA-VERTEX-SA — TEMP: SA path uses hardcoded constants above.
       if (resolved.provider === "vertex" && VERTEX_SA_ENABLED) {
-        return runVertexVeoSA(resolved.model, prompt, outputPath, guard, abortSignal, logger);
+        return runVertexVeoSA(resolved.model, prompt, outputPath, dataDir, guard, abortSignal, logger);
       }
 
       const apiKey = cfg.vault.get(resolved.keyName)?.reveal();
       if (!apiKey) throw new ProviderUnavailableError(resolved.provider, resolved.keyName);
 
       if (resolved.provider === "openai") {
-        return runSora(apiKey, resolved.model, prompt, duration, size, style, outputPath, guard, abortSignal, logger);
+        return runSora(apiKey, resolved.model, prompt, duration, size, style, outputPath, dataDir, guard, abortSignal, logger);
       }
       if (resolved.provider === "vertex") {
-        return runVertexVeo(apiKey, resolved.model, prompt, outputPath, guard, abortSignal, logger);
+        return runVertexVeo(apiKey, resolved.model, prompt, outputPath, dataDir, guard, abortSignal, logger);
       }
-      return runVeo(apiKey, resolved.model, prompt, outputPath, guard, abortSignal, logger);
+      return runVeo(apiKey, resolved.model, prompt, outputPath, dataDir, guard, abortSignal, logger);
     },
   };
 }
@@ -166,6 +167,7 @@ async function runSora(
   size: string,
   _style: string,
   outputPath: string | undefined,
+  dataDir: string,
   guard: FilesystemGuard,
   abortSignal: AbortSignal,
   logger: { info: (msg: string, ctx?: object) => void },
@@ -221,7 +223,7 @@ async function runSora(
         throw new ProviderError(`Sora download ${dl.status}: ${(await dl.text()).slice(0, 200)}`, "openai");
       }
       const buf = Buffer.from(await dl.arrayBuffer());
-      const saved = await saveBuffer(buf, outputPath, guard);
+      const saved = await saveBuffer(buf, outputPath, dataDir, guard);
       return { path: saved, provider: "openai", model: finalModel, videoId };
     }
     if (pollData.status === "failed") {
@@ -248,6 +250,7 @@ async function runVertexVeo(
   model: string,
   prompt: string,
   outputPath: string | undefined,
+  dataDir: string,
   guard: FilesystemGuard,
   abortSignal: AbortSignal,
   logger: { info: (msg: string, ctx?: object) => void },
@@ -320,7 +323,7 @@ async function runVertexVeo(
       } else {
         throw new ProviderError("Vertex Veo finished but no video uri/bytes", "vertex");
       }
-      const saved = await saveBuffer(buf, outputPath, guard);
+      const saved = await saveBuffer(buf, outputPath, dataDir, guard);
       return { path: saved, provider: "vertex", model, operation: op.name };
     }
   }
@@ -346,6 +349,7 @@ async function runVertexVeoSA(
   model: string,
   prompt: string,
   outputPath: string | undefined,
+  dataDir: string,
   guard: FilesystemGuard,
   abortSignal: AbortSignal,
   logger: { info: (msg: string, ctx?: object) => void },
@@ -438,7 +442,7 @@ async function runVertexVeoSA(
       } else {
         throw new ProviderError("Vertex Veo SA finished but no video uri/bytes in response", "vertex");
       }
-      const saved = await saveBuffer(buf, outputPath, guard);
+      const saved = await saveBuffer(buf, outputPath, dataDir, guard);
       return { path: saved, provider: "vertex", model, operation: op.name, auth: "sa" };
     }
   }
@@ -459,6 +463,7 @@ async function runVeo(
   model: string,
   prompt: string,
   outputPath: string | undefined,
+  dataDir: string,
   guard: FilesystemGuard,
   abortSignal: AbortSignal,
   logger: { info: (msg: string, ctx?: object) => void },
@@ -509,19 +514,19 @@ async function runVeo(
       const dl = await fetch(`${uri}${uri.includes("?") ? "&" : "?"}key=${encodeURIComponent(key)}`, { signal: abortSignal });
       if (!dl.ok) throw new ProviderError(`Veo download ${dl.status}`, "google");
       const buf = Buffer.from(await dl.arrayBuffer());
-      const saved = await saveBuffer(buf, outputPath, guard);
+      const saved = await saveBuffer(buf, outputPath, dataDir, guard);
       return { path: saved, provider: "google", model, operation: op.name };
     }
   }
   throw new TimeoutError(`generate_video veo operation=${op.name}`, MAX_POLL_MS);
 }
 
-async function saveAsset(asset: OpenAiAsset, outputPath: string | undefined, guard: FilesystemGuard): Promise<string> {
+async function saveAsset(asset: OpenAiAsset, outputPath: string | undefined, dataDir: string, guard: FilesystemGuard): Promise<string> {
   let dest = outputPath;
   if (dest) {
     dest = guard.ensureAllowed(dest, "write");
   } else {
-    const dir = join(tmpdir(), "daemora-videos");
+    const dir = join(dataDir, "videos");
     await mkdir(dir, { recursive: true });
     dest = join(dir, `video-${Date.now()}.mp4`);
   }
@@ -537,12 +542,12 @@ async function saveAsset(asset: OpenAiAsset, outputPath: string | undefined, gua
   return dest;
 }
 
-async function saveBuffer(buf: Buffer, outputPath: string | undefined, guard: FilesystemGuard): Promise<string> {
+async function saveBuffer(buf: Buffer, outputPath: string | undefined, dataDir: string, guard: FilesystemGuard): Promise<string> {
   let dest = outputPath;
   if (dest) {
     dest = guard.ensureAllowed(dest, "write");
   } else {
-    const dir = join(tmpdir(), "daemora-videos");
+    const dir = join(dataDir, "videos");
     await mkdir(dir, { recursive: true });
     dest = join(dir, `video-${Date.now()}.mp4`);
   }

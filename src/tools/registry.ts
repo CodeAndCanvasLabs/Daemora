@@ -35,6 +35,16 @@ export class ToolRegistry {
     for (const d of defs) this.register(d);
   }
 
+  /**
+   * Remove a single tool by name. Returns true if it existed and was
+   * removed, false otherwise. Used by start.ts to swap a basic tool
+   * (registered at AgentLoop construction) for a channel-aware variant
+   * once ChannelManager has been built.
+   */
+  unregister(name: string): boolean {
+    return this.byName.delete(name);
+  }
+
   unregisterBySource(source: ToolDef["source"]): number {
     let removed = 0;
     for (const [name, def] of this.byName) {

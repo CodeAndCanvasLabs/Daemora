@@ -25,7 +25,6 @@ const taskSchema = z.object({
 
 const inputSchema = z.object({
   tasks: z.array(taskSchema).min(1).max(6).describe("Independent tasks to run in parallel. Max 6."),
-  maxSteps: z.number().int().min(1).max(30).optional().describe("Per-crew step budget. Default 15, max 30. Applies to every task in the batch. Omit unless tasks genuinely need more."),
 });
 
 interface TaskOutcome {
@@ -48,7 +47,7 @@ export function makeParallelCrewTool(
     source: { kind: "core" },
     alwaysOn: true,
     inputSchema,
-    async execute({ tasks, maxSteps }, { taskId, abortSignal }) {
+    async execute({ tasks }, { taskId, abortSignal }) {
       const settled = await Promise.all(
         tasks.map(async (t): Promise<TaskOutcome> => {
           if (!registry.has(t.crew)) {
@@ -64,7 +63,6 @@ export function makeParallelCrewTool(
               task: t.task,
               parentTaskId: taskId,
               parentModelId: turn.resolvedModel(),
-              ...(maxSteps ? { maxSteps } : {}),
               abortSignal,
             });
             return { crewId: r.crewId, ok: true, text: r.text };

@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   Lock,
   Unlock,
+  Globe,
   Cpu,
   DollarSign,
   Zap,
@@ -339,6 +340,149 @@ export function Settings() {
   const [isLoading, setIsLoading] = useState(true);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
+
+  // Per-key validation state. Populated when user clicks the "Validate"
+  // button next to a provider key — fires POST /api/providers/:id/validate.
+  type KeyValidation =
+    | { kind: "idle" }
+    | { kind: "checking" }
+    | { kind: "ok"; modelCount: number; skipped?: boolean; reason?: string }
+    | { kind: "bad"; status: number | null; message: string };
+  const [validations, setValidations] = useState<Record<string, KeyValidation>>({});
+
+  // ── Filesystem Guard state (sandbox / strict / moderate / off) ──────
+  type FsGuardState = {
+    mode: "off" | "moderate" | "strict" | "sandbox";
+    allow: string[];
+    deny: string[];
+    effective: { allow: string[]; deny: string[]; dataDir: string | null };
+    doc: Record<string, string>;
+  };
+  const [fsGuard, setFsGuard] = useState<FsGuardState | null>(null);
+  const [fsGuardDirty, setFsGuardDirty] = useState(false);
+  const [fsGuardSaving, setFsGuardSaving] = useState(false);
+  const [fsGuardSaved, setFsGuardSaved] = useState(false);
+
+  useEffect(() => {
+    apiFetch("/api/security/fs").then((r) => r.json()).then((s: FsGuardState) => setFsGuard(s)).catch(() => { /* ignore */ });
+  }, []);
+
+  async function saveFsGuard() {
+    if (!fsGuard) return;
+    setFsGuardSaving(true);
+    try {
+      const res = await apiFetch("/api/security/fs", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: fsGuard.mode, allow: fsGuard.allow, deny: fsGuard.deny }),
+      });
+      if (res.ok) {
+        const fresh = await res.json();
+        setFsGuard(fresh);
+        setFsGuardDirty(false);
+        setFsGuardSaved(true);
+        setTimeout(() => setFsGuardSaved(false), 2000);
+        toast.success("Filesystem guard updated");
+      } else {
+        const err = await res.text().catch(() => "");
+        toast.error(`Failed to save: ${err.slice(0, 120)}`);
+      }
+    } catch (e: any) {
+      toast.error(`Save failed: ${e?.message ?? "network error"}`);
+    } finally {
+      setFsGuardSaving(false);
+    }
+  }
+
+  // ── Browser profile state (which dir the playwright MCP uses) ──────
+  type BrowserProfile = { name: string; hasLoginData: boolean };
+  type BrowserProfileState = {
+    active: string;
+    profiles: BrowserProfile[];
+    profileDir: string;
+    defaultProfile: string;
+  };
+  const [browserProfile, setBrowserProfile] = useState<BrowserProfileState | null>(null);
+  const [browserProfileSaving, setBrowserProfileSaving] = useState(false);
+
+  useEffect(() => {
+    apiFetch("/api/browser/profile").then((r) => r.json()).then((s: BrowserProfileState) => setBrowserProfile(s)).catch(() => { /* ignore */ });
+  }, []);
+
+  async function switchBrowserProfile(name: string) {
+    if (!browserProfile || name === browserProfile.active) return;
+    setBrowserProfileSaving(true);
+    try {
+      const res = await apiFetch("/api/browser/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast.error(`Switch failed: ${body.error ?? res.statusText}`);
+        return;
+      }
+      // Refetch to update hasLoginData state in case the new profile dir
+      // didn't exist before.
+      const fresh = await apiFetch("/api/browser/profile").then((r) => r.json());
+      setBrowserProfile(fresh);
+      toast.success(`Browser profile switched to "${name}". Agent now uses this profile.`);
+    } catch (e: any) {
+      toast.error(`Switch failed: ${e?.message ?? "network error"}`);
+    } finally {
+      setBrowserProfileSaving(false);
+    }
+  }
+
+  // vault env-var key → provider id used by /api/providers/:id/validate
+  const KEY_TO_PROVIDER: Record<string, string> = {
+    OPENAI_API_KEY: "openai",
+    ANTHROPIC_API_KEY: "anthropic",
+    GOOGLE_AI_API_KEY: "google",
+    GOOGLE_VERTEX_API_KEY: "vertex",
+    XAI_API_KEY: "xai",
+    DEEPSEEK_API_KEY: "deepseek",
+    MISTRAL_API_KEY: "mistral",
+    GROQ_API_KEY: "groq",
+    NVIDIA_API_KEY: "nvidia",
+    OPENROUTER_API_KEY: "openrouter",
+  };
+
+  async function validateProviderKey(envKey: string) {
+    const providerId = KEY_TO_PROVIDER[envKey];
+    if (!providerId) return;
+    const candidate = editValues[envKey] ?? data?.vars?.[envKey] ?? "";
+    if (!candidate) {
+      setValidations((v) => ({ ...v, [envKey]: { kind: "bad", status: null, message: "Enter a key first." } }));
+      return;
+    }
+    setValidations((v) => ({ ...v, [envKey]: { kind: "checking" } }));
+    try {
+      const res = await apiFetch(`/api/providers/${providerId}/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: candidate }),
+      });
+      const body = await res.json() as
+        | { ok: true; models: { id: string; name: string }[]; skipped?: boolean; reason?: string }
+        | { ok: false; status: number | null; message: string };
+      if ("ok" in body && body.ok) {
+        const isSkipped = "skipped" in body && body.skipped;
+        const reason = isSkipped && "reason" in body ? body.reason : undefined;
+        setValidations((v) => ({
+          ...v,
+          [envKey]: isSkipped
+            ? { kind: "ok", modelCount: 0, skipped: true, ...(reason ? { reason } : {}) }
+            : { kind: "ok", modelCount: body.models?.length ?? 0 },
+        }));
+      } else {
+        setValidations((v) => ({ ...v, [envKey]: { kind: "bad", status: (body as any).status ?? null, message: (body as any).message ?? "Validation failed" } }));
+      }
+    } catch (e: any) {
+      setValidations((v) => ({ ...v, [envKey]: { kind: "bad", status: null, message: e?.message ?? "Network error" } }));
+    }
+  }
   // Radix AlertDialog for delete confirmation (window.confirm blocks in Tauri WKWebView).
   const [deleteTarget, setDeleteTarget] = useState<{ key: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -460,6 +604,7 @@ export function Settings() {
           heartbeatEnabled: "HEARTBEAT_ENABLED",
           wakeWordEnabled:  "WAKE_WORD_ENABLED",
           authEnabled:      "AUTH_ENABLED",
+          planMode:         "PLAN_MODE",
         };
         for (const [uiKey, envKey] of Object.entries(boolMap)) {
           const v = vars[envKey];
@@ -534,6 +679,7 @@ export function Settings() {
         heartbeatEnabled: "HEARTBEAT_ENABLED",
         wakeWordEnabled:  "WAKE_WORD_ENABLED",
         authEnabled:      "AUTH_ENABLED",
+        planMode:         "PLAN_MODE",
       };
       const updates: Record<string, string> = {};
       for (const [configKey, envKey] of Object.entries(envMap)) {
@@ -560,7 +706,7 @@ export function Settings() {
           if (vars[envKey] != null && vars[envKey] !== "") merged[uiKey] = vars[envKey];
         }
         // Coerce the stored "true"/"false" strings back to booleans so the Switches stay accurate.
-        for (const k of ["heartbeatEnabled", "wakeWordEnabled", "authEnabled"]) {
+        for (const k of ["heartbeatEnabled", "wakeWordEnabled", "authEnabled", "planMode"]) {
           if (typeof merged[k] === "string") merged[k] = merged[k] === "true";
         }
         setGlobalConfig(merged);
@@ -1007,6 +1153,12 @@ export function Settings() {
             </div>
           ) : null}
           <ToggleRow
+            label="Plan Mode"
+            description="Agent asks for explicit approval before every destructive action (write, edit, exec, send_email, browser nav, generate_*). Read-only ops are unaffected."
+            checked={Boolean(globalConfig.planMode)}
+            onChange={(v) => handleConfigChange("planMode", v)}
+          />
+          <ToggleRow
             label="Require sign-in"
             description="When on, /api/* requires a passphrase login. Loopback scripts still work via the local auth-token file."
             checked={Boolean(globalConfig.authEnabled)}
@@ -1202,6 +1354,159 @@ export function Settings() {
       </Section>
 
       {/* ── AI Provider Keys ──────────────────────────────────────────── */}
+      {/* ── Filesystem Guard ───────────────────────────────────────── */}
+      {browserProfile && (
+        <Section
+          icon={Globe}
+          title="Browser Profile"
+          subtitle="Which Chromium profile the agent's browser uses. Logins persist per profile."
+          badge={
+            <span className="text-[9px] font-mono px-2 py-0.5 rounded-md border text-[#00d9ff] bg-[#00d9ff]/10 border-[#00d9ff]/20">
+              {browserProfile.active}
+            </span>
+          }
+        >
+          <div className="space-y-3 text-[11px] font-mono">
+            <p className="text-gray-400 leading-relaxed">
+              The agent's browser launches with a persistent profile dir. Anything you log into via
+              <code className="px-1 mx-1 bg-slate-800/60 rounded border border-slate-800">daemora browser --profile &lt;name&gt;</code>
+              persists in that profile and is reused on every agent browser action — until you switch profiles below.
+            </p>
+            <div>
+              <label className="block text-gray-300 mb-1">Active profile (used by the agent)</label>
+              <Select
+                value={browserProfile.active}
+                onValueChange={(v) => switchBrowserProfile(v)}
+                disabled={browserProfileSaving}
+              >
+                <SelectTrigger className="w-full bg-slate-900/60 border-slate-800/60 text-[11px] font-mono">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {browserProfile.profiles.map((p) => (
+                    <SelectItem key={p.name} value={p.name}>
+                      {p.name}{p.hasLoginData ? "  ✓ has saved logins" : "  (empty — no saved logins yet)"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] font-mono text-gray-500 mt-1">
+                Switching restarts the Playwright MCP server with the new profile. Takes ~1 second.
+              </p>
+            </div>
+            <div className="text-[10px] font-mono text-gray-500 space-y-1">
+              <div>Profile dir: {browserProfile.profileDir}</div>
+              <div>To add a new profile: run <code className="px-1 bg-slate-800/60 rounded border border-slate-800">daemora browser --profile &lt;name&gt;</code> in a terminal, log in, close the window. It will appear here.</div>
+            </div>
+          </div>
+        </Section>
+      )}
+
+      {fsGuard && (
+        <Section
+          icon={Shield}
+          title="Filesystem Guard"
+          subtitle="What the agent is allowed to read / write / execute on disk"
+          badge={
+            <span
+              className={`text-[9px] font-mono px-2 py-0.5 rounded-md border ${
+                fsGuard.mode === "sandbox"
+                  ? "text-[#00ff88] bg-[#00ff88]/10 border-[#00ff88]/20"
+                  : fsGuard.mode === "strict"
+                  ? "text-[#00d9ff] bg-[#00d9ff]/10 border-[#00d9ff]/20"
+                  : fsGuard.mode === "moderate"
+                  ? "text-amber-400 bg-amber-400/10 border-amber-400/20"
+                  : "text-red-400 bg-red-400/10 border-red-400/20"
+              }`}
+            >
+              {fsGuard.mode}
+            </span>
+          }
+          actions={
+            <button
+              onClick={saveFsGuard}
+              disabled={!fsGuardDirty || fsGuardSaving}
+              className={`px-4 py-2 text-[11px] font-mono rounded-xl border transition-colors ${
+                fsGuardDirty
+                  ? "text-[#00ff88] bg-[#00ff88]/10 border-[#00ff88]/20 hover:bg-[#00ff88]/15"
+                  : "text-gray-500 bg-slate-800/30 border-slate-800/40 cursor-not-allowed"
+              }`}
+            >
+              {fsGuardSaving ? "Saving…" : fsGuardSaved ? "✓ Saved" : "Save"}
+            </button>
+          }
+        >
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-[11px] font-mono text-gray-400">Mode</label>
+              <Select
+                value={fsGuard.mode}
+                onValueChange={(v) => {
+                  setFsGuard({ ...fsGuard, mode: v as FsGuardState["mode"] });
+                  setFsGuardDirty(true);
+                }}
+              >
+                <SelectTrigger className={inputClass}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="off">off — no checks (trusted environments only)</SelectItem>
+                  <SelectItem value="moderate">moderate — block ~/.ssh, ~/.aws, /etc, etc.</SelectItem>
+                  <SelectItem value="strict">strict — only $HOME + allow-list reachable</SelectItem>
+                  <SelectItem value="sandbox">sandbox — only allow-list reachable, $HOME blocked</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] font-mono text-gray-500 mt-1">{fsGuard.doc?.[fsGuard.mode] ?? ""}</p>
+            </div>
+
+            {(fsGuard.mode === "strict" || fsGuard.mode === "sandbox") && (
+              <div className="space-y-2">
+                <label className="text-[11px] font-mono text-gray-400">
+                  Allow list — absolute paths, one per line. {fsGuard.mode === "sandbox" && "Sandbox mode: ONLY these paths are reachable."}
+                </label>
+                <textarea
+                  className={`${inputClass} font-mono text-[11px] min-h-[80px]`}
+                  placeholder={"/Users/me/work\n/tmp/scratch"}
+                  value={fsGuard.allow.join("\n")}
+                  onChange={(e) => {
+                    const lines = e.target.value.split("\n").map((l) => l.trim()).filter(Boolean);
+                    setFsGuard({ ...fsGuard, allow: lines });
+                    setFsGuardDirty(true);
+                  }}
+                />
+                {fsGuard.mode === "sandbox" && fsGuard.allow.length === 0 && (
+                  <p className="text-[10px] font-mono text-amber-400">
+                    Sandbox mode with no allow-list — only the data directory is reachable.
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="text-[11px] font-mono text-gray-400">
+                Extra deny list — additional absolute paths to block (one per line)
+              </label>
+              <textarea
+                className={`${inputClass} font-mono text-[11px] min-h-[60px]`}
+                placeholder={"/private/secrets\n/Volumes/Backup"}
+                value={fsGuard.deny.join("\n")}
+                onChange={(e) => {
+                  const lines = e.target.value.split("\n").map((l) => l.trim()).filter(Boolean);
+                  setFsGuard({ ...fsGuard, deny: lines });
+                  setFsGuardDirty(true);
+                }}
+              />
+            </div>
+
+            <div className="text-[10px] font-mono text-gray-500 space-y-1 pt-2 border-t border-slate-800/40">
+              <div>Data dir: {fsGuard.effective.dataDir ?? "—"}</div>
+              <div>Effective allow ({fsGuard.effective.allow.length}): {fsGuard.effective.allow.slice(0, 3).join(", ")}{fsGuard.effective.allow.length > 3 ? "…" : ""}</div>
+              <div>Effective deny ({fsGuard.effective.deny.length})</div>
+            </div>
+          </div>
+        </Section>
+      )}
+
       <Section
         icon={KeyRound}
         title="AI Provider Keys"
@@ -1246,6 +1551,16 @@ export function Settings() {
                   <button onClick={() => toggleVisible(key)} className="p-2.5 text-gray-500 hover:text-[#00d9ff] transition-colors rounded-xl hover:bg-slate-800/50" title="Show/hide">
                     {visibleKeys.has(key) ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
+                  {KEY_TO_PROVIDER[key] && (hasEdit || isSet) && (
+                    <button
+                      onClick={() => validateProviderKey(key)}
+                      className="px-3 py-2.5 text-[10px] font-mono text-[#00d9ff] hover:text-[#00d9ff] bg-[#00d9ff]/8 hover:bg-[#00d9ff]/15 transition-colors rounded-xl border border-[#00d9ff]/20"
+                      title={`Validate ${name} key by hitting their /models endpoint`}
+                      disabled={validations[key]?.kind === "checking"}
+                    >
+                      {validations[key]?.kind === "checking" ? "…" : "Validate"}
+                    </button>
+                  )}
                   {isSet && (
                     <button
                       onClick={() => setDeleteTarget({ key, name })}
@@ -1256,6 +1571,24 @@ export function Settings() {
                     </button>
                   )}
                 </div>
+                {validations[key] && validations[key].kind !== "idle" && (
+                  <div className="mt-2 text-[10px] font-mono">
+                    {validations[key].kind === "checking" && (
+                      <span className="text-gray-400">Checking…</span>
+                    )}
+                    {validations[key].kind === "ok" && !(validations[key] as any).skipped && (
+                      <span className="text-[#00ff88]">✓ Valid — {(validations[key] as any).modelCount} models available</span>
+                    )}
+                    {validations[key].kind === "ok" && (validations[key] as any).skipped && (
+                      <span className="text-[#00d9ff]">✓ Saved (no live validation: {(validations[key] as any).reason})</span>
+                    )}
+                    {validations[key].kind === "bad" && (
+                      <span className="text-red-400">
+                        ✗ {(validations[key] as any).status ? `${(validations[key] as any).status} — ` : ""}{(validations[key] as any).message?.slice(0, 140)}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}

@@ -37,6 +37,7 @@ import type { WebhookTokenStore } from "../webhooks/WebhookTokenStore.js";
 import { DaemoraError, toDaemoraError } from "../util/errors.js";
 import { createLogger } from "../util/logger.js";
 import { mountAuthRoutes } from "./routes/auth.js";
+import { mountBrowserRoutes } from "./routes/browser.js";
 import { mountChannelRoutes } from "./routes/channels.js";
 import { mountChatRoutes } from "./routes/chat.js";
 import { mountCompatRoutes } from "./routes/compat.js";
@@ -292,6 +293,7 @@ export function createApp(deps: ServerDeps): Express {
   mountCronRoutes(app, deps);
   mountGoalRoutes(app, deps);
   mountMCPRoutes(app, deps);
+  mountBrowserRoutes(app, deps);
   mountMemoryRoutes(app, deps);
   mountProviderRoutes(app, deps);
   mountSecurityRoutes(app, deps);

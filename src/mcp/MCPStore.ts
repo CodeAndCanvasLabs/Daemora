@@ -13,7 +13,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { createLogger } from "../util/logger.js";
-import { BUILTIN_MCP_SERVERS } from "./defaults.js";
+import { getBuiltinMcpServers } from "./defaults.js";
 
 const log = createLogger("mcp.store");
 
@@ -42,19 +42,22 @@ interface MCPConfigFile {
 
 export class MCPStore {
   private configPath: string;
+  private dataDir: string;
   private data: MCPConfigFile;
 
   constructor(dataDir: string) {
+    this.dataDir = dataDir;
     this.configPath = join(dataDir, "mcp.json");
     this.data = this.load();
   }
 
   private load(): MCPConfigFile {
     // First boot: seed the mcp.json with the built-in server catalog
-    // (all disabled). The user enables whatever they want from the
-    // manage_mcp tool or the Settings UI.
+    // (all disabled by default; playwright is the exception — it's the
+    // browser controller and points at <dataDir>/browser/default which
+    // the `daemora browser` CLI populates with logins).
     if (!existsSync(this.configPath)) {
-      const seeded: MCPConfigFile = { mcpServers: { ...BUILTIN_MCP_SERVERS } };
+      const seeded: MCPConfigFile = { mcpServers: getBuiltinMcpServers(this.dataDir) };
       try {
         const dir = dirname(this.configPath);
         if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
@@ -68,7 +71,27 @@ export class MCPStore {
     try {
       const raw = readFileSync(this.configPath, "utf-8");
       const parsed = JSON.parse(raw) as MCPConfigFile;
-      return { mcpServers: parsed.mcpServers ?? {} };
+      const existing = parsed.mcpServers ?? {};
+      // Migrate: add any built-in servers that didn't exist when the
+      // user's mcp.json was first seeded. Existing entries are left
+      // alone — user config wins. Without this, users who installed
+      // daemora before a new built-in (e.g. playwright) was added
+      // would never see it.
+      const builtins = getBuiltinMcpServers(this.dataDir);
+      let added = 0;
+      for (const [name, cfg] of Object.entries(builtins)) {
+        if (!(name in existing)) {
+          existing[name] = cfg;
+          added++;
+        }
+      }
+      if (added > 0) {
+        const dir = dirname(this.configPath);
+        if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+        writeFileSync(this.configPath, JSON.stringify({ mcpServers: existing }, null, 2), "utf-8");
+        log.info({ path: this.configPath, added }, "mcp.json migrated with new built-in servers");
+      }
+      return { mcpServers: existing };
     } catch (e) {
       log.warn({ path: this.configPath, err: (e as Error).message }, "mcp.json parse failed, starting fresh");
       return { mcpServers: {} };

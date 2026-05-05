@@ -18,6 +18,9 @@ import * as p from "@clack/prompts";
 import { ConfigManager } from "../../config/ConfigManager.js";
 import { DaemonManager } from "../../daemon/DaemonManager.js";
 import type { SecretKey } from "../../config/schema.js";
+import { validateApiKey } from "../../models/validateKey.js";
+import { logger } from "../../util/logger.js";
+import { printBanner } from "../banner.js";
 
 interface ProviderOption {
   readonly id: string;
@@ -41,7 +44,7 @@ const PROVIDERS: readonly ProviderOption[] = [
   { id: "ollama",    label: "Ollama",     hint: "Local models — private, offline", secret: "OPENAI_API_KEY"  /* unused */, keyPrompt: "", modelHints: ["llama3.1", "qwen2.5-coder"] },
 ];
 
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 7;
 
 function cancelled(): never {
   p.cancel("Setup cancelled.");
@@ -59,7 +62,13 @@ export async function setupCommand(): Promise<void> {
     process.exit(1);
   }
 
-  p.intro("  Daemora · First-Run Setup");
+  // Mute pino logs during the wizard. Without this, ConfigManager.open
+  // and downstream modules dump pretty-printed log lines into the middle
+  // of the @clack/prompts UI, which looks broken.
+  logger.level = "silent";
+
+  printBanner({ tagline: "the agent that lives on your machine" });
+  p.intro("First-run setup");
 
   const cfg = ConfigManager.open();
 
@@ -111,22 +120,73 @@ export async function setupCommand(): Promise<void> {
     }));
     model = `ollama:${name}`;
   } else {
-    const key = guard(await p.password({
-      message: provider.keyPrompt,
-      validate: (v) => {
-        if (!v) return "Required";
-        if (provider.keyPattern && !provider.keyPattern.test(v)) return `Expected prefix: ${provider.keyPattern.source}`;
-        return undefined;
-      },
-    }));
+    // Loop until the key validates against the provider's API. For
+    // providers without a list-models endpoint (Suno, Cartesia, etc.)
+    // validateApiKey returns ok+skipped so we accept on first input.
+    let key = "";
+    let liveModels: { id: string; name: string }[] = [];
+    let validated = false;
+    let skippedValidation = false;
+    let skipReason = "";
+
+    while (!validated) {
+      key = guard(await p.password({
+        message: provider.keyPrompt,
+        validate: (v) => {
+          if (!v) return "Required";
+          if (provider.keyPattern && !provider.keyPattern.test(v)) return `Expected prefix: ${provider.keyPattern.source}`;
+          return undefined;
+        },
+      }));
+
+      const spinner = p.spinner();
+      spinner.start(`Validating ${provider.label} key…`);
+      const result = await validateApiKey(provider.id, key);
+      spinner.stop();
+
+      if (result.ok) {
+        validated = true;
+        if ("skipped" in result && result.skipped) {
+          skippedValidation = true;
+          skipReason = result.reason;
+          p.log.info(`Saved (no live validation: ${result.reason})`);
+        } else {
+          liveModels = result.models.map((m) => ({ id: m.id, name: m.name }));
+          p.log.success(`Key valid — ${liveModels.length} model${liveModels.length === 1 ? "" : "s"} available.`);
+        }
+      } else {
+        const reason = result.status ? `${result.status} — ${result.message.slice(0, 120)}` : result.message.slice(0, 160);
+        p.log.error(`Key rejected: ${reason}`);
+        const retry = guard(await p.confirm({ message: "Try a different key?", initialValue: true }));
+        if (!retry) cancelled();
+      }
+    }
+
     cfg.vault.set(String(provider.secret), key);
 
+    // Now ask which model to use as the default. Prefer the live list
+    // if we have one; fall back to provider.modelHints when the
+    // provider doesn't expose a list endpoint.
+    let modelOptions: { value: string; label: string; hint?: string }[];
+    if (liveModels.length > 0) {
+      // Sort: hinted models first (familiar names at top), then alphabetical.
+      const hintSet = new Set(provider.modelHints);
+      modelOptions = liveModels
+        .sort((a, b) => {
+          const ah = hintSet.has(a.id) ? 0 : 1;
+          const bh = hintSet.has(b.id) ? 0 : 1;
+          if (ah !== bh) return ah - bh;
+          return a.id.localeCompare(b.id);
+        })
+        .map((m) => ({ value: m.id, label: m.name === m.id ? m.id : `${m.name} (${m.id})` }));
+    } else {
+      modelOptions = provider.modelHints.map((m) => ({ value: m, label: m }));
+    }
+    modelOptions.push({ value: "__custom__", label: "Other (enter manually)" });
+
     const picked = guard(await p.select<string>({
-      message: `${provider.label} model`,
-      options: [
-        ...provider.modelHints.map((m) => ({ value: m, label: m })),
-        { value: "__custom__", label: "Other (enter manually)" },
-      ],
+      message: `${provider.label} model${skippedValidation ? "" : ` (${liveModels.length} live)`}`,
+      options: modelOptions,
     }));
     if (picked === "__custom__") {
       const custom = guard(await p.text({
@@ -138,6 +198,7 @@ export async function setupCommand(): Promise<void> {
     } else {
       model = `${provider.id}:${picked}`;
     }
+    void skipReason;
   }
   cfg.settings.set("DEFAULT_MODEL", model);
   p.log.success(`Default model: ${model}`);
@@ -218,8 +279,27 @@ export async function setupCommand(): Promise<void> {
     }
   }
 
-  // ── Step 6: Summary ──
-  p.log.step(`[6/${TOTAL_STEPS}]  Done`);
+  // ── Step 6: Plan Mode ──
+  p.log.step(`[6/${TOTAL_STEPS}]  Plan mode`);
+  p.note(
+    [
+      "When ON, the agent asks for explicit approval before every",
+      "destructive action (write/edit/exec, send_email, browser navigation,",
+      "media generation, etc.) — pauses and waits for your 'yes' or 'no'.",
+      "Read-only operations (read_file, web_search, etc.) are unaffected.",
+      "",
+      "Recommended OFF for fast tasks; ON for cautious / production work.",
+    ].join("\n"),
+    "Plan Mode",
+  );
+  const planMode = guard(await p.confirm({
+    message: "Enable Plan Mode?",
+    initialValue: false,
+  }));
+  cfg.settings.setGeneric("PLAN_MODE", planMode);
+
+  // ── Step 7: Summary ──
+  p.log.step(`[7/${TOTAL_STEPS}]  Done`);
   const summary = [
     `Provider:   ${provider.label}`,
     `Model:      ${model}`,
@@ -227,6 +307,7 @@ export async function setupCommand(): Promise<void> {
     `Data dir:   ${cfg.env.dataDir}`,
     `Daemon:     ${wantDaemon ? "installed" : "not installed"}`,
     `FS guard:   ${fsMode}${fsAllow.length ? ` (allow: ${fsAllow.join(", ")})` : ""}`,
+    `Plan mode:  ${planMode ? "on" : "off"}`,
   ].join("\n");
   p.note(summary, "Configuration");
 

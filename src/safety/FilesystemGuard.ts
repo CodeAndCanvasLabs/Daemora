@@ -101,13 +101,17 @@ export class FilesystemGuard {
     //           this to confine the agent to a specific project directory.
     if (this.mode === "strict") {
       const strictRoots = [this.home, ...(opts.extraAllow ?? [])];
-      this.allow = strictRoots.map((p) => normaliseLexical(p));
+      // Canonicalise (resolve symlinks like /tmp → /private/tmp on macOS)
+      // so the allow-list compares apples-to-apples with canonicalised
+      // target paths. Without this, sandbox users on macOS who allow
+      // /tmp/work get a confusing "blocked" error on every access.
+      this.allow = strictRoots.map((p) => canonicalise(p));
     } else if (this.mode === "sandbox") {
       // Always include the data dir so the agent can write its own state
       // (memory, costs, audit). Without this, every write would 403.
       const sandboxRoots = [...(opts.extraAllow ?? [])];
       if (opts.dataDir) sandboxRoots.push(opts.dataDir);
-      this.allow = sandboxRoots.map((p) => normaliseLexical(p));
+      this.allow = sandboxRoots.map((p) => canonicalise(p));
     } else {
       this.allow = [];
     }
@@ -206,7 +210,14 @@ export class FilesystemGuard {
    */
   ensureCommandAllowed(command: string): void {
     if (this.mode === "off") return;
-    const paths = extractAbsolutePaths(command);
+
+    // Pre-expand `~` and common shell variables. The shell will expand
+    // them before our deny-list ever sees them, so we have to do it first
+    // ourselves. Otherwise `cat ~/.ssh/id_rsa` slips past a regex looking
+    // for `/`-prefixed tokens.
+    const expanded = expandShellVars(command, this.home);
+
+    const paths = extractAbsolutePaths(expanded);
     for (const p of paths) {
       // A shell command can touch a path in any way (read, write,
       // execute). We don't know which ahead of parsing the whole
@@ -232,6 +243,43 @@ export class FilesystemGuard {
         }
       }
     }
+
+    // Sandbox / strict mode — additional checks. Sandbox is the
+    // confinement mode (only allow-list reachable, $HOME NOT auto-
+    // allowed), so we have to be more aggressive about cwd-changing
+    // operations and relative paths that walk up.
+    if (this.mode === "sandbox" || this.mode === "strict") {
+      // 1. `cd` / `pushd` to a directory outside the allow-list. Resolve
+      //    each target against the working dir we'd be entering it from
+      //    (we don't know the agent's actual cwd here, so resolve from
+      //    the dataDir which is the safe default).
+      const cdTargets = extractCdTargets(expanded);
+      const baseCwd = this.dataDir ?? this.home;
+      for (const t of cdTargets) {
+        const abs = isAbsolute(t) ? t : resolve(baseCwd, t);
+        try {
+          this.ensureAllowed(abs, "read");
+        } catch (e) {
+          if (e instanceof BlockedActionError) {
+            throw new BlockedActionError(
+              `Command would cd into a blocked directory: ${t} → ${abs}`,
+              { rawPath: t, command, reason: "command_cd_blocked", canonical: abs },
+            );
+          }
+          throw e;
+        }
+      }
+
+      // 2. Common credential / escape patterns even without an absolute
+      //    path token. These read env vars or use shell builtins that
+      //    would let a determined model exfiltrate state.
+      if (BLOCKED_BUILTINS.test(expanded)) {
+        throw new BlockedActionError(
+          `Command uses a blocked builtin in ${this.mode} mode (printenv / env-dump / sudo / chmod 777). Use the dedicated tool instead.`,
+          { command, reason: "command_builtin_blocked", mode: this.mode },
+        );
+      }
+    }
   }
 
   /** Public inspect so /api/config and tests can see what's configured. */
@@ -254,11 +302,11 @@ export class FilesystemGuard {
 
     if (this.mode === "strict") {
       const strictRoots = [this.home, ...(opts.extraAllow ?? [])];
-      this.allow = strictRoots.map((p) => normaliseLexical(p));
+      this.allow = strictRoots.map((p) => canonicalise(p));
     } else if (this.mode === "sandbox") {
       const sandboxRoots = [...(opts.extraAllow ?? [])];
       if (this.dataDir) sandboxRoots.push(this.dataDir);
-      this.allow = sandboxRoots.map((p) => normaliseLexical(p));
+      this.allow = sandboxRoots.map((p) => canonicalise(p));
     } else {
       this.allow = [];
     }
@@ -324,3 +372,64 @@ function extractAbsolutePaths(cmd: string): readonly string[] {
   while ((m = win.exec(cmd)) !== null) hits.push(m[1]!);
   return hits;
 }
+
+/**
+ * Expand `~` and common shell variables to their literal values BEFORE
+ * the path scan. The shell would do this itself when the command runs;
+ * if we don't pre-expand, a regex looking for `/`-prefixed tokens misses
+ * `cat ~/.ssh/id_rsa` because the literal text starts with `~`.
+ *
+ * Coverage is best-effort. We expand:
+ *   ~ / ~/...               → home / home/...
+ *   $HOME, ${HOME}          → home
+ *   $USER, ${USER}          → current user
+ *   $PWD, $OLDPWD           → home (best guess; real value depends on cwd)
+ *
+ * Anything more elaborate (parameter expansion, command substitution,
+ * arrays) is intentionally NOT supported — defence-in-depth, not a parser.
+ */
+function expandShellVars(cmd: string, home: string): string {
+  let out = cmd;
+  // `~` standalone or `~/...` (must be at start of token)
+  out = out.replace(/(^|[\s"'`(=:])~(?=[\s\/"'`):]|$)/g, `$1${home}`);
+  out = out.replace(/(^|[\s"'`(=:])~\//g, `$1${home}/`);
+  // $HOME / ${HOME}
+  out = out.replace(/\$\{?HOME\}?/g, home);
+  // $USER / ${USER} → username derived from home dir tail
+  const user = home.split("/").pop() ?? "user";
+  out = out.replace(/\$\{?USER\}?/g, user);
+  // $PWD / $OLDPWD — we don't know the actual cwd at scan time, so
+  // expand to home as a safe pessimistic guess (any check will then
+  // resolve relative to home).
+  out = out.replace(/\$\{?(PWD|OLDPWD)\}?/g, home);
+  return out;
+}
+
+/**
+ * Pull `cd` / `pushd` targets out of a (post-expansion) command line so
+ * sandbox mode can refuse cwd changes that escape the allow-list.
+ *
+ * Catches:
+ *   cd /etc; ls
+ *   cd ../../..; cat secrets
+ *   pushd ~/Downloads
+ *   bash -c "cd /etc && ls"
+ *   cd "/Users/me/work"
+ */
+function extractCdTargets(cmd: string): readonly string[] {
+  const hits: string[] = [];
+  const re = /(?:^|[\s;&|`(])(?:cd|pushd)\s+(?:-{1,2}\S+\s+)*("(?<dq>[^"]+)"|'(?<sq>[^']+)'|(?<bare>[^\s;&|"'`)]+))/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(cmd)) !== null) {
+    const t = m.groups?.["dq"] ?? m.groups?.["sq"] ?? m.groups?.["bare"];
+    if (t && t !== "-" && t !== "~") hits.push(t);
+  }
+  return hits;
+}
+
+/**
+ * Builtins / patterns that leak state in sandbox/strict mode even
+ * without an obviously-blocked path token. These either dump env (which
+ * holds the vault passphrase + provider keys) or escalate.
+ */
+const BLOCKED_BUILTINS = /(?:^|[\s;&|`(])(?:printenv\b|env(?:\s*$|\s+(?!\w+=))|sudo\b|chmod\s+(?:-R\s+)?(?:777|a\+rwx)\b)/;

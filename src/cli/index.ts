@@ -19,6 +19,7 @@ import "./loadEnv.js";
 
 import { readFileSync } from "node:fs";
 
+import { browserCommand } from "./commands/browser.js";
 import { configCommand } from "./commands/config.js";
 import { daemonCommand } from "./commands/daemon.js";
 import { doctorCommand } from "./commands/doctor.js";
@@ -62,6 +63,9 @@ async function main(): Promise<void> {
     case "config":
       await configCommand(process.argv.slice(3));
       return;
+    case "browser":
+      await browserCommand(process.argv.slice(3));
+      return;
     case "voice-worker":
     case "voice": {
       // LiveKit voice agent worker — runs as separate process
@@ -88,6 +92,8 @@ Commands:
   doctor         Self-diagnose (providers, vault, db, skills, mcp, memory)
   vault <cmd>    Secret management (status | unlock | lock | list | set | get | delete)
   config <cmd>   Settings management (list | get | set | unset)
+  browser        Open Chromium with a persistent profile to log into accounts
+                   Optional: --profile <name> (default: "default")
   voice-worker   Run the LiveKit voice agent worker (STT → Daemora → TTS)
   version        Print version
   help           Show this help
