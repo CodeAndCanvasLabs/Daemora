@@ -25,13 +25,13 @@ export const ACTIVE_PROFILE_SETTING = "DAEMORA_BROWSER_PROFILE";
 export const DEFAULT_PROFILE = "default";
 
 /**
- * Default viewport size for the Playwright MCP-driven browser.
- * Without this flag the MCP defaults to 1280x720, which renders at
- * roughly half-screen on modern monitors. 1920x1080 fills most
- * displays. Users can override by editing the playwright entry in
- * mcp.json directly.
+ * Viewport-size values that earlier daemora releases auto-injected into
+ * the playwright entry. On startup we strip the `--viewport-size <val>`
+ * pair if the value matches one of these — letting Playwright fall back
+ * to its built-in default. A user who manually pinned a different
+ * viewport keeps it.
  */
-export const DEFAULT_VIEWPORT = "1920,1080";
+const LEGACY_VIEWPORT_VALUES: ReadonlySet<string> = new Set(["1920,1080", "1024,768"]);
 
 /** Read the active profile from settings, with fallback. */
 export function getActiveProfile(cfg: ConfigManager): string {
@@ -64,8 +64,11 @@ export function profileUserDataDir(dataDir: string, profileName: string): string
 /**
  * Sync the playwright entry's args:
  *   - `--user-data-dir <profileDir>` (matches the active profile)
- *   - `--viewport-size <DEFAULT_VIEWPORT>` (added once for legacy entries
- *     that pre-date the viewport flag; user-provided values are kept)
+ *   - Strip any auto-injected `--viewport-size <val>` from earlier
+ *     daemora releases so the browser falls back to Playwright's
+ *     default. User-chosen viewports (anything not in the legacy set)
+ *     are left untouched.
+ *
  * No-op if mcp.json doesn't have a playwright entry. Returns true if
  * any change was written.
  */
@@ -76,7 +79,6 @@ export function syncPlaywrightArgs(store: MCPStore, dataDir: string, profileName
   const args = [...(entry.args ?? [])];
   let changed = false;
 
-  // --user-data-dir
   const dirIdx = args.indexOf("--user-data-dir");
   if (dirIdx >= 0 && dirIdx + 1 < args.length) {
     if (args[dirIdx + 1] !== desired) {
@@ -88,11 +90,13 @@ export function syncPlaywrightArgs(store: MCPStore, dataDir: string, profileName
     changed = true;
   }
 
-  // --viewport-size (only inject if absent — respect user overrides)
   const vpIdx = args.indexOf("--viewport-size");
-  if (vpIdx < 0) {
-    args.push("--viewport-size", DEFAULT_VIEWPORT);
-    changed = true;
+  if (vpIdx >= 0 && vpIdx + 1 < args.length) {
+    const current = args[vpIdx + 1];
+    if (typeof current === "string" && LEGACY_VIEWPORT_VALUES.has(current)) {
+      args.splice(vpIdx, 2);
+      changed = true;
+    }
   }
 
   if (changed) store.update("playwright", { args });

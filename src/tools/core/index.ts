@@ -12,6 +12,7 @@ import type { MemoryStore } from "../../memory/MemoryStore.js";
 import type { SessionStore } from "../../memory/SessionStore.js";
 import type { ModelRouter } from "../../models/ModelRouter.js";
 import type { ProjectStore } from "../../projects/ProjectStore.js";
+import type { FileProjectStore } from "../../files/FileProjectStore.js";
 import type { FilesystemGuard } from "../../safety/FilesystemGuard.js";
 import type { SkillLoader } from "../../skills/SkillLoader.js";
 import type { SkillRegistry } from "../../skills/SkillRegistry.js";
@@ -28,6 +29,7 @@ import { makeDesktopTools } from "./desktop.js";
 import { makeEditFileTool } from "./editFile.js";
 import { makeExecuteCommandTool } from "./executeCommand.js";
 import { fetchUrlTool } from "./fetchUrl.js";
+import { makeListGalleryProjectsTool } from "./galleryTools.js";
 import { makeGenerateImageTool } from "./generateImage.js";
 import { makeGenerateMusicTool } from "./generateMusic.js";
 import { makeGenerateVideoTool } from "./generateVideo.js";
@@ -35,7 +37,6 @@ import { makeGitTool } from "./gitTool.js";
 import { makeGlobTool } from "./glob.js";
 import { makeGoalTool } from "./goalTool.js";
 import { makeGrepTool } from "./grep.js";
-import { makeImageAnalysisTool } from "./imageAnalysis.js";
 import { makeImageOpsTool } from "./imageOps.js";
 import { makeListDirectoryTool } from "./listDirectory.js";
 import { makeManageAgentsTool } from "./manageAgents.js";
@@ -86,6 +87,8 @@ export interface CoreToolDeps {
   readonly channels?: ChannelManager;
   readonly teams?: TeamStore;
   readonly projects?: ProjectStore;
+  /** Files-feature gallery projects — exposes list_gallery_projects. */
+  readonly fileProjects?: FileProjectStore;
   readonly skills?: SkillRegistry;
   readonly skillLoader?: SkillLoader;
   readonly skillsRoot?: string;
@@ -133,7 +136,9 @@ export function buildCoreTools(deps: CoreToolDeps): readonly ToolDef[] {
       : []),
 
     // AI services
-    makeImageAnalysisTool(deps.cfg) as unknown as ToolDef,
+    // (image_analysis removed — native multimodal handles in-chat
+    // images directly, and the file-scan / vision-click pipelines use
+    // src/files/imageFiler.ts internally instead.)
     makeTranscribeAudioTool(deps.cfg) as unknown as ToolDef,
     makeTextToSpeechTool(deps.cfg) as unknown as ToolDef,
     makeGenerateImageTool(deps.cfg) as unknown as ToolDef,
@@ -145,6 +150,11 @@ export function buildCoreTools(deps: CoreToolDeps): readonly ToolDef[] {
     clipboardTool as unknown as ToolDef,
     screenCaptureTool as unknown as ToolDef,
     replyToUserTool as unknown as ToolDef,
+
+    // Gallery — surface user's reference library to the agent.
+    ...(deps.fileProjects
+      ? [makeListGalleryProjectsTool(deps.fileProjects) as unknown as ToolDef]
+      : []),
 
     // Communication
     // Resend-backed `send_email` disabled — use the Gmail integration instead.

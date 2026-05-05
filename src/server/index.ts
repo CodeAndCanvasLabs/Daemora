@@ -60,6 +60,7 @@ import { mountWatcherRoutes } from "./routes/watchers.js";
 import { mountIntegrationRoutes } from "./routes/integrations.js";
 import { mountTunnelRoutes } from "./routes/tunnel.js";
 import { mountDeliveryPresetRoutes } from "./routes/deliveryPresets.js";
+import { mountFilesRoutes } from "./routes/files.js";
 import type { DeliveryPresetStore } from "../scheduler/DeliveryPresetStore.js";
 import { mountWebhookRoutes } from "../webhooks/WebhookHandler.js";
 import { requireAuth } from "./middleware/requireAuth.js";
@@ -111,6 +112,8 @@ export interface ServerDeps {
   readonly guard: import("../safety/FilesystemGuard.js").FilesystemGuard;
   readonly skillLoader: import("../skills/SkillLoader.js").SkillLoader;
   readonly customSkillsDir: string;
+  readonly fileProjectStore: import("../files/FileProjectStore.js").FileProjectStore;
+  readonly fileProjectScanQueue: import("../files/scanQueue.js").ScanQueue;
 }
 
 export function createApp(deps: ServerDeps): Express {
@@ -307,6 +310,7 @@ export function createApp(deps: ServerDeps): Express {
   mountTunnelRoutes(app, deps.tunnel, deps.getPublicUrl);
   mountIntegrationRoutes(app, { integrations: deps.integrations, getPublicUrl: deps.getPublicUrl, cfg: deps.cfg });
   mountDeliveryPresetRoutes(app, deps.deliveryPresets);
+  mountFilesRoutes(app, { store: deps.fileProjectStore, scanQueue: deps.fileProjectScanQueue });
   mountWebhookRoutes(app, {
     runner: deps.runner,
     watchers: deps.watchers,

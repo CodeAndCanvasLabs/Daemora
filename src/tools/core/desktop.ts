@@ -17,7 +17,7 @@ import type { ConfigManager } from "../../config/ConfigManager.js";
 import { ProviderError } from "../../util/errors.js";
 import type { ToolDef } from "../types.js";
 
-import { makeImageAnalysisTool } from "./imageAnalysis.js";
+import { describeImage } from "../../files/imageFiler.js";
 
 /**
  * Identity helper that anchors the generics on ToolDef so each factory
@@ -456,16 +456,12 @@ function makeFindElementTool(cfg: ConfigManager) {
       const scaleX = Number(screen.scaleX) || (shot.width / (screen.width ?? shot.width)) || 1;
       const scaleY = Number(screen.scaleY) || (shot.height / (screen.height ?? shot.height)) || 1;
 
-      const analyse = makeImageAnalysisTool(cfg);
       const prompt =
         `You are a UI vision assistant. The screenshot is ${shot.width}x${shot.height} pixels. ` +
         `Locate this element: "${description}".\n` +
         `Respond with JSON only: {"x": <pixel_x>, "y": <pixel_y>, "confidence": <0-1>, "notes": "<short>"}.`;
-      const analysis = await analyse.execute(
-        { imagePath: shot.path, prompt },
-        ctx,
-      ) as { text?: string } | string;
-      const text = typeof analysis === "string" ? analysis : analysis.text ?? "";
+      const analysis = await describeImage(shot.path, cfg, { prompt });
+      const text = analysis.text;
 
       // Extract the JSON or fall back to a "x, y" coord match
       let parsed: { x?: number; y?: number; confidence?: number; notes?: string } | null = null;

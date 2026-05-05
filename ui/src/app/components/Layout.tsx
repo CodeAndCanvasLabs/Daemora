@@ -20,6 +20,7 @@ import {
   Target,
   Eye,
   Plug,
+  Folder,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -30,6 +31,7 @@ const navItems = [
   { path: "/", label: "Dashboard", icon: CircuitBoard },
   { path: "/chat", label: "Chat", icon: Terminal },
   { path: "/logs", label: "Logs", icon: ScrollText },
+  { path: "/files", label: "Gallery", icon: Folder },
   { path: "/channels", label: "Channels", icon: Radio },
   { path: "/integrations", label: "Integrations", icon: Plug },
   { path: "/mcp", label: "MCP", icon: Network },

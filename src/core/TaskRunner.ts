@@ -253,6 +253,11 @@ export class TaskRunner {
       }
     }
 
+    // Gallery context isn't auto-injected at the chat level any more —
+    // the agent calls `list_gallery_projects` (alwaysOn) when relevant
+    // and passes `references: [{ kind: "gallery", value: "<slug>" }]`
+    // to crews. CrewAgentRunner expands those references on its side.
+
     // Persist the RAW user input to the session — not the hint-enriched
     // variant. The chat UI renders attachments from the sidecar column
     // (see appendMessage below), so the user bubble stays clean without
