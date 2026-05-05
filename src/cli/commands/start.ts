@@ -18,6 +18,8 @@ import { CompactionManager } from "../../core/Compaction.js";
 import { InboundDebouncer } from "../../core/InboundDebouncer.js";
 import { LoopDetector } from "../../core/LoopDetector.js";
 import { TaskRunner } from "../../core/TaskRunner.js";
+import { FileProjectStore } from "../../files/FileProjectStore.js";
+import { ScanQueue } from "../../files/scanQueue.js";
 import { AttachmentProcessor } from "../../core/AttachmentProcessor.js";
 import { BackgroundReviewer } from "../../learning/BackgroundReviewer.js";
 import { EventBus } from "../../events/eventBus.js";
@@ -217,12 +219,18 @@ export async function startCommand(): Promise<void> {
     mcpServers: mcpManager.listStatus().length,
     mcpTools: mcpManager.allTools().length,
   }, "MCP servers connected");
+  // FileProjectStore is built here (before AgentLoop) so the
+  // list_gallery_projects tool gets registered in the agent's tool
+  // catalog at boot. ScanQueue construction is deferred below where
+  // it can pick up the same store reference.
+  const fileProjectStore = new FileProjectStore(cfg.env.dataDir);
   const agent = new AgentLoop({
     cfg, models, skills, guard, memory,
     mcp: mcpManager, hooks: hookRunner,
     skillLoader, skillsRoot: skillsDir,
     declarativeMemory, sessions,
     bus, loopDetector,
+    fileProjects: fileProjectStore,
     getEnabledIntegrations: () => integrations.getEnabled(),
   });
 
@@ -254,7 +262,7 @@ export async function startCommand(): Promise<void> {
     log.info({ disabled: Array.from(disabledCrews) }, "skipping disabled crews");
   }
   const crews = new CrewRegistry(enabledCrews);
-  const crewRunner = new CrewAgentRunner(crews, agent.tools, models, sessions, skills);
+  const crewRunner = new CrewAgentRunner(crews, agent.tools, models, sessions, skills, fileProjectStore);
   agent.installCrews(crews, crewRunner);
   // Wire integration crews: filesystem-loaded manifests live in
   // crew/twitter|youtube|facebook|instagram/plugin.json. This sync
@@ -273,6 +281,8 @@ export async function startCommand(): Promise<void> {
   const compaction = new CompactionManager(sessions, models, bus);
   const reviewer = new BackgroundReviewer({ agent, sessions, bus });
   const attachmentProcessor = new AttachmentProcessor({ cfg, dataDir: cfg.env.dataDir });
+  const fileProjectScanQueue = new ScanQueue(fileProjectStore, cfg);
+  fileProjectScanQueue.recoverPending();
   const runner = new TaskRunner(
     agent, sessions, taskStore, bus, hookRunner, compaction, reviewer, cfg.env.dataDir,
     loopDetector, attachmentProcessor, cfg, costs,
@@ -425,6 +435,8 @@ export async function startCommand(): Promise<void> {
     guard,
     skillLoader,
     customSkillsDir,
+    fileProjectStore,
+    fileProjectScanQueue,
   });
 
   // Bind the HTTP server. If the configured port is already in use,

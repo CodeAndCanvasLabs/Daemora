@@ -48,6 +48,7 @@ https://github.com/user-attachments/assets/be0fadad-c307-4487-a4fd-2adc0f967421
 | **Live Status** | Typing indicators on Discord/Telegram while processing. Status reactions track task progress (queued → thinking → working → done). |
 | **Continuous Brain** | Three-layer memory (semantic/episodic/procedural) with automatic extraction, composite-scored recall, confidence decay, and context pruning. Learns from every task - no manual saving needed. Unified session across all channels. |
 | **Integrations** | One-click OAuth connect to X/Twitter, Gmail, Google Calendar, LinkedIn, Reddit, TikTok, YouTube, Facebook, Instagram, GitHub, Notion. Tokens stored encrypted in the vault, auto-refreshed in the background — connect once, the agent posts/reads/replies on your behalf. |
+| **Gallery** | Group reference assets (logos, brand guidelines, source PDFs, scripts) into projects in the **Gallery** section. Each project has a free-form purpose/brief plus its files. The agent calls `list_gallery_projects` (always-on tool) whenever a brand or saved asset is relevant, then loads files via `read_file` / `read_pdf`. Uploaded images are auto-described by a vision model so the agent gets structured info (colors, text-in-image, kind) without re-reading bytes every turn. Crews receive a project's manifest automatically when the parent agent passes `references: [{ kind: "gallery", value: "<slug>" }]`. |
 | **Tools** | Connect to any MCP server - create Notion pages, open GitHub issues, update Linear tasks, manage Shopify products, query databases. |
 | **Voice & Meetings** | Join any meeting (Google Meet, Zoom, Teams) via phone dial-in. OpenAI Realtime STT + ElevenLabs/OpenAI TTS. Voice cloning. Outbound voice calls. Auto-transcription + meeting summaries. |
 | **Multi-Agent** | Spawn parallel sub-agents (researcher + coder + writer working simultaneously). Create agent teams with shared task lists, dependencies, and inter-agent messaging. |
@@ -413,6 +414,64 @@ daemora crew reload        # Hot-reload all crew members
 
 ---
 
+## Gallery (reference projects)
+
+The **Gallery** section is where you organise reference assets (logos, brand guidelines, source PDFs, scripts) into named projects the agent can reach for whenever they're relevant.
+
+### Workflow
+
+1. Open `Gallery` in the sidebar.
+2. Create a project — e.g. `AuditionAid`. Add a one-paragraph **purpose / brief** so the agent knows what this project is *for* (e.g. "AuditionAid brand kit — use these assets for any AuditionAid-related work, primary purple is #a855f7").
+3. Upload assets: logos, screenshots, brand-guidelines PDFs, scripts, etc.
+4. Image uploads are auto-scanned by a vision model, producing a `<file>.md` "filer" alongside the original. The filer contains structured frontmatter (kind, dominant colors, text-in-image, primary subject) plus a 60-150 word prose description.
+5. In Chat, **just talk normally**. The agent has `list_gallery_projects` always available and calls it when you mention a brand or it's about to produce derivative work — getting back every project's purpose, file paths, and image descriptions in one shot.
+6. The agent then uses `read_file` / `read_pdf` to load file contents on demand. Only the small image filers are inlined in the list response, so token cost stays bounded.
+
+When the agent generates derivative work (videos, slides, posts) and delegates to a crew, it passes the gallery project as `references: [{ kind: "gallery", value: "auditionaid" }]` on the `use_crew` call, and the crew sees the same manifest auto-injected — without spending a tool call on its side.
+
+### On-disk layout
+
+```
+data/file-projects/
+└── auditionaid/
+    ├── project.json          # manifest with file list + scan status
+    ├── files/                # original uploads
+    │   ├── logo.png
+    │   └── brand-guidelines.pdf
+    └── filers/
+        └── logo.png.md       # auto-generated structured description
+```
+
+No DB tables — listing is a `readdir` walk, each project is one JSON manifest. Easy to back up, easy to inspect.
+
+### Image scanning
+
+Images go through `describeImage()` (`src/files/imageFiler.ts`). Provider chain:
+
+1. Vertex Gemini 3.1 Flash Lite (when `DAEMORA_VERTEX_SA_KEY_PATH` + `DAEMORA_VERTEX_PROJECT_ID` are set, or `GOOGLE_VERTEX_API_KEY` is in the vault).
+2. OpenAI `gpt-4o-mini` (when `OPENAI_API_KEY` is in the vault).
+3. Anthropic `claude-haiku` (when `ANTHROPIC_API_KEY` is in the vault).
+
+The first available provider wins. Scan runs asynchronously after upload (UI shows a `scanning…` badge); a process restart re-enqueues anything left in pending state, so a crash mid-scan doesn't strand the file.
+
+Override the model with `DAEMORA_IMAGE_ANALYSIS_MODEL=...` (Vertex path only).
+
+### REST endpoints
+
+```
+GET    /api/file-projects                              List projects
+POST   /api/file-projects                              Create  { name, color?, description? }
+GET    /api/file-projects/:slug                        Read one
+PATCH  /api/file-projects/:slug                        Edit  { name?, color?, description? }
+DELETE /api/file-projects/:slug                        Delete (recursive)
+POST   /api/file-projects/:slug/files                  Upload  { filename, mimeType, base64 }
+DELETE /api/file-projects/:slug/files/:fileId          Remove a file
+GET    /api/file-projects/:slug/files/:fileId/raw      Download original
+GET    /api/file-projects/:slug/files/:fileId/filer    Fetch the auto-generated description
+```
+
+---
+
 ## Built-in Tools
 
 52 tools the agent uses autonomously:
@@ -423,7 +482,7 @@ daemora crew reload        # Hot-reload all crew members
 | **Search** | glob, grep |
 | **Shell** | executeCommand (foreground + background) |
 | **Web** | webFetch, webSearch (browser automation lives in the `browser-pilot` crew via Playwright MCP — see [Browser Automation](#browser-automation)) |
-| **Vision** | imageAnalysis, screenCapture |
+| **Vision** | screenCapture (in-chat images are passed to the model directly as native multimodal content; the file-scan pipeline calls an internal `describeImage` helper) |
 | **Communication** | sendEmail, messageChannel, sendFile, replyWithFile, replyToUser, makeVoiceCall, meetingAction, transcribeAudio, textToSpeech |
 | **Documents** | createDocument (Markdown, PDF, DOCX), readPDF |
 | **Memory** | readMemory, writeMemory, searchMemory, pruneMemory, readDailyLog, writeDailyLog, listMemoryCategories |

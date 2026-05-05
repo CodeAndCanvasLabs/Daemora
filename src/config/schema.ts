@@ -122,6 +122,14 @@ export const settings = {
     schema: z.string().regex(/^[a-z][a-z0-9-]*:.+/, "Format: provider:model").nullable(),
     defaultValue: null,
   }),
+  IMAGE_SCAN_MODEL: setting<string | null>({
+    key: "IMAGE_SCAN_MODEL",
+    label: "Gallery Scanner Model",
+    description: "Vision model used to auto-describe gallery images. Format: provider:model. Empty = use the main agent's model.",
+    group: "models",
+    schema: z.string().regex(/^[a-z][a-z0-9-]*:.+/, "Format: provider:model").nullable(),
+    defaultValue: null,
+  }),
   OLLAMA_BASE_URL: setting<string>({
     key: "OLLAMA_BASE_URL",
     label: "Ollama Base URL",
