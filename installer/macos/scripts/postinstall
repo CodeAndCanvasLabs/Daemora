@@ -1,0 +1,37 @@
+#!/bin/bash
+#
+# Daemora .pkg postinstall — install the daemora npm package and place
+# a Desktop alias for the .app.
+
+set -euo pipefail
+
+LOG="/tmp/daemora-install.log"
+exec >> >(tee -a "$LOG") 2>&1
+echo "[$(date)] postinstall starting"
+
+TARGET_USER="${USER:-${SUDO_USER:-$(stat -f '%Su' /dev/console)}}"
+TARGET_HOME="$(eval echo "~$TARGET_USER")"
+
+run_as_user() {
+    sudo -u "$TARGET_USER" -H bash -lc "$1"
+}
+
+# Install daemora globally in the user's npm prefix. Writing to /usr/local
+# would need root and pollutes system dirs; user-level npm prefix avoids both.
+echo "Installing daemora npm package..."
+run_as_user 'npm install -g daemora' || {
+    echo "ERROR: npm install -g daemora failed. Check $LOG." >&2
+    exit 1
+}
+
+# Drop a Desktop alias so the user has a 1-click launcher right where
+# they expect it. `osascript` makes a real Finder alias (not a symlink),
+# so the icon shows up correctly and Spotlight indexes it.
+DESKTOP="$TARGET_HOME/Desktop"
+if [ -d "$DESKTOP" ]; then
+    echo "Creating Desktop alias..."
+    run_as_user "osascript -e 'tell application \"Finder\" to make alias file to POSIX file \"/Applications/Daemora.app\" at POSIX file \"$DESKTOP\"' || true"
+fi
+
+echo "[$(date)] postinstall complete"
+exit 0
