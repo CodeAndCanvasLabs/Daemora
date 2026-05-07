@@ -147,14 +147,14 @@ EOF
 chmod +x "$LAUNCHER"
 
 # ── 4. Desktop shortcut ─────────────────────────────────────────────────
-if [ "$PLATFORM" = macos ]; then
-  APP="/Applications/Daemora.app"
-  log "creating $APP…"
-  if [ ! -w /Applications ]; then SUDO=sudo; else SUDO=""; fi
-  $SUDO mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-  $SUDO cp "$LAUNCHER" "$APP/Contents/MacOS/Daemora"
-  $SUDO chmod +x "$APP/Contents/MacOS/Daemora"
-  $SUDO tee "$APP/Contents/Info.plist" >/dev/null <<EOF
+# write_macos_app PATH — build the .app bundle at PATH. Caller picks
+# the location (/Applications or ~/Applications). Returns 0 on success.
+write_macos_app() {
+  local target="$1"
+  mkdir -p "$target/Contents/MacOS" "$target/Contents/Resources" || return 1
+  cp "$LAUNCHER" "$target/Contents/MacOS/Daemora" || return 1
+  chmod +x "$target/Contents/MacOS/Daemora" || return 1
+  cat > "$target/Contents/Info.plist" <<EOF || return 1
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -172,6 +172,71 @@ if [ "$PLATFORM" = macos ]; then
 </dict>
 </plist>
 EOF
+  return 0
+}
+
+if [ "$PLATFORM" = macos ]; then
+  GLOBAL_APP="/Applications/Daemora.app"
+  USER_APP="$HOME/Applications/Daemora.app"
+  INSTALLED_APP=""
+
+  # Prefer /Applications because Launchpad indexes it. When piped
+  # through `curl | bash` there's no TTY for sudo to prompt, so we
+  # use osascript — it shows a GUI password dialog that works in
+  # non-TTY shells (same trick Homebrew / Anthropic / Cursor use).
+  if [ -w /Applications ]; then
+    log "creating $GLOBAL_APP…"
+    if write_macos_app "$GLOBAL_APP"; then
+      INSTALLED_APP="$GLOBAL_APP"
+    fi
+  elif command -v osascript >/dev/null 2>&1; then
+    log "creating $GLOBAL_APP — macOS will ask for your password (needed to write to /Applications)…"
+    PLIST_TMP="$(mktemp -t daemora-plist)"
+    cat > "$PLIST_TMP" <<'PLIST_EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>Daemora</string>
+  <key>CFBundleDisplayName</key><string>Daemora</string>
+  <key>CFBundleExecutable</key><string>Daemora</string>
+  <key>CFBundleIdentifier</key><string>ai.daemora.app</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleVersion</key><string>1.0</string>
+  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>LSMinimumSystemVersion</key><string>11.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>LSUIElement</key><false/>
+</dict>
+</plist>
+PLIST_EOF
+    if osascript -e "do shell script \"mkdir -p '$GLOBAL_APP/Contents/MacOS' '$GLOBAL_APP/Contents/Resources' && cp '$LAUNCHER' '$GLOBAL_APP/Contents/MacOS/Daemora' && chmod +x '$GLOBAL_APP/Contents/MacOS/Daemora' && cp '$PLIST_TMP' '$GLOBAL_APP/Contents/Info.plist'\" with administrator privileges with prompt \"Daemora needs permission to install its app icon into /Applications.\"" >/dev/null 2>&1; then
+      INSTALLED_APP="$GLOBAL_APP"
+    else
+      log "password prompt cancelled — falling back to ~/Applications (no admin needed)."
+    fi
+    rm -f "$PLIST_TMP"
+  fi
+
+  # Fallback path: ~/Applications/Daemora.app. Always user-writable,
+  # zero sudo, indexed by Spotlight + Finder. Trade-off: Launchpad only
+  # indexes /Applications, so the user-scoped .app won't appear there —
+  # everywhere else does.
+  if [ -z "$INSTALLED_APP" ]; then
+    mkdir -p "$HOME/Applications"
+    log "creating $USER_APP (no admin password needed)…"
+    if write_macos_app "$USER_APP"; then
+      INSTALLED_APP="$USER_APP"
+    else
+      err "failed to create the .app bundle. The launcher at $LAUNCHER still works — run it directly."
+    fi
+  fi
+
+  # Force Spotlight to index the new bundle so 'Daemora' shows up
+  # immediately in Spotlight search instead of a few minutes later.
+  if [ -n "$INSTALLED_APP" ] && command -v mdimport >/dev/null 2>&1; then
+    mdimport "$INSTALLED_APP" 2>/dev/null || true
+  fi
 else
   DESKTOP="$HOME/.local/share/applications/daemora.desktop"
   mkdir -p "$(dirname "$DESKTOP")"
