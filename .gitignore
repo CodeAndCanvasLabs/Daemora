@@ -52,6 +52,12 @@ playwright.config.ts
 dist/
 build/
 *.log
+# Exception: the installer output dirs ARE tracked. The Windows .exe
+# already lives at installer/windows/Output/, the macOS .pkg lives at
+# installer/macos/dist/ — both ship to end users via GitHub directly,
+# so the binaries belong in the repo until we set up Releases.
+!installer/macos/dist/
+!installer/macos/dist/**
 
 # ── OS & editor ───────────────────────────────────────────────────────────────
 .DS_Store
