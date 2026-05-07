@@ -1,0 +1,38 @@
+#!/bin/bash
+#
+# "Stop Daemora.app" — kill the running daemon.
+#
+# LSUIElement=true in Info.plist means this never shows a Dock icon
+# while running; it just runs and exits.
+
+set -u
+
+PORT=8081
+DATA_DIR="$HOME/Library/Application Support/Daemora"
+PID_FILE="$DATA_DIR/daemora.pid"
+
+if [ -f "$PID_FILE" ]; then
+    pid=$(cat "$PID_FILE" 2>/dev/null || true)
+    if [ -n "${pid:-}" ]; then
+        kill "$pid" 2>/dev/null || true
+        # Give it 3s to flush state, then SIGKILL the holdouts.
+        for _ in 1 2 3; do
+            kill -0 "$pid" 2>/dev/null || break
+            sleep 1
+        done
+        kill -9 "$pid" 2>/dev/null || true
+    fi
+    rm -f "$PID_FILE"
+fi
+
+# Belt-and-braces: anything still bound to the port (stale PID file,
+# orphaned child processes, etc.) gets cleaned up.
+if command -v lsof >/dev/null 2>&1; then
+    pids=$(lsof -ti :"$PORT" 2>/dev/null || true)
+    if [ -n "$pids" ]; then
+        echo "$pids" | xargs kill -9 2>/dev/null || true
+    fi
+fi
+
+# Quiet success — Mac users don't want a dialog every time they stop.
+exit 0

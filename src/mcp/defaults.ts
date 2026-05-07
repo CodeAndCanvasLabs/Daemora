@@ -260,7 +260,7 @@ export const MCP_DEFAULTS: Readonly<Record<string, MCPDefault>> = {
     requiredEnv: ["UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"],
   },
   playwright: {
-    description: "Browser control — Microsoft Playwright MCP. Persistent profile shared with `daemora browser` CLI logins.",
+    description: "Browser control — Microsoft Playwright MCP. Disabled by default; enable from MCP settings when you want browser tools available to the main agent and the browser-pilot crew. Persistent profile shared with `daemora browser` CLI logins.",
     config: {
       command: "npx",
       args: [
@@ -274,7 +274,12 @@ export const MCP_DEFAULTS: Readonly<Record<string, MCPDefault>> = {
         // injected at seed time by getBuiltinMcpServers() so the
         // profile path lives under the user's dataDir.
       ],
-      enabled: true,
+      // Off by default. The main agent shouldn't reach for browser tools
+      // unprompted — the intent is `use_crew("browser-pilot", ...)` for
+      // browser work, and the crew sees these tools only after the user
+      // explicitly enables this MCP server from the Settings UI. Once
+      // enabled, both the main agent and browser-pilot share it.
+      enabled: false,
     },
     docsUrl: "https://github.com/microsoft/playwright-mcp",
   },

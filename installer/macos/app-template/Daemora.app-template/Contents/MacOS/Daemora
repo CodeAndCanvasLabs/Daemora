@@ -1,0 +1,73 @@
+#!/bin/bash
+#
+# Daemora.app launcher — what runs when the user double-clicks the icon.
+#
+# 1-click flow:
+#   - if daemon already running -> open browser, exit
+#   - else -> start daemon detached, wait for /health, open browser, exit
+#
+# No Terminal window. No interactive prompts. The daemon survives this
+# script exiting (nohup + disown), browser close, and user logout.
+
+set -u
+
+PORT=8081
+URL="http://localhost:$PORT"
+DATA_DIR="$HOME/Library/Application Support/Daemora"
+PID_FILE="$DATA_DIR/daemora.pid"
+LOG_FILE="$DATA_DIR/daemora.log"
+
+mkdir -p "$DATA_DIR"
+
+# Make sure /opt/homebrew/bin (Apple Silicon) and /usr/local/bin (Intel)
+# are on PATH — Finder-launched apps inherit a sparse PATH that often
+# misses Homebrew, so daemora won't resolve without this.
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+show_error() {
+    osascript <<EOF
+display alert "Daemora failed to start" message "$1" as critical
+EOF
+}
+
+is_health_ok() {
+    curl -sf --max-time 2 "$URL/health" >/dev/null 2>&1
+}
+
+is_daemon_running() {
+    if is_health_ok; then return 0; fi
+    [ -f "$PID_FILE" ] || return 1
+    local pid
+    pid=$(cat "$PID_FILE" 2>/dev/null)
+    [ -n "$pid" ] || return 1
+    kill -0 "$pid" 2>/dev/null
+}
+
+start_daemon() {
+    if ! command -v daemora >/dev/null 2>&1; then
+        show_error "The 'daemora' command is not on PATH. Re-run the Daemora installer to fix this."
+        return 1
+    fi
+    # Suppress daemora's own browser-open so we can poll /health first
+    # and only open the page once the server is actually ready.
+    DAEMORA_NO_OPEN=1 nohup daemora start >>"$LOG_FILE" 2>&1 &
+    echo $! > "$PID_FILE"
+    disown 2>/dev/null || true
+
+    # Poll for up to 60s — first boot loads skills, embeddings, MCP, etc.
+    for _ in $(seq 1 60); do
+        if is_health_ok; then return 0; fi
+        sleep 1
+    done
+    return 1
+}
+
+if ! is_daemon_running; then
+    if ! start_daemon; then
+        show_error "Daemora did not respond within 60 seconds. Check the log at:\n$LOG_FILE"
+        exit 1
+    fi
+fi
+
+open "$URL"
+exit 0

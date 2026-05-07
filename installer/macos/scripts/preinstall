@@ -1,0 +1,70 @@
+#!/bin/bash
+#
+# Daemora .pkg preinstall — ensure Node 22+ exists.
+# Runs as root. We `sudo -u "$USER"` back to the installing user for
+# Homebrew commands because brew refuses to run as root.
+
+set -euo pipefail
+
+LOG="/tmp/daemora-install.log"
+exec > >(tee -a "$LOG") 2>&1
+echo "[$(date)] preinstall starting"
+
+# Resolve the actual user running the install (root won't have brew).
+TARGET_USER="${USER:-${SUDO_USER:-$(stat -f '%Su' /dev/console)}}"
+TARGET_HOME="$(eval echo "~$TARGET_USER")"
+echo "Target user: $TARGET_USER ($TARGET_HOME)"
+
+# macOS users default to zsh; their Homebrew shellenv lives in
+# ~/.zprofile / ~/.zshrc. `bash -lc` only sources bash profiles, so
+# Homebrew's PATH isn't set when we shell out. Source brew shellenv
+# explicitly so `node`, `npm`, and `brew` resolve regardless of the
+# user's shell. Without this, npm falls back to /usr/local/lib on
+# Apple Silicon Macs (Homebrew lives at /opt/homebrew) and mkdir
+# fails with EACCES.
+run_as_user() {
+    sudo -u "$TARGET_USER" -H bash -lc '
+        if [ -x /opt/homebrew/bin/brew ]; then
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+        elif [ -x /usr/local/bin/brew ]; then
+            eval "$(/usr/local/bin/brew shellenv)"
+        fi
+        '"$1"
+}
+
+node_ok() {
+    if ! run_as_user "command -v node" >/dev/null 2>&1; then return 1; fi
+    local v
+    v=$(run_as_user 'node --version' 2>/dev/null | sed 's/^v//;s/\..*//')
+    [ -n "$v" ] && [ "$v" -ge 22 ]
+}
+
+install_homebrew() {
+    if run_as_user "command -v brew" >/dev/null 2>&1; then return 0; fi
+    echo "Installing Homebrew..."
+    run_as_user '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" </dev/null NONINTERACTIVE=1'
+    # Apple Silicon Homebrew lives at /opt/homebrew, Intel at /usr/local — the
+    # postinstall script of brew adds the right one to ~/.zprofile, but the
+    # current shell needs a manual nudge.
+    if [ -x /opt/homebrew/bin/brew ]; then
+        run_as_user 'eval "$(/opt/homebrew/bin/brew shellenv)"'
+    fi
+}
+
+install_node() {
+    install_homebrew
+    echo "Installing Node 22 via Homebrew..."
+    run_as_user 'brew install node@22 && brew link --overwrite --force node@22'
+}
+
+if ! node_ok; then
+    install_node
+    if ! node_ok; then
+        echo "ERROR: Node 22+ still not detected after install." >&2
+        echo "Please install Node 22 manually from https://nodejs.org and re-run this installer." >&2
+        exit 1
+    fi
+fi
+
+echo "[$(date)] preinstall ok — Node $(run_as_user 'node --version')"
+exit 0
