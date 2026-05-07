@@ -12,8 +12,20 @@ echo "[$(date)] postinstall starting"
 TARGET_USER="${USER:-${SUDO_USER:-$(stat -f '%Su' /dev/console)}}"
 TARGET_HOME="$(eval echo "~$TARGET_USER")"
 
+# macOS users default to zsh; their Homebrew shellenv lives in
+# ~/.zprofile / ~/.zshrc. `bash -lc` only sources bash profiles, so
+# Homebrew's PATH isn't set when we shell out — npm then falls back to
+# the Intel default (/usr/local/lib/node_modules) and mkdir fails with
+# EACCES on Apple Silicon. Source brew shellenv explicitly before any
+# command so npm picks the right prefix regardless of the user's shell.
 run_as_user() {
-    sudo -u "$TARGET_USER" -H bash -lc "$1"
+    sudo -u "$TARGET_USER" -H bash -lc '
+        if [ -x /opt/homebrew/bin/brew ]; then
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+        elif [ -x /usr/local/bin/brew ]; then
+            eval "$(/usr/local/bin/brew shellenv)"
+        fi
+        '"$1"
 }
 
 # Install daemora globally in the user's npm prefix. Writing to /usr/local

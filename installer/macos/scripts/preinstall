@@ -15,8 +15,21 @@ TARGET_USER="${USER:-${SUDO_USER:-$(stat -f '%Su' /dev/console)}}"
 TARGET_HOME="$(eval echo "~$TARGET_USER")"
 echo "Target user: $TARGET_USER ($TARGET_HOME)"
 
+# macOS users default to zsh; their Homebrew shellenv lives in
+# ~/.zprofile / ~/.zshrc. `bash -lc` only sources bash profiles, so
+# Homebrew's PATH isn't set when we shell out. Source brew shellenv
+# explicitly so `node`, `npm`, and `brew` resolve regardless of the
+# user's shell. Without this, npm falls back to /usr/local/lib on
+# Apple Silicon Macs (Homebrew lives at /opt/homebrew) and mkdir
+# fails with EACCES.
 run_as_user() {
-    sudo -u "$TARGET_USER" -H bash -lc "$1"
+    sudo -u "$TARGET_USER" -H bash -lc '
+        if [ -x /opt/homebrew/bin/brew ]; then
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+        elif [ -x /usr/local/bin/brew ]; then
+            eval "$(/usr/local/bin/brew shellenv)"
+        fi
+        '"$1"
 }
 
 node_ok() {
