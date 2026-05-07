@@ -49,16 +49,16 @@ need_node() {
 
 install_node_macos() {
   if ! command -v brew >/dev/null 2>&1; then
-    log "Homebrew not found — installing it (used to install Node.js)…"
+    log "Homebrew not found — installing it (used to install Node.js)..."
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
   fi
-  log "installing Node.js 22 via Homebrew…"
+  log "installing Node.js 22 via Homebrew..."
   brew install node@22 || brew install node
   brew link --overwrite --force node@22 2>/dev/null || true
 }
 
 install_node_linux() {
-  log "installing Node.js 22 via your package manager…"
+  log "installing Node.js 22 via your package manager..."
   if command -v apt-get >/dev/null 2>&1; then
     curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
     sudo apt-get install -y nodejs
@@ -73,7 +73,7 @@ install_node_linux() {
 }
 
 if need_node; then
-  log "Node.js 22+ not found — installing…"
+  log "Node.js 22+ not found — installing..."
   if [ "$PLATFORM" = macos ]; then install_node_macos; else install_node_linux; fi
 else
   log "Node.js $(node -v) detected — ok."
@@ -88,7 +88,7 @@ if ! command -v npm >/dev/null 2>&1; then
 fi
 
 # ── 2. daemora — global npm install ─────────────────────────────────────
-log "installing Daemora (this may take a minute)…"
+log "installing Daemora (this may take a minute)..."
 # Use sudo on Linux when npm's global prefix is a system path the user
 # can't write to. macOS Homebrew prefixes are user-writable.
 NPM_PREFIX="$(npm config get prefix 2>/dev/null || echo "")"
@@ -185,12 +185,12 @@ if [ "$PLATFORM" = macos ]; then
   # use osascript — it shows a GUI password dialog that works in
   # non-TTY shells (same trick Homebrew / Anthropic / Cursor use).
   if [ -w /Applications ]; then
-    log "creating $GLOBAL_APP…"
+    log "creating $GLOBAL_APP..."
     if write_macos_app "$GLOBAL_APP"; then
       INSTALLED_APP="$GLOBAL_APP"
     fi
   elif command -v osascript >/dev/null 2>&1; then
-    log "creating $GLOBAL_APP — macOS will ask for your password (needed to write to /Applications)…"
+    log "creating $GLOBAL_APP — macOS will ask for your password (needed to write to /Applications)..."
     PLIST_TMP="$(mktemp -t daemora-plist)"
     cat > "$PLIST_TMP" <<'PLIST_EOF'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -224,7 +224,7 @@ PLIST_EOF
   # everywhere else does.
   if [ -z "$INSTALLED_APP" ]; then
     mkdir -p "$HOME/Applications"
-    log "creating $USER_APP (no admin password needed)…"
+    log "creating $USER_APP (no admin password needed)..."
     if write_macos_app "$USER_APP"; then
       INSTALLED_APP="$USER_APP"
     else
@@ -240,7 +240,7 @@ PLIST_EOF
 else
   DESKTOP="$HOME/.local/share/applications/daemora.desktop"
   mkdir -p "$(dirname "$DESKTOP")"
-  log "creating $DESKTOP…"
+  log "creating $DESKTOP..."
   cat > "$DESKTOP" <<EOF
 [Desktop Entry]
 Name=Daemora
@@ -258,7 +258,7 @@ EOF
 fi
 
 # ── 5. Launch ───────────────────────────────────────────────────────────
-log "all set. starting Daemora…"
+log "all set. starting Daemora..."
 nohup "$LAUNCHER" >/dev/null 2>&1 &
 sleep 1
 log ""
