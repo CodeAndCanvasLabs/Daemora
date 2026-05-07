@@ -17,6 +17,7 @@ import { Cron } from "./pages/Cron";
 import { Goals } from "./pages/Goals";
 import { Watchers } from "./pages/Watchers";
 import { Crew } from "./pages/Crew";
+import { Files } from "./pages/Files";
 import { Teams } from "./pages/Teams";
 import { Setup } from "./pages/Setup";
 
@@ -38,6 +39,7 @@ export const router = createBrowserRouter([
       { path: "tasks/:id", Component: TaskDetail },
       { path: "config", Component: Settings },
       { path: "channels", Component: Channels },
+      { path: "files", Component: Files },
       { path: "integrations", Component: Integrations },
       { path: "mcp", Component: MCP },
       { path: "skills", Component: Skills },

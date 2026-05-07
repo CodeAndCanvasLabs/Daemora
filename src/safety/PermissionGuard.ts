@@ -46,8 +46,10 @@ export const PERMISSION_TIERS: Record<PermissionTier, TierConfig> = {
       "fetch_url", "web_fetch", "web_search",
       // Memory reads
       "memory_recall",
-      // Vision + transcription (read-only media)
-      "image_analysis", "transcribe_audio",
+      // Transcription (read-only media). image_analysis was retired —
+      // native multimodal handles in-chat images, and the file-scan
+      // pipeline calls describeImage() internally.
+      "transcribe_audio",
       // Read-only desktop inspection
       "desktop_cursor_position", "desktop_list_windows", "desktop_screenshot",
       // Read PDF
@@ -66,7 +68,7 @@ export const PERMISSION_TIERS: Record<PermissionTier, TierConfig> = {
       // Web
       "fetch_url", "web_fetch", "web_search",
       // AI / media
-      "image_analysis", "transcribe_audio", "text_to_speech",
+      "transcribe_audio", "text_to_speech",
       "generate_image", "generate_video", "generate_music", "image_ops",
       // Desktop control
       "desktop_click", "desktop_move", "desktop_mouse_down", "desktop_mouse_up",

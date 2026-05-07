@@ -44,6 +44,7 @@ import { toAiTool, type ToolContext } from "../tools/types.js";
 import { NotFoundError, toDaemoraError } from "../util/errors.js";
 import { createLogger } from "../util/logger.js";
 import { estimateMessageTokens } from "../util/tokenEstimate.js";
+import { formatGalleryProject } from "../files/projectContext.js";
 import type { CrewRegistry } from "./CrewRegistry.js";
 import type { LoadedCrew } from "./types.js";
 
@@ -70,7 +71,7 @@ const ALWAYS_CREW_TOOLS: ReadonlySet<string> = new Set([
 ]);
 
 export interface CrewReference {
-  readonly kind: "file" | "url" | "note";
+  readonly kind: "file" | "url" | "note" | "gallery";
   readonly value: string;
   readonly why?: string | undefined;
 }
@@ -112,6 +113,7 @@ export class CrewAgentRunner {
     private readonly models: ModelRouter,
     private readonly sessions: SessionStore,
     private readonly skills?: SkillRegistry,
+    private readonly fileProjects?: import("../files/FileProjectStore.js").FileProjectStore,
   ) {}
 
   async run(input: CrewRunInput): Promise<CrewRunResult> {
@@ -149,8 +151,15 @@ export class CrewAgentRunner {
     const history = this.sessions.getHistory(session.id, { limit: 40 });
 
     // Persist the delegating task up front so a mid-stream disconnect
-    // still leaves the user-visible delegation recorded.
-    const userMsgContent = formatDelegationMessage(input);
+    // still leaves the user-visible delegation recorded. Any
+    // `kind: "gallery"` reference is expanded to the project's full
+    // manifest (paths + image filers) so the crew has the brand /
+    // asset context the parent agent had — without spending a tool
+    // call on list_gallery_projects.
+    const galleryContext = this.expandGalleryReferences(input.references);
+    const userMsgContent = galleryContext
+      ? `${galleryContext}\n\n---\n\n${formatDelegationMessage(input)}`
+      : formatDelegationMessage(input);
     const userMsg: ModelMessage = { role: "user", content: userMsgContent };
     this.sessions.appendMessage(session.id, userMsg, estimateMessageTokens(userMsg));
 
@@ -330,6 +339,33 @@ export class CrewAgentRunner {
       inputTokens: totalInputTokens,
       outputTokens: totalOutputTokens,
     };
+  }
+
+  /**
+   * Expand any `kind: "gallery"` references into a manifest block the
+   * crew agent sees as part of its first user message. Other reference
+   * kinds pass through formatDelegationMessage unchanged. Silent no-op
+   * when no FileProjectStore is wired or no gallery refs are present.
+   */
+  private expandGalleryReferences(references: readonly CrewReference[] | undefined): string | null {
+    if (!this.fileProjects || !references) return null;
+    const slugs = references
+      .filter((r) => r.kind === "gallery")
+      .map((r) => r.value.trim().toLowerCase())
+      .filter((s) => /^[a-z0-9][a-z0-9-]*$/.test(s));
+    if (slugs.length === 0) return null;
+    const blocks: string[] = [];
+    for (const slug of slugs) {
+      const block = formatGalleryProject(this.fileProjects, slug);
+      if (block) blocks.push(block);
+    }
+    if (blocks.length === 0) return null;
+    return [
+      "## Gallery context",
+      "The parent agent referenced the following gallery project(s) for this task. Treat these files as authoritative reference material; use `read_file` / `read_pdf` to load contents on demand.",
+      "",
+      ...blocks,
+    ].join("\n");
   }
 
   private buildCrewTools(crew: LoadedCrew, input: CrewRunInput): Record<string, ReturnType<typeof toAiTool>> {

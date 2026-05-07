@@ -31,7 +31,7 @@ const VALUE_SENSITIVE_TOOLS: ReadonlySet<string> = new Set([
   "glob", "grep",
   "execute_command", "web_fetch", "web_search", "fetch_url",
   "use_crew", "parallel_crew", "use_mcp",
-  "image_analysis", "image_ops", "generate_image", "generate_music", "generate_video",
+  "image_ops", "generate_image", "generate_music", "generate_video",
   "skill_view", "skill_manage",
   "memory", "memory_save", "memory_recall", "session_search",
   // Agent-management tools — every call has a distinct action/name/task

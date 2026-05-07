@@ -118,6 +118,19 @@ Never respond until verified:
 - Code → build passes. UI → renders correctly. Email → sent confirmation.
 - Files → read back to confirm. Bug → root cause resolved, not symptom patched.
 
+## Gallery projects
+
+Gallery projects are user-curated folders of reference assets (logos, brand kits, screenshots, scripts, video stills) on the **Gallery** page. `list_gallery_projects` returns every project's purpose, file paths, and image descriptions in one call.
+
+Call it proactively, no permission needed:
+- User says "use my gallery / my brand / my assets / project <name>" → call it, then use the matching project directly. Exactly one match → proceed. Multiple plausible matches → ask which.
+- Image/video/edit/derivative work where brand or style consistency matters (logos, intros, thumbnails, posts, scripts) → call it first so you ground the work in their actual assets instead of inventing new visuals.
+- User mentions a name that could be a project slug → call it; if the slug exists, use it without asking.
+
+When delegating to a crew, pass the resolved project as `references: [{ kind: "gallery", value: "<slug>" }]`. The crew receives the full manifest auto-injected — no extra tool call on its side.
+
+If no gallery exists or none matches, say so once and continue without invented assets.
+
 ## Memory
 
 - Task completed → `writeDailyLog(entry)` with one-line summary.

@@ -1,6 +1,6 @@
 {
   "name": "daemora",
-  "version": "1.0.0-alpha.3",
+  "version": "1.0.0-alpha.4",
   "description": "Self-hosted AI agent platform — autonomous, multi-channel, multi-model.",
   "type": "module",
   "license": "AGPL-3.0-or-later",
@@ -58,6 +58,7 @@
     "build:ui": "cd ui && npm ci && npm run build",
     "build:voice": "esbuild src/voice/VoiceAgent.ts --bundle --platform=node --format=esm --outfile=dist/voice-worker.mjs --packages=external",
     "voice-worker": "node dist/voice-worker.mjs dev",
+    "icons:installer": "node scripts/build-installer-icons.mjs",
     "prepublishOnly": "npm run clean && npm run typecheck && npm run build"
   },
   "dependencies": {
@@ -104,6 +105,8 @@
     "@types/node": "^22.10.5",
     "@types/pdfkit": "^0.17.6",
     "esbuild": "^0.28.0",
+    "png2icons": "^2.0.1",
+    "sharp": "^0.34.5",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vitest": "^2.1.8"

@@ -65,6 +65,8 @@ export interface AgentLoopDeps {
   readonly bus?: EventBus;
   /** Loop detector — intercepts repetitive tool calls before execution. */
   readonly loopDetector?: LoopDetector;
+  /** Files-feature gallery store — exposes list_gallery_projects to the agent. */
+  readonly fileProjects?: import("../files/FileProjectStore.js").FileProjectStore;
   /**
    * Returns the set of integration ids (twitter, youtube, facebook,
    * instagram) that currently have at least one connected account.
@@ -178,6 +180,7 @@ export class AgentLoop {
       ...(deps.declarativeMemory ? { declarativeMemory: deps.declarativeMemory } : {}),
       ...(deps.sessions ? { sessions: deps.sessions } : {}),
       ...(deps.bus ? { bus: deps.bus } : {}),
+      ...(deps.fileProjects ? { fileProjects: deps.fileProjects } : {}),
       ...(skillLoader && skillsRoot
         ? {
             onSkillsChanged: async () => {
