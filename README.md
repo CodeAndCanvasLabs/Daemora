@@ -121,23 +121,20 @@ Then message your bot. That's it.
 
 ## Installation
 
-### One-line install (recommended for non-developers)
+### Download the installer (recommended — no terminal needed)
 
-Installs Node.js if missing, installs Daemora globally, creates a desktop shortcut, and opens the dashboard in your browser. Pick the line for your OS:
+Native installers handle everything: Node.js, the daemora package, app icons, Desktop / Start Menu shortcuts, and the launcher. Click the icon → browser opens to the dashboard. First-run walks through the setup wizard.
 
-**macOS / Linux**
+| Platform | Download | What you get |
+|---|---|---|
+| **macOS** (12+, Apple Silicon or Intel) | [`Daemora.pkg`](https://github.com/CodeAndCanvasLabs/Daemora/releases/latest) | Standard install wizard. `Daemora.app` and `Stop Daemora.app` land in `/Applications`. Desktop alias. Spotlight + Launchpad indexed. |
+| **Windows** (10+) | [`DaemoraSetup.exe`](https://github.com/CodeAndCanvasLabs/Daemora/releases/latest) | Inno Setup wizard. Start Menu + Desktop shortcuts. |
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/CodeAndCanvasLabs/Daemora/main/scripts/install.sh | bash
-```
+Double-click the installer → walk through the wizard → enter your password (it writes to `/Applications` on macOS or `Program Files` on Windows). Then double-click the **Daemora** icon. Browser opens at `http://localhost:8081`. The setup wizard inside the app collects your model API key and configures channels.
 
-**Windows** (PowerShell)
+Closing the browser **does not** stop daemora — the daemon is detached and survives logout. Use the **Stop Daemora** shortcut to actually shut it down.
 
-```powershell
-irm https://raw.githubusercontent.com/CodeAndCanvasLabs/Daemora/main/scripts/install.ps1 | iex
-```
-
-After install, click the **Daemora** icon in your Applications / Start Menu — the dashboard opens in your browser at `http://localhost:8081`. First run walks through the setup wizard; subsequent runs go straight to the dashboard.
+> Building the installer locally (e.g. for an unreleased commit)? See [`installer/README.md`](./installer/README.md) and the per-platform `BUILD.md` files.
 
 ### npm (developers)
 

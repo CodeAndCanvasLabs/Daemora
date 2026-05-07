@@ -29,9 +29,14 @@ IDENTIFIER="com.codeandcanvaslabs.daemora"
 rm -rf "$DIST" "$BUILD"
 mkdir -p "$DIST" "$BUILD/payload/Applications"
 
-# Stage the .app bundles into the payload root.
-cp -R "$APP_TEMPLATE/Daemora.app" "$BUILD/payload/Applications/"
-cp -R "$APP_TEMPLATE/Stop Daemora.app" "$BUILD/payload/Applications/"
+# Stage the .app bundles into the payload root, restoring the .app
+# extension. The source dirs in the repo end with `.app-template`
+# (NOT .app) so macOS Spotlight doesn't index them as installed
+# applications when contributors clone the repo — that caused
+# duplicate "Daemora" / "Stop Daemora" entries in Spotlight and
+# Launchpad alongside the real /Applications copies.
+cp -R "$APP_TEMPLATE/Daemora.app-template" "$BUILD/payload/Applications/Daemora.app"
+cp -R "$APP_TEMPLATE/Stop Daemora.app-template" "$BUILD/payload/Applications/Stop Daemora.app"
 
 # Make sure the launcher binaries are executable. cp -R preserves the
 # perm bits but a fresh checkout from git on Windows won't have them.
