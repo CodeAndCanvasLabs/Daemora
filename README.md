@@ -120,7 +120,25 @@ Then message your bot. That's it.
 
 ## Installation
 
-### npm (recommended)
+### One-line install (recommended for non-developers)
+
+Installs Node.js if missing, installs Daemora globally, creates a desktop shortcut, and opens the dashboard in your browser. Pick the line for your OS:
+
+**macOS / Linux**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/CodeAndCanvasLabs/Daemora/main/scripts/install.sh | bash
+```
+
+**Windows** (PowerShell)
+
+```powershell
+irm https://raw.githubusercontent.com/CodeAndCanvasLabs/Daemora/main/scripts/install.ps1 | iex
+```
+
+After install, click the **Daemora** icon in your Applications / Start Menu — the dashboard opens in your browser at `http://localhost:8081`. First run walks through the setup wizard; subsequent runs go straight to the dashboard.
+
+### npm (developers)
 
 ```bash
 npm install -g daemora
