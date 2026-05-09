@@ -86,7 +86,10 @@ export class MemoryStore {
   private readonly recall: Database.Statement;
   private readonly listRecent: Database.Statement;
 
-  constructor(private readonly db: Database.Database) {
+  constructor(
+    private readonly db: Database.Database,
+    private readonly wikiLog?: { append(kind: string, attrs: Record<string, string | number | undefined | null>): void },
+  ) {
     db.exec(SCHEMA);
 
     this.insertEntry = db.prepare(
@@ -132,6 +135,12 @@ export class MemoryStore {
     const source = opts.source?.trim() || "agent";
     this.insertEntry.run(id, content, tagsJson, source, now, now);
     log.debug({ id, tagCount: tags.length, source }, "memory saved");
+    this.wikiLog?.append("memory.save", {
+      id,
+      source,
+      tags: tags.length ? tags.join(",") : undefined,
+      content,
+    });
     return { id, content, tags, source, createdAt: now, updatedAt: now };
   }
 

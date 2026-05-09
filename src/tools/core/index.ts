@@ -41,8 +41,6 @@ import { makeListDirectoryTool } from "./listDirectory.js";
 import { makeManageAgentsTool } from "./manageAgents.js";
 import { makeManageMCPTool } from "./manageMCP.js";
 import { makeMemoryTool } from "./memory.js";
-import { makeMemoryRecallTool } from "./memoryRecall.js";
-import { makeMemorySaveTool } from "./memorySave.js";
 import { makeMessageChannelTool } from "./messageChannel.js";
 import { makePollTool } from "./pollTool.js";
 import { makeProjectTool } from "./projectTracker.js";
@@ -120,9 +118,12 @@ export function buildCoreTools(deps: CoreToolDeps): readonly ToolDef[] {
     makeWebFetchTool(deps.cfg) as unknown as ToolDef,
     makeWebSearchTool(deps.cfg) as unknown as ToolDef,
 
-    // Memory — tagged notebook (FTS5)
-    makeMemorySaveTool(deps.memory) as unknown as ToolDef,
-    makeMemoryRecallTool(deps.memory) as unknown as ToolDef,
+    // Memory now lives in data/wiki/ as plain markdown. The agent reads
+    // and writes it via the existing filesystem tools (read_file,
+    // write_file, edit_file, glob, grep). The legacy FTS5 memory_save /
+    // memory_recall tools were removed to avoid two competing read/write
+    // paths confusing the agent. The MemoryStore class is still wired so
+    // existing rows remain queryable from internal code if ever needed.
 
     // Declarative memory (MEMORY.md + USER.md) — hermes pattern
     ...(deps.declarativeMemory

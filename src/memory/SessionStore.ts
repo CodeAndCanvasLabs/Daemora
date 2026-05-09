@@ -192,6 +192,8 @@ export interface PendingInput {
 }
 
 export class SessionStore {
+  private _lastUserActivityAt: number | null = null;
+
   private readonly insertSession: Database.Statement;
   private readonly selectSession: Database.Statement;
   private readonly listSessionsStmt: Database.Statement;
@@ -410,9 +412,20 @@ export class SessionStore {
       this.insertMessage.run(id, sessionId, seq, message.role, json, tokenCount, now, attachmentsJson);
       this.touchSession.run(now, sessionId);
       if (tokenCount > 0) this.incrementTokens.run(tokenCount, sessionId);
+      if (message.role === "user") this._lastUserActivityAt = now;
       return { id, seq };
     });
     return run();
+  }
+
+  /**
+   * Timestamp of the most recent `user`-role message append since this
+   * process started. Used by the heartbeat's wiki-maintenance pass to
+   * skip a tick when the user is actively chatting. Returns `null` when
+   * no user message has been observed in this process lifetime.
+   */
+  lastUserActivityAt(): number | null {
+    return this._lastUserActivityAt;
   }
 
   /**
