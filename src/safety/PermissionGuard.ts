@@ -50,8 +50,6 @@ export const PERMISSION_TIERS: Record<PermissionTier, TierConfig> = {
       // native multimodal handles in-chat images, and the file-scan
       // pipeline calls describeImage() internally.
       "transcribe_audio",
-      // Read-only desktop inspection
-      "desktop_cursor_position", "desktop_list_windows", "desktop_screenshot",
       // Read PDF
       "read_pdf",
     ],
@@ -70,12 +68,9 @@ export const PERMISSION_TIERS: Record<PermissionTier, TierConfig> = {
       // AI / media
       "transcribe_audio", "text_to_speech",
       "generate_image", "generate_video", "generate_music", "image_ops",
-      // Desktop control
-      "desktop_click", "desktop_move", "desktop_mouse_down", "desktop_mouse_up",
-      "desktop_drag", "desktop_type", "desktop_press_key", "desktop_key_combo",
-      "desktop_hold_key", "desktop_scroll", "desktop_screenshot",
-      "desktop_list_windows", "desktop_focus_window", "desktop_cursor_position",
-      "desktop_find_element", "desktop_wait",
+      // Desktop control is provided by the `computer-use` MCP server
+      // (zavora-ai). Enable it from MCP settings; tools are reached via
+      // use_mcp. They are not gated here.
       // System
       "clipboard", "screen_capture", "reply_to_user",
       // Memory

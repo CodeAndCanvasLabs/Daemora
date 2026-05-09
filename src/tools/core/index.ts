@@ -25,7 +25,6 @@ import { makeBroadcastTool } from "./broadcast.js";
 import { clipboardTool } from "./clipboard.js";
 import { makeCreateDocumentTool } from "./createDocument.js";
 import { makeCronTool } from "./cronTool.js";
-import { makeDesktopTools } from "./desktop.js";
 import { makeEditFileTool } from "./editFile.js";
 import { makeExecuteCommandTool } from "./executeCommand.js";
 import { fetchUrlTool } from "./fetchUrl.js";
@@ -163,9 +162,10 @@ export function buildCoreTools(deps: CoreToolDeps): readonly ToolDef[] {
     // MCP integration
     ...(deps.mcp ? [makeUseMCPTool(deps.mcp) as unknown as ToolDef] : []),
 
-    // Desktop control — mouse, keyboard, windows, screenshot (via sidecar)
-    ...makeDesktopTools(deps.cfg),
-
+    // Desktop control — mouse, keyboard, screenshot, window/app management
+    // is provided by the `computer-use` MCP server (zavora-ai). Enable it
+    // from the MCP settings UI; tools are then reachable via use_mcp.
+    //
     // Browser automation lives in the `playwright` MCP server (Microsoft's
     // official Playwright MCP). It auto-starts on daemon boot, points its
     // user-data-dir at <dataDir>/browser/default, and exposes
