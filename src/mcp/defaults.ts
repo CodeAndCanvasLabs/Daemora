@@ -259,6 +259,16 @@ export const MCP_DEFAULTS: Readonly<Record<string, MCPDefault>> = {
     },
     requiredEnv: ["UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"],
   },
+  "computer-use": {
+    description:
+      "Desktop control — mouse, keyboard, screenshot, window/app management, accessibility tree. Native macOS + Windows (Rust NAPI, no Python). Disabled by default; enable from MCP settings when you want OS-level automation available to the main agent.",
+    docsUrl: "https://github.com/zavora-ai/computer-use-mcp",
+    config: {
+      command: "npx",
+      args: ["-y", "@zavora-ai/computer-use-mcp"],
+      enabled: false,
+    },
+  },
   playwright: {
     description: "Browser control — Microsoft Playwright MCP. Disabled by default; enable from MCP settings when you want browser tools available to the main agent and the browser-pilot crew. Persistent profile shared with `daemora browser` CLI logins.",
     config: {
