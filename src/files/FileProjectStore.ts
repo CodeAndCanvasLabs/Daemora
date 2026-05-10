@@ -30,7 +30,10 @@ const MANIFEST = "project.json";
 export class FileProjectStore {
   private readonly root: string;
 
-  constructor(dataDir: string) {
+  constructor(
+    dataDir: string,
+    private readonly wikiLog?: { append(kind: string, attrs: Record<string, string | number | undefined | null>): void },
+  ) {
     this.root = join(dataDir, "file-projects");
     mkdirSync(this.root, { recursive: true });
   }
@@ -86,6 +89,11 @@ export class FileProjectStore {
       files: [],
     };
     this.write(project);
+    this.wikiLog?.append("gallery.project.create", {
+      slug,
+      name: opts.name,
+      description: opts.description,
+    });
     return project;
   }
 
@@ -104,6 +112,11 @@ export class FileProjectStore {
       updatedAt: new Date().toISOString(),
     };
     this.write(updated);
+    this.wikiLog?.append("gallery.project.update", {
+      slug,
+      ...(patch.name !== undefined ? { name: patch.name } : {}),
+      ...(patch.description !== undefined ? { description: patch.description } : {}),
+    });
     return updated;
   }
 
@@ -111,6 +124,7 @@ export class FileProjectStore {
     const dir = this.pathOf(slug);
     if (!existsSync(dir)) return false;
     rmSync(dir, { recursive: true, force: true });
+    this.wikiLog?.append("gallery.project.delete", { slug });
     return true;
   }
 
@@ -132,6 +146,11 @@ export class FileProjectStore {
       updatedAt: new Date().toISOString(),
     };
     this.write(updated);
+    this.wikiLog?.append("gallery.file.add", {
+      slug,
+      file: record.path,
+      kind: record.kind,
+    });
     return record;
   }
 
@@ -151,6 +170,7 @@ export class FileProjectStore {
       updatedAt: new Date().toISOString(),
     };
     this.write(updated);
+    this.wikiLog?.append("gallery.file.remove", { slug, file: file.path });
     return true;
   }
 

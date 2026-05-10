@@ -32,6 +32,8 @@ GIT_RULES.md         # local dev notes
 .FEATURES.md         # internal feature planning
 FEATURES.md          # internal feature inventory
 ROADMAP.md           # internal development roadmap
+# daemora project wiki — local-only knowledge base for agents
+/wiki/
 
 # ── Claude Code project context ───────────────────────────────────────────────
 .claude/

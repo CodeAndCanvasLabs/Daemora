@@ -56,6 +56,7 @@ import { Cleanup } from "../../services/Cleanup.js";
 import { Embeddings } from "../../embeddings/Embeddings.js";
 import { DeclarativeMemoryStore } from "../../memory/DeclarativeMemoryStore.js";
 import { MemoryStore } from "../../memory/MemoryStore.js";
+import { WikiLog } from "../../wiki/WikiLog.js";
 import { SessionStore } from "../../memory/SessionStore.js";
 import { ModelRouter } from "../../models/ModelRouter.js";
 import { GoalStore } from "../../goals/GoalStore.js";
@@ -127,7 +128,8 @@ export async function startCommand(): Promise<void> {
 
   const models = new ModelRouter(cfg);
   const sessions = new SessionStore(cfg.database);
-  const memory = new MemoryStore(cfg.database);
+  const wikiLog = new WikiLog(cfg.env.dataDir);
+  const memory = new MemoryStore(cfg.database, wikiLog);
   const declarativeMemory = new DeclarativeMemoryStore(
     process.env["MEMORY_DIR"] ?? `${cfg.env.dataDir}/memory`,
   );
@@ -219,11 +221,26 @@ export async function startCommand(): Promise<void> {
     mcpServers: mcpManager.listStatus().length,
     mcpTools: mcpManager.allTools().length,
   }, "MCP servers connected");
+  // If playwright was already enabled by a previous run, make sure the
+  // Chromium binary is on disk. Don't block boot — the install can take
+  // 30–60s and the user may not need browser tools immediately.
+  const playwrightEntry = mcpStore.get("playwright");
+  if (playwrightEntry?.enabled === true) {
+    void import("../../mcp/playwrightInstall.js").then(({ ensurePlaywrightChromium }) =>
+      ensurePlaywrightChromium().then((r) => {
+        if (r.status === "failed") {
+          log.warn({ error: r.error }, "playwright chromium install failed at boot");
+        } else {
+          log.info({ status: r.status }, "playwright chromium ready");
+        }
+      }),
+    );
+  }
   // FileProjectStore is built here (before AgentLoop) so the
   // list_gallery_projects tool gets registered in the agent's tool
   // catalog at boot. ScanQueue construction is deferred below where
   // it can pick up the same store reference.
-  const fileProjectStore = new FileProjectStore(cfg.env.dataDir);
+  const fileProjectStore = new FileProjectStore(cfg.env.dataDir, wikiLog);
   const agent = new AgentLoop({
     cfg, models, skills, guard, memory,
     mcp: mcpManager, hooks: hookRunner,
@@ -352,7 +369,10 @@ export async function startCommand(): Promise<void> {
       rootDir: process.cwd(),
       daemonMode: cfg.env.daemonMode,
       proactiveIntervalMinutes: heartbeatIntervalMin,
+      wikiSyncIntervalMinutes: Number.parseInt(process.env["WIKI_SYNC_INTERVAL_MINUTES"] ?? "10", 10) || 10,
+      wikiDataDir: cfg.env.dataDir,
       enabledFn: () => (cfg.setting("HEARTBEAT_ENABLED") as boolean | undefined) ?? true,
+      lastUserActivityAt: () => sessions.lastUserActivityAt(),
     },
   );
   if (heartbeatEnabled && heartbeatIntervalMin > 0) heartbeat.start();

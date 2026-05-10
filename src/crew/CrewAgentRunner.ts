@@ -91,6 +91,8 @@ export interface CrewRunInput {
   readonly parentModelId: string;
   readonly maxSteps?: number;
   readonly abortSignal: AbortSignal;
+  /** When true, skip the per-crew session reuse and start a fresh session — for unrelated tasks against the same crew. */
+  readonly freshSession?: boolean;
 }
 
 export interface CrewRunResult {
@@ -136,10 +138,13 @@ export class CrewAgentRunner {
     // instead of it floating as an orphan.
     const sourceTag = `crew:${crew.manifest.id}`;
     const parentSessionId = "main";
-    const cached = this.crewSessionIds.get(crew.manifest.id);
-    let reused = cached ? this.sessions.getSession(cached) : null;
-    if (!reused) {
-      reused = this.sessions.findLatestSessionBySource(sourceTag, parentSessionId);
+    let reused = null;
+    if (!input.freshSession) {
+      const cached = this.crewSessionIds.get(crew.manifest.id);
+      reused = cached ? this.sessions.getSession(cached) : null;
+      if (!reused) {
+        reused = this.sessions.findLatestSessionBySource(sourceTag, parentSessionId);
+      }
     }
     const session = reused ?? this.sessions.createSession({
       title: `Crew: ${crew.manifest.name}`,
@@ -406,6 +411,7 @@ function buildCrewSystemPrompt(crew: LoadedCrew, skillsIndex: string): string {
     crew.manifest.profile.systemPrompt,
     "",
     "— You are being called as a specialist by the main Daemora agent.",
+    "— Save every generated/downloaded/temp file under `data/` (e.g. `data/outputs/`, `data/file-projects/<slug>/`, `data/temp/`). Never write outside `data/`.",
     "— Your last message MUST be a plain-text summary for the main agent: what you did, what worked, what failed, what's left, and the deliverable (path/URL/exact text). Never end on a tool call. Never reply empty.",
     "— You DO NOT have access to delegate further. Complete the task with the tools you have.",
     "— If you lack a tool required for the task, say so explicitly and return what partial result you can.",

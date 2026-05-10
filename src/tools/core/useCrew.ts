@@ -69,6 +69,12 @@ const inputSchema = z.object({
     .describe(
       "Optional source material the crew should consult: files to read, URLs to study, prior outputs, examples. Omit if there are none.",
     ),
+  freshSession: z
+    .boolean()
+    .optional()
+    .describe(
+      "Set true when this task is unrelated to the crew's previous work (different deliverable, different topic). Starts a clean session so prior history doesn't leak in. Omit/false to continue the same workstream.",
+    ),
 });
 
 export function makeUseCrewTool(
@@ -91,7 +97,7 @@ export function makeUseCrewTool(
     source: { kind: "core" },
     alwaysOn: true,
     inputSchema,
-    async execute({ crew, task, context, constraints, successCriteria, references }, { taskId, abortSignal }) {
+    async execute({ crew, task, context, constraints, successCriteria, references, freshSession }, { taskId, abortSignal }) {
       if (!registry.has(crew)) {
         throw new NotFoundError(`Unknown crew: ${crew}`, {
           knownCrews: registry.list().map((c) => c.manifest.id),
@@ -104,6 +110,7 @@ export function makeUseCrewTool(
         constraints,
         successCriteria,
         ...(references && references.length > 0 ? { references } : {}),
+        ...(freshSession ? { freshSession: true } : {}),
         parentTaskId: taskId,
         parentModelId: turn.resolvedModel(),
         abortSignal,

@@ -5,6 +5,7 @@
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
 
+import { ensurePlaywrightChromium } from "../../mcp/playwrightInstall.js";
 import { ValidationError } from "../../util/errors.js";
 import type { ServerDeps } from "../index.js";
 
@@ -66,8 +67,9 @@ export function mountMCPRoutes(app: Express, deps: ServerDeps): void {
     const name = req.params.name ?? "";
     const updated = deps.mcpStore.update(name, { enabled: true });
     if (!updated) return res.status(404).json({ error: "mcp server not found" });
+    const chromium = name === "playwright" ? await ensurePlaywrightChromium() : undefined;
     await deps.mcp.loadAll();
-    res.json({ ok: true });
+    res.json({ ok: true, ...(chromium ? { chromium } : {}) });
   });
 
   app.post("/api/mcp/:name/disable", async (req: Request, res: Response) => {
