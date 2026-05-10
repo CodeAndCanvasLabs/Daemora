@@ -17,6 +17,7 @@ import { z } from "zod";
 
 import type { MCPManager } from "../../mcp/MCPManager.js";
 import type { MCPStore } from "../../mcp/MCPStore.js";
+import { ensurePlaywrightChromium } from "../../mcp/playwrightInstall.js";
 import { NotFoundError, ValidationError } from "../../util/errors.js";
 import type { ToolDef } from "../types.js";
 
@@ -117,9 +118,16 @@ export function makeManageMCPTool(store: MCPStore, manager: MCPManager): ToolDef
           if (!input.name) throw new ValidationError("name is required");
           const ok = store.setEnabled(input.name, input.action === "enable");
           if (!ok) throw new NotFoundError(`MCP server not found: ${input.name}`);
+          let install: Awaited<ReturnType<typeof ensurePlaywrightChromium>> | undefined;
           if (input.action === "enable") {
             const entry = store.get(input.name);
             if (entry) {
+              if (input.name === "playwright") {
+                install = await ensurePlaywrightChromium();
+                if (install.status === "failed") {
+                  logger.warn("playwright chromium install failed", { error: install.error });
+                }
+              }
               await manager.connect(entry).catch((err) => {
                 logger.warn("mcp connect failed", { name: input.name, error: (err as Error).message });
               });
@@ -127,7 +135,12 @@ export function makeManageMCPTool(store: MCPStore, manager: MCPManager): ToolDef
           } else {
             await manager.disconnect(input.name);
           }
-          return { name: input.name, enabled: input.action === "enable", message: `MCP server '${input.name}' ${input.action}d` };
+          return {
+            name: input.name,
+            enabled: input.action === "enable",
+            message: `MCP server '${input.name}' ${input.action}d`,
+            ...(install ? { chromium: install } : {}),
+          };
         }
 
         case "reconnect": {

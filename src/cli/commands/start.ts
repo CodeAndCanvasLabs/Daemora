@@ -221,6 +221,21 @@ export async function startCommand(): Promise<void> {
     mcpServers: mcpManager.listStatus().length,
     mcpTools: mcpManager.allTools().length,
   }, "MCP servers connected");
+  // If playwright was already enabled by a previous run, make sure the
+  // Chromium binary is on disk. Don't block boot — the install can take
+  // 30–60s and the user may not need browser tools immediately.
+  const playwrightEntry = mcpStore.get("playwright");
+  if (playwrightEntry?.enabled === true) {
+    void import("../../mcp/playwrightInstall.js").then(({ ensurePlaywrightChromium }) =>
+      ensurePlaywrightChromium().then((r) => {
+        if (r.status === "failed") {
+          log.warn({ error: r.error }, "playwright chromium install failed at boot");
+        } else {
+          log.info({ status: r.status }, "playwright chromium ready");
+        }
+      }),
+    );
+  }
   // FileProjectStore is built here (before AgentLoop) so the
   // list_gallery_projects tool gets registered in the agent's tool
   // catalog at boot. ScanQueue construction is deferred below where
