@@ -76,7 +76,7 @@ export const PERMISSION_TIERS: Record<PermissionTier, TierConfig> = {
       // Memory
       "memory_save", "memory_recall",
       // Orchestration
-      "use_crew", "parallel_crew", "use_mcp",
+      "use_crew", "parallel_crew", "stop_crew", "use_mcp",
       // Planning / tracking
       "project", "team", "cron", "goal", "watcher",
       // Git

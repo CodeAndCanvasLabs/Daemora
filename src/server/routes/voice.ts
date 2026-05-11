@@ -242,7 +242,11 @@ export function mountVoiceRoutes(
       // Auto-respawn unless we've been explicitly stopped (sidecar/stop
       // or server shutdown). Give a short delay so rtc-node's C++
       // teardown flushes before we re-launch.
-      if (!respawnBlocked) {
+      // exitCode !== null on the daemon means we're shutting down (Node
+      // sets it once `process.exit` is called or a signal is being
+      // handled) — never respawn during shutdown or we'd leak a worker
+      // right before the parent dies.
+      if (!respawnBlocked && process.exitCode == null) {
         setTimeout(() => { void spawnVoiceWorker(); }, 2000);
       }
     });

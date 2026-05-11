@@ -29,6 +29,7 @@ import type { SkillLoader } from "../skills/SkillLoader.js";
 import type { SkillRegistry } from "../skills/SkillRegistry.js";
 import { buildCoreTools } from "../tools/core/index.js";
 import { makeParallelCrewTool } from "../tools/core/parallelCrew.js";
+import { makeStopCrewTool } from "../tools/core/stopCrew.js";
 import { makeListCrewsTool } from "../tools/core/listCrews.js";
 import { makeUseCrewTool } from "../tools/core/useCrew.js";
 import { ToolRegistry } from "../tools/registry.js";
@@ -210,6 +211,7 @@ export class AgentLoop {
     const turn = { resolvedModel: () => this.currentResolvedModel() };
     this.tools.register(makeUseCrewTool(registry, runner, turn) as unknown as ToolDef);
     this.tools.register(makeParallelCrewTool(registry, runner, turn) as unknown as ToolDef);
+    this.tools.register(makeStopCrewTool(runner) as unknown as ToolDef);
   }
 
   /** Model id the live turn is resolved to. Throws if called outside a turn. */
