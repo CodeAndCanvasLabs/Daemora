@@ -109,6 +109,9 @@ export class CrewAgentRunner {
   /** Process-lifetime map: crewId → sessionId. Sessions persist in SQL regardless. */
   private readonly crewSessionIds = new Map<string, string>();
 
+  /** crewId → in-flight AbortControllers. Each `run()` registers its local controller so the main agent can stop a running crew via the `stop_crew` tool without aborting the parent task. */
+  private readonly activeRuns = new Map<string, Set<AbortController>>();
+
   constructor(
     private readonly crews: CrewRegistry,
     private readonly tools: ToolRegistry,
@@ -117,6 +120,34 @@ export class CrewAgentRunner {
     private readonly skills?: SkillRegistry,
     private readonly fileProjects?: import("../files/FileProjectStore.js").FileProjectStore,
   ) {}
+
+  /** Abort all in-flight runs for a given crewId. Returns the count aborted. */
+  stop(crewId: string): number {
+    const set = this.activeRuns.get(crewId);
+    if (!set) return 0;
+    for (const c of set) c.abort(new Error("crew run stopped by main agent"));
+    const n = set.size;
+    set.clear();
+    this.activeRuns.delete(crewId);
+    return n;
+  }
+
+  /** Abort every in-flight crew run. Returns total count aborted. */
+  stopAll(): number {
+    let n = 0;
+    for (const [, set] of this.activeRuns) {
+      for (const c of set) c.abort(new Error("crew run stopped by main agent"));
+      n += set.size;
+      set.clear();
+    }
+    this.activeRuns.clear();
+    return n;
+  }
+
+  /** Snapshot of active crewIds (for diagnostics / logging). */
+  listActive(): string[] {
+    return [...this.activeRuns.entries()].filter(([, s]) => s.size > 0).map(([k]) => k);
+  }
 
   async run(input: CrewRunInput): Promise<CrewRunResult> {
     const crew = this.crews.tryGet(input.crewId);
@@ -168,6 +199,20 @@ export class CrewAgentRunner {
     const userMsg: ModelMessage = { role: "user", content: userMsgContent };
     this.sessions.appendMessage(session.id, userMsg, estimateMessageTokens(userMsg));
 
+    // Local abort controller for this run, registered so the main agent
+    // can stop just this crew via `stop_crew` without aborting the
+    // parent task. Combined with parent signal so parent cancellation
+    // still flows through.
+    const localAbort = new AbortController();
+    const combinedSignal = AbortSignal.any([input.abortSignal, localAbort.signal]);
+    let activeSet = this.activeRuns.get(crew.manifest.id);
+    if (!activeSet) {
+      activeSet = new Set();
+      this.activeRuns.set(crew.manifest.id, activeSet);
+    }
+    activeSet.add(localAbort);
+
+    try {
     const crewToolset = this.buildCrewTools(crew, input);
     const resolved = await this.models.resolve(
       crew.manifest.profile.model ?? input.parentModelId,
@@ -214,7 +259,7 @@ export class CrewAgentRunner {
         tools: crewToolset,
         temperature: crew.manifest.profile.temperature,
         stopWhen: stepCountIs(stepBudget),
-        abortSignal: input.abortSignal,
+        abortSignal: combinedSignal,
       });
 
       let toolCalls = 0;
@@ -344,6 +389,10 @@ export class CrewAgentRunner {
       inputTokens: totalInputTokens,
       outputTokens: totalOutputTokens,
     };
+    } finally {
+      activeSet.delete(localAbort);
+      if (activeSet.size === 0) this.activeRuns.delete(crew.manifest.id);
+    }
   }
 
   /**

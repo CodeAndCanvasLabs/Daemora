@@ -78,6 +78,7 @@ import { SkillRegistry } from "../../skills/SkillRegistry.js";
 import { createApp } from "../../server/index.js";
 // Voice now runs via LiveKit agent worker (see src/voice/VoiceAgent.ts
 // spawned from /api/voice/sidecar/start), not a custom WebSocket.
+import { signalTree } from "../../util/killTree.js";
 import { createLogger } from "../../util/logger.js";
 
 const log = createLogger("cli.start");
@@ -498,6 +499,10 @@ export async function startCommand(): Promise<void> {
 
   const shutdown = (signal: NodeJS.Signals) => {
     log.info({ signal }, "shutting down");
+    // Mark the process as exiting so child exit-handlers (e.g. the
+    // voice worker's auto-respawn in src/server/routes/voice.ts) can
+    // see it and skip respawning during teardown.
+    process.exitCode = 0;
     cronScheduler.stop();
     goalPulse.stop();
     heartbeat.stop();
@@ -508,12 +513,28 @@ export async function startCommand(): Promise<void> {
     debouncer.shutdown();
     channelManager.stopAll().catch(() => {});
     mcpManager.stopAll().catch(() => {});
+
+    // Kill the entire descendant process tree — voice worker + its
+    // LiveKit job_proc children, MCP stdio servers, in-flight
+    // execute_command shells (and anything THEY spawned, e.g. Remotion
+    // chrome-headless-shell render trees). Without this, those become
+    // orphans reparented to launchd and keep running for days.
+    const sigtermed = signalTree(process.pid, "SIGTERM");
+    if (sigtermed > 0) log.info({ count: sigtermed }, "SIGTERM sent to descendants");
+
     server.close(() => {
       cfg.close();
       process.exit(0);
     });
-    // Force exit after 3s if something hangs.
-    setTimeout(() => process.exit(0), 3_000).unref();
+
+    // Force exit after 3s if something hangs. Before exiting, SIGKILL
+    // anyone who ignored the SIGTERM so daemora's death takes the
+    // whole tree with it.
+    setTimeout(() => {
+      const survivors = signalTree(process.pid, "SIGKILL");
+      if (survivors > 0) log.warn({ count: survivors }, "SIGKILL sent to surviving descendants");
+      process.exit(0);
+    }, 3_000).unref();
   };
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);

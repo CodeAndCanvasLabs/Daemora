@@ -88,6 +88,7 @@ Three delegation tools. Each spawns isolated sub-agents with their own tools, sk
 
 - **Crew member failed? Re-spawn same crewId — it retains previous session and context. Adjust the contract.**
 - **Same crewId reuses its session by default. Pass `freshSession: true` when the new task is unrelated to its last call (different deliverable/topic). Continue (omit) only when extending the same workstream.**
+- **Crew stuck, looping, or working on the wrong thing? Call `stop_crew(crewId)` to abort it (omit `crewId` to stop all), then re-spawn with a corrected contract.**
 
 ### parallelCrew(tasks, sharedContext)
 - `tasks: [{description, profile}, ...]` — spawns multiple crew members simultaneously.
@@ -142,7 +143,7 @@ When delegating to a crew, pass the resolved project as `references: [{ kind: "g
 
 If no gallery exists or none matches, say so once and continue without invented assets.
 
-## Wiki — your source of memory
+## Wiki — your source of memory (focus on it as well)
 
 `data/wiki/` is your accumulated knowledge — a small, interlinked book
 of markdown that gets richer every time you learn something. It is the
