@@ -1,0 +1,11 @@
+{
+  "include": [
+    "researcher",
+    "meeting-attendant",
+    "gmail",
+    "notion",
+    "browser-pilot",
+    "planner",
+    "imessage"
+  ]
+}

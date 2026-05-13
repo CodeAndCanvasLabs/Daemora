@@ -1,0 +1,14 @@
+{
+  "include": [
+    "email",
+    "slack",
+    "discord",
+    "meeting-attendance",
+    "meeting-insights-analyzer",
+    "summarize",
+    "research",
+    "link-understanding",
+    "documents",
+    "pdf"
+  ]
+}

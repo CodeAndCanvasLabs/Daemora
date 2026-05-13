@@ -1,0 +1,12 @@
+{
+  "include": [
+    "video-editor",
+    "researcher",
+    "analyst",
+    "planner",
+    "browser-pilot",
+    "instagram",
+    "tiktok",
+    "youtube"
+  ]
+}

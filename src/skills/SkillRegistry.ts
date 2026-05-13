@@ -28,6 +28,16 @@ export interface SkillFilter {
   readonly enabledIntegrations: ReadonlySet<string>;
   /** Current OS platform for filtering (defaults to process.platform). */
   readonly platform?: string;
+  /**
+   * Optional profile gate. When set, only skills whose id appears in
+   * `include` (if non-empty) and is NOT in `exclude` are surfaced.
+   * Omit / leave empty arrays for "no profile filter" (the default
+   * `daemora` profile uses this — every skill visible).
+   */
+  readonly profile?: {
+    readonly include?: readonly string[];
+    readonly exclude?: readonly string[];
+  };
 }
 
 export class SkillRegistry {
@@ -56,7 +66,17 @@ export class SkillRegistry {
   /** Skills the agent can actually use right now (all requirements met). */
   visible(filter: SkillFilter): readonly Skill[] {
     const platform = (filter.platform ?? process.platform).toLowerCase();
+    const include = filter.profile?.include && filter.profile.include.length > 0
+      ? new Set(filter.profile.include)
+      : null;
+    const exclude = filter.profile?.exclude && filter.profile.exclude.length > 0
+      ? new Set(filter.profile.exclude)
+      : null;
     return this.list().filter((s) => {
+      // Profile gate runs first — cheapest filter, and lets specialist
+      // profiles narrow the surface before per-skill requirement checks.
+      if (include && !include.has(s.meta.id)) return false;
+      if (exclude && exclude.has(s.meta.id)) return false;
       for (const t of s.meta.requires_tools) {
         if (!filter.availableTools.has(t)) return false;
       }

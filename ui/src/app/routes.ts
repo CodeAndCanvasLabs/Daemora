@@ -18,7 +18,6 @@ import { Goals } from "./pages/Goals";
 import { Watchers } from "./pages/Watchers";
 import { Crew } from "./pages/Crew";
 import { Files } from "./pages/Files";
-import { Teams } from "./pages/Teams";
 import { Setup } from "./pages/Setup";
 
 export const router = createBrowserRouter([
@@ -49,7 +48,6 @@ export const router = createBrowserRouter([
       { path: "security", Component: Security },
       { path: "costs", Component: Costs },
       { path: "crew", Component: Crew },
-      { path: "teams", Component: Teams },
       { path: "settings", Component: Settings },
     ],
   },

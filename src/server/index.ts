@@ -48,6 +48,7 @@ import { mountCronRoutes } from "./routes/cron.js";
 import { mountGoalRoutes } from "./routes/goals.js";
 import { mountMCPRoutes } from "./routes/mcp.js";
 import { mountMemoryRoutes } from "./routes/memory.js";
+import { mountProfilesRoutes } from "./routes/profiles.js";
 import { mountProviderRoutes } from "./routes/providers.js";
 import { mountSecurityRoutes } from "./routes/security.js";
 import { mountSessionRoutes } from "./routes/sessions.js";
@@ -94,6 +95,8 @@ export interface ServerDeps {
   readonly teamStore: TeamStore;
   readonly auth: Auth;
   readonly webhookTokens: WebhookTokenStore;
+  /** Active profile + lineup. Surfaced to /api/profiles for the UI picker. */
+  readonly profiles: import("../profiles/ProfileRegistry.js").ProfileRegistry;
   /**
    * When true, the requireAuth middleware gates all /api/* routes.
    * When false (default, for dev / first-run), the middleware is a
@@ -298,6 +301,7 @@ export function createApp(deps: ServerDeps): Express {
   mountMCPRoutes(app, deps);
   mountBrowserRoutes(app, deps);
   mountMemoryRoutes(app, deps);
+  mountProfilesRoutes(app, deps);
   mountProviderRoutes(app, deps);
   mountSecurityRoutes(app, deps);
   mountSessionRoutes(app, deps);

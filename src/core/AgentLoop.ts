@@ -76,6 +76,12 @@ export interface AgentLoopDeps {
    * crews stay invisible until the user connects the service.
    */
   readonly getEnabledIntegrations?: () => Set<string>;
+  /**
+   * Active-profile registry. When present, AgentLoop narrows the
+   * surface (skills / crews / tools) to whatever the active profile
+   * permits. Omit → all surfaces visible (legacy behaviour).
+   */
+  readonly profiles?: import("../profiles/ProfileRegistry.js").ProfileRegistry;
 }
 
 export type AgentEvent =
@@ -157,6 +163,7 @@ export class AgentLoop {
    */
   private readonly systemPromptCache = new Map<string, string>();
   private readonly getEnabledIntegrations?: () => Set<string>;
+  private readonly profiles?: import("../profiles/ProfileRegistry.js").ProfileRegistry;
 
   constructor(deps: AgentLoopDeps) {
     this.cfg = deps.cfg;
@@ -167,6 +174,12 @@ export class AgentLoop {
     this.declarativeMemory = deps.declarativeMemory;
     this.loopDetector = deps.loopDetector;
     if (deps.getEnabledIntegrations) this.getEnabledIntegrations = deps.getEnabledIntegrations;
+    if (deps.profiles) {
+      this.profiles = deps.profiles;
+      // Profile change → flush system-prompt cache so the next turn picks
+      // up the new soul.md + skill/crew filter set.
+      deps.profiles.on("change", () => this.systemPromptCache.clear());
+    }
 
     this.tools = new ToolRegistry();
     const skills = deps.skills;
@@ -223,6 +236,53 @@ export class AgentLoop {
   }
 
   /**
+   * Active profile's skill include/exclude — or undefined when no
+   * registry is wired, when the active profile has no filter set, OR
+   * when the filter is empty (i.e. "no restriction"). Callers spread
+   * conditionally so we don't put a noisy `profile: {}` in the filter
+   * object.
+   */
+  private profileSkillFilter(): { include?: readonly string[]; exclude?: readonly string[] } | undefined {
+    if (!this.profiles) return undefined;
+    const p = this.profiles.getActive();
+    const inc = p.skills.include ?? [];
+    const exc = p.skills.exclude ?? [];
+    if (inc.length === 0 && exc.length === 0) return undefined;
+    const out: { include?: readonly string[]; exclude?: readonly string[] } = {};
+    if (inc.length > 0) out.include = inc;
+    if (exc.length > 0) out.exclude = exc;
+    return out;
+  }
+
+  /**
+   * Active profile's tool allowlist — { tools, categories } sets that
+   * AgentLoop intersects with the registry. Returns undefined when
+   * there's no profile gate (default daemora) so callers can skip the
+   * filter cheaply.
+   */
+  private profileToolFilter(): { tools: ReadonlySet<string>; categories: ReadonlySet<string> } | undefined {
+    if (!this.profiles) return undefined;
+    const p = this.profiles.getActive();
+    const toolNames = p.tools.allowedTools ?? [];
+    const cats = p.tools.allowedCategories ?? [];
+    if (toolNames.length === 0 && cats.length === 0) return undefined;
+    return { tools: new Set(toolNames), categories: new Set(cats) };
+  }
+
+  /** Active profile's crew include/exclude (same shape semantics as skill filter). */
+  private profileCrewFilter(): { include?: readonly string[]; exclude?: readonly string[] } | undefined {
+    if (!this.profiles) return undefined;
+    const p = this.profiles.getActive();
+    const inc = p.crews.include ?? [];
+    const exc = p.crews.exclude ?? [];
+    if (inc.length === 0 && exc.length === 0) return undefined;
+    const out: { include?: readonly string[]; exclude?: readonly string[] } = {};
+    if (inc.length > 0) out.include = inc;
+    if (exc.length > 0) out.exclude = exc;
+    return out;
+  }
+
+  /**
    * Invalidate cached system prompt for a session. Call when:
    *   - Compaction rolled the session to a child id (the child gets a
    *     fresh system prompt matching the compacted head).
@@ -245,22 +305,36 @@ export class AgentLoop {
     // Pure hermes pattern: no matcher. Every available tool goes into
     // the turn; the agent decides via the skill index which skills to
     // load, and calls skill_view(name) to read them.
+    // Active profile's tool allowlist — used to narrow availableNames
+    // and the toolDefs surface. When the profile has no restriction
+    // (default `daemora`) these stay null and behaviour matches legacy.
+    const profileTools = this.profileToolFilter();
+
     const availableNames = input.allowedTools && input.allowedTools.length > 0
       ? new Set(input.allowedTools)
-      : new Set(this.tools.list().map((t) => t.name));
+      : new Set(
+        this.tools
+          .list()
+          .filter((t) => profileTools ? profileToolPasses(t, profileTools) : true)
+          .map((t) => t.name),
+      );
 
     const allToolDefs = this.tools.available(enabledIntegrations);
-    const toolDefs = input.allowedTools && input.allowedTools.length > 0
+    let toolDefs = input.allowedTools && input.allowedTools.length > 0
       ? allToolDefs.filter((t) => availableNames.has(t.name))
       : allToolDefs;
+    if (profileTools && (!input.allowedTools || input.allowedTools.length === 0)) {
+      toolDefs = toolDefs.filter((t) => profileToolPasses(t, profileTools));
+    }
 
     // System prompt: cached per-session when sessionId is provided (hermes
     // pattern). Voice mode flips the prompt content so it gets its own
     // cache key; sub-agent spawns with allowedTools bypass the cache since
     // the skills index reflects the narrower toolset.
+    const profileId = this.profiles?.getActiveId() ?? "default";
     const cacheKey = input.sessionId && !input.voiceMode
       && !(input.allowedTools && input.allowedTools.length > 0)
-      ? `${input.sessionId}:${resolved.id}` : null;
+      ? `${input.sessionId}:${resolved.id}:${profileId}` : null;
     let systemPrompt: string;
     if (cacheKey && this.systemPromptCache.has(cacheKey)) {
       systemPrompt = this.systemPromptCache.get(cacheKey)!;
@@ -268,6 +342,7 @@ export class AgentLoop {
       const skillsIndex = this.skills.renderIndexForPrompt({
         availableTools: availableNames,
         enabledIntegrations,
+        ...(this.profileSkillFilter() ? { profile: this.profileSkillFilter()! } : {}),
       });
       systemPrompt = await this.buildSystemPrompt(skillsIndex, input.voiceMode ?? false);
       if (cacheKey) this.systemPromptCache.set(cacheKey, systemPrompt);
@@ -327,6 +402,7 @@ export class AgentLoop {
         skillsVisible: this.skills.visible({
           availableTools: availableNames,
           enabledIntegrations,
+          ...(this.profileSkillFilter() ? { profile: this.profileSkillFilter()! } : {}),
         }).length,
         maxSteps: input.maxSteps ?? DEFAULT_MAX_STEPS,
         crewCount: this.crews?.size ?? 0,
@@ -359,17 +435,23 @@ export class AgentLoop {
     skillsIndex: string,
     voiceMode: boolean,
   ): Promise<string> {
-    // SOUL.md is the agent's core personality — loaded once and cached.
-    if (!AgentLoop._soulPrompt) {
-      try {
-        const soulPath = join(dirname(fileURLToPath(import.meta.url)), "../../SOUL.md");
-        AgentLoop._soulPrompt = readFileSync(soulPath, "utf-8").trim();
-      } catch {
-        AgentLoop._soulPrompt = "You are Daemora — a personal AI agent. Call tools to complete tasks. Be direct.";
-      }
-    }
+    // Soul prompt source order:
+    //   1. Active profile's soul.md (already loaded into memory by ProfileLoader).
+    //   2. Repo-root SOUL.md (legacy / fallback for installs without a profile registry).
+    //   3. Hard-coded one-liner if both fail.
+    // Profile-sourced prompts vary per profile, so we don't memoize them
+    // statically — the systemPromptCache (keyed per session+model) does
+    // the caching, and is flushed on profile change in the constructor.
+    const soulPrompt = this.profiles?.getActive().soulPrompt ?? AgentLoop.fallbackSoulPrompt();
+    const sections: string[] = [soulPrompt];
 
-    const sections: string[] = [AgentLoop._soulPrompt];
+    // Runtime contracts — wiki, gallery, safety, delegation field shapes,
+    // voice mode, response format, verification. Loaded from
+    // `profiles/_shared/runtime.md` once and appended after every
+    // profile's soul.md so the runtime contract is a single source of
+    // truth instead of duplicated into each specialist soul.md.
+    const runtime = AgentLoop.runtimeContracts();
+    if (runtime) sections.push("\n" + runtime);
 
     // Plan Mode — when on, the agent must ask before every destructive
     // action via reply_to_user and wait for explicit approval. Injected
@@ -401,8 +483,11 @@ export class AgentLoop {
     sections.push(`\n## Available Tools\n${toolNames.join(", ")}`);
 
     if (this.crews && this.crews.size > 0) {
-      sections.push("\n## Available Crews");
-      for (const line of this.crews.summaryLines()) sections.push(line);
+      const lines = this.crews.summaryLines(this.profileCrewFilter());
+      if (lines.length > 0) {
+        sections.push("\n## Available Crews");
+        for (const line of lines) sections.push(line);
+      }
     }
 
     if (this.mcp) {
@@ -464,7 +549,41 @@ export class AgentLoop {
     return sections.join("\n");
   }
 
-  private static _soulPrompt: string | null = null;
+  /**
+   * Fallback prompt source for installs without a wired ProfileRegistry
+   * (sub-agent contexts, tests, legacy callers). Reads `SOUL.md` from
+   * the repo root once and caches it. Active-profile installs never hit
+   * this path.
+   */
+  private static fallbackSoul: string | null = null;
+  private static fallbackSoulPrompt(): string {
+    if (this.fallbackSoul !== null) return this.fallbackSoul;
+    try {
+      const soulPath = join(dirname(fileURLToPath(import.meta.url)), "../../SOUL.md");
+      this.fallbackSoul = readFileSync(soulPath, "utf-8").trim();
+    } catch {
+      this.fallbackSoul = "You are Daemora — a personal AI agent. Call tools to complete tasks. Be direct.";
+    }
+    return this.fallbackSoul;
+  }
+
+  /**
+   * Runtime contracts shared by every profile (voice, wiki, gallery,
+   * safety, delegation field shapes, verification). Loaded once from
+   * `profiles/_shared/runtime.md`. Returns empty string if the file is
+   * missing — the profile's soul.md is then on its own.
+   */
+  private static runtimeCache: string | null = null;
+  private static runtimeContracts(): string {
+    if (this.runtimeCache !== null) return this.runtimeCache;
+    try {
+      const path = join(dirname(fileURLToPath(import.meta.url)), "../../profiles/_shared/runtime.md");
+      this.runtimeCache = readFileSync(path, "utf-8").trim();
+    } catch {
+      this.runtimeCache = "";
+    }
+    return this.runtimeCache;
+  }
 }
 
 async function* translateFullStream(
@@ -541,6 +660,21 @@ async function* translateFullStream(
     log.error({ taskId: input.taskId, err: err.message, code: err.code }, "agent stream error");
     yield { type: "error", message: err.message };
   }
+}
+
+/**
+ * Profile tool gate: tool passes if its name is in `tools` OR its
+ * category is in `categories`. Empty sets mean "not restricted by this
+ * dimension" — caller already guarantees the filter is non-trivial
+ * before invoking.
+ */
+function profileToolPasses(
+  def: ToolDef,
+  filter: { tools: ReadonlySet<string>; categories: ReadonlySet<string> },
+): boolean {
+  if (filter.tools.size > 0 && filter.tools.has(def.name)) return true;
+  if (filter.categories.size > 0 && filter.categories.has(def.category)) return true;
+  return false;
 }
 
 function clipForTransport(value: unknown): { value: unknown; truncated: boolean } {

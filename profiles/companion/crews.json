@@ -1,0 +1,15 @@
+{
+  "include": [
+    "researcher",
+    "planner",
+    "meeting-attendant",
+    "gmail",
+    "google-calendar",
+    "google-services",
+    "notion",
+    "imessage",
+    "notifications",
+    "smart-home",
+    "browser-pilot"
+  ]
+}

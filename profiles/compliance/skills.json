@@ -1,0 +1,13 @@
+{
+  "include": [
+    "research",
+    "documents",
+    "rich-document-creator",
+    "pdf",
+    "summarize",
+    "link-understanding",
+    "planning",
+    "data-analysis",
+    "google-workspace"
+  ]
+}

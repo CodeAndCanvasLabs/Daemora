@@ -1,0 +1,18 @@
+{
+  "include": [
+    "image-gen",
+    "image-enhancer",
+    "gif-search",
+    "frontend-design",
+    "brand-guidelines",
+    "remotion",
+    "video-script-writer",
+    "video-downloader",
+    "video-frames",
+    "slack-gif-creator",
+    "documents",
+    "rich-document-creator",
+    "summarize",
+    "planning"
+  ]
+}

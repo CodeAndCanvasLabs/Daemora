@@ -124,8 +124,13 @@ export class PermissionGuard extends EventEmitter {
   /**
    * Is this tool allowed under the current tier? Returns
    * `{allowed: false, reason}` with a user-facing message otherwise.
+   *
+   * `profileAllowed` (optional) intersects with the tier check — the
+   * tool must pass BOTH the tier allowlist AND the profile allowlist.
+   * Pass undefined / empty for "no profile filter" (legacy behaviour).
+   * Profile can never escalate beyond tier — only restrict further.
    */
-  check(toolName: string): PermissionCheck {
+  check(toolName: string, profileAllowed?: ReadonlySet<string>): PermissionCheck {
     const cfg = PERMISSION_TIERS[this.tier];
 
     // MCP tools — user-configured integrations pass through in standard+.
@@ -134,27 +139,39 @@ export class PermissionGuard extends EventEmitter {
         this.emit("denied", { toolName, tier: this.tier });
         return { allowed: false, reason: `MCP tools blocked in '${this.tier}' tier.` };
       }
+      // MCP tools are honoured by the profile filter the same way — if
+      // a specialist profile lists specific mcp__server__tool names,
+      // only those are visible. Empty profile filter = all MCP allowed.
+      if (profileAllowed && profileAllowed.size > 0 && !profileAllowed.has(toolName)) {
+        this.emit("denied", { toolName, tier: this.tier });
+        return { allowed: false, reason: `Tool '${toolName}' is not in the active profile's tool list.` };
+      }
       return { allowed: true };
     }
 
-    if (cfg.allowedTools.includes("*") || cfg.allowedTools.includes(toolName)) {
-      return { allowed: true };
+    if (!(cfg.allowedTools.includes("*") || cfg.allowedTools.includes(toolName))) {
+      this.emit("denied", { toolName, tier: this.tier });
+      return {
+        allowed: false,
+        reason:
+          `Tool '${toolName}' is not allowed in '${this.tier}' tier. ` +
+          `Switch to 'standard' or 'full' in Settings if you need it.`,
+      };
     }
 
-    this.emit("denied", { toolName, tier: this.tier });
-    return {
-      allowed: false,
-      reason:
-        `Tool '${toolName}' is not allowed in '${this.tier}' tier. ` +
-        `Switch to 'standard' or 'full' in Settings if you need it.`,
-    };
+    if (profileAllowed && profileAllowed.size > 0 && !profileAllowed.has(toolName)) {
+      this.emit("denied", { toolName, tier: this.tier });
+      return { allowed: false, reason: `Tool '${toolName}' is not in the active profile's tool list.` };
+    }
+
+    return { allowed: true };
   }
 
   /**
    * Return only the tool names that are allowed — used by the agent
    * loop when composing the per-turn tool set.
    */
-  filterToolNames(names: readonly string[]): string[] {
-    return names.filter((n) => this.check(n).allowed);
+  filterToolNames(names: readonly string[], profileAllowed?: ReadonlySet<string>): string[] {
+    return names.filter((n) => this.check(n, profileAllowed).allowed);
   }
 }

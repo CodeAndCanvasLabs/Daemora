@@ -1,0 +1,4 @@
+{
+  "allowedCategories": ["filesystem", "search", "network", "ai", "system", "agent"],
+  "allowedTools": ["execute_command"]
+}

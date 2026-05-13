@@ -1,0 +1,16 @@
+{
+  "include": [
+    "invoice-organizer",
+    "data-analysis",
+    "documents",
+    "document-xlsx",
+    "rich-document-creator",
+    "pdf",
+    "summarize",
+    "research",
+    "link-understanding",
+    "planning",
+    "google-workspace",
+    "file-organizer"
+  ]
+}

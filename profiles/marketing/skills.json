@@ -1,0 +1,20 @@
+{
+  "include": [
+    "content-research-writer",
+    "research",
+    "brand-guidelines",
+    "documents",
+    "rich-document-creator",
+    "document-xlsx",
+    "image-gen",
+    "image-enhancer",
+    "gif-search",
+    "video-script-writer",
+    "video-downloader",
+    "remotion",
+    "slack-gif-creator",
+    "link-understanding",
+    "summarize",
+    "planning"
+  ]
+}

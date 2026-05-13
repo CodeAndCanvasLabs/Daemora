@@ -1,0 +1,11 @@
+{
+  "include": [
+    "researcher",
+    "analyst",
+    "planner",
+    "security",
+    "notion",
+    "gmail",
+    "browser-pilot"
+  ]
+}

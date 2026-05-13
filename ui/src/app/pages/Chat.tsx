@@ -747,17 +747,17 @@ export function Chat() {
                         <Logo size={18} />
                       </div>
                     )}
-                    <div className="max-w-[92%] sm:max-w-[88%] lg:max-w-[85%]">
+                    <div className="max-w-[92%] sm:max-w-[88%] lg:max-w-[85%] min-w-0">
                       <div
-                        className={`rounded-lg p-4 shadow-md border transition-all ${
+                        className={`rounded-lg p-4 shadow-md border transition-all overflow-hidden ${
                           message.role === "user"
                             ? "bg-[#00d9ff]/5 border-[#00d9ff]/20 text-white"
                             : "bg-slate-800/30 border-slate-800 text-gray-100"
                         }`}
                       >
                         {message.role === "assistant" ? (
-                          <div className="space-y-3">
-                            <div className="prose prose-invert prose-sm max-w-none font-mono leading-relaxed text-[13px]">
+                          <div className="space-y-3 min-w-0">
+                            <div className="prose prose-invert prose-sm max-w-none font-mono leading-relaxed text-[13px] break-words [&_pre]:overflow-x-auto [&_pre]:max-w-full [&_pre]:whitespace-pre [&_code]:break-words [&_table]:block [&_table]:overflow-x-auto [&_table]:max-w-full [&_a]:break-all">
                               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                 {message.content}
                               </ReactMarkdown>

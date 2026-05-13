@@ -113,6 +113,23 @@ export async function startCommand(): Promise<void> {
   const skills = new SkillRegistry(loadedSkills);
   log.info({ skills: skills.size }, "skills loaded");
 
+  // Profiles — the specialist-agent abstraction. Loaded after skills so
+  // the registry exists before AgentLoop / channel manager constructions
+  // wire in. Filters into SkillRegistry / CrewRegistry / PermissionGuard
+  // come online in later steps; for now the registry just resolves the
+  // active id (default: "daemora", mirrors the legacy SOUL.md).
+  const { ProfileLoader } = await import("../../profiles/ProfileLoader.js");
+  const { ProfileRegistry } = await import("../../profiles/ProfileRegistry.js");
+  const profileLoader = new ProfileLoader(cfg.env.dataDir);
+  const profiles = new ProfileRegistry(profileLoader.loadAll(), cfg);
+  log.info(
+    {
+      profiles: profiles.list().map((p) => p.manifest.id),
+      active: profiles.getActiveId(),
+    },
+    "profiles loaded",
+  );
+
   // Embeddings — semantic skill matching + memory recall, opt-in per
   // provider availability. If no API key is in the vault and Ollama
   // isn't running, `generate()` returns null and callers fall back to
@@ -250,6 +267,7 @@ export async function startCommand(): Promise<void> {
     bus, loopDetector,
     fileProjects: fileProjectStore,
     getEnabledIntegrations: () => integrations.getEnabled(),
+    profiles,
   });
 
   // Register integration tools BEFORE the crew loader runs so crew
@@ -458,6 +476,7 @@ export async function startCommand(): Promise<void> {
     customSkillsDir,
     fileProjectStore,
     fileProjectScanQueue,
+    profiles,
   });
 
   // Bind the HTTP server. If the configured port is already in use,

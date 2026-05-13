@@ -1,0 +1,3 @@
+{
+  "allowedCategories": ["filesystem", "shell", "search", "network", "system", "agent"]
+}

@@ -106,7 +106,12 @@ function stripMarkdown(md: string): string {
 async function renderPdf(path: string, markdown: string, title?: string): Promise<number> {
   const PDFDocument = (await import("pdfkit")).default;
   const { marked } = await import("marked");
-  const tokens = marked.lexer(markdown);
+  // breaks: true → every single newline becomes a <br>. LLM-written
+  // markdown commonly puts each field on its own line without a blank
+  // line in between, expecting visual line breaks. CommonMark's default
+  // is to collapse them into one paragraph, which produces wall-of-text
+  // output. Honour the author's intent instead.
+  const tokens = marked.lexer(markdown, { breaks: true });
 
   const doc = new PDFDocument({ margin: 54, info: title ? { Title: title } : {} });
   const stream = createWriteStream(path);
@@ -118,24 +123,33 @@ async function renderPdf(path: string, markdown: string, title?: string): Promis
     switch (tok.type) {
       case "heading": {
         const size = [22, 18, 16, 14, 13, 12][Math.max(0, tok.depth - 1)] ?? 12;
-        doc.moveDown(0.5).fontSize(size).font("Helvetica-Bold").text(tok.text).moveDown(0.3);
+        doc.moveDown(0.5);
+        renderInlinePdf(doc, flattenInline(inlineTokensOf(tok), { bold: true, italic: false, mono: false }), { size });
+        doc.moveDown(0.3);
         break;
       }
       case "paragraph":
-        doc.fontSize(11).font("Helvetica").text(tok.text).moveDown(0.5);
+        renderInlinePdf(doc, flattenInline(inlineTokensOf(tok)), { size: 11 });
+        doc.moveDown(0.5);
         break;
       case "list":
         for (const item of tok.items) {
-          doc.fontSize(11).font("Helvetica").text(`• ${item.text}`, { indent: 12 });
+          const segs = flattenInline(listItemInlineTokens(item));
+          if (segs.length === 0) segs.push({ text: String(item.text ?? ""), bold: false, italic: false, mono: false });
+          segs[0] = { ...segs[0], text: `• ${segs[0]!.text}` } as Segment;
+          renderInlinePdf(doc, segs, { size: 11, indent: 12 });
         }
         doc.moveDown(0.5);
         break;
       case "code":
         doc.fontSize(10).font("Courier").fillColor("#333").text(tok.text, { indent: 12 }).fillColor("#000").moveDown(0.5);
         break;
-      case "blockquote":
-        doc.fontSize(11).font("Helvetica-Oblique").fillColor("#555").text(tok.raw.replace(/^>\s?/gm, ""), { indent: 18 }).fillColor("#000").moveDown(0.5);
+      case "blockquote": {
+        doc.fillColor("#555");
+        renderInlinePdf(doc, flattenInline(inlineTokensOf(tok), { bold: false, italic: true, mono: false }), { size: 11, indent: 18 });
+        doc.fillColor("#000").moveDown(0.5);
         break;
+      }
       case "hr":
         doc.moveDown(0.3).moveTo(doc.x, doc.y).lineTo(doc.page.width - doc.page.margins.right, doc.y).stroke().moveDown(0.5);
         break;
@@ -172,7 +186,9 @@ async function renderPdf(path: string, markdown: string, title?: string): Promis
 async function renderDocx(path: string, markdown: string, title?: string): Promise<number> {
   const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import("docx");
   const { marked } = await import("marked");
-  const tokens = marked.lexer(markdown);
+  // breaks: true — same reason as renderPdf. Honour line-per-field
+  // markdown without requiring the author to insert blank lines.
+  const tokens = marked.lexer(markdown, { breaks: true });
 
   const children: import("docx").Paragraph[] = [];
   if (title) children.push(new Paragraph({ text: title, heading: HeadingLevel.TITLE }));
@@ -181,15 +197,19 @@ async function renderDocx(path: string, markdown: string, title?: string): Promi
     switch (tok.type) {
       case "heading": {
         const level = [HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3, HeadingLevel.HEADING_4, HeadingLevel.HEADING_5, HeadingLevel.HEADING_6][Math.max(0, tok.depth - 1)] ?? HeadingLevel.HEADING_1;
-        children.push(new Paragraph({ text: tok.text, heading: level }));
+        children.push(new Paragraph({ heading: level, children: inlineRunsDocx(TextRun, flattenInline(inlineTokensOf(tok))) }));
         break;
       }
       case "paragraph":
-        children.push(new Paragraph({ children: [new TextRun(tok.text)] }));
+        children.push(new Paragraph({ children: inlineRunsDocx(TextRun, flattenInline(inlineTokensOf(tok))) }));
         break;
       case "list":
         for (const item of tok.items) {
-          children.push(new Paragraph({ text: item.text, bullet: { level: 0 } }));
+          const segs = flattenInline(listItemInlineTokens(item));
+          const runs = segs.length > 0
+            ? inlineRunsDocx(TextRun, segs)
+            : [new TextRun(String(item.text ?? ""))];
+          children.push(new Paragraph({ children: runs, bullet: { level: 0 } }));
         }
         break;
       case "code":
@@ -197,9 +217,11 @@ async function renderDocx(path: string, markdown: string, title?: string): Promi
           children.push(new Paragraph({ children: [new TextRun({ text: line, font: "Courier New", size: 20 })] }));
         }
         break;
-      case "blockquote":
-        children.push(new Paragraph({ children: [new TextRun({ text: tok.raw.replace(/^>\s?/gm, ""), italics: true })] }));
+      case "blockquote": {
+        const segs = flattenInline(inlineTokensOf(tok), { bold: false, italic: true, mono: false });
+        children.push(new Paragraph({ children: inlineRunsDocx(TextRun, segs) }));
         break;
+      }
       case "hr":
         children.push(new Paragraph({ text: "" }));
         break;
@@ -313,4 +335,137 @@ async function renderXlsx(path: string, markdown: string, title?: string): Promi
   await wb.xlsx.writeFile(path);
   const { stat } = await import("node:fs/promises");
   return (await stat(path)).size;
+}
+
+// ── Inline markdown rendering ───────────────────────────────────────
+// Block tokens from marked carry their inline content as a *raw string*
+// in `tok.text`. The parsed inline AST is in `tok.tokens`. The old code
+// fed `tok.text` straight into pdfkit / docx, which is why every
+// `**bold**` rendered as literal asterisks. These helpers walk the
+// inline AST instead so bold / italic / code spans / links produce real
+// styled runs in both renderers.
+
+interface Segment {
+  readonly text: string;
+  readonly bold: boolean;
+  readonly italic: boolean;
+  readonly mono: boolean;
+  /** Hard line break — emitted from `<br>` (marked produces these when `breaks: true` is on). */
+  readonly lineBreak?: boolean;
+}
+
+interface InlineToken {
+  type: string;
+  text?: string;
+  raw?: string;
+  href?: string;
+  tokens?: InlineToken[];
+}
+
+function inlineTokensOf(tok: { text?: string; tokens?: unknown }): InlineToken[] {
+  if (Array.isArray(tok.tokens) && tok.tokens.length > 0) return tok.tokens as InlineToken[];
+  return [{ type: "text", text: String(tok.text ?? "") }];
+}
+
+/** List items wrap their inline content in a `text` block child; unwrap to the inline tokens. */
+function listItemInlineTokens(item: { text?: string; tokens?: unknown }): InlineToken[] {
+  const first = Array.isArray(item.tokens) ? (item.tokens[0] as InlineToken | undefined) : undefined;
+  if (first && Array.isArray(first.tokens) && first.tokens.length > 0) return first.tokens;
+  if (first && typeof first.text === "string") return [{ type: "text", text: first.text }];
+  return [{ type: "text", text: String(item.text ?? "") }];
+}
+
+const ZERO_BASE: Segment = { text: "", bold: false, italic: false, mono: false };
+
+function flattenInline(
+  tokens: readonly InlineToken[],
+  base: Omit<Segment, "text"> = ZERO_BASE,
+  out: Segment[] = [],
+): Segment[] {
+  for (const t of tokens) {
+    switch (t.type) {
+      case "strong":
+        flattenInline(t.tokens ?? [], { ...base, bold: true }, out);
+        break;
+      case "em":
+        flattenInline(t.tokens ?? [], { ...base, italic: true }, out);
+        break;
+      case "codespan":
+        out.push({ ...base, mono: true, text: t.text ?? "" });
+        break;
+      case "del":
+      case "link":
+        flattenInline(t.tokens ?? [], base, out);
+        break;
+      case "br":
+        out.push({ ...base, text: "", lineBreak: true });
+        break;
+      case "image":
+        out.push({ ...base, text: t.text ?? "" });
+        break;
+      case "text":
+        if (Array.isArray(t.tokens) && t.tokens.length > 0) {
+          flattenInline(t.tokens, base, out);
+        } else {
+          out.push({ ...base, text: t.text ?? "" });
+        }
+        break;
+      case "escape":
+        out.push({ ...base, text: t.text ?? "" });
+        break;
+      case "html":
+        out.push({ ...base, text: (t.text ?? "").replace(/<[^>]+>/g, "") });
+        break;
+      default:
+        if (typeof t.text === "string") out.push({ ...base, text: t.text });
+    }
+  }
+  return out;
+}
+
+function pdfFontFor(seg: Segment): string {
+  if (seg.mono) return "Courier";
+  if (seg.bold && seg.italic) return "Helvetica-BoldOblique";
+  if (seg.bold) return "Helvetica-Bold";
+  if (seg.italic) return "Helvetica-Oblique";
+  return "Helvetica";
+}
+
+// pdfkit's chainable API is fluent ("returns this") but its types are
+// `unknown` under our setup — use `any` here to let the chain compile
+// without leaking the looseness elsewhere.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function renderInlinePdf(doc: any, segments: readonly Segment[], opts: { size: number; indent?: number }): void {
+  if (segments.length === 0) {
+    doc.fontSize(opts.size).font("Helvetica").text("");
+    return;
+  }
+  for (let i = 0; i < segments.length; i++) {
+    const s = segments[i]!;
+    const isLast = i === segments.length - 1;
+    doc.fontSize(opts.size).font(pdfFontFor(s));
+    const textOpts: { continued: boolean; indent?: number } = { continued: !isLast };
+    if (i === 0 && opts.indent !== undefined) textOpts.indent = opts.indent;
+    // pdfkit honours \n inside text as a hard line break in continued
+    // chains — emit a single \n for explicit <br> tokens.
+    doc.text(s.lineBreak ? "\n" : s.text, textOpts);
+  }
+}
+
+function inlineRunsDocx<T>(
+  TextRun: new (opts: { text?: string; bold?: boolean; italics?: boolean; font?: string; size?: number; break?: number }) => T,
+  segments: readonly Segment[],
+): T[] {
+  if (segments.length === 0) return [new TextRun({ text: "" })];
+  return segments.map((s) => {
+    // Word ignores literal "\n" in a run — explicit <br> tokens have to
+    // come through as TextRun({ break: 1 }) for Word to render a line
+    // break.
+    if (s.lineBreak) return new TextRun({ break: 1 });
+    const opts: { text: string; bold?: boolean; italics?: boolean; font?: string; size?: number } = { text: s.text };
+    if (s.bold) opts.bold = true;
+    if (s.italic) opts.italics = true;
+    if (s.mono) { opts.font = "Courier New"; opts.size = 20; }
+    return new TextRun(opts);
+  });
 }

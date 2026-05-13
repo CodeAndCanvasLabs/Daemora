@@ -1,5 +1,6 @@
 // Settings page - agent identity, skills, memory, API keys, and environment config
 import { useEffect, useState, useRef } from "react";
+import { toast } from "sonner";
 import { apiFetch } from "../api";
 import {
   Settings as SettingsIcon,
@@ -15,7 +16,6 @@ import {
   X,
   ChevronDown,
   KeyRound,
-  Bot,
   FileCode2,
   Search,
   Check,
@@ -59,10 +59,6 @@ interface SettingsData {
 interface VaultStatus {
   exists: boolean;
   unlocked: boolean;
-}
-
-interface UserProfile {
-  subAgentModel: string;
 }
 
 interface CustomSkill {
@@ -517,11 +513,6 @@ export function Settings() {
   const [saved, setSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
 
-  const [profile, setProfile] = useState<UserProfile>({ subAgentModel: "" });
-  const [profileDirty, setProfileDirty] = useState(false);
-  const [profileSaving, setProfileSaving] = useState(false);
-  const [profileSaved, setProfileSaved] = useState(false);
-
   const [customSkills, setCustomSkills] = useState<CustomSkill[]>([]);
   const [showNewSkill, setShowNewSkill] = useState(false);
   const [newSkill, setNewSkill] = useState({ name: "", description: "", triggers: "", content: "" });
@@ -545,6 +536,14 @@ export function Settings() {
   const [vaultUnlocking, setVaultUnlocking] = useState(false);
   const [vaultError, setVaultError] = useState("");
 
+  // Agent profile (specialist persona — daemora generalist + ten specialists)
+  type AgentProfile = { id: string; name: string; nickname: string | null; description: string };
+  const [agentProfiles, setAgentProfiles] = useState<AgentProfile[]>([]);
+  const [activeAgentProfile, setActiveAgentProfile] = useState<string>("daemora");
+  // Per-card in-flight id (not a single boolean lock). Only the card mid-request
+  // is disabled; everything else stays clickable so the user can keep switching.
+  const [savingProfileId, setSavingProfileId] = useState<string | null>(null);
+
   const [voiceCatalog, setVoiceCatalog] = useState<{
     stt: { id: string; name: string; configured: boolean; models: { id: string; name: string }[] }[];
     tts: { id: string; name: string; configured: boolean; models: { id: string; name: string }[]; voices: { id: string; name: string; gender?: string }[] }[];
@@ -552,10 +551,48 @@ export function Settings() {
     video: { id: string; name: string; configured: boolean; models: { id: string; name: string }[] }[];
   }>({ stt: [], tts: [], image: [], video: [] });
 
+  // Load the agent profile lineup + active id. Runs alongside the
+  // main page bootstrap; failures are non-fatal — the section just
+  // shows "Loading…" if the API isn't ready.
+  useEffect(() => {
+    apiFetch("/api/profiles")
+      .then((r) => r.json())
+      .then((data: { active: string; profiles: AgentProfile[] }) => {
+        setAgentProfiles(data.profiles ?? []);
+        if (data.active) setActiveAgentProfile(data.active);
+      })
+      .catch(() => { /* non-fatal */ });
+  }, []);
+
+  async function handleAgentProfileChange(id: string) {
+    // Optimistic update — badge moves the instant you click. Roll back
+    // if the server rejects. `finally` guarantees the in-flight flag
+    // resets even if toast / lookup throws, so subsequent clicks aren't
+    // silently blocked.
+    const prevActive = activeAgentProfile;
+    setActiveAgentProfile(id);
+    setSavingProfileId(id);
+    try {
+      const res = await apiFetch("/api/profiles/active", {
+        method: "POST",
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Failed to switch profile");
+      }
+      toast.success(`Agent switched to ${agentProfiles.find((p) => p.id === id)?.name ?? id}.`);
+    } catch (e) {
+      setActiveAgentProfile(prevActive);
+      toast.error((e as Error).message || "Failed to switch profile");
+    } finally {
+      setSavingProfileId(null);
+    }
+  }
+
   useEffect(() => {
     Promise.all([
       apiFetch("/api/settings").then((r) => r.json()),
-      apiFetch("/api/profile").then((r) => r.json()),
       Promise.resolve({ skills: [] as unknown[] }),
       apiFetch("/api/memory").then((r) => r.json()),
       apiFetch("/api/models").then((r) => r.json()),
@@ -564,7 +601,7 @@ export function Settings() {
       apiFetch("/api/models/all").then((r) => r.json()).catch(() => ({ models: [] })),
       apiFetch("/api/voice/providers").then((r) => r.json()).catch(() => ({ stt: [], tts: [], image: [], video: [] })),
     ])
-      .then(([settingsData, profileData, skillsData, memoryData, modelsData, vaultData, configData, allModelsData, voiceProvidersData]) => {
+      .then(([settingsData, skillsData, memoryData, modelsData, vaultData, configData, allModelsData, voiceProvidersData]) => {
         setVoiceCatalog({
           stt: voiceProvidersData?.stt ?? [],
           tts: voiceProvidersData?.tts ?? [],
@@ -611,9 +648,6 @@ export function Settings() {
           if (v != null) hydrated[uiKey] = v === "true" || v === true;
         }
         setGlobalConfig(hydrated);
-        setProfile({
-          subAgentModel: profileData.subAgentModel || "",
-        });
         setCustomSkills(skillsData.skills || []);
         setMemory(memoryData.content || "");
         setAvailableModels(modelsData.available || []);
@@ -782,24 +816,6 @@ export function Settings() {
     } catch { /* ignore */ } finally { setSaving(false); }
   };
 
-  const handleProfileChange = (field: keyof UserProfile, value: string) => {
-    setProfile((prev) => ({ ...prev, [field]: value }));
-    setProfileDirty(true);
-    setProfileSaved(false);
-  };
-
-  const handleProfileSave = async () => {
-    setProfileSaving(true);
-    try {
-      const res = await apiFetch("/api/profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profile),
-      });
-      if (res.ok) { setProfileSaved(true); setProfileDirty(false); }
-    } catch { /* ignore */ } finally { setProfileSaving(false); }
-  };
-
   const handleCreateSkill = async () => {
     if (!newSkill.name || !newSkill.content) return;
     setSkillSaving(true);
@@ -894,6 +910,46 @@ export function Settings() {
           </button>
         </div>
       </div>
+
+      {/* ── Agent Profile ────────────────────────────────────────────── */}
+      <Section
+        icon={Cpu}
+        title="Agent Profile"
+        subtitle="Pick which specialist Daemora runs as. Default is the generalist."
+        defaultOpen={true}
+      >
+        <div className="space-y-3">
+          {agentProfiles.length === 0 ? (
+            <div className="text-xs text-gray-500 font-mono">Loading profiles…</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {agentProfiles.map((p) => {
+                const isActive = activeAgentProfile === p.id;
+                const isSaving = savingProfileId === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => { if (!isActive && !isSaving) void handleAgentProfileChange(p.id); }}
+                    disabled={isSaving}
+                    className={`text-left p-3 rounded-lg border transition-all disabled:opacity-60 ${isActive ? "border-[#00d9ff] bg-[#00d9ff]/5" : "border-slate-800 bg-slate-950/40 hover:border-slate-700"}`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-baseline gap-2">
+                        <span className="font-mono font-semibold text-white text-sm">{p.name}</span>
+                        {p.nickname && (
+                          <span className="text-[10px] uppercase tracking-wider text-[#00d9ff]/80 font-mono">{p.nickname}</span>
+                        )}
+                      </div>
+                      {isActive && <span className="text-[#00d9ff] text-xs font-mono">ACTIVE</span>}
+                    </div>
+                    <p className="text-[11px] text-gray-400 leading-snug">{p.description}</p>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </Section>
 
       {/* ── Global Config ────────────────────────────────────────────── */}
       <Section
@@ -1231,20 +1287,6 @@ export function Settings() {
             <p className="text-[11px] font-mono text-gray-600">This imports your .env keys into an encrypted vault and removes them from plaintext.</p>
           </div>
         )}
-      </Section>
-
-      {/* ── Sub-Agent Model ──────────────────────────────────────────── */}
-      <Section
-        icon={Bot}
-        title="Sub-Agent Model"
-        subtitle="Model used when spawning sub-agents for parallel tasks"
-        actions={<SaveBtn dirty={profileDirty} saving={profileSaving} saved={profileSaved} onSave={handleProfileSave} />}
-      >
-        <ModelSelect
-          value={profile.subAgentModel}
-          onChange={(v) => handleProfileChange("subAgentModel", v)}
-          modelsByProvider={modelsByProvider}
-        />
       </Section>
 
       {/* ── Custom Skills ─────────────────────────────────────────────── */}

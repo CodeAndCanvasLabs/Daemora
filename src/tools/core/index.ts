@@ -57,7 +57,9 @@ import { makeSendFileTool } from "./sendFile.js";
 import { makeSessionSearchTool } from "./sessionSearch.js";
 import { makeSkillManageTool } from "./skillManage.js";
 import { makeSkillViewTool } from "./skillView.js";
-import { makeTeamTool } from "./teamTool.js";
+// Team tool is gated off (see registration block below). Import kept commented
+// so re-enabling is a one-line revert.
+// import { makeTeamTool } from "./teamTool.js";
 import { makeTextToSpeechTool } from "./textToSpeech.js";
 import { makeTranscribeAudioTool } from "./transcribeAudio.js";
 import { makeUseMCPTool } from "./useMCP.js";
@@ -203,8 +205,11 @@ export function buildCoreTools(deps: CoreToolDeps): readonly ToolDef[] {
         ]
       : []),
 
-    // Team orchestration
-    ...(deps.teams ? [makeTeamTool(deps.teams) as unknown as ToolDef] : []),
+    // Team orchestration — DISABLED. Backend (TeamStore / TeamRunner /
+    // routes) is intact but the tool is unregistered, so the agent can't
+    // call it. Re-enable by uncommenting + restoring the team blocks in
+    // profiles/_shared/runtime.md and each profile soul.md.
+    // ...(deps.teams ? [makeTeamTool(deps.teams) as unknown as ToolDef] : []),
 
     // Project planning — long-running multi-step task tracking
     ...(deps.projects ? [makeProjectTool(deps.projects) as unknown as ToolDef] : []),

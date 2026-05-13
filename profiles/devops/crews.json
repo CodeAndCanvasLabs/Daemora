@@ -1,0 +1,13 @@
+{
+  "include": [
+    "devops",
+    "backend",
+    "architect",
+    "security",
+    "github",
+    "ssh-remote",
+    "researcher",
+    "planner",
+    "browser-pilot"
+  ]
+}
