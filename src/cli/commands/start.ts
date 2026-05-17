@@ -78,7 +78,7 @@ import { SkillRegistry } from "../../skills/SkillRegistry.js";
 import { createApp } from "../../server/index.js";
 // Voice now runs via LiveKit agent worker (see src/voice/VoiceAgent.ts
 // spawned from /api/voice/sidecar/start), not a custom WebSocket.
-import { signalTree } from "../../util/killTree.js";
+import { signalOrphaned, signalTree } from "../../util/killTree.js";
 import { createLogger } from "../../util/logger.js";
 
 const log = createLogger("cli.start");
@@ -541,6 +541,15 @@ export async function startCommand(): Promise<void> {
     const sigtermed = signalTree(process.pid, "SIGTERM");
     if (sigtermed > 0) log.info({ count: sigtermed }, "SIGTERM sent to descendants");
 
+    // Belt-and-suspenders: catch orphans whose parent died early and
+    // got reparented to init (LiveKit IPC children are the recurring
+    // case). pgrep -P misses them because the chain back to us is
+    // broken; ps-by-pattern scoped to our install root + data dir
+    // doesn't care about the PPID chain.
+    const installRoot = new URL("../../../", import.meta.url).pathname;
+    const orphSigtermed = signalOrphaned(installRoot, cfg.env.dataDir, "SIGTERM");
+    if (orphSigtermed > 0) log.info({ count: orphSigtermed }, "SIGTERM sent to reparented orphans");
+
     server.close(() => {
       cfg.close();
       process.exit(0);
@@ -552,6 +561,8 @@ export async function startCommand(): Promise<void> {
     setTimeout(() => {
       const survivors = signalTree(process.pid, "SIGKILL");
       if (survivors > 0) log.warn({ count: survivors }, "SIGKILL sent to surviving descendants");
+      const orphSurvivors = signalOrphaned(installRoot, cfg.env.dataDir, "SIGKILL");
+      if (orphSurvivors > 0) log.warn({ count: orphSurvivors }, "SIGKILL sent to surviving orphans");
       process.exit(0);
     }, 3_000).unref();
   };
