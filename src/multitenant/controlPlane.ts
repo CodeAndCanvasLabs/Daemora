@@ -420,8 +420,8 @@ async function adminRoute(
   if (req.method === "POST" && /^\/admin\/tenants\/[^/]+\/start$/.test(url)) {
     const slug = url.split("/")[3]!;
     try {
-      const { pid, port } = await manager.start(slug);
-      return json(200, { pid, port });
+      const { id, port } = await manager.start(slug);
+      return json(200, { id, port });
     } catch (e) {
       return json(400, { error: (e as Error).message });
     }

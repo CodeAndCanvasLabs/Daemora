@@ -112,7 +112,7 @@ export class TenantManager {
       config: this.store.getAllConfig(slug),
       apiKeyNames: this.store.listApiKeyNames(slug),
       recentEvents: this.store.recentEvents(slug, 10),
-      ...(r ? { runtime: { pid: r.proc.pid ?? -1, uptimeMs: Date.now() - r.startedAt } } : {}),
+      ...(r ? { runtime: { id: r.runtimeId, uptimeMs: Date.now() - r.startedAt } } : {}),
     };
   }
 

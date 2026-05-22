@@ -65,7 +65,8 @@ export interface TenantDetail {
   readonly apiKeyNames: readonly string[];   // names only, never values
   readonly recentEvents: readonly TenantEvent[];
   readonly runtime?: {
-    readonly pid: number;
+    /** PID (local backend) or Fly machine id (cloud backend). */
+    readonly id: string;
     readonly uptimeMs: number;
   };
 }

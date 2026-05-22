@@ -192,7 +192,7 @@ async function cmdShow(mgr: TenantManager, args: string[]): Promise<void> {
   console.log(`  dataDir:  ${t.dataDir}`);
   console.log(`  created:  ${t.createdAt}`);
   if (t.suspendedAt) console.log(`  suspended:${t.suspendedAt}  reason: ${t.suspendReason ?? "-"}`);
-  if (detail.runtime) console.log(`  runtime:  pid=${detail.runtime.pid} uptime=${Math.round(detail.runtime.uptimeMs / 1000)}s`);
+  if (detail.runtime) console.log(`  runtime:  id=${detail.runtime.id} uptime=${Math.round(detail.runtime.uptimeMs / 1000)}s`);
 
   if (Object.keys(detail.config).length > 0) {
     console.log("\n  config:");
@@ -269,8 +269,8 @@ async function cmdApiKey(mgr: TenantManager, args: string[]): Promise<void> {
 async function cmdStart(mgr: TenantManager, args: string[]): Promise<void> {
   const slug = args[0];
   if (!slug) { console.error("usage: daemora tenant start <slug>"); process.exit(2); }
-  const { pid, port } = await mgr.start(slug);
-  console.log(`tenant ${slug} started: pid=${pid} port=${port}`);
+  const { id, port } = await mgr.start(slug);
+  console.log(`tenant ${slug} started: id=${id} port=${port}`);
 }
 
 async function cmdStop(mgr: TenantManager, args: string[]): Promise<void> {
@@ -308,7 +308,7 @@ async function cmdStatus(mgr: TenantManager, args: string[]): Promise<void> {
   const t = mgr.get(slug);
   if (!t) { console.error(`unknown tenant: ${slug}`); process.exit(1); }
   const running = mgr.listRunning().find((r) => r.slug === slug);
-  console.log(running ? `${t.status} (pid=${running.pid}, port=${running.port})` : t.status);
+  console.log(running ? `${t.status} (id=${running.id}, port=${running.port})` : t.status);
 }
 
 async function cmdDelete(mgr: TenantManager, args: string[]): Promise<void> {
