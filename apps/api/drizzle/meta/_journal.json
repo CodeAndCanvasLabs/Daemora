@@ -8,6 +8,13 @@
       "when": 1779117851567,
       "tag": "0000_flimsy_shape",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1779425000000,
+      "tag": "0001_add_is_admin",
+      "breakpoints": true
     }
   ]
 }

@@ -1,15 +1,53 @@
+# Build context exclusions. Keep tight — every MB here is a MB Fly's
+# remote builder has to ship. Anything secret here is defense in depth
+# on top of .gitignore.
+
+# Heavy + reproducible from package-lock.json
 node_modules
-ui/node_modules
+**/node_modules
+.pnpm-store
+
+# Build artefacts
 dist
-ui/dist
+build
+*.log
+
+# Runtime data (vault, sqlite, tenant state — never wanted in an image)
 data
+apps/api/logs
+
+# Secrets (also in .gitignore — defense in depth)
+**/.env
+**/.env.local
+**/.env.*.local
+*.key
+*.pem
+
+# Sibling apps + local dirs apps/api doesn't need at runtime
+agents
+wiki
+desktop
+installer
+ui
+crew
+
+# Tests + dev artefacts
+test-results
+playwright-report
+coverage
+.cache
+.tmp
+tmp
+
+# Editor + git
 .git
 .gitignore
-.env
-.env.*
-!.env.example
-*.log
-.DS_Store
+.claude
+.cursor
 .vscode
 .idea
-agents
+.DS_Store
+
+# Old lockfiles we don't use
+pnpm-lock.yaml
+yarn.lock

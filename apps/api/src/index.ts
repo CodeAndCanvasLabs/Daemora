@@ -17,8 +17,10 @@ import { cors } from "hono/cors";
 import { buildAuth, type Auth } from "./auth/auth.js";
 import { getDb } from "./db/client.js";
 import { loadEnv, type Env } from "./lib/env.js";
+import { authRateLimit, buildSecureHeaders, readRateLimit } from "./lib/security.js";
 import { buildBillingRoutes } from "./routes/billing.js";
 import { buildSignupRoutes } from "./routes/signup.js";
+import { AuditLogger, clientFingerprint } from "./services/audit.js";
 import { ContraProvider } from "./services/billing.js";
 import { ControlPlaneClient } from "./services/controlPlaneClient.js";
 import { InMemorySender, ResendSender, type EmailSender } from "./services/email.js";
@@ -60,7 +62,12 @@ export function buildApp(deps: ApiDeps): { app: Hono; auth: Auth; trial: TrialSe
     return (session?.user ?? null) as never;
   };
 
+  const audit = new AuditLogger(db);
   const app = new Hono();
+  const isProd = deps.env.NODE_ENV === "production";
+
+  // Security headers — CSP, HSTS (prod only), X-Frame-Options, etc.
+  app.use("*", buildSecureHeaders(isProd));
 
   // CORS — UI lives on a different origin in dev (5173) and the cookie
   // flow needs credentials: true + an exact origin (no '*').
@@ -75,6 +82,39 @@ export function buildApp(deps: ApiDeps): { app: Hono; auth: Auth; trial: TrialSe
   );
 
   app.get("/health", (c) => c.json({ ok: true, service: "apps/api", env: deps.env.NODE_ENV }));
+
+  // Rate limit auth-sensitive paths (signup / signin / magic-link / verify-email).
+  // Mounted BEFORE Better Auth so rejected attempts don't even hit it.
+  app.use("/api/auth/sign-up/*", authRateLimit);
+  app.use("/api/auth/sign-in/*", authRateLimit);
+  app.use("/api/auth/forget-password", authRateLimit);
+  app.use("/api/auth/reset-password", authRateLimit);
+  app.use("/api/auth/verify-email", readRateLimit);
+
+  // Audit successful auth events. We hook AFTER Better Auth handles the
+  // request so we can read the response status + log the user from the
+  // resulting session.
+  app.use("/api/auth/sign-up/email", async (c, next) => {
+    await next();
+    if (c.res.status === 200) {
+      const { ipAddress, userAgent } = clientFingerprint(c.req.raw);
+      await audit.record({ kind: "signup", ipAddress, userAgent });
+    }
+  });
+  app.use("/api/auth/sign-in/*", async (c, next) => {
+    await next();
+    if (c.res.status === 200) {
+      const { ipAddress, userAgent } = clientFingerprint(c.req.raw);
+      await audit.record({ kind: "signin", ipAddress, userAgent });
+    }
+  });
+  app.use("/api/auth/sign-out", async (c, next) => {
+    await next();
+    if (c.res.status === 200) {
+      const { ipAddress, userAgent } = clientFingerprint(c.req.raw);
+      await audit.record({ kind: "signout", ipAddress, userAgent });
+    }
+  });
 
   // Mount Better Auth at /api/auth/* (matches Better Auth's default
   // basePath; React client + curl snippets work without overrides).
@@ -92,7 +132,8 @@ export function buildApp(deps: ApiDeps): { app: Hono; auth: Auth; trial: TrialSe
     db,
     trial,
     getUser: getUserBySession,
-    adminToken: deps.env.CONTROL_PLANE_ADMIN_TOKEN,
+    auth,                                  // admin endpoints use users.isAdmin via Better Auth session
+    audit,
   }));
 
   return { app, auth, trial, controlPlane };

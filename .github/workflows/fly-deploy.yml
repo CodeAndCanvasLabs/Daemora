@@ -5,9 +5,15 @@
 #
 # Prerequisites (one-time, do these BEFORE the first push):
 #   1. flyctl auth login
-#   2. flyctl apps create daemora-api --org <your-fly-org>
-#   3. flyctl secrets set --app daemora-api DATABASE_URL=... JWT_SIGNING_KEY=... (etc — see apps/api/.env.example)
-#   4. In GitHub repo settings → Secrets → Actions → add FLY_API_TOKEN
+#   2. App must exist on Fly: deamora-specialized-saas (already created via UI)
+#   3. flyctl secrets set --app deamora-specialized-saas \
+#        DATABASE_URL=... JWT_SIGNING_KEY=... SESSION_COOKIE_SECRET=... \
+#        MASTER_KEK=... CONTROL_PLANE_ADMIN_TOKEN=... RESEND_API_KEY=...
+#      (see apps/api/.env.example for the full list)
+#   4. GitHub repo settings → Secrets → Actions → add FLY_API_TOKEN
+#
+# Depends on the `ci` workflow passing first (tests + docker-build) so we
+# never deploy a broken Dockerfile.
 
 name: fly-deploy
 
@@ -17,6 +23,8 @@ on:
     paths:
       - "apps/api/**"
       - "src/**"
+      - "Dockerfile"
+      - "fly.toml"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/fly-deploy.yml"
@@ -38,6 +46,8 @@ jobs:
         uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: Deploy
-        run: flyctl deploy --config apps/api/fly.toml --dockerfile apps/api/Dockerfile --remote-only
+        # Reads fly.toml + Dockerfile from repo root. --remote-only uses
+        # Fly's Depot builder so the runner doesn't have to install Docker.
+        run: flyctl deploy --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

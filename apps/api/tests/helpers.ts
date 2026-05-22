@@ -3,7 +3,7 @@
  * pg-mem speaks the real Postgres wire protocol enough that Drizzle works.
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { drizzle } from "drizzle-orm/pg-proxy";
@@ -12,12 +12,17 @@ import { DataType, newDb } from "pg-mem";
 import * as schema from "../src/db/schema.js";
 import type { DB } from "../src/db/client.js";
 
-const MIGRATION_PATH = join(process.cwd(), "apps/api/drizzle/0000_flimsy_shape.sql");
+const MIGRATION_DIR = join(process.cwd(), "apps/api/drizzle");
 
 let cachedMigration: string | undefined;
 function readMigration(): string {
   if (cachedMigration) return cachedMigration;
-  cachedMigration = readFileSync(MIGRATION_PATH, "utf-8");
+  // Apply every *.sql in order so new migrations (e.g. is_admin column)
+  // are picked up automatically by the test DB without manual edits.
+  const files = readdirSync(MIGRATION_DIR)
+    .filter((f) => f.endsWith(".sql"))
+    .sort();
+  cachedMigration = files.map((f) => readFileSync(join(MIGRATION_DIR, f), "utf-8")).join("\n");
   return cachedMigration;
 }
 
@@ -41,8 +46,10 @@ export function makeTestDb(): { db: DB; close: () => void } {
   // Apply schema.
   const migration = readMigration();
   // pg-mem doesn't love drizzle's "--> statement-breakpoint" lines —
-  // strip them and split by `;` ourselves.
-  const cleaned = migration.replace(/--> statement-breakpoint/g, "");
+  // strip those + SQL line comments, then split by `;`.
+  const cleaned = migration
+    .replace(/--> statement-breakpoint/g, "")
+    .replace(/^\s*--.*$/gm, "");
   for (const stmt of cleaned.split(/;\s*\n/).map((s) => s.trim()).filter(Boolean)) {
     try { pg.public.none(stmt + ";"); } catch (err) {
       // pg-mem can't do every fancy index syntax. Skip soft failures

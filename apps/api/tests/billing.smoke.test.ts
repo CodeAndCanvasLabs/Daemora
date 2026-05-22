@@ -14,8 +14,10 @@ import { Hono } from "hono";
 
 import { ContraProvider, FakeBillingProvider } from "../src/services/billing.js";
 import { buildBillingRoutes } from "../src/routes/billing.js";
-import { paymentClaims, subscriptions, users } from "../src/db/schema.js";
+import { paymentClaims, subscriptions, users, type User } from "../src/db/schema.js";
 import { TrialService } from "../src/services/trial.js";
+import { AuditLogger } from "../src/services/audit.js";
+import type { Auth } from "../src/auth/auth.js";
 import { makeTestDb } from "./helpers.js";
 import type { DB } from "../src/db/client.js";
 
@@ -53,7 +55,23 @@ describe("Billing routes", () => {
   let trial: TrialService;
   let app: Hono;
   let userId: string;
-  const adminToken = "admin-test-token-12345";
+  let adminUserId: string;
+
+  /** Fake Better Auth — tests pass a `daemora.session_token` cookie carrying the user id. */
+  function fakeAuth(): Auth {
+    return {
+      api: {
+        getSession: async ({ headers }: { headers: Headers }) => {
+          const cookie = headers.get("cookie") ?? "";
+          const m = /daemora\.session_token=([^;]+)/.exec(cookie);
+          if (!m) return null;
+          const rows = await db.select().from(users).where(eq(users.id, decodeURIComponent(m[1]!))).limit(1);
+          const u = rows[0];
+          return u ? { user: u } : null;
+        },
+      },
+    } as unknown as Auth;
+  }
 
   async function callJson(
     path: string,
@@ -69,9 +87,11 @@ describe("Billing routes", () => {
     db = ctx.db;
     trial = new TrialService(db);
 
-    // Seed a verified user.
+    // Seed a regular user + a separate admin user.
     userId = randomUUID();
+    adminUserId = randomUUID();
     await db.insert(users).values({ id: userId, email: "a@x.com", emailVerified: true });
+    await db.insert(users).values({ id: adminUserId, email: "op@x.com", emailVerified: true, isAdmin: true });
 
     app = new Hono();
     app.route(
@@ -80,12 +100,12 @@ describe("Billing routes", () => {
         db,
         trial,
         getUser: async (token) => {
-          // Bypass Better Auth — tests inject the user id as the token.
           if (!token) return null;
           const r = await db.select().from(users).where(eq(users.id, token)).limit(1);
           return r[0] ?? null;
         },
-        adminToken,
+        auth: fakeAuth(),
+        audit: new AuditLogger(db),
       }),
     );
   });
@@ -138,12 +158,12 @@ describe("Billing routes", () => {
     });
     const claimId = (claimResp.body as { claim: { id: string } }).claim.id;
 
-    // Operator confirms.
+    // Operator confirms — signed in as admin user (isAdmin=true).
     const r = await callJson(`/billing/admin/claim/${claimId}/confirm`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${adminToken}`,
+        cookie: `daemora.session_token=${adminUserId}`,
       },
       body: JSON.stringify({ plan: "pro" }),
     });
@@ -160,19 +180,20 @@ describe("Billing routes", () => {
     expect(c[0]?.status).toBe("confirmed");
   });
 
-  it("POST /billing/admin/claim/:id/confirm rejects without admin bearer", async () => {
+  it("POST /billing/admin/claim/:id/confirm rejects non-admin users (403)", async () => {
     const claimResp = await callJson("/billing/claim", {
       method: "POST",
       headers: { "content-type": "application/json", cookie: `daemora.session_token=${userId}` },
       body: JSON.stringify({ transactionId: "contra-tx-noauth", plan: "pro" }),
     });
     const claimId = (claimResp.body as { claim: { id: string } }).claim.id;
+    // Regular user (isAdmin=false) tries to confirm — 403.
     const r = await callJson(`/billing/admin/claim/${claimId}/confirm`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", cookie: `daemora.session_token=${userId}` },
       body: JSON.stringify({ plan: "pro" }),
     });
-    expect(r.status).toBe(401);
+    expect(r.status).toBe(403);
   });
 
   it("POST /billing/admin/claim/:id/reject moves claim to rejected", async () => {
@@ -184,7 +205,7 @@ describe("Billing routes", () => {
     const claimId = (claimResp.body as { claim: { id: string } }).claim.id;
     const r = await callJson(`/billing/admin/claim/${claimId}/reject`, {
       method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${adminToken}` },
+      headers: { "content-type": "application/json", cookie: `daemora.session_token=${adminUserId}` },
       body: JSON.stringify({ reason: "not-found-in-contra" }),
     });
     expect(r.status).toBe(200);
