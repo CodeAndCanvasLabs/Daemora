@@ -99,11 +99,6 @@ describe("Billing routes", () => {
       buildBillingRoutes({
         db,
         trial,
-        getUser: async (token) => {
-          if (!token) return null;
-          const r = await db.select().from(users).where(eq(users.id, token)).limit(1);
-          return r[0] ?? null;
-        },
         auth: fakeAuth(),
         audit: new AuditLogger(db),
       }),

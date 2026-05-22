@@ -11,6 +11,7 @@ import { Hono } from "hono";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
+import type { Auth } from "../auth/auth.js";
 import type { DB } from "../db/client.js";
 import { tenants, users, type User } from "../db/schema.js";
 import type { ControlPlaneClient } from "../services/controlPlaneClient.js";
@@ -22,7 +23,7 @@ export interface SignupDeps {
   readonly controlPlane: ControlPlaneClient;
   readonly trial: TrialService;
   readonly billing: BillingProvider;
-  readonly getUser: (token: string) => Promise<User | null>;       // bridge to Better Auth
+  readonly auth: Auth;
 }
 
 export function buildSignupRoutes(deps: SignupDeps): Hono {
@@ -109,11 +110,10 @@ async function requireUser(
   c: Parameters<Parameters<Hono["post"]>[1]>[0],
   deps: SignupDeps,
 ): Promise<User | null> {
-  // We treat the daemora session cookie (set by Better Auth) as auth.
-  // The cookie name is `daemora.session_token` by default.
-  const raw = c.req.header("authorization")?.replace(/^Bearer\s+/i, "")
-    ?? c.req.header("cookie")?.split(";").map((s) => s.trim()).find((s) => s.startsWith("daemora.session_token="))?.split("=")[1]
-    ?? "";
-  if (!raw) return null;
-  return deps.getUser(decodeURIComponent(raw));
+  // Delegate the whole cookie story to Better Auth. It knows about the
+  // `__Secure-` prefix flip in prod, the HMAC signature, the data-cache
+  // cookie, expiry checks — all of it. Custom cookie parsing here was
+  // the source of the 401-after-signin bug.
+  const session = await deps.auth.api.getSession({ headers: c.req.raw.headers });
+  return (session?.user ?? null) as User | null;
 }

@@ -1,38 +1,36 @@
-# Deploy apps/api to Fly.io on push to main.
+# Deploy apps/api to Fly.io — MANUAL ONLY.
+#
+# Run from:
+#   1. GitHub UI:  Actions tab → "fly-deploy" → "Run workflow" → main
+#   2. CLI:        gh workflow run fly-deploy.yml --ref main
+#
+# We do NOT auto-deploy on push. Every prod release is a human decision —
+# this prevents a bad commit on main from rolling out before you've verified
+# it locally.
 #
 # Required GitHub repo secrets:
-#   FLY_API_TOKEN  — generate via:  flyctl auth token
+#   FLY_API_TOKEN  — generate locally with:  flyctl auth token
+#                     then add at: GitHub repo → Settings → Secrets and
+#                     variables → Actions → New repository secret
 #
-# Prerequisites (one-time, do these BEFORE the first push):
-#   1. flyctl auth login
-#   2. App must exist on Fly: deamora-specialized-saas (already created via UI)
+# Prerequisites (one-time):
+#   1. flyctl auth login   (already done — you have flyctl set up)
+#   2. App "deamora-specialized-saas" exists on Fly (already created via UI)
 #   3. flyctl secrets set --app deamora-specialized-saas \
 #        DATABASE_URL=... JWT_SIGNING_KEY=... SESSION_COOKIE_SECRET=... \
-#        MASTER_KEK=... CONTROL_PLANE_ADMIN_TOKEN=... RESEND_API_KEY=...
-#      (see apps/api/.env.example for the full list)
-#   4. GitHub repo settings → Secrets → Actions → add FLY_API_TOKEN
-#
-# Depends on the `ci` workflow passing first (tests + docker-build) so we
-# never deploy a broken Dockerfile.
+#        MASTER_KEK=... CONTROL_PLANE_ADMIN_TOKEN=... RESEND_API_KEY=... \
+#        CONTRA_PAYMENT_LINK_PRO=...
+#      (already done — see Fly UI → Secrets)
+#   4. FLY_API_TOKEN added to GitHub repo secrets — DO THIS NEXT
 
 name: fly-deploy
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "apps/api/**"
-      - "src/**"
-      - "Dockerfile"
-      - "fly.toml"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/fly-deploy.yml"
   workflow_dispatch:
 
 concurrency:
-  group: fly-deploy-${{ github.ref }}
-  cancel-in-progress: true
+  group: fly-deploy
+  cancel-in-progress: false
 
 jobs:
   deploy:

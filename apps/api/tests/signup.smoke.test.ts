@@ -19,8 +19,26 @@ import { ControlPlaneClient } from "../src/services/controlPlaneClient.js";
 import { FakeBillingProvider } from "../src/services/billing.js";
 import { TrialService } from "../src/services/trial.js";
 import { subscriptions, tenants, users } from "../src/db/schema.js";
+import type { Auth } from "../src/auth/auth.js";
 import { makeTestDb } from "./helpers.js";
 import type { DB } from "../src/db/client.js";
+
+/** Mock Better Auth — tests inject the user id as the `daemora.session_token` cookie value. */
+function fakeAuth(db: DB): Auth {
+  return {
+    api: {
+      getSession: async ({ headers }: { headers: Headers }) => {
+        const cookie = headers.get("cookie") ?? headers.get("authorization") ?? "";
+        const m = /daemora\.session_token=([^;]+)/.exec(cookie)
+          ?? /^Bearer\s+(.+)$/i.exec(cookie);
+        if (!m?.[1]) return null;
+        const rows = await db.select().from(users).where(eq(users.id, decodeURIComponent(m[1]))).limit(1);
+        const u = rows[0];
+        return u ? { user: u } : null;
+      },
+    },
+  } as unknown as Auth;
+}
 
 let db: DB;
 let trial: TrialService;
@@ -72,11 +90,7 @@ function buildAppWithFetch(ff: typeof fetch): Hono {
       controlPlane: cp,
       trial,
       billing,
-      getUser: async (token) => {
-        if (!token) return null;
-        const r = await db.select().from(users).where(eq(users.id, token)).limit(1);
-        return r[0] ?? null;
-      },
+      auth: fakeAuth(db),
     }),
   );
   return h;

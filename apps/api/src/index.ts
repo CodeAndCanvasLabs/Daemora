@@ -55,13 +55,6 @@ export function buildApp(deps: ApiDeps): { app: Hono; auth: Auth; trial: TrialSe
     },
   });
 
-  const getUserBySession = async (token: string): ReturnType<Parameters<typeof buildSignupRoutes>[0]["getUser"]> => {
-    if (!token) return null;
-    // Better Auth exposes a session API; we call it with the raw token.
-    const session = await auth.api.getSession({ headers: new Headers({ cookie: `daemora.session_token=${token}` }) });
-    return (session?.user ?? null) as never;
-  };
-
   const audit = new AuditLogger(db);
   const app = new Hono();
   const isProd = deps.env.NODE_ENV === "production";
@@ -125,14 +118,13 @@ export function buildApp(deps: ApiDeps): { app: Hono; auth: Auth; trial: TrialSe
     controlPlane,
     trial,
     billing,
-    getUser: getUserBySession,
+    auth,                                  // session validation goes through Better Auth, no custom parsing
   }));
 
   app.route("/billing", buildBillingRoutes({
     db,
     trial,
-    getUser: getUserBySession,
-    auth,                                  // admin endpoints use users.isAdmin via Better Auth session
+    auth,                                  // user + admin checks both go through Better Auth's getSession
     audit,
   }));
 

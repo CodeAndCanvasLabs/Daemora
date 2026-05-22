@@ -26,7 +26,6 @@ import type { TrialService } from "../services/trial.js";
 export interface BillingDeps {
   readonly db: DB;
   readonly trial: TrialService;
-  readonly getUser: (token: string) => Promise<User | null>;
   readonly auth: Auth;
   readonly audit: AuditLogger;
 }
@@ -166,11 +165,10 @@ async function requireUser(
   c: Parameters<Parameters<Hono["post"]>[1]>[0],
   deps: BillingDeps,
 ): Promise<User | null> {
-  const raw = c.req.header("authorization")?.replace(/^Bearer\s+/i, "")
-    ?? c.req.header("cookie")?.split(";").map((s) => s.trim()).find((s) => s.startsWith("daemora.session_token="))?.split("=")[1]
-    ?? "";
-  if (!raw) return null;
-  return deps.getUser(decodeURIComponent(raw));
+  // Same pattern as the admin route — let Better Auth parse the cookie
+  // header (handles `__Secure-` prefix, HMAC verify, expiry).
+  const session = await deps.auth.api.getSession({ headers: c.req.raw.headers });
+  return (session?.user ?? null) as User | null;
 }
 
 async function requireAdmin(
