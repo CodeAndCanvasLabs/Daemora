@@ -153,10 +153,11 @@ async function handleRequest(
 
   // Proxy HTTP. If the slug came from `?slug=`, also pin it in a cookie
   // so the SPA's subsequent asset/XHR requests resolve without the param.
+  const upstreamUrl = manager.getUpstreamUrl(slug) ?? `http://127.0.0.1:${tenant.port}`;
   const extraCookie = slugCameFromQuery(req)
     ? `${TENANT_COOKIE_NAME}=${encodeURIComponent(slug)}; Path=/; SameSite=Lax; Max-Age=86400`
     : undefined;
-  await proxyHttp(req, res, tenant.port, extraCookie ? { setCookie: extraCookie } : {});
+  await proxyHttp(req, res, upstreamUrl, extraCookie ? { setCookie: extraCookie } : {});
 }
 
 // ── upgrade routing (WebSocket) ───────────────────────────────────
@@ -189,7 +190,8 @@ async function handleUpgrade(
       return;
     }
   }
-  proxyUpgrade(req, clientSocket, head, tenant.port);
+  const upstreamUrl = manager.getUpstreamUrl(slug) ?? `http://127.0.0.1:${tenant.port}`;
+  proxyUpgrade(req, clientSocket, head, upstreamUrl);
 }
 
 // ── tenant resolution ────────────────────────────────────────────
@@ -274,18 +276,18 @@ function decodeTenantClaim(token: string): string | undefined {
 function proxyHttp(
   req: IncomingMessage,
   res: ServerResponse,
-  tenantPort: number,
+  upstreamUrl: string,
   opts: { setCookie?: string } = {},
 ): Promise<void> {
   return new Promise((resolve) => {
-    // Forward to localhost:tenantPort with original path + headers.
+    const u = new URL(upstreamUrl);
     const upstream = httpRequest(
       {
-        host: "127.0.0.1",
-        port: tenantPort,
+        host: u.hostname,
+        port: u.port ? Number(u.port) : 80,
         method: req.method,
         path: req.url,
-        headers: { ...req.headers, host: `127.0.0.1:${tenantPort}` },
+        headers: { ...req.headers, host: u.host },
       },
       (upstreamRes) => {
         const headers = { ...upstreamRes.headers };
@@ -302,7 +304,7 @@ function proxyHttp(
     );
 
     upstream.on("error", (err) => {
-      log.warn({ err: err.message, tenantPort }, "upstream connection failed");
+      log.warn({ err: err.message, upstreamUrl }, "upstream connection failed");
       if (!res.headersSent) {
         res.statusCode = 502;
         res.setHeader("content-type", "application/json");
@@ -317,13 +319,14 @@ function proxyHttp(
   });
 }
 
-function proxyUpgrade(req: IncomingMessage, clientSocket: Socket, head: Buffer, tenantPort: number): void {
+function proxyUpgrade(req: IncomingMessage, clientSocket: Socket, head: Buffer, upstreamUrl: string): void {
+  const u = new URL(upstreamUrl);
   const upstream = httpRequest({
-    host: "127.0.0.1",
-    port: tenantPort,
+    host: u.hostname,
+    port: u.port ? Number(u.port) : 80,
     method: req.method,
     path: req.url,
-    headers: { ...req.headers, host: `127.0.0.1:${tenantPort}` },
+    headers: { ...req.headers, host: u.host },
   });
 
   upstream.on("upgrade", (upstreamRes, upstreamSocket) => {
@@ -349,7 +352,7 @@ function proxyUpgrade(req: IncomingMessage, clientSocket: Socket, head: Buffer, 
   });
 
   upstream.on("error", (err) => {
-    log.warn({ err: err.message, tenantPort }, "upgrade upstream failed");
+    log.warn({ err: err.message, upstreamUrl }, "upgrade upstream failed");
     try { clientSocket.write("HTTP/1.1 502 Bad Gateway\r\n\r\n"); } catch { /* */ }
     clientSocket.destroy();
   });
