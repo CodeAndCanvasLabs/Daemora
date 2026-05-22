@@ -1,0 +1,25 @@
+# Fly config for the per-tenant farm app (`daemora-tenants`).
+#
+# This app's sole job is to:
+#   1. Hold the tenant runtime image at registry.fly.io/daemora-tenants:tenant
+#   2. Host the Fly Machines the control plane spawns per user
+#
+# No public [http_service] — tenant machines are created dynamically by
+# the control plane via the Machines API; this fly.toml just bootstraps
+# the app + ships the initial image. After the first deploy via the
+# Launch wizard you can destroy the auto-deployed machine — the image
+# stays in the registry and the control plane spawns its own machines.
+
+app = "daemora-tenants"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile.tenant"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "512mb"
+
+[deploy]
+  strategy = "rolling"
