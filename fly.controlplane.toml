@@ -1,0 +1,60 @@
+# Fly config for the multi-tenant control plane.
+#
+# Deploy:
+#   flyctl deploy --config fly.controlplane.toml --dockerfile Dockerfile.controlplane
+#
+# Pre-flight (one-time):
+#   1. flyctl apps create daemora-control-plane
+#   2. flyctl apps create daemora-tenants                    # the farm app
+#   3. Build + push tenant image (see .github/workflows/build-tenant-image.yml or:
+#        flyctl deploy --build-only --push --app daemora-tenants \
+#          --dockerfile Dockerfile.tenant --image-label tenant
+#      )
+#   4. flyctl secrets set --app daemora-control-plane \
+#        FLY_API_TOKEN="<flyctl auth token>" \
+#        FLY_TENANT_APP_NAME=daemora-tenants \
+#        FLY_REGION=iad \
+#        FLY_TENANT_IMAGE=registry.fly.io/daemora-tenants:tenant \
+#        MASTER_KEK="<same MASTER_KEK as apps/api>" \
+#        CONTROL_PLANE_ADMIN_TOKEN="<same as apps/api>"
+#   5. Update apps/api fly.toml CONTROL_PLANE_INTERNAL_URL to:
+#        http://daemora-control-plane.flycast:8080
+#      (already set — no action needed)
+
+app = "daemora-control-plane"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile.controlplane"
+
+[env]
+  NODE_ENV                  = "production"
+  CONTROL_PLANE_PORT        = "8080"
+  CONTROL_PLANE_HOST_SUFFIX = ".daemora.app"
+  DAEMORA_RUNTIME           = "fly"
+
+[http_service]
+  internal_port = 8080
+  # Private to the org's 6PN — NEVER expose this publicly. apps/api hits
+  # it over flycast. Users hit tenant machines via subdomain, not here.
+  force_https = false
+  auto_stop_machines  = "stop"
+  auto_start_machines = true
+  # Always-warm: apps/api expects sub-100ms latency on /admin calls.
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval     = "30s"
+    timeout      = "10s"
+    grace_period = "30s"
+    method       = "GET"
+    path         = "/health"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus     = 1
+  memory   = "512mb"
+
+[deploy]
+  strategy = "rolling"

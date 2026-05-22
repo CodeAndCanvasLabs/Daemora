@@ -11,13 +11,38 @@
  */
 
 import { readBootEnv } from "../../config/env.js";
+import { FlyMachinesClient } from "../../multitenant/FlyMachinesClient.js";
 import { MasterKeyVault } from "../../multitenant/MasterKeyVault.js";
 import { TenantManager } from "../../multitenant/TenantManager.js";
+import { FlyMachinesRuntime, type TenantRuntime } from "../../multitenant/TenantRuntime.js";
 import { signalOrphaned, signalTree } from "../../util/killTree.js";
 import { createLogger } from "../../util/logger.js";
 import { startControlPlane } from "../../multitenant/controlPlane.js";
 
 const log = createLogger("cli.controlPlane");
+
+function pickRuntime(): TenantRuntime | undefined {
+  const mode = (process.env["DAEMORA_RUNTIME"] ?? "local").toLowerCase();
+  if (mode !== "fly") return undefined;                       // default = LocalChildProcessRuntime
+
+  const apiToken      = process.env["FLY_API_TOKEN"];
+  const tenantAppName = process.env["FLY_TENANT_APP_NAME"];
+  const region        = process.env["FLY_REGION"] ?? "iad";
+  const tenantImage   = process.env["FLY_TENANT_IMAGE"];
+  const missing = Object.entries({ FLY_API_TOKEN: apiToken, FLY_TENANT_APP_NAME: tenantAppName, FLY_TENANT_IMAGE: tenantImage })
+    .filter(([, v]) => !v).map(([k]) => k);
+  if (missing.length) {
+    throw new Error(`DAEMORA_RUNTIME=fly requires: ${missing.join(", ")}`);
+  }
+  const client = new FlyMachinesClient({
+    apiToken: apiToken!,
+    tenantAppName: tenantAppName!,
+    region,
+    tenantImage: tenantImage!,
+  });
+  log.info({ tenantAppName, region, tenantImage }, "Fly runtime active");
+  return new FlyMachinesRuntime({ client, tenantAppName: tenantAppName! });
+}
 
 export async function controlPlaneCommand(args: string[]): Promise<void> {
   const [sub] = args;
@@ -42,9 +67,11 @@ Env vars:
   const adminToken = process.env["CONTROL_PLANE_ADMIN_TOKEN"];
   const hostSuffix = process.env["CONTROL_PLANE_HOST_SUFFIX"];
 
+  const runtime = pickRuntime();
   const manager = new TenantManager({
     dataRoot: env.dataDir,
     masterVault,
+    ...(runtime ? { runtime } : {}),
   });
 
   const cp = startControlPlane({
