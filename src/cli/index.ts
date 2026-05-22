@@ -21,10 +21,12 @@ import { readFileSync } from "node:fs";
 
 import { browserCommand } from "./commands/browser.js";
 import { configCommand } from "./commands/config.js";
+import { controlPlaneCommand } from "./commands/controlPlane.js";
 import { daemonCommand } from "./commands/daemon.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { setupCommand } from "./commands/setup.js";
 import { startCommand } from "./commands/start.js";
+import { tenantCommand } from "./commands/tenant.js";
 import { vaultCommand } from "./commands/vault.js";
 
 async function main(): Promise<void> {
@@ -66,6 +68,12 @@ async function main(): Promise<void> {
     case "browser":
       await browserCommand(process.argv.slice(3));
       return;
+    case "tenant":
+      await tenantCommand(process.argv.slice(3));
+      return;
+    case "control-plane":
+      await controlPlaneCommand(process.argv.slice(3));
+      return;
     case "voice-worker":
     case "voice": {
       // LiveKit voice agent worker — runs as separate process
@@ -94,6 +102,10 @@ Commands:
   config <cmd>   Settings management (list | get | set | unset)
   browser        Open Chromium with a persistent profile to log into accounts
                    Optional: --profile <name> (default: "default")
+  tenant <cmd>   Multi-tenant admin (list | create | show | plan | set |
+                   apikey set | start | stop | suspend | resume | archive |
+                   status | delete). Run \`daemora tenant help\` for details.
+  control-plane  Multi-tenant orchestrator + reverse proxy (sub: start)
   voice-worker   Run the LiveKit voice agent worker (STT → Daemora → TTS)
   version        Print version
   help           Show this help
