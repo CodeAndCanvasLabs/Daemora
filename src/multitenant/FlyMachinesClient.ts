@@ -151,9 +151,11 @@ export class FlyMachinesClient {
 
   // ── volumes ─────────────────────────────────────────────────────
 
-  /** One persistent volume per tenant. Returns existing if a volume named `${slug}-data` already exists. */
+  /** One persistent volume per tenant. Returns existing if one already exists. */
   async ensureTenantVolume(slug: string, sizeGb = 3): Promise<Volume> {
-    const name = `${slug}_data`;                          // Fly volume names: alphanumeric + underscore
+    // Fly volume names: alphanumeric + underscore ONLY (no hyphens).
+    // Tenant slugs include hyphens (e.g. user-at-gmail-com), so swap them.
+    const name = `${slug.replace(/-/g, "_")}_data`;
     const volumes = await this.call<Volume[]>("GET", `/v1/apps/${this.opts.tenantAppName}/volumes`);
     const existing = volumes.find((v) => v.name === name);
     if (existing) return existing;

@@ -149,6 +149,18 @@ describe("FlyMachinesClient.ensureTenantVolume", () => {
     expect(body.name).toBe("alice_data");
     expect(body.size_gb).toBe(5);
   });
+
+  it("sanitises hyphens out of slug-derived volume names (Fly rejects them)", async () => {
+    const { fetch: ff, calls } = fakeFetch((call) => {
+      if (call.method === "GET") return { status: 200, body: [] };
+      return { status: 200, body: { id: "vol_x", name: "user_at_gmail_com_data", region: "iad", size_gb: 3 } };
+    });
+    const client = newClient(ff);
+    await client.ensureTenantVolume("user-at-gmail-com");
+    const body = calls[1]!.body as { name: string };
+    expect(body.name).toBe("user_at_gmail_com_data");
+    expect(body.name).not.toMatch(/-/);
+  });
 });
 
 describe("FlyMachinesClient error handling", () => {
