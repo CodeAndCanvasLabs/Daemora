@@ -27,13 +27,17 @@ primary_region = 'iad'
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
-  min_machines_running = 0
+  # Keep one machine warm so cold-starts don't time out health checks
+  # and signup latency stays under 200ms. ~$3/mo for one always-on shared-1x.
+  min_machines_running = 1
   processes = ['app']
 
   [[http_service.checks]]
     interval = '30s'
-    timeout = '5s'
-    grace_period = '20s'
+    # Cold-started machines need ~5-10s for the Node + tsx + Better Auth
+    # boot path. 5s was too tight; 15s gives margin without masking real outages.
+    timeout = '15s'
+    grace_period = '60s'
     method = 'GET'
     path = '/health'
 
