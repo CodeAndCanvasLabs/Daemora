@@ -1,51 +1,67 @@
-# Deploy apps/api to Fly.io — MANUAL ONLY.
+# Deploy to Fly.io — MANUAL ONLY, pick what to deploy via the target input.
 #
-# Run from:
-#   1. GitHub UI:  Actions tab → "fly-deploy" → "Run workflow" → main
-#   2. CLI:        gh workflow run fly-deploy.yml --ref main
+# Three targets in one workflow:
+#   - apps-api      → deamora-specialized-saas  (fly.toml + Dockerfile)
+#   - controlplane  → daemora-control-plane     (fly.controlplane.toml + Dockerfile.controlplane)
+#   - tenant-image  → daemora-tenants registry  (Dockerfile.tenant, build-only + push)
 #
-# We do NOT auto-deploy on push. Every prod release is a human decision —
-# this prevents a bad commit on main from rolling out before you've verified
-# it locally.
+# Run from GitHub UI: Actions → fly-deploy → Run workflow → choose target
+# Or CLI:             gh workflow run fly-deploy.yml --ref main -f target=apps-api
 #
-# Required GitHub repo secrets:
-#   FLY_API_TOKEN  — generate locally with:  flyctl auth token
-#                     then add at: GitHub repo → Settings → Secrets and
-#                     variables → Actions → New repository secret
-#
-# Prerequisites (one-time):
-#   1. flyctl auth login   (already done — you have flyctl set up)
-#   2. App "deamora-specialized-saas" exists on Fly (already created via UI)
-#   3. flyctl secrets set --app deamora-specialized-saas \
-#        DATABASE_URL=... JWT_SIGNING_KEY=... SESSION_COOKIE_SECRET=... \
-#        MASTER_KEK=... CONTROL_PLANE_ADMIN_TOKEN=... RESEND_API_KEY=... \
-#        CONTRA_PAYMENT_LINK_PRO=...
-#      (already done — see Fly UI → Secrets)
-#   4. FLY_API_TOKEN added to GitHub repo secrets — DO THIS NEXT
+# Required GitHub secret: FLY_API_TOKEN (from `flyctl auth token`).
+# Per-app prerequisites (one-time): see apps/CLOUD_DEPLOY.md.
 
 name: fly-deploy
 
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: "What to deploy"
+        required: true
+        default: "apps-api"
+        type: choice
+        options:
+          - apps-api
+          - controlplane
+          - tenant-image
 
 concurrency:
-  group: fly-deploy
+  group: fly-deploy-${{ github.event.inputs.target }}
   cancel-in-progress: false
 
 jobs:
   deploy:
-    name: deploy apps/api
+    name: deploy ${{ github.event.inputs.target }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Setup flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@master
-
-      - name: Deploy
-        # Reads fly.toml + Dockerfile from repo root. --remote-only uses
-        # Fly's Depot builder so the runner doesn't have to install Docker.
+      - name: apps-api → deamora-specialized-saas
+        if: ${{ github.event.inputs.target == 'apps-api' }}
         run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: controlplane → daemora-control-plane
+        if: ${{ github.event.inputs.target == 'controlplane' }}
+        run: |
+          flyctl deploy \
+            --config fly.controlplane.toml \
+            --dockerfile Dockerfile.controlplane \
+            --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: tenant-image → registry.fly.io/daemora-tenants:tenant
+        if: ${{ github.event.inputs.target == 'tenant-image' }}
+        run: |
+          flyctl deploy \
+            --app daemora-tenants \
+            --dockerfile Dockerfile.tenant \
+            --image-label tenant \
+            --build-only --push --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
