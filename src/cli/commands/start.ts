@@ -7,6 +7,7 @@
 
 import { exec } from "node:child_process";
 import type { Server } from "node:http";
+import { join } from "node:path";
 
 import type { Express } from "express";
 
@@ -222,7 +223,24 @@ export async function startCommand(): Promise<void> {
   if (managed) {
     fsGuardMode = "sandbox";
     fsAllow = [cfg.env.dataDir]; // absolute (set by the orchestrator)
-    fsDeny = [];
+    // The agent is confined to its workspace, but a few files INSIDE the data
+    // dir are operational/secret and must stay invisible even to reads:
+    //  - auth-signing-key / auth-token : the tenant's own session secrets
+    //  - daemora.db* : the machine vault (API keys), chats, memory
+    //  - mcp.json / .skills-snapshot.json : internal config snapshots
+    //  - logs/ : operational telemetry that contains absolute host paths
+    // Without these denies the agent could read its own vault or leak the host
+    // layout by tailing its log file.
+    fsDeny = [
+      join(cfg.env.dataDir, "auth-signing-key"),
+      join(cfg.env.dataDir, "auth-token"),
+      join(cfg.env.dataDir, "daemora.db"),
+      join(cfg.env.dataDir, "daemora.db-wal"),
+      join(cfg.env.dataDir, "daemora.db-shm"),
+      join(cfg.env.dataDir, "mcp.json"),
+      join(cfg.env.dataDir, ".skills-snapshot.json"),
+      join(cfg.env.dataDir, "logs"),
+    ];
   } else {
     fsGuardMode = ((fsModeFromSettings ?? process.env["DAEMORA_FS_GUARD"]) as FsGuardMode) || "moderate";
     fsAllow = parseFsList(fsAllowFromSettings, process.env["DAEMORA_FS_ALLOW"]);

@@ -60,8 +60,8 @@ export function TaskDetail() {
                         <span className="text-sm text-gray-200 font-medium">{name}</span>
                         {dur != null && <span className="ml-auto text-[11px] text-gray-500">{dur}ms</span>}
                       </div>
-                      {args && <pre className="mt-2 text-[11px] text-gray-400 bg-slate-950/50 rounded p-2 overflow-x-auto max-h-32">{args}</pre>}
-                      {out && <pre className={`mt-2 text-[11px] rounded p-2 overflow-x-auto max-h-40 ${failed ? "text-red-300 bg-red-950/30" : "text-gray-400 bg-slate-950/50"}`}>{out}</pre>}
+                      {args && <pre className="mt-2 text-[11px] text-gray-400 bg-slate-950/50 rounded p-2 overflow-auto max-h-32 whitespace-pre-wrap break-words">{args}</pre>}
+                      {out && <pre className={`mt-2 text-[11px] rounded p-2 overflow-auto max-h-40 whitespace-pre-wrap break-words ${failed ? "text-red-300 bg-red-950/30" : "text-gray-400 bg-slate-950/50"}`}>{out}</pre>}
                     </div>
                   );
                 })}
@@ -71,8 +71,8 @@ export function TaskDetail() {
 
           <Card className="p-4">
             <div className="text-[11px] uppercase tracking-wider text-gray-500 mb-1">Result</div>
-            {t.error ? <div className="text-sm text-red-400 whitespace-pre-wrap">{t.error}</div> :
-              <div className="prose prose-invert prose-sm max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]}>{t.result || "_No result_"}</ReactMarkdown></div>}
+            {t.error ? <div className="text-sm text-red-400 whitespace-pre-wrap break-words">{t.error}</div> :
+              <div className="prose prose-invert prose-sm max-w-none break-words [&_pre]:whitespace-pre-wrap [&_pre]:break-words [&_code]:break-words [&_pre]:overflow-auto"><ReactMarkdown remarkPlugins={[remarkGfm]}>{t.result || "_No result_"}</ReactMarkdown></div>}
           </Card>
         </div>
       )}
