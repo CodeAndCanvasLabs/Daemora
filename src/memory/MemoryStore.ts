@@ -29,6 +29,13 @@ export interface MemoryEntry {
   readonly content: string;
   readonly tags: readonly string[];
   readonly source: string;
+  /**
+   * Provenance — which agent wrote this entry, for the multi-agent model.
+   * NULL = shared / unattributed (visible to all of a user's agents). Lets
+   * recall scope to "mine + shared". Memory is always DATA, never executable
+   * instructions (threat T3): a peer agent's entries inform, never command.
+   */
+  readonly agentId: string | null;
   readonly createdAt: number;
   readonly updatedAt: number;
 }
@@ -92,18 +99,25 @@ export class MemoryStore {
   ) {
     db.exec(SCHEMA);
 
+    // Additive migration: provenance column (which agent wrote the entry).
+    // PRAGMA check + ALTER, idempotent — keeps existing DBs working.
+    const cols = db.prepare(`PRAGMA table_info(memory_entries)`).all() as { name: string }[];
+    if (!cols.some((c) => c.name === "agent_id")) {
+      db.exec(`ALTER TABLE memory_entries ADD COLUMN agent_id TEXT`);
+    }
+
     this.insertEntry = db.prepare(
-      `INSERT INTO memory_entries (id, content, tags_json, source, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO memory_entries (id, content, tags_json, source, agent_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
     );
     this.selectOne = db.prepare(
-      `SELECT id, content, tags_json AS tagsJson, source,
+      `SELECT id, content, tags_json AS tagsJson, source, agent_id AS agentId,
               created_at AS createdAt, updated_at AS updatedAt
        FROM memory_entries WHERE id = ?`,
     );
     this.deleteOne = db.prepare(`DELETE FROM memory_entries WHERE id = ?`);
     this.recall = db.prepare(
-      `SELECT e.id, e.content, e.tags_json AS tagsJson, e.source,
+      `SELECT e.id, e.content, e.tags_json AS tagsJson, e.source, e.agent_id AS agentId,
               e.created_at AS createdAt, e.updated_at AS updatedAt,
               m.rank
        FROM memory_fts m
@@ -113,7 +127,7 @@ export class MemoryStore {
        LIMIT ?`,
     );
     this.listRecent = db.prepare(
-      `SELECT id, content, tags_json AS tagsJson, source,
+      `SELECT id, content, tags_json AS tagsJson, source, agent_id AS agentId,
               created_at AS createdAt, updated_at AS updatedAt
        FROM memory_entries
        ORDER BY created_at DESC
@@ -125,6 +139,8 @@ export class MemoryStore {
     content: string;
     tags?: readonly string[];
     source?: string;
+    /** Which agent wrote this. Omit/empty → shared (NULL), visible to all the user's agents. */
+    agentId?: string;
   }): MemoryEntry {
     const id = randomUUID();
     const now = Date.now();
@@ -133,15 +149,16 @@ export class MemoryStore {
     const content = opts.content.trim();
     if (!content) throw new Error("memory content cannot be empty");
     const source = opts.source?.trim() || "agent";
-    this.insertEntry.run(id, content, tagsJson, source, now, now);
-    log.debug({ id, tagCount: tags.length, source }, "memory saved");
+    const agentId = opts.agentId?.trim() || null;
+    this.insertEntry.run(id, content, tagsJson, source, agentId, now, now);
+    log.debug({ id, tagCount: tags.length, source, agentId }, "memory saved");
     this.wikiLog?.append("memory.save", {
       id,
       source,
       tags: tags.length ? tags.join(",") : undefined,
       content,
     });
-    return { id, content, tags, source, createdAt: now, updatedAt: now };
+    return { id, content, tags, source, agentId, createdAt: now, updatedAt: now };
   }
 
   /**
@@ -156,12 +173,17 @@ export class MemoryStore {
     limit?: number;
     tagsAny?: readonly string[];
     tagsAll?: readonly string[];
+    /**
+     * Scope recall to a calling agent: when set, returns only that agent's
+     * entries plus shared (NULL) ones — "mine + shared". Omit for all.
+     */
+    agentId?: string;
   } = {}): readonly MemoryHit[] {
     const q = sanitiseFtsQuery(query);
     if (!q) return [];
     const limit = Math.max(1, Math.min(opts.limit ?? 10, 100));
     const rows = this.recall.all(q, limit) as Array<{
-      id: string; content: string; tagsJson: string; source: string;
+      id: string; content: string; tagsJson: string; source: string; agentId: string | null;
       createdAt: number; updatedAt: number; rank: number;
     }>;
     const hits = rows.map((r) => ({
@@ -169,16 +191,17 @@ export class MemoryStore {
       content: r.content,
       tags: JSON.parse(r.tagsJson) as string[],
       source: r.source,
+      agentId: r.agentId,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
       rank: r.rank,
     }));
-    return applyTagFilters(hits, opts);
+    return applyAgentScope(applyTagFilters(hits, opts), opts.agentId);
   }
 
   getById(id: string): MemoryEntry | null {
     const row = this.selectOne.get(id) as {
-      id: string; content: string; tagsJson: string; source: string;
+      id: string; content: string; tagsJson: string; source: string; agentId: string | null;
       createdAt: number; updatedAt: number;
     } | undefined;
     if (!row) return null;
@@ -187,6 +210,7 @@ export class MemoryStore {
       content: row.content,
       tags: JSON.parse(row.tagsJson) as string[],
       source: row.source,
+      agentId: row.agentId,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -200,7 +224,7 @@ export class MemoryStore {
     const limit = Math.max(1, Math.min(opts.limit ?? 50, 500));
     const offset = Math.max(0, opts.offset ?? 0);
     const rows = this.listRecent.all(limit, offset) as Array<{
-      id: string; content: string; tagsJson: string; source: string;
+      id: string; content: string; tagsJson: string; source: string; agentId: string | null;
       createdAt: number; updatedAt: number;
     }>;
     return rows.map((r) => ({
@@ -208,10 +232,24 @@ export class MemoryStore {
       content: r.content,
       tags: JSON.parse(r.tagsJson) as string[],
       source: r.source,
+      agentId: r.agentId,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
     }));
   }
+}
+
+/**
+ * "mine + shared" scoping: when `agentId` is provided, keep entries written
+ * by that agent OR shared (NULL) entries. Shared entries are visible to all
+ * of a user's agents; another agent's private entries are not.
+ */
+function applyAgentScope<T extends { agentId: string | null }>(
+  hits: readonly T[],
+  agentId: string | undefined,
+): readonly T[] {
+  if (!agentId) return hits;
+  return hits.filter((h) => h.agentId === agentId || h.agentId === null);
 }
 
 /**

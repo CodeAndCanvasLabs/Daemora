@@ -96,12 +96,12 @@ describe("FilesystemGuard sandbox mode — tenant isolation foundation", () => {
     expect(() => guard.ensureAllowed(db, "write")).toThrow(BlockedActionError);
   });
 
-  it("ALLOWS writes to wiki/, file-projects/, outputs/ inside tenant dir", () => {
+  it("ALLOWS writes to wiki/, projects/, outputs/ inside tenant dir", () => {
     expect(() =>
       guard.ensureAllowed(join(tenantDir, "wiki", "people", "alice.md"), "write"),
     ).not.toThrow();
     expect(() =>
-      guard.ensureAllowed(join(tenantDir, "file-projects", "campaign", "logo.png"), "write"),
+      guard.ensureAllowed(join(tenantDir, "projects", "campaign", "logo.png"), "write"),
     ).not.toThrow();
     expect(() =>
       guard.ensureAllowed(join(tenantDir, "outputs", "report.pdf"), "write"),

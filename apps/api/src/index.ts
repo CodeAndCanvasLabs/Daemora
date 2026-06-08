@@ -10,30 +10,60 @@
  *  - Pluggable BillingProvider — Contra
  */
 
-import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+
+import { buildOrchestrator } from "./gateway/orchestrator.js";
+import { createGatewayServer } from "./gateway/server.js";
 
 import { buildAuth, type Auth } from "./auth/auth.js";
 import { getDb } from "./db/client.js";
 import { loadEnv, type Env } from "./lib/env.js";
 import { authRateLimit, buildSecureHeaders, readRateLimit } from "./lib/security.js";
+import { buildAgentRoutes } from "./routes/agents.js";
+import { buildConfigRoutes } from "./routes/config.js";
 import { buildBillingRoutes } from "./routes/billing.js";
+import { buildInternalRoutes } from "./routes/internal.js";
 import { buildSignupRoutes } from "./routes/signup.js";
 import { AuditLogger, clientFingerprint } from "./services/audit.js";
 import { ContraProvider } from "./services/billing.js";
-import { ControlPlaneClient } from "./services/controlPlaneClient.js";
 import { InMemorySender, ResendSender, type EmailSender } from "./services/email.js";
+import { managerProvisioner, type TenantProvisioner } from "./services/provision.js";
 import { TrialService } from "./services/trial.js";
 import { runTrialJob } from "./services/trialJob.js";
+import type { TenantManager } from "../../../src/multitenant/TenantManager.js";
+import { createLogger } from "../../../src/util/logger.js";
+
+const log = createLogger("apps.api");
+
+/**
+ * Keep the gateway alive through transient network errors. A long-running
+ * multi-tenant server must NOT die because a peer reset a TLS socket (idle
+ * Postgres connection, client disconnect, etc.) — that would 503 every tenant.
+ * Benign network codes are logged and swallowed; anything else is logged and
+ * re-thrown so a process manager can restart cleanly.
+ */
+function installCrashGuards(): void {
+  const BENIGN = new Set(["ECONNRESET", "EPIPE", "ETIMEDOUT", "ECONNREFUSED", "ERR_STREAM_PREMATURE_CLOSE"]);
+  process.on("uncaughtException", (err: NodeJS.ErrnoException) => {
+    if (err.code && BENIGN.has(err.code)) { log.warn({ code: err.code, msg: err.message }, "ignored transient network error"); return; }
+    log.error({ msg: err.message, stack: err.stack }, "uncaught exception — exiting for restart");
+    process.exit(1);
+  });
+  process.on("unhandledRejection", (reason) => {
+    const e = reason as NodeJS.ErrnoException;
+    if (e?.code && BENIGN.has(e.code)) { log.warn({ code: e.code }, "ignored transient network rejection"); return; }
+    log.error({ reason: e?.message ?? String(reason) }, "unhandled rejection");
+  });
+}
 
 export interface ApiDeps {
   readonly env: Env;
   readonly email: EmailSender;          // overridable for tests
 }
 
-export function buildApp(deps: ApiDeps): { app: Hono; auth: Auth; trial: TrialService; controlPlane: ControlPlaneClient } {
-  const { db } = getDb(deps.env.DATABASE_URL);
+export function buildApp(deps: ApiDeps): { app: Hono; auth: Auth; trial: TrialService; provisioner: TenantProvisioner; manager: TenantManager } {
+  const { db, client } = getDb(deps.env.DATABASE_URL);
   const auth = buildAuth({
     db,
     secret: deps.env.SESSION_COOKIE_SECRET,
@@ -44,10 +74,11 @@ export function buildApp(deps: ApiDeps): { app: Hono; auth: Auth; trial: TrialSe
   });
 
   const trial = new TrialService(db);
-  const controlPlane = new ControlPlaneClient({
-    baseUrl: deps.env.CONTROL_PLANE_INTERNAL_URL,
-    adminToken: deps.env.CONTROL_PLANE_ADMIN_TOKEN,
-  });
+  // Single-ingress gateway: run the tenant orchestrator IN-PROCESS instead of
+  // calling a separate control-plane service. Provisioning + suspend go through
+  // the manager-backed provisioner port.
+  const manager = buildOrchestrator(deps.env, client, db);
+  const provisioner = managerProvisioner(manager);
   const billing = new ContraProvider({
     links: {
       ...(deps.env.CONTRA_PAYMENT_LINK_LITE ? { lite: deps.env.CONTRA_PAYMENT_LINK_LITE } : {}),
@@ -69,7 +100,7 @@ export function buildApp(deps: ApiDeps): { app: Hono; auth: Auth; trial: TrialSe
     cors({
       origin: deps.env.PUBLIC_APP_URL,
       credentials: true,
-      allowMethods: ["GET", "POST", "OPTIONS"],
+      allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowHeaders: ["content-type", "authorization"],
     }),
   );
@@ -115,7 +146,7 @@ export function buildApp(deps: ApiDeps): { app: Hono; auth: Auth; trial: TrialSe
 
   app.route("/signup", buildSignupRoutes({
     db,
-    controlPlane,
+    controlPlane: provisioner,             // in-process tenant manager (was the split control plane)
     trial,
     billing,
     auth,                                  // session validation goes through Better Auth, no custom parsing
@@ -128,17 +159,45 @@ export function buildApp(deps: ApiDeps): { app: Hono; auth: Auth; trial: TrialSe
     audit,
   }));
 
-  return { app, auth, trial, controlPlane };
+  app.route("/agents", buildAgentRoutes({
+    db,
+    auth,                                  // roster scoped to the authed user via getSession
+  }));
+
+  // The ONE unified config endpoint (central Postgres source of truth).
+  // manager + signingSecret enable live-apply to the running tenant (no restart).
+  app.route("/api/me", buildConfigRoutes({
+    db,
+    auth,
+    manager,
+    ...(deps.env.INTERNAL_SIGNING_SECRET ? { signingSecret: deps.env.INTERNAL_SIGNING_SECRET } : {}),
+  }));
+
+  // Internal gateway→tenant API (secret broker). Guarded by the signed identity.
+  app.route("/internal", buildInternalRoutes({
+    manager,
+    ...(deps.env.INTERNAL_SIGNING_SECRET ? { signingSecret: deps.env.INTERNAL_SIGNING_SECRET } : {}),
+  }));
+
+  return { app, auth, trial, provisioner, manager };
 }
 
 /** Production entry. */
 export async function startApi(): Promise<void> {
+  installCrashGuards();
   const env = loadEnv();
   const email = env.RESEND_API_KEY
     ? new ResendSender(env.RESEND_API_KEY, env.RESEND_FROM_EMAIL)
     : new InMemorySender();
 
-  const { app, trial, controlPlane } = buildApp({ env, email });
+  // buildApp constructs the in-process tenant orchestrator (manager) + the
+  // provisioner port; the gateway server + trial cron reuse them.
+  const { app, auth, trial, provisioner, manager } = buildApp({ env, email });
+  const { db } = getDb(env.DATABASE_URL);
+
+  // Hydrate the Postgres-backed tenant registry cache before accepting traffic
+  // (#25 — replaces the old SQLite tenants.db). Routing reads from this cache.
+  await manager.init();
 
   // Trial automation cron — every 5 min.
   const interval = setInterval(() => {
@@ -146,18 +205,22 @@ export async function startApi(): Promise<void> {
       db: getDb(env.DATABASE_URL).db,
       trial,
       email,
-      controlPlane,
+      controlPlane: provisioner,
       subscribeUrl: `${env.PUBLIC_APP_URL}/subscribe`,
     }).catch(() => { /* logged inside */ });
   }, 5 * 60 * 1000);
   (interval as { unref?: () => void }).unref?.();
 
-  serve({
-    fetch: app.fetch,
-    port: env.PORT,
+  const server = createGatewayServer({
+    db,
+    auth,
+    manager,
+    honoFetch: app.fetch,
+    ...(env.INTERNAL_SIGNING_SECRET ? { signingSecret: env.INTERNAL_SIGNING_SECRET } : {}),
   });
-
-  console.log(`[apps/api] listening on :${env.PORT}`);
+  server.listen(env.PORT, () => {
+    console.log(`[gateway] listening on :${env.PORT} (runtime=${env.DAEMORA_RUNTIME})`);
+  });
 }
 
 // Run if invoked directly.

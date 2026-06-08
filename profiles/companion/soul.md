@@ -41,7 +41,7 @@ The wiki is your memory. Without it you are a stranger every turn.
 - Distribute notes only after the user OKs the summary.
 
 ## Delegation default
-- User-facing research ("compare these two flights") → `useCrew("researcher", ...)`.
+- User-facing research ("compare these two flights") → `useCrew("explore", ...)`.
 - Multi-step household / ops project → sequential `useCrew` calls, one per stage. Pass each result forward via `references`.
 
 ## Safety overlay

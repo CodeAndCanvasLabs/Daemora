@@ -11,10 +11,10 @@
  *   /health    — control plane's own health
  *   anything else → resolve tenant → proxy
  *
- * Tenant resolution (first match wins):
- *   1. `X-Tenant-Slug` header (server-to-server / testing)
- *   2. Subdomain of `Host` header (e.g. `alice.daemora.local`)
- *   3. JWT claim `tenant` in the `Authorization: Bearer ...` header (production)
+ * Tenant resolution (see resolveTenant for the security model):
+ *   - production: Host subdomain only (e.g. `alice.daemora.app`)
+ *   - dev/test: also `X-Tenant-Slug` header, `?slug=` query, tenant cookie
+ *     (all UNAUTHENTICATED hints — refused in production)
  *
  * Wakes a sleeping tenant on first inbound request. Returns 402 for
  * suspended tenants, 410 for archived.
@@ -109,7 +109,7 @@ async function handleRequest(
   if (!slug) {
     res.statusCode = 400;
     res.setHeader("content-type", "application/json");
-    res.end(JSON.stringify({ error: "tenant could not be resolved (need subdomain, X-Tenant-Slug header, or JWT)" }));
+    res.end(JSON.stringify({ error: "tenant could not be resolved (production: use the Host subdomain)" }));
     return;
   }
 
@@ -198,30 +198,47 @@ async function handleUpgrade(
 
 export const TENANT_COOKIE_NAME = "daemora-tenant";
 
+/**
+ * Resolve which tenant a request targets.
+ *
+ * SECURITY: in production the ONLY honored method is the Host subdomain.
+ * Every other method here — `X-Tenant-Slug` header, `?slug=` query, tenant
+ * cookie — is an UNAUTHENTICATED routing hint that any caller can set to
+ * reach any tenant, so it is gated to dev/test routing only and refused in
+ * production. The previous forgeable path (decode an *unverified* JWT
+ * `tenant` claim) has been removed outright.
+ *
+ * KNOWN GAP: even subdomain routing does not yet prove the *caller* owns
+ * the tenant. Per-caller authorization (authenticated session → that user's
+ * own tenant) lands with the authenticating gateway (task #27); until then
+ * production must keep the tenant farm behind the network boundary and the
+ * per-tenant daemoras must not be exposed directly.
+ */
 export function resolveTenant(req: IncomingMessage, hostSuffix?: string): string | undefined {
-  // 1. Explicit header (highest priority — used in dev / tests).
-  const header = req.headers["x-tenant-slug"];
-  if (typeof header === "string" && header.length > 0) {
-    return sanitiseSlug(header);
+  // Unauthenticated dev/test routing hints are honored ONLY outside
+  // production (or when explicitly opted in via DAEMORA_DEV_ROUTING=1).
+  const devRouting = process.env["DAEMORA_DEV_ROUTING"] === "1"
+    || process.env["NODE_ENV"] !== "production";
+
+  // 1. Explicit header (dev/test, server-to-server). Dev-gated.
+  if (devRouting) {
+    const header = req.headers["x-tenant-slug"];
+    if (typeof header === "string" && header.length > 0) {
+      return sanitiseSlug(header);
+    }
   }
 
-  // 2. Subdomain of Host (production routing).
+  // 2. Subdomain of Host (production routing — the only method honored in prod).
   const host = (req.headers.host ?? "").split(":")[0]?.toLowerCase();
   if (host && hostSuffix && host.endsWith(hostSuffix)) {
     const slug = host.slice(0, host.length - hostSuffix.length);
     if (slug.length > 0) return sanitiseSlug(slug);
   }
 
-  // 3. JWT in Authorization (production — Phase 8 will validate, here we
-  //    just decode the `tenant` claim if present).
-  const auth = req.headers["authorization"];
-  if (typeof auth === "string" && auth.toLowerCase().startsWith("bearer ")) {
-    const token = auth.slice(7).trim();
-    const claim = decodeTenantClaim(token);
-    if (claim) return sanitiseSlug(claim);
-  }
+  // The remaining hints are dev-only and unauthenticated.
+  if (!devRouting) return undefined;
 
-  // 4. Query-string slug (dev kickoff — first hit from a browser tab).
+  // 3. Query-string slug (dev kickoff — first hit from a browser tab).
   //    A successful resolution here causes a Set-Cookie so sub-resources
   //    (assets, XHR) on the same origin re-resolve via cookie below.
   try {
@@ -230,7 +247,7 @@ export function resolveTenant(req: IncomingMessage, hostSuffix?: string): string
     if (q) return sanitiseSlug(q);
   } catch { /* malformed URL — skip */ }
 
-  // 5. Cookie (dev follow-up — set on the response when query resolved).
+  // 4. Cookie (dev follow-up — set on the response when query resolved).
   const cookieHeader = req.headers["cookie"];
   if (typeof cookieHeader === "string") {
     const match = new RegExp(`(?:^|;\\s*)${TENANT_COOKIE_NAME}=([^;]+)`).exec(cookieHeader);
@@ -256,24 +273,11 @@ function sanitiseSlug(s: string): string | undefined {
   return undefined;
 }
 
-/** Decode the `tenant` claim from a JWT without verifying (Phase 8 verifies). */
-function decodeTenantClaim(token: string): string | undefined {
-  const parts = token.split(".");
-  if (parts.length !== 3) return undefined;
-  try {
-    const body = parts[1] ?? "";
-    const json = Buffer.from(body, "base64url").toString("utf-8");
-    const claims = JSON.parse(json) as Record<string, unknown>;
-    const t = claims["tenant"] ?? claims["tenantId"];
-    return typeof t === "string" ? t : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 // ── proxy primitives ─────────────────────────────────────────────
+// Exported so the single-ingress gateway (apps/api) can reuse the exact
+// same raw-http + WebSocket proxy after it authenticates the request.
 
-function proxyHttp(
+export function proxyHttp(
   req: IncomingMessage,
   res: ServerResponse,
   upstreamUrl: string,
@@ -319,7 +323,7 @@ function proxyHttp(
   });
 }
 
-function proxyUpgrade(req: IncomingMessage, clientSocket: Socket, head: Buffer, upstreamUrl: string): void {
+export function proxyUpgrade(req: IncomingMessage, clientSocket: Socket, head: Buffer, upstreamUrl: string): void {
   const u = new URL(upstreamUrl);
   const upstream = httpRequest({
     host: u.hostname,

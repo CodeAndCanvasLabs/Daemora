@@ -32,6 +32,8 @@ export interface SessionRow {
   readonly source: string | null;
   readonly userId: string | null;
   readonly systemPrompt: string | null;
+  /** Agent/profile this session runs as. NULL = active profile. */
+  readonly profileId: string | null;
   readonly totalTokens: number;
   readonly createdAt: number;
   readonly updatedAt: number;
@@ -131,6 +133,12 @@ function applyMigrations(db: Database.Database): void {
   if (!haveColumn("sessions", "system_prompt")) {
     db.exec(`ALTER TABLE sessions ADD COLUMN system_prompt TEXT`);
   }
+  // Which agent/profile this session runs as. Enables one user to run
+  // multiple agents concurrently (each session bound to a profile). NULL =
+  // the active profile (legacy single-agent behaviour).
+  if (!haveColumn("sessions", "profile_id")) {
+    db.exec(`ALTER TABLE sessions ADD COLUMN profile_id TEXT`);
+  }
   if (!haveColumn("sessions", "total_tokens")) {
     db.exec(`ALTER TABLE sessions ADD COLUMN total_tokens INTEGER NOT NULL DEFAULT ${SAFE_DEFAULT}`);
   }
@@ -222,13 +230,14 @@ export class SessionStore {
 
     this.insertSession = db.prepare(
       `INSERT INTO sessions
-         (id, title, model_hint, parent_session_id, source, user_id, system_prompt, total_tokens, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+         (id, title, model_hint, parent_session_id, source, user_id, system_prompt, profile_id, total_tokens, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
     );
     this.selectSession = db.prepare(
       `SELECT id, title, model_hint AS modelHint,
               parent_session_id AS parentSessionId,
               source, user_id AS userId, system_prompt AS systemPrompt,
+              profile_id AS profileId,
               total_tokens AS totalTokens,
               created_at AS createdAt, updated_at AS updatedAt
        FROM sessions WHERE id = ?`,
@@ -237,6 +246,7 @@ export class SessionStore {
       `SELECT s.id, s.title, s.model_hint AS modelHint,
               s.parent_session_id AS parentSessionId,
               s.source, s.user_id AS userId, s.system_prompt AS systemPrompt,
+              s.profile_id AS profileId,
               s.total_tokens AS totalTokens,
               s.created_at AS createdAt, s.updated_at AS updatedAt,
               COUNT(m.id) AS messageCount
@@ -300,7 +310,7 @@ export class SessionStore {
   createSession(opts: {
     title?: string; modelHint?: string;
     parentSessionId?: string; source?: string; userId?: string;
-    systemPrompt?: string;
+    systemPrompt?: string; profileId?: string;
   } = {}): SessionRow {
     return this.createSessionWithId(randomUUID(), opts);
   }
@@ -308,21 +318,22 @@ export class SessionStore {
   createSessionWithId(id: string, opts: {
     title?: string; modelHint?: string;
     parentSessionId?: string; source?: string; userId?: string;
-    systemPrompt?: string;
+    systemPrompt?: string; profileId?: string;
   } = {}): SessionRow {
     const now = Date.now();
     const title = (opts.title ?? "New chat").slice(0, 200);
     this.insertSession.run(
       id, title, opts.modelHint ?? null,
       opts.parentSessionId ?? null, opts.source ?? null, opts.userId ?? null,
-      opts.systemPrompt ?? null, now, now,
+      opts.systemPrompt ?? null, opts.profileId ?? null, now, now,
     );
-    log.debug({ sessionId: id, title, parent: opts.parentSessionId }, "session created");
+    log.debug({ sessionId: id, title, parent: opts.parentSessionId, profile: opts.profileId }, "session created");
     return {
       id, title, modelHint: opts.modelHint ?? null,
       parentSessionId: opts.parentSessionId ?? null,
       source: opts.source ?? null, userId: opts.userId ?? null,
       systemPrompt: opts.systemPrompt ?? null,
+      profileId: opts.profileId ?? null,
       totalTokens: 0, createdAt: now, updatedAt: now,
     };
   }
@@ -333,7 +344,7 @@ export class SessionStore {
    */
   createChildSession(parentId: string, opts: {
     title?: string; modelHint?: string; source?: string; userId?: string;
-    systemPrompt?: string;
+    systemPrompt?: string; profileId?: string;
   } = {}): SessionRow {
     return this.createSession({ ...opts, parentSessionId: parentId });
   }
@@ -358,6 +369,7 @@ export class SessionStore {
       `SELECT id, title, model_hint AS modelHint,
               parent_session_id AS parentSessionId,
               source, user_id AS userId, system_prompt AS systemPrompt,
+              profile_id AS profileId,
               total_tokens AS totalTokens,
               created_at AS createdAt, updated_at AS updatedAt
        FROM sessions

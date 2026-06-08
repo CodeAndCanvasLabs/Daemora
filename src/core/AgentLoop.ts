@@ -7,7 +7,7 @@
  *     typed discriminated union the caller can translate to SSE / a UI.
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -66,8 +66,6 @@ export interface AgentLoopDeps {
   readonly bus?: EventBus;
   /** Loop detector — intercepts repetitive tool calls before execution. */
   readonly loopDetector?: LoopDetector;
-  /** Files-feature gallery store — exposes list_gallery_projects to the agent. */
-  readonly fileProjects?: import("../files/FileProjectStore.js").FileProjectStore;
   /**
    * Returns the set of integration ids (twitter, youtube, facebook,
    * instagram) that currently have at least one connected account.
@@ -132,6 +130,12 @@ export interface AgentTurnInput {
    * permissions without mutating the shared registry.
    */
   readonly allowedTools?: readonly string[];
+  /**
+   * Which agent/profile this turn runs as. Lets ONE user run multiple
+   * agents concurrently (each bound to a profile) inside one instance.
+   * Omitted → the registry's active profile (legacy single-agent behaviour).
+   */
+  readonly profileId?: string;
 }
 
 export interface AgentTurnResult {
@@ -194,7 +198,6 @@ export class AgentLoop {
       ...(deps.declarativeMemory ? { declarativeMemory: deps.declarativeMemory } : {}),
       ...(deps.sessions ? { sessions: deps.sessions } : {}),
       ...(deps.bus ? { bus: deps.bus } : {}),
-      ...(deps.fileProjects ? { fileProjects: deps.fileProjects } : {}),
       ...(skillLoader && skillsRoot
         ? {
             onSkillsChanged: async () => {
@@ -242,9 +245,9 @@ export class AgentLoop {
    * conditionally so we don't put a noisy `profile: {}` in the filter
    * object.
    */
-  private profileSkillFilter(): { include?: readonly string[]; exclude?: readonly string[] } | undefined {
-    if (!this.profiles) return undefined;
-    const p = this.profiles.getActive();
+  private profileSkillFilter(profile: import("../profiles/types.js").LoadedProfile | undefined): { include?: readonly string[]; exclude?: readonly string[] } | undefined {
+    if (!profile) return undefined;
+    const p = profile;
     const inc = p.skills.include ?? [];
     const exc = p.skills.exclude ?? [];
     if (inc.length === 0 && exc.length === 0) return undefined;
@@ -260,26 +263,26 @@ export class AgentLoop {
    * there's no profile gate (default daemora) so callers can skip the
    * filter cheaply.
    */
-  private profileToolFilter(): { tools: ReadonlySet<string>; categories: ReadonlySet<string> } | undefined {
-    if (!this.profiles) return undefined;
-    const p = this.profiles.getActive();
+  private profileToolFilter(profile: import("../profiles/types.js").LoadedProfile | undefined): { tools: ReadonlySet<string>; categories: ReadonlySet<string> } | undefined {
+    if (!profile) return undefined;
+    const p = profile;
     const toolNames = p.tools.allowedTools ?? [];
     const cats = p.tools.allowedCategories ?? [];
     if (toolNames.length === 0 && cats.length === 0) return undefined;
     return { tools: new Set(toolNames), categories: new Set(cats) };
   }
 
-  /** Active profile's crew include/exclude (same shape semantics as skill filter). */
-  private profileCrewFilter(): { include?: readonly string[]; exclude?: readonly string[] } | undefined {
+  /**
+   * Resolve the profile for this turn. An explicit per-session `profileId`
+   * wins (this is how one user runs multiple agents concurrently); otherwise
+   * the registry's active profile. undefined when no registry is wired
+   * (legacy single-soul behaviour). A profileId that no longer exists falls
+   * back to the active profile rather than erroring the turn.
+   */
+  private resolveTurnProfile(profileId: string | undefined): import("../profiles/types.js").LoadedProfile | undefined {
     if (!this.profiles) return undefined;
-    const p = this.profiles.getActive();
-    const inc = p.crews.include ?? [];
-    const exc = p.crews.exclude ?? [];
-    if (inc.length === 0 && exc.length === 0) return undefined;
-    const out: { include?: readonly string[]; exclude?: readonly string[] } = {};
-    if (inc.length > 0) out.include = inc;
-    if (exc.length > 0) out.exclude = exc;
-    return out;
+    if (profileId) return this.profiles.get(profileId) ?? this.profiles.getActive();
+    return this.profiles.getActive();
   }
 
   /**
@@ -305,10 +308,14 @@ export class AgentLoop {
     // Pure hermes pattern: no matcher. Every available tool goes into
     // the turn; the agent decides via the skill index which skills to
     // load, and calls skill_view(name) to read them.
+    // The agent (profile) this turn runs as — explicit per-session profileId
+    // wins, else the active profile. This is what lets one user run several
+    // agents concurrently inside one instance.
+    const turnProfile = this.resolveTurnProfile(input.profileId);
     // Active profile's tool allowlist — used to narrow availableNames
     // and the toolDefs surface. When the profile has no restriction
     // (default `daemora`) these stay null and behaviour matches legacy.
-    const profileTools = this.profileToolFilter();
+    const profileTools = this.profileToolFilter(turnProfile);
 
     const availableNames = input.allowedTools && input.allowedTools.length > 0
       ? new Set(input.allowedTools)
@@ -327,11 +334,27 @@ export class AgentLoop {
       toolDefs = toolDefs.filter((t) => profileToolPasses(t, profileTools));
     }
 
+    // Integrations are reached ONLY via their per-integration sub-agent
+    // (e.g. use_crew("twitter", …)) — the same delegation model as MCP. Hide
+    // the integration-sourced tools from the MAIN agent so their schemas don't
+    // bloat its context every turn. Exemptions:
+    //   - scoped spawns (background reviewer etc.) pass an explicit allowedTools
+    //     and never include integration tools anyway;
+    //   - crews build their own toolset in CrewAgentRunner (independent path),
+    //     so the integration crews still get their tools.
+    const scopedSpawn = !!(input.allowedTools && input.allowedTools.length > 0);
+    if (!scopedSpawn) {
+      toolDefs = toolDefs.filter((t) => t.source.kind !== "integration");
+      for (const t of this.tools.list()) {
+        if (t.source.kind === "integration") availableNames.delete(t.name);
+      }
+    }
+
     // System prompt: cached per-session when sessionId is provided (hermes
     // pattern). Voice mode flips the prompt content so it gets its own
     // cache key; sub-agent spawns with allowedTools bypass the cache since
     // the skills index reflects the narrower toolset.
-    const profileId = this.profiles?.getActiveId() ?? "default";
+    const profileId = turnProfile?.manifest.id ?? "default";
     const cacheKey = input.sessionId && !input.voiceMode
       && !(input.allowedTools && input.allowedTools.length > 0)
       ? `${input.sessionId}:${resolved.id}:${profileId}` : null;
@@ -339,12 +362,13 @@ export class AgentLoop {
     if (cacheKey && this.systemPromptCache.has(cacheKey)) {
       systemPrompt = this.systemPromptCache.get(cacheKey)!;
     } else {
+      const skillFilter = this.profileSkillFilter(turnProfile);
       const skillsIndex = this.skills.renderIndexForPrompt({
         availableTools: availableNames,
         enabledIntegrations,
-        ...(this.profileSkillFilter() ? { profile: this.profileSkillFilter()! } : {}),
+        ...(skillFilter ? { profile: skillFilter } : {}),
       });
-      systemPrompt = await this.buildSystemPrompt(skillsIndex, input.voiceMode ?? false);
+      systemPrompt = await this.buildSystemPrompt(skillsIndex, input.voiceMode ?? false, turnProfile, input.sessionId);
       if (cacheKey) this.systemPromptCache.set(cacheKey, systemPrompt);
     }
     // Build the user turn. When images are attached we switch to the
@@ -402,7 +426,7 @@ export class AgentLoop {
         skillsVisible: this.skills.visible({
           availableTools: availableNames,
           enabledIntegrations,
-          ...(this.profileSkillFilter() ? { profile: this.profileSkillFilter()! } : {}),
+          ...(this.profileSkillFilter(turnProfile) ? { profile: this.profileSkillFilter(turnProfile)! } : {}),
         }).length,
         maxSteps: input.maxSteps ?? DEFAULT_MAX_STEPS,
         crewCount: this.crews?.size ?? 0,
@@ -431,9 +455,78 @@ export class AgentLoop {
     };
   }
 
+  /**
+   * When the session is a project chat (`proj-<slug>`), build a prompt
+   * section that tells the agent which project it's in and confines its
+   * work to that project's directory. Reads the optional `.project.json`
+   * manifest for a friendly name/goal; falls back to the slug. Returns
+   * null for non-project sessions (generic chat) or if dataDir is unknown.
+   */
+  private projectContextBlock(sessionId?: string): string | null {
+    if (!sessionId || !sessionId.startsWith("proj-")) return null;
+    const slug = sessionId.slice("proj-".length);
+    if (!slug || slug.includes("/") || slug.includes("..")) return null;
+    const dataDir = (this.cfg as { env?: { dataDir?: string } }).env?.dataDir;
+    if (!dataDir) return null;
+
+    const projectRoot = join(dataDir, "projects", slug);
+    let name = slug;
+    let description: string | undefined;
+    let kind: string | undefined;
+    let manifestRaw = "";
+    try {
+      manifestRaw = readFileSync(join(projectRoot, ".project.json"), "utf8");
+      const m = JSON.parse(manifestRaw) as { name?: string; description?: string; goal?: string; kind?: string };
+      if (m.name) name = m.name;
+      description = m.description ?? m.goal;   // `goal` is the legacy field name
+      if (m.kind) kind = m.kind;
+    } catch { /* no manifest yet — slug is enough */ }
+
+    // Per-kind working style so the agent behaves appropriately (code vs research vs media).
+    const KIND_GUIDANCE: Record<string, string> = {
+      coding: "This is a CODING project: build the app under `code/`, keep it runnable (an index.html or a dev server + .preview.json for live Preview), write clean source, and test what you build.",
+      research: "This is a RESEARCH project: produce well-structured findings as Markdown in `research/` (and `docs/`), cite sources, and keep an organized writeup.",
+      video: "This is a VIDEO project: generate/edit media into `videos/` (and supporting `images/`, `audio/`), and keep a short index of what was produced.",
+      design: "This is a DESIGN project: put visual output in `images/` and design docs in `docs/`.",
+      writing: "This is a WRITING project: keep drafts and final copy as Markdown in `docs/`.",
+      data: "This is a DATA project: keep datasets/exports under `data/` or `docs/` and document your analysis.",
+    };
+
+    // Top-level orientation: a short listing of what's already in the project
+    // so the agent knows the layout without having to list_directory first.
+    let listing = "";
+    try {
+      const entries = readdirSync(projectRoot, { withFileTypes: true })
+        .filter((e) => e.name !== ".project.json" && !e.name.startsWith("."))
+        .sort((a, b) => (a.isDirectory() === b.isDirectory() ? a.name.localeCompare(b.name) : a.isDirectory() ? -1 : 1))
+        .slice(0, 40)
+        .map((e) => (e.isDirectory() ? `${e.name}/` : e.name));
+      if (entries.length > 0) listing = entries.join(", ");
+    } catch { /* empty/new project */ }
+
+    const dir = `projects/${slug}/`;
+    return [
+      "## Current Project (scoped chat)",
+      `This conversation is **scoped to one project: ${name}**${kind ? ` (type: **${kind}**)` : ""} — workspace directory \`${dir}\`.${description ? ` Purpose: ${description}` : ""}`,
+      kind && KIND_GUIDANCE[kind] ? KIND_GUIDANCE[kind] : "",
+      manifestRaw ? `Project manifest (\`${dir}.project.json\`):\n\`\`\`json\n${manifestRaw.trim()}\n\`\`\`` : "",
+      listing ? `Current contents of \`${dir}\`: ${listing}` : `\`${dir}\` is empty so far — create files as you work.`,
+      "",
+      "**Special instructions — operate inside this project ONLY:**",
+      `- \`${dir}\` is your working directory. Every read, write, edit, and command for this chat happens inside it.`,
+      `- When the user says "this project", "here", "the files", or names a file with no path, resolve it under \`${dir}\`.`,
+      `- Organize output into typed subfolders so it surfaces in the project's Files/Assets: \`${dir}code/\` (apps/source), \`${dir}images/\`, \`${dir}videos/\`, \`${dir}audio/\`, \`${dir}docs/\`, \`${dir}research/\`.`,
+      `- Live Preview: for a runnable app, either build static output under \`${dir}code/\` with an \`index.html\`, OR start a dev server (e.g. \`npm run dev\`) configured with base path \`/_preview/${slug}/\` and write \`${dir}.preview.json\` = \`{"devPort": <port>}\` — the Preview tab then proxies it live with hot reload.`,
+      `- Do NOT read from, write to, or reference any OTHER project's directory, the workspace root, or files outside \`${dir}\`. This project is a sealed workspace — keep its data in and everything else out.`,
+      `- If the user clearly asks for something unrelated to this project, tell them it belongs in a generic chat or another project rather than mixing it in here.`,
+    ].join("\n");
+  }
+
   private async buildSystemPrompt(
     skillsIndex: string,
     voiceMode: boolean,
+    profile?: import("../profiles/types.js").LoadedProfile,
+    sessionId?: string,
   ): Promise<string> {
     // Soul prompt source order:
     //   1. Active profile's soul.md (already loaded into memory by ProfileLoader).
@@ -442,7 +535,7 @@ export class AgentLoop {
     // Profile-sourced prompts vary per profile, so we don't memoize them
     // statically — the systemPromptCache (keyed per session+model) does
     // the caching, and is flushed on profile change in the constructor.
-    const soulPrompt = this.profiles?.getActive().soulPrompt ?? AgentLoop.fallbackSoulPrompt();
+    const soulPrompt = profile?.soulPrompt ?? this.profiles?.getActive().soulPrompt ?? AgentLoop.fallbackSoulPrompt();
     const sections: string[] = [soulPrompt];
 
     // Runtime contracts — wiki, gallery, safety, delegation field shapes,
@@ -452,6 +545,15 @@ export class AgentLoop {
     // truth instead of duplicated into each specialist soul.md.
     const runtime = AgentLoop.runtimeContracts();
     if (runtime) sections.push("\n" + runtime);
+
+    // Project context — when this chat is scoped to a project (sessionId
+    // `proj-<slug>`), pin the agent inside that project's directory so its
+    // work, reads and writes stay within the sealed workspace and it knows
+    // which project it's in (otherwise it answers "I'm in the workspace
+    // root"). Cached per-session via the systemPromptCache, so zero per-turn
+    // cost. Generic chats (session "main") get nothing here.
+    const projectBlock = this.projectContextBlock(sessionId);
+    if (projectBlock) sections.push("\n" + projectBlock);
 
     // Plan Mode — when on, the agent must ask before every destructive
     // action via reply_to_user and wait for explicit approval. Injected
@@ -479,11 +581,13 @@ export class AgentLoop {
     }
 
     // Available tools summary so the agent knows what it can call.
-    const toolNames = this.tools.list().map((t) => t.name);
+    // Integration-sourced tools are delegated to their per-integration crew,
+    // so they're excluded here to match the main agent's actual callable set.
+    const toolNames = this.tools.list().filter((t) => t.source.kind !== "integration").map((t) => t.name);
     sections.push(`\n## Available Tools\n${toolNames.join(", ")}`);
 
     if (this.crews && this.crews.size > 0) {
-      const lines = this.crews.summaryLines(this.profileCrewFilter());
+      const lines = this.crews.summaryLines();
       if (lines.length > 0) {
         sections.push("\n## Available Crews");
         for (const line of lines) sections.push(line);

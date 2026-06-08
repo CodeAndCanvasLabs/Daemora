@@ -25,8 +25,8 @@ interface UseCrewTurnContext {
 }
 
 const referenceSchema = z.object({
-  kind: z.enum(["file", "url", "note", "gallery"]).describe("Reference type. file = local path, url = web link, note = inline text, gallery = a gallery project slug from list_gallery_projects (the crew gets that project's manifest auto-injected before its turn)."),
-  value: z.string().min(1).describe("The path, URL, text content, or — for gallery — the project slug (e.g. \"auditionaid\")."),
+  kind: z.enum(["file", "url", "note"]).describe("Reference type. file = local path, url = web link, note = inline text."),
+  value: z.string().min(1).describe("The path, URL, or inline text content."),
   why: z.string().optional().describe("One-line note on why this reference matters for the task."),
 });
 

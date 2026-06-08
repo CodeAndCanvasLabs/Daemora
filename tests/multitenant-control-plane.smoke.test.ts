@@ -1,7 +1,7 @@
 /**
  * Phase 4: Control plane smoke tests.
  *
- *  - tenant resolution (header / subdomain / JWT claim)
+ *  - tenant resolution (subdomain in prod; header / query / cookie in dev)
  *  - admin API auth (bearer required + constant-time compare)
  *  - admin CRUD endpoints
  *  - reverse proxy forwards HTTP requests to the right port
@@ -15,7 +15,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
+import postgres from "postgres";
 
 import { MasterKeyVault } from "../src/multitenant/MasterKeyVault.js";
 import { TenantManager } from "../src/multitenant/TenantManager.js";
@@ -79,13 +80,31 @@ describe("resolveTenant", () => {
     ).toBeUndefined();
   });
 
-  it("resolves from JWT tenant claim (decoded only, NOT verified — Phase 8 verifies)", () => {
+  it("does NOT honor a forgeable JWT tenant claim (security: path removed)", () => {
     const claims = { sub: "user-123", tenant: "alice", exp: 9999999999 };
     const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
     const token = `header.${payload}.signature`;
     expect(
       resolveTenant(makeReq({ authorization: `Bearer ${token}` }) as never, ".daemora.app"),
-    ).toBe("alice");
+    ).toBeUndefined();
+  });
+
+  it("SECURITY: in production, ignores unauthenticated hints (header/query/cookie) and only honors subdomain", () => {
+    const prev = process.env["NODE_ENV"];
+    const prevDev = process.env["DAEMORA_DEV_ROUTING"];
+    process.env["NODE_ENV"] = "production";
+    delete process.env["DAEMORA_DEV_ROUTING"];
+    try {
+      // Forgeable hints are refused.
+      expect(resolveTenant(makeReq({ "x-tenant-slug": "victim" }) as never, ".daemora.app")).toBeUndefined();
+      expect(resolveTenant(makeReq({}, "/?slug=victim") as never, ".daemora.app")).toBeUndefined();
+      expect(resolveTenant(makeReq({ cookie: "daemora-tenant=victim" }) as never, ".daemora.app")).toBeUndefined();
+      // Subdomain still routes.
+      expect(resolveTenant(makeReq({ host: "alice.daemora.app" }) as never, ".daemora.app")).toBe("alice");
+    } finally {
+      if (prev === undefined) delete process.env["NODE_ENV"]; else process.env["NODE_ENV"] = prev;
+      if (prevDev !== undefined) process.env["DAEMORA_DEV_ROUTING"] = prevDev;
+    }
   });
 
   it("rejects invalid slug (non-DNS-safe)", () => {
@@ -127,7 +146,12 @@ describe("resolveTenant", () => {
 
 // ── control plane integration tests ───────────────────────────────
 
-describe("control plane HTTP server", () => {
+// Integration smoke — registry is in Postgres (#25). Needs DATABASE_URL pointed
+// at a TEST database; skipped in the default unit run.
+const CP_DB_URL = process.env["DATABASE_URL"];
+const cpSql = CP_DB_URL ? postgres(CP_DB_URL, { prepare: false, max: 3 }) : (undefined as unknown as ReturnType<typeof postgres>);
+
+describe.skipIf(!CP_DB_URL)("control plane HTTP server", () => {
   let manager: TenantManager;
   let cp: ControlPlane;
   let cpPort: number;
@@ -138,7 +162,8 @@ describe("control plane HTTP server", () => {
   beforeEach(async () => {
     dataRoot = mkdtempSync(join(tmpdir(), "daemora-cp-"));
     const vault = new MasterKeyVault(randomBytes(32));
-    manager = new TenantManager({ dataRoot, masterVault: vault });
+    manager = new TenantManager({ dataRoot, sql: cpSql, masterVault: vault });
+    await manager.init();
     adminToken = "test-admin-token-" + randomBytes(8).toString("hex");
     cpPort = await freePort();
     cp = startControlPlane({
@@ -155,8 +180,16 @@ describe("control plane HTTP server", () => {
     for (const u of upstreams) await new Promise((r) => u.close(() => r(null)));
     upstreams.length = 0;
     await cp.close();
-    manager.close();
+    // Clean up only the tenants this suite creates (all @x.com) so re-runs are
+    // idempotent and we never touch real tenants.
+    for (const t of manager.list().filter((x) => x.email.endsWith("@x.com"))) {
+      await manager.stop(t.slug).catch(() => {});
+      await manager.hardDelete(t.slug).catch(() => {});
+    }
+    await manager.close();
   });
+
+  afterAll(async () => { await cpSql.end({ timeout: 5 }).catch(() => {}); });
 
   it("GET /health returns ok", async () => {
     const res = await fetch(`http://127.0.0.1:${cpPort}/health`);

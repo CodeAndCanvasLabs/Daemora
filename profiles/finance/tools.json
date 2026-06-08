@@ -1,3 +1,14 @@
 {
-  "allowedCategories": ["filesystem", "search", "network", "ai", "data", "system", "agent"]
+  "allowedCategories": [
+    "filesystem",
+    "search",
+    "network",
+    "ai",
+    "data",
+    "system",
+    "agent"
+  ],
+  "allowedTools": [
+    "reply_to_user"
+  ]
 }

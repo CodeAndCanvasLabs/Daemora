@@ -97,6 +97,15 @@ export class TaskRunner {
    */
   private readonly activeBySession = new Map<string, string>();
 
+  /**
+   * Optional self-learning extraction pipeline. Set post-construction by
+   * the host (keeps the positional constructor stable). When present, each
+   * completed turn feeds its assistant text in for debounced, deduped
+   * insight extraction into long-term memory. Never throws into the turn —
+   * the pipeline schedules on its own timer.
+   */
+  extraction?: import("../learning/ExtractionPipeline.js").ExtractionPipeline;
+
   constructor(
     private readonly agent: AgentLoop,
     private readonly sessions: SessionStore,
@@ -325,6 +334,10 @@ export class TaskRunner {
     // loop forever.
     let forcedSummaryRetry = false;
 
+    // Which agent/profile this session runs as (multi-agent). Resolved once;
+    // undefined → AgentLoop uses the active profile (legacy single-agent).
+    const sessionProfileId = this.sessions.getSession(sessionId)?.profileId ?? undefined;
+
     try {
       let outerIteration = 0;
       // Outer loop: each pass does ONE streamText turn. We drain the
@@ -348,6 +361,7 @@ export class TaskRunner {
           sessionId,
           userMessage: currentUserMessage,
           history: priorHistory,
+          ...(sessionProfileId ? { profileId: sessionProfileId } : {}),
           ...(opts.model ? { model: opts.model } : {}),
           ...(opts.voiceMode ? { voiceMode: true } : {}),
           ...(currentImages.length > 0 ? { userImages: currentImages } : {}),
@@ -482,6 +496,14 @@ export class TaskRunner {
           || (reasoningText ? reasoningText.trim() : "")
           || (toolCallCount > 0 ? `(completed ${toolCallCount} tool calls without final summary)` : "(no text output)");
         lastResult = iterationResult;
+
+        // Self-learning: feed real assistant output to the extraction
+        // pipeline (debounced + deduped inside). Guard on genuine text so
+        // we never extract from fallback status strings. Fire-and-forget;
+        // schedule() never throws into the turn.
+        if (this.extraction && assistantText && assistantText.trim().length > 0) {
+          this.extraction.schedule(taskId, assistantText);
+        }
 
         // Force a final summary when the model finished with only tool
         // calls and no user-facing text. Inject a synthetic user turn

@@ -18,7 +18,7 @@ import { and, eq } from "drizzle-orm";
 
 import type { DB } from "../db/client.js";
 import { subscriptions, tenants, users } from "../db/schema.js";
-import type { ControlPlaneClient } from "./controlPlaneClient.js";
+import type { TenantProvisioner } from "./provision.js";
 import type { EmailSender } from "./email.js";
 import { sendTrialReminderEmail } from "./email.js";
 import { TrialService } from "./trial.js";
@@ -27,7 +27,7 @@ export interface TrialJobOpts {
   readonly db: DB;
   readonly trial: TrialService;
   readonly email: EmailSender;
-  readonly controlPlane: ControlPlaneClient;
+  readonly controlPlane: TenantProvisioner;
   readonly subscribeUrl: string;          // e.g. https://daemora.com/subscribe
 }
 

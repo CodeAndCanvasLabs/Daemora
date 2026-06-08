@@ -1,5 +1,48 @@
 # Daemora — Cloud Deployment Guide
 
+> **ARCHITECTURE UPDATE (2026-06-03) — single-ingress gateway.** The control plane
+> is now merged into `apps/api`: it authenticates every request and reverse-proxies
+> to the user's own tenant in-process. So it's **2 Fly apps**, not 3 — the separate
+> `daemora-control-plane` app is no longer needed (delete it at deploy time). The
+> tables below describe the legacy 3-app layout; see "Run locally" first.
+
+## Run locally (single-ingress gateway)
+
+Run the whole thing on your laptop before any Fly deploy — local mode spawns each
+tenant as a child process (no Fly needed):
+
+1. **Build the native dep:** `npm rebuild better-sqlite3` (must succeed — the
+   orchestrator + tenants use it).
+2. **Env** (e.g. in `apps/api/.env.local`):
+   ```
+   DATABASE_URL=postgres://…              # Neon or local Postgres
+   MASTER_KEK=<base64 32 bytes>           # encrypts BYOK secrets
+   SESSION_COOKIE_SECRET=<base64 32+>
+   JWT_SIGNING_KEY=<base64 32+>
+   INTERNAL_SIGNING_SECRET=<base64 20+>   # signs the gateway→tenant identity
+   DAEMORA_RUNTIME=local                  # spawn tenants as child processes
+   DAEMORA_DATA_DIR=./data                # tenant data root
+   PUBLIC_API_URL=http://localhost:8090
+   PUBLIC_APP_URL=http://localhost:5173
+   ```
+   (Generate secrets with `openssl rand -base64 32`. Never commit them.)
+3. **Apply DB migrations** under `apps/api/drizzle/` (incl. `agents`,
+   `tenant_api_keys`).
+4. **Boot the gateway:** `npx tsx apps/api/src/index.ts`
+   → `[gateway] listening on :8090 (runtime=local)`.
+5. **Flow:** sign up + verify email via Better Auth (`/api/auth/*`) → `POST
+   /signup/start-trial` provisions a **local tenant child process** → every
+   non-gateway request (`/`, `/api/chat`, …) is proxied to **your** tenant only
+   (gateway routes by your authenticated session — no client-supplied slug). The
+   tenant trusts the gateway's signed `X-Daemora-User` header.
+
+**Security note:** tenant isolation is enforced at the gateway (a caller can only
+reach their own tenant). Tenants run with `AUTH_ENABLED=false` safely *because* they
+sit behind the authenticating gateway on a private boundary — never expose tenant
+ports directly.
+
+---
+
 Three Fly apps make up the full cloud product:
 
 | Fly app | What | Public? | Deploys via |

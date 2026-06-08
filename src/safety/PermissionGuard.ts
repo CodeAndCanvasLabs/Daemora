@@ -4,7 +4,7 @@
  * Three tiers (cumulative):
  *   • **minimal**  — read-only: file reads, web fetch/search, memory reads, vision.
  *   • **standard** — adds writes, shell, channels, media generation, desktop, memory writes.
- *   • **full**     — adds email, channel outbound, team orchestration, MCP mgmt, reload.
+ *   • **full**     — adds email, channel outbound, MCP mgmt, reload.
  *
  * `check(toolName)` returns `{allowed, reason?}` for the current tier.
  * MCP tools (`mcp__<server>__<tool>`) are user-configured integrations;
@@ -78,7 +78,7 @@ export const PERMISSION_TIERS: Record<PermissionTier, TierConfig> = {
       // Orchestration
       "use_crew", "parallel_crew", "stop_crew", "use_mcp",
       // Planning / tracking
-      "project", "team", "cron", "goal", "watcher",
+      "project", "cron", "goal", "watcher",
       // Git
       "git",
     ],

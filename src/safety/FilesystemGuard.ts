@@ -59,6 +59,13 @@ export interface FilesystemGuardOptions {
   readonly extraDeny?: readonly string[];
   /** Daemora's own data dir (vault DB, embeddings). Agent should NOT write here. */
   readonly dataDir?: string;
+  /**
+   * Base for resolving RELATIVE paths. When set (tenant/managed mode = the data
+   * dir), the agent's relative paths (e.g. "projects/x") resolve INSIDE the
+   * workspace instead of against the host process cwd — so they can't silently
+   * escape to the repo / sibling tenants. Unset → cwd (standalone behaviour).
+   */
+  readonly workspaceRoot?: string;
 }
 
 /**
@@ -90,11 +97,13 @@ export class FilesystemGuard {
   private allow: readonly string[];
   private deny: readonly { path: string; access: readonly FsAccess[] }[];
   private readonly dataDir: string | undefined;
+  private readonly workspaceRoot: string | undefined;
 
   constructor(opts: FilesystemGuardOptions = {}) {
     this.mode = opts.mode ?? "moderate";
     this.home = homedir();
     this.dataDir = opts.dataDir;
+    this.workspaceRoot = opts.workspaceRoot;
 
     // strict  → $HOME + extras are the only reachable roots.
     // sandbox → ONLY extras are reachable ($HOME is NOT auto-allowed). Use
@@ -133,7 +142,12 @@ export class FilesystemGuard {
   ensureAllowed(rawPath: string, access: FsAccess): string {
     if (this.mode === "off") return absolute(rawPath);
 
-    const target = absolute(rawPath);
+    // Resolve relative paths against the workspace root (tenant data dir) when
+    // configured, so the agent's relative paths stay inside its workspace and
+    // can't resolve against the host cwd (repo / sibling tenants).
+    const target = isAbsolute(rawPath)
+      ? rawPath
+      : resolve(this.workspaceRoot ?? process.cwd(), rawPath);
     const canonical = canonicalise(target);
 
     // 1a) (Removed.) Previously this block denied ALL writes anywhere

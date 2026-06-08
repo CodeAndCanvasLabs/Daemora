@@ -27,7 +27,6 @@ import type { GoalStore } from "../goals/GoalStore.js";
 import type { AuditLog } from "../safety/AuditLog.js";
 import type { SkillRegistry } from "../skills/SkillRegistry.js";
 import type { TaskStore } from "../tasks/TaskStore.js";
-import type { TeamStore } from "../teams/TeamStore.js";
 import type { WatcherStore } from "../watchers/WatcherStore.js";
 import type { WatcherRunner } from "../watchers/WatcherRunner.js";
 import type { Auth } from "../auth/index.js";
@@ -42,11 +41,13 @@ import { mountChannelRoutes } from "./routes/channels.js";
 import { mountChatRoutes } from "./routes/chat.js";
 import { mountCompatRoutes } from "./routes/compat.js";
 import { mountConfigRoutes } from "./routes/config.js";
+import { mountInternalRoutes } from "./routes/internal.js";
 import { mountCostRoutes } from "./routes/costs.js";
 import { mountCrewRoutes } from "./routes/crew.js";
 import { mountCronRoutes } from "./routes/cron.js";
-import { mountGoalRoutes } from "./routes/goals.js";
 import { mountMCPRoutes } from "./routes/mcp.js";
+import { mountProjectRoutes } from "./routes/projects.js";
+import { mountPreviewRoutes } from "./routes/preview.js";
 import { mountMemoryRoutes } from "./routes/memory.js";
 import { mountProfilesRoutes } from "./routes/profiles.js";
 import { mountProviderRoutes } from "./routes/providers.js";
@@ -54,17 +55,16 @@ import { mountSecurityRoutes } from "./routes/security.js";
 import { mountSessionRoutes } from "./routes/sessions.js";
 import { mountSkillRoutes } from "./routes/skills.js";
 import { mountTaskRoutes } from "./routes/tasks.js";
-import { mountTeamRoutes } from "./routes/teams.js";
 import { mountVaultRoutes } from "./routes/vault.js";
 import { mountVoiceRoutes } from "./routes/voice.js";
 import { mountWatcherRoutes } from "./routes/watchers.js";
 import { mountIntegrationRoutes } from "./routes/integrations.js";
 import { mountTunnelRoutes } from "./routes/tunnel.js";
 import { mountDeliveryPresetRoutes } from "./routes/deliveryPresets.js";
-import { mountFilesRoutes } from "./routes/files.js";
 import type { DeliveryPresetStore } from "../scheduler/DeliveryPresetStore.js";
 import { mountWebhookRoutes } from "../webhooks/WebhookHandler.js";
 import { requireAuth } from "./middleware/requireAuth.js";
+import { verifyIdentity } from "../multitenant/identityToken.js";
 import { cors, createSecurityHeaders } from "./middleware/security.js";
 
 const log = createLogger("server");
@@ -92,7 +92,6 @@ export interface ServerDeps {
   readonly mcpStore: import("../mcp/MCPStore.js").MCPStore;
   readonly channels: ChannelRegistry;
   readonly channelManager: ChannelManager;
-  readonly teamStore: TeamStore;
   readonly auth: Auth;
   readonly webhookTokens: WebhookTokenStore;
   /** Active profile + lineup. Surfaced to /api/profiles for the UI picker. */
@@ -115,8 +114,6 @@ export interface ServerDeps {
   readonly guard: import("../safety/FilesystemGuard.js").FilesystemGuard;
   readonly skillLoader: import("../skills/SkillLoader.js").SkillLoader;
   readonly customSkillsDir: string;
-  readonly fileProjectStore: import("../files/FileProjectStore.js").FileProjectStore;
-  readonly fileProjectScanQueue: import("../files/scanQueue.js").ScanQueue;
 }
 
 export function createApp(deps: ServerDeps): Express {
@@ -225,6 +222,25 @@ export function createApp(deps: ServerDeps): Express {
     .filter(Boolean);
   app.use(cors({ allowedOrigins }));
 
+  // Gateway identity gate — when running behind the single-ingress gateway
+  // (INTERNAL_SIGNING_SECRET set in this tenant's env), require a valid signed
+  // `X-Daemora-User` header so the tenant trusts ONLY the gateway, even on a
+  // shared private network. Standalone `daemora start` (no secret) skips this.
+  const gatewaySecret = process.env["INTERNAL_SIGNING_SECRET"];
+  if (gatewaySecret) {
+    app.use((req, res, next) => {
+      if (req.path === "/health" || req.path === "/healthz") { next(); return; }
+      const token = req.headers["x-daemora-user"];
+      const id = typeof token === "string" ? verifyIdentity(gatewaySecret, token) : null;
+      if (!id) {
+        res.status(403).json({ error: "gateway_identity_required" });
+        return;
+      }
+      (req as unknown as { daemoraIdentity?: { userId: string; slug: string } }).daemoraIdentity = id;
+      next();
+    });
+  }
+
   // Auth gate — guards /api/* + /auth/sessions + /auth/audit + /auth/session.
   // Login/refresh/logout bypass is handled inside the middleware.
   app.use(
@@ -237,6 +253,10 @@ export function createApp(deps: ServerDeps): Express {
   // Auth routes — always mounted. If authEnabled=false they still work,
   // just nothing requires them yet. Handy for pre-enabling the UI flow.
   mountAuthRoutes(app, deps.auth);
+
+  // Live preview of a project's built app (/_preview/<slug>/*). Mounted before
+  // the static UI + SPA fallback so it owns that path.
+  mountPreviewRoutes(app, deps);
 
   // Serve the Daemora UI from ui/dist/ (full UI source lives at ui/).
   const uiDir = process.env["DAEMORA_UI_DIR"] ?? join(dirname(fileURLToPath(import.meta.url)), "../../ui/dist");
@@ -252,6 +272,7 @@ export function createApp(deps: ServerDeps): Express {
       || req.path.startsWith("/oauth/")
       || req.path.startsWith("/webhooks/")
       || req.path.startsWith("/hooks/")
+      || req.path.startsWith("/_preview/")
     ) return next();
     const indexPath = join(uiDir, "index.html");
     try {
@@ -294,11 +315,14 @@ export function createApp(deps: ServerDeps): Express {
   mountChannelRoutes(app, deps);
   mountChatRoutes(app, deps);
   mountConfigRoutes(app, deps);
+  // Gateway→tenant internal API (live config apply). Only meaningful + safe
+  // behind the gateway, so mount it only when the identity gate is active.
+  if (process.env["INTERNAL_SIGNING_SECRET"]) mountInternalRoutes(app, deps);
   mountCostRoutes(app, deps);
   mountCrewRoutes(app, deps);
   mountCronRoutes(app, deps);
-  mountGoalRoutes(app, deps);
   mountMCPRoutes(app, deps);
+  mountProjectRoutes(app, deps);
   mountBrowserRoutes(app, deps);
   mountMemoryRoutes(app, deps);
   mountProfilesRoutes(app, deps);
@@ -307,14 +331,12 @@ export function createApp(deps: ServerDeps): Express {
   mountSessionRoutes(app, deps);
   mountSkillRoutes(app, deps);
   mountTaskRoutes(app, deps);
-  mountTeamRoutes(app, deps);
   mountVaultRoutes(app, deps);
   mountVoiceRoutes(app, deps);  // voice token + sidecar control
   mountWatcherRoutes(app, deps);
   mountTunnelRoutes(app, deps.tunnel, deps.getPublicUrl);
   mountIntegrationRoutes(app, { integrations: deps.integrations, getPublicUrl: deps.getPublicUrl, cfg: deps.cfg });
   mountDeliveryPresetRoutes(app, deps.deliveryPresets);
-  mountFilesRoutes(app, { store: deps.fileProjectStore, scanQueue: deps.fileProjectScanQueue });
   mountWebhookRoutes(app, {
     runner: deps.runner,
     watchers: deps.watchers,

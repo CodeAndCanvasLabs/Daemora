@@ -135,6 +135,9 @@ export class ModelRouter {
   /** True if this provider has the credentials it needs to run. */
   providerAvailable(provider: ProviderId): boolean {
     if (provider === "vertex-anthropic") return existsSync(VERTEX_SA_KEY_PATH);
+    // vertex (Gemini) has TWO auth modes — Service Account JSON or the Express
+    // API key. The SA file alone is sufficient; don't require the vault key.
+    if (provider === "vertex" && existsSync(VERTEX_SA_KEY_PATH)) return true;
     const info = providerRegistry[provider];
     if (info.apiKeyEnv === null) return true;            // keyless
     return this.cfg.vault.get(info.apiKeyEnv) !== undefined;
@@ -184,7 +187,12 @@ export class ModelRouter {
     const apiKey = info.apiKeyEnv ? this.cfg.vault.get(info.apiKeyEnv) : undefined;
 
     if (info.apiKeyEnv !== null && !apiKey) {
-      throw new ProviderUnavailableError(provider, info.apiKeyEnv);
+      // vertex (Gemini) can authenticate via Service Account JSON instead of the
+      // Express API key — let it through if the SA file is present; buildModel's
+      // vertex case prefers SA over apiKey. (vertex-anthropic is keyless already.)
+      if (!(provider === "vertex" && existsSync(VERTEX_SA_KEY_PATH))) {
+        throw new ProviderUnavailableError(provider, info.apiKeyEnv);
+      }
     }
 
     const baseUrl = info.baseUrlEnv

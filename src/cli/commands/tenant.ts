@@ -14,6 +14,8 @@
  *   daemora tenant suspend alice "trial expired"
  */
 
+import postgres from "postgres";
+
 import { readBootEnv } from "../../config/env.js";
 import { MasterKeyVault } from "../../multitenant/MasterKeyVault.js";
 import { TenantManager } from "../../multitenant/TenantManager.js";
@@ -99,13 +101,19 @@ function printTenantTable(tenants: Array<{ slug: string; email: string; plan: st
   }
 }
 
-function buildManager(): TenantManager {
+async function buildManager(): Promise<{ mgr: TenantManager; sql: postgres.Sql }> {
   const env = readBootEnv();
+  const url = process.env["DATABASE_URL"];
+  if (!url) throw new Error("DATABASE_URL is required — the tenant registry lives in Postgres (#25)");
+  const sql = postgres(url, { prepare: false, max: 2 });
   const masterVault = MasterKeyVault.fromEnvOptional();
-  return new TenantManager({
+  const mgr = new TenantManager({
     dataRoot: env.dataDir,
+    sql,
     ...(masterVault ? { masterVault } : {}),
   });
+  await mgr.init();
+  return { mgr, sql };
 }
 
 export async function tenantCommand(args: string[]): Promise<void> {
@@ -115,7 +123,7 @@ export async function tenantCommand(args: string[]): Promise<void> {
     return;
   }
 
-  const mgr = buildManager();
+  const { mgr, sql } = await buildManager();
   try {
     switch (sub) {
       case "list":      await cmdList(mgr, rest); break;
@@ -137,7 +145,8 @@ export async function tenantCommand(args: string[]): Promise<void> {
         process.exit(2);
     }
   } finally {
-    mgr.close();
+    await mgr.close();
+    await sql.end({ timeout: 5 });
   }
 }
 

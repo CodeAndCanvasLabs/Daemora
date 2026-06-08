@@ -10,6 +10,8 @@
  *   CONTROL_PLANE_HOST_SUFFIX     e.g. ".daemora.app" for subdomain routing
  */
 
+import postgres from "postgres";
+
 import { readBootEnv } from "../../config/env.js";
 import { FlyMachinesClient } from "../../multitenant/FlyMachinesClient.js";
 import { MasterKeyVault } from "../../multitenant/MasterKeyVault.js";
@@ -67,12 +69,18 @@ Env vars:
   const adminToken = process.env["CONTROL_PLANE_ADMIN_TOKEN"];
   const hostSuffix = process.env["CONTROL_PLANE_HOST_SUFFIX"];
 
+  const dbUrl = process.env["DATABASE_URL"];
+  if (!dbUrl) throw new Error("DATABASE_URL is required — the tenant registry lives in Postgres (#25)");
+  const sql = postgres(dbUrl, { prepare: false, max: 5 });
+
   const runtime = pickRuntime();
   const manager = new TenantManager({
     dataRoot: env.dataDir,
+    sql,
     masterVault,
     ...(runtime ? { runtime } : {}),
   });
+  await manager.init();   // hydrate registry cache from Postgres before serving
 
   const cp = startControlPlane({
     port,
@@ -99,7 +107,8 @@ Env vars:
         await manager.shutdown();
       } finally {
         await cp.close();
-        manager.close();
+        await manager.close();
+        await sql.end({ timeout: 5 }).catch(() => { /* best effort */ });
         const sigtermed = signalTree(process.pid, "SIGTERM");
         if (sigtermed > 0) log.info({ count: sigtermed }, "SIGTERM sent to descendants");
         const orphTermed = signalOrphaned(installRoot, env.dataDir, "SIGTERM");

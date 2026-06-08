@@ -14,13 +14,13 @@ import { z } from "zod";
 import type { Auth } from "../auth/auth.js";
 import type { DB } from "../db/client.js";
 import { tenants, users, type User } from "../db/schema.js";
-import type { ControlPlaneClient } from "../services/controlPlaneClient.js";
+import type { TenantProvisioner } from "../services/provision.js";
 import type { TrialService } from "../services/trial.js";
 import type { BillingProvider } from "../services/billing.js";
 
 export interface SignupDeps {
   readonly db: DB;
-  readonly controlPlane: ControlPlaneClient;
+  readonly controlPlane: TenantProvisioner;   // ControlPlaneClient OR in-process manager adapter
   readonly trial: TrialService;
   readonly billing: BillingProvider;
   readonly auth: Auth;

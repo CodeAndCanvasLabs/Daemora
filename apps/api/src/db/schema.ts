@@ -174,6 +174,71 @@ export const tenants = pgTable(
   }),
 );
 
+// ── agent roster (multi-agent) ───────────────────────────────────
+// A user's named agents — each bound to a profile. Durable account-level
+// list (NOT the per-tenant chat/memory, which stay on the tenant machine).
+// Powers plan-tiered agent limits (free=1, pro=5, enterprise=25) and the
+// "roster of workers" UI. A user can have several agents (even sharing a
+// profile), so userId is indexed, not unique.
+
+export const agents = pgTable(
+  "agents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    profileId: text("profile_id").notNull(),               // which profile this agent runs as
+    name: text("name").notNull(),
+    status: text("status").notNull().default("active"),    // 'active' | 'archived'
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userIdx: index("agents_user_idx").on(t.userId),
+  }),
+);
+
+// ── BYOK secrets (crown jewels) ──────────────────────────────────
+// Central, encrypted store for a user's API keys (AES-256-GCM via the master
+// KEK + per-user HKDF subkey). Delivered to the tenant IN-MEMORY at boot via
+// the gateway's secret broker — never written to the tenant machine's disk or
+// env (threat T6). ciphertext/nonce are base64 text (portable + pg-mem-safe).
+
+export const tenantApiKeys = pgTable(
+  "tenant_api_keys",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    keyName: text("key_name").notNull(),
+    ciphertext: text("ciphertext").notNull(),
+    nonce: text("nonce").notNull(),
+    keyVersion: integer("key_version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userKeyIdx: uniqueIndex("tenant_api_keys_user_key_idx").on(t.userId, t.keyName),
+  }),
+);
+
+// Central source of truth for a user's GENERAL config (non-secret settings:
+// DEFAULT_MODEL, model prefs, FS guard, cost caps, heartbeat, etc). One row per
+// (user, key); value is JSON. Delivered to the tenant at boot via the broker —
+// the tenant's machine SQLite settings_entries becomes a read-cache, not the
+// source of truth, so config survives machine recreation and never silently
+// reverts. Secrets live in tenantApiKeys; this is for non-secret config only.
+
+export const tenantSettings = pgTable(
+  "tenant_settings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    value: jsonb("value"),                                  // JSON-encoded setting value (null = explicit null)
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userKeyIdx: uniqueIndex("tenant_settings_user_key_idx").on(t.userId, t.key),
+  }),
+);
+
 // ── audit log ────────────────────────────────────────────────────
 
 export const auditLog = pgTable(
@@ -204,6 +269,12 @@ export type PaymentClaim = typeof paymentClaims.$inferSelect;
 export type NewPaymentClaim = typeof paymentClaims.$inferInsert;
 export type Tenant = typeof tenants.$inferSelect;
 export type NewTenant = typeof tenants.$inferInsert;
+export type Agent = typeof agents.$inferSelect;
+export type NewAgent = typeof agents.$inferInsert;
+export type TenantApiKey = typeof tenantApiKeys.$inferSelect;
+export type NewTenantApiKey = typeof tenantApiKeys.$inferInsert;
+export type TenantSetting = typeof tenantSettings.$inferSelect;
+export type NewTenantSetting = typeof tenantSettings.$inferInsert;
 
 // Helper to embed a SQL fragment idempotently.
 export const NOW = sql`now()`;

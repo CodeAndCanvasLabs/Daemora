@@ -14,9 +14,21 @@ const Schema = z.object({
   SESSION_COOKIE_SECRET: z.string().min(43),
   MASTER_KEK: z.string().min(43),
 
-  // Inter-service
-  CONTROL_PLANE_INTERNAL_URL: z.string().url(),
-  CONTROL_PLANE_ADMIN_TOKEN: z.string().min(20),
+  // Inter-service (legacy split control plane — now optional; the gateway runs
+  // the orchestrator in-process via the in-process TenantManager).
+  CONTROL_PLANE_INTERNAL_URL: z.string().url().optional(),
+  CONTROL_PLANE_ADMIN_TOKEN: z.string().min(20).optional(),
+
+  // Single-ingress gateway (Option 1) — apps/api runs the orchestrator +
+  // authenticated reverse proxy in-process.
+  DAEMORA_RUNTIME: z.enum(["local", "fly"]).default("local"),
+  DAEMORA_DATA_DIR: z.string().default("./data"),        // tenant data root (local runtime)
+  INTERNAL_SIGNING_SECRET: z.string().min(20).optional(), // HMAC for the signed identity header to tenants
+  // Fly runtime (only required when DAEMORA_RUNTIME=fly)
+  FLY_API_TOKEN: z.string().optional(),
+  FLY_TENANT_APP_NAME: z.string().optional(),
+  FLY_REGION: z.string().default("iad"),
+  FLY_TENANT_IMAGE: z.string().optional(),
 
   // Email
   RESEND_API_KEY: z.string().min(10).optional(),

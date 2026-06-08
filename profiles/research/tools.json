@@ -1,4 +1,14 @@
 {
-  "allowedCategories": ["filesystem", "search", "network", "ai", "system", "agent"],
-  "allowedTools": ["execute_command"]
+  "allowedCategories": [
+    "filesystem",
+    "search",
+    "network",
+    "ai",
+    "system",
+    "agent"
+  ],
+  "allowedTools": [
+    "execute_command",
+    "reply_to_user"
+  ]
 }

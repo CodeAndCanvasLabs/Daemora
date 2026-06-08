@@ -18,7 +18,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+import postgres from "postgres";
 
 import { MasterKeyVault } from "../src/multitenant/MasterKeyVault.js";
 import { TenantManager } from "../src/multitenant/TenantManager.js";
@@ -43,15 +44,23 @@ async function freePort(): Promise<number> {
   });
 }
 
-describe("Acceptance — 10-step CLI test", () => {
+// Integration smoke — the registry now lives in Postgres (#25). Requires a
+// DATABASE_URL pointed at a TEST database (it creates + deletes tenant rows).
+// Skipped in the default unit run, where DATABASE_URL is unset.
+const DB_URL = process.env["DATABASE_URL"];
+const sql = DB_URL ? postgres(DB_URL, { prepare: false, max: 2 }) : (undefined as unknown as ReturnType<typeof postgres>);
+
+describe.skipIf(!DB_URL)("Acceptance — 10-step CLI test", () => {
   const dataRoot = mkdtempSync(join(tmpdir(), "daemora-acceptance-"));
   const vault = new MasterKeyVault(randomBytes(32));
-  const manager = new TenantManager({ dataRoot, masterVault: vault });
-  const email = "testuser@daemora.com";
+  const manager = new TenantManager({ dataRoot, sql, masterVault: vault });
+  const email = `acceptance-${randomBytes(4).toString("hex")}@daemora.com`;
   let slug: string;
 
-  it("STEP 1 — tenant list (empty)", () => {
-    expect(manager.list()).toEqual([]);
+  beforeAll(async () => { await manager.init(); });
+
+  it("STEP 1 — tenant list (no tenant with our unique email)", () => {
+    expect(manager.list().some((t) => t.email === email)).toBe(false);
   });
 
   it("STEP 2 — tenant create", async () => {
@@ -61,12 +70,12 @@ describe("Acceptance — 10-step CLI test", () => {
     expect(t.status).toBe("provisioning");
     expect(existsSync(t.dataDir)).toBe(true);
     expect(existsSync(join(t.dataDir, "wiki"))).toBe(true);
-    expect(existsSync(join(t.dataDir, "file-projects"))).toBe(true);
+    expect(existsSync(join(t.dataDir, "projects"))).toBe(true);
     expect(existsSync(join(t.dataDir, "outputs"))).toBe(true);
   });
 
-  it("STEP 3 — tenant plan pro applies the preset", () => {
-    manager.setPlan(slug, "pro");
+  it("STEP 3 — tenant plan pro applies the preset", async () => {
+    await manager.setPlan(slug, "pro");
     const cfg = manager.show(slug).config;
     expect(cfg["permissionTier"]).toBe("standard");
     expect(cfg["featureVoice"]).toBe(true);
@@ -76,8 +85,8 @@ describe("Acceptance — 10-step CLI test", () => {
     expect(cfg["volumeGb"]).toBe(20);
   });
 
-  it("STEP 4 — set maxDailyCost overrides the plan default", () => {
-    manager.setConfig(slug, "maxDailyCost", 2.0);
+  it("STEP 4 — set maxDailyCost overrides the plan default", async () => {
+    await manager.setConfig(slug, "maxDailyCost", 2.0);
     expect(manager.show(slug).config["maxDailyCost"]).toBe(2.0);
 
     // CostGuard built from this env would respect the cap.
@@ -86,23 +95,18 @@ describe("Acceptance — 10-step CLI test", () => {
     expect(guard?.snapshot().dailyCapUsd).toBe(2.0);
   });
 
-  it("STEP 5 — apikey set stores encrypted, retrievable by name (not value)", () => {
-    manager.setApiKey(slug, "OPENAI_API_KEY", "sk-test-key-123");
-    const names = manager.listApiKeyNames(slug);
-    expect(names).toContain("OPENAI_API_KEY");
-    // Crucially: the stored ciphertext is NOT the plaintext.
-    const row = manager.registry.getApiKey(slug, "OPENAI_API_KEY");
-    expect(row).toBeDefined();
-    expect(row!.ciphertext.toString("utf-8")).not.toContain("sk-test-key-123");
-    // Round-trip through the vault works.
-    const tenant = manager.registry.requireBySlug(slug);
-    const decrypted = vault.decrypt(tenant.id, "OPENAI_API_KEY", row!.ciphertext, row!.nonce);
-    expect(decrypted).toBe("sk-test-key-123");
+  it("STEP 5 — registry api-key storage is disabled (secrets live in the central broker)", async () => {
+    // #25: per-tenant secrets are NOT stored in the orchestrator registry
+    // anymore — they live in the user_id-keyed tenant_api_keys table and are
+    // delivered to the tenant in-memory by the gateway broker. So the registry
+    // refuses writes and exposes no key names.
+    await expect(manager.setApiKey(slug, "OPENAI_API_KEY", "sk-test-key-123")).rejects.toThrow();
+    expect(manager.listApiKeyNames(slug)).toEqual([]);
   });
 
-  it("STEP 6 — set tools list (allowedTools)", () => {
+  it("STEP 6 — set tools list (allowedTools)", async () => {
     const tools = ["webSearch", "webFetch", "writeFile", "createDocument", "sendEmail", "replyWithFile"];
-    manager.setConfig(slug, "allowedTools", tools);
+    await manager.setConfig(slug, "allowedTools", tools);
     expect(manager.show(slug).config["allowedTools"]).toEqual(tools);
   });
 
@@ -111,10 +115,7 @@ describe("Acceptance — 10-step CLI test", () => {
     expect(detail.tenant.email).toBe(email);
     expect(detail.tenant.plan).toBe("pro");
     expect(detail.config["maxDailyCost"]).toBe(2.0);
-    expect(detail.apiKeyNames).toContain("OPENAI_API_KEY");
-    // Output never contains the plaintext key.
-    const serialised = JSON.stringify(detail);
-    expect(serialised).not.toContain("sk-test-key-123");
+    expect(detail.apiKeyNames).toEqual([]);   // secrets live in the central broker, not the registry
   });
 
   it("STEP 8 — filesystem isolation: dir exists and only this tenant lives there", async () => {
@@ -127,7 +128,7 @@ describe("Acceptance — 10-step CLI test", () => {
     expect(t.dataDir).toContain(t.slug);
     // Hard delete the sibling so the rest of the suite is clean.
     await manager.stop(sibling.slug).catch(() => {});
-    manager.hardDelete(sibling.slug);
+    await manager.hardDelete(sibling.slug);
   });
 
   it("STEP 9 — memory isolation: write a wiki note into THIS tenant only", () => {
@@ -166,15 +167,17 @@ describe("Acceptance — 10-step CLI test", () => {
     }
   });
 
-  it("ACCEPTANCE — all 10 steps verified", () => {
+  it("ACCEPTANCE — all 10 steps verified", async () => {
     // Summary check — recent events show the full lifecycle.
     const events = manager.registry.recentEvents(slug, 50);
     const kinds = events.map((e) => e.kind);
     expect(kinds).toContain("created");
     expect(kinds).toContain("plan_changed");
-    expect(kinds).toContain("apikey_set");
     expect(kinds).toContain("suspended");
 
-    manager.close();
+    // Clean up our test rows from the shared registry, then close.
+    await manager.hardDelete(slug).catch(() => {});
+    await manager.close();
+    await sql.end({ timeout: 5 }).catch(() => {});
   });
 });

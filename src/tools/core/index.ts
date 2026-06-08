@@ -12,11 +12,9 @@ import type { MemoryStore } from "../../memory/MemoryStore.js";
 import type { SessionStore } from "../../memory/SessionStore.js";
 import type { ModelRouter } from "../../models/ModelRouter.js";
 import type { ProjectStore } from "../../projects/ProjectStore.js";
-import type { FileProjectStore } from "../../files/FileProjectStore.js";
 import type { FilesystemGuard } from "../../safety/FilesystemGuard.js";
 import type { SkillLoader } from "../../skills/SkillLoader.js";
 import type { SkillRegistry } from "../../skills/SkillRegistry.js";
-import type { TeamStore } from "../../teams/TeamStore.js";
 import type { WatcherStore } from "../../watchers/WatcherStore.js";
 import type { ToolDef } from "../types.js";
 
@@ -28,7 +26,6 @@ import { makeCronTool } from "./cronTool.js";
 import { makeEditFileTool } from "./editFile.js";
 import { makeExecuteCommandTool } from "./executeCommand.js";
 import { fetchUrlTool } from "./fetchUrl.js";
-import { makeListGalleryProjectsTool } from "./galleryTools.js";
 import { makeGenerateImageTool } from "./generateImage.js";
 import { makeGenerateMusicTool } from "./generateMusic.js";
 import { makeGenerateVideoTool } from "./generateVideo.js";
@@ -57,9 +54,6 @@ import { makeSendFileTool } from "./sendFile.js";
 import { makeSessionSearchTool } from "./sessionSearch.js";
 import { makeSkillManageTool } from "./skillManage.js";
 import { makeSkillViewTool } from "./skillView.js";
-// Team tool is gated off (see registration block below). Import kept commented
-// so re-enabling is a one-line revert.
-// import { makeTeamTool } from "./teamTool.js";
 import { makeTextToSpeechTool } from "./textToSpeech.js";
 import { makeTranscribeAudioTool } from "./transcribeAudio.js";
 import { makeUseMCPTool } from "./useMCP.js";
@@ -84,10 +78,7 @@ export interface CoreToolDeps {
   readonly sessions?: SessionStore;
   readonly crews?: CrewRegistry;
   readonly channels?: ChannelManager;
-  readonly teams?: TeamStore;
   readonly projects?: ProjectStore;
-  /** Files-feature gallery projects — exposes list_gallery_projects. */
-  readonly fileProjects?: FileProjectStore;
   readonly skills?: SkillRegistry;
   readonly skillLoader?: SkillLoader;
   readonly skillsRoot?: string;
@@ -153,11 +144,6 @@ export function buildCoreTools(deps: CoreToolDeps): readonly ToolDef[] {
     screenCaptureTool as unknown as ToolDef,
     replyToUserTool as unknown as ToolDef,
 
-    // Gallery — surface user's reference library to the agent.
-    ...(deps.fileProjects
-      ? [makeListGalleryProjectsTool(deps.fileProjects) as unknown as ToolDef]
-      : []),
-
     // Communication
     // Resend-backed `send_email` disabled — use the Gmail integration instead.
     // makeSendEmailTool(deps.cfg) as unknown as ToolDef,
@@ -204,12 +190,6 @@ export function buildCoreTools(deps: CoreToolDeps): readonly ToolDef[] {
           makeBroadcastTool(deps.channels, deps.guard) as unknown as ToolDef,
         ]
       : []),
-
-    // Team orchestration — DISABLED. Backend (TeamStore / TeamRunner /
-    // routes) is intact but the tool is unregistered, so the agent can't
-    // call it. Re-enable by uncommenting + restoring the team blocks in
-    // profiles/_shared/runtime.md and each profile soul.md.
-    // ...(deps.teams ? [makeTeamTool(deps.teams) as unknown as ToolDef] : []),
 
     // Project planning — long-running multi-step task tracking
     ...(deps.projects ? [makeProjectTool(deps.projects) as unknown as ToolDef] : []),
