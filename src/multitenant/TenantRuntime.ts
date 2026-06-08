@@ -66,8 +66,21 @@ export class LocalChildProcessRuntime implements TenantRuntime {
     }
 
     log.info({ slug: tenant.slug, port: tenant.port, entry: this.opts.daemoraEntry }, "spawning tenant (local)");
+    // SECURITY: the tenant process must NOT inherit the gateway's crown-jewel
+    // secrets. MASTER_KEK decrypts EVERY tenant's keys and DATABASE_URL is the
+    // whole control-plane DB — the tenant's `start` path uses neither (verified).
+    // Strip them (+ other gateway-only secrets) so a tenant-side bug or escape
+    // can never reach them. The tenant keeps what it needs (Vertex creds,
+    // INTERNAL_SIGNING_SECRET, its own injected keys via `env`). Cloud already
+    // passes a curated env (see FlyMachinesRuntime).
+    const STRIP = new Set([
+      "MASTER_KEK", "DATABASE_URL", "SESSION_COOKIE_SECRET", "RESEND_API_KEY",
+      "CONTRA_PAYMENT_LINK_LITE", "CONTRA_PAYMENT_LINK_PRO", "CONTRA_API_KEY",
+    ]);
+    const base: Record<string, string> = {};
+    for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !STRIP.has(k)) base[k] = v;
     const proc = spawn(process.execPath, [this.opts.daemoraEntry, "start"], {
-      env: { ...process.env, ...env, PORT: String(tenant.port) },
+      env: { ...base, ...env, PORT: String(tenant.port) },
       stdio: ["ignore", "pipe", "pipe"],
       detached: false,
     });
