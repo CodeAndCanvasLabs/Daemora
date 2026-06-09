@@ -484,7 +484,7 @@ export class AgentLoop {
 
     // Per-kind working style so the agent behaves appropriately (code vs research vs media).
     const KIND_GUIDANCE: Record<string, string> = {
-      coding: "This is a CODING project: build the app under `code/`, keep it runnable (an index.html or a dev server + .preview.json for live Preview), write clean source, and test what you build.",
+      coding: "This is a CODING project: write source under `code/`, and after EVERY change COMPILE it to a static bundle in `code/dist/` (index.html + assets) so the Preview tab updates — treat the build as part of finishing the task, don't wait to be asked. Configure a static build with base path `/_preview/<this project>/` (Vite: `base`; Next.js: `output: \"export\"` + `basePath`/`assetPrefix`; CRA: `homepage`). Write clean source and test what you build.",
       research: "This is a RESEARCH project: produce well-structured findings as Markdown in `research/` (and `docs/`), cite sources, and keep an organized writeup.",
       video: "This is a VIDEO project: generate/edit media into `videos/` (and supporting `images/`, `audio/`), and keep a short index of what was produced.",
       design: "This is a DESIGN project: put visual output in `images/` and design docs in `docs/`.",
@@ -516,7 +516,7 @@ export class AgentLoop {
       `- \`${dir}\` is your working directory. Every read, write, edit, and command for this chat happens inside it.`,
       `- When the user says "this project", "here", "the files", or names a file with no path, resolve it under \`${dir}\`.`,
       `- Organize output into typed subfolders so it surfaces in the project's Files/Assets: \`${dir}code/\` (apps/source), \`${dir}images/\`, \`${dir}videos/\`, \`${dir}audio/\`, \`${dir}docs/\`, \`${dir}research/\`.`,
-      `- Live Preview: for a runnable app, either build static output under \`${dir}code/\` with an \`index.html\`, OR start a dev server (e.g. \`npm run dev\`) configured with base path \`/_preview/${slug}/\` and write \`${dir}.preview.json\` = \`{"devPort": <port>}\` — the Preview tab then proxies it live with hot reload.`,
+      `- Live Preview = COMPILE TO STATIC (do this automatically): build/compile the app into \`${dir}code/dist/\` (an \`index.html\` + assets) — the Preview tab serves that folder. Set the framework's base path to \`/_preview/${slug}/\` (Vite \`base\`, Next \`output: "export"\` + \`basePath\`/\`assetPrefix\`, CRA \`homepage\`) so assets resolve. Re-run the build after every code change so Preview stays current; you don't need to be asked. (Optional advanced path: a live dev server declared in \`${dir}.preview.json\` = \`{"devPort": N}\` is also proxied, but a static build is preferred — simpler and always reachable.)`,
       `- Do NOT read from, write to, or reference any OTHER project's directory, the workspace root, or files outside \`${dir}\`. This project is a sealed workspace — keep its data in and everything else out.`,
       `- If the user clearly asks for something unrelated to this project, tell them it belongs in a generic chat or another project rather than mixing it in here.`,
     ].join("\n");
