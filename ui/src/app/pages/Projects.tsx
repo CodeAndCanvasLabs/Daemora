@@ -101,6 +101,8 @@ function ProjectView({ slug, onBack }: { slug: string; onBack: () => void }) {
   const [editing, setEditing] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const meta = p ? (KIND_META[p.kind] ?? KIND_META.general) : KIND_META.general;
+  // Preview is only meaningful for projects that build a runnable UI/app.
+  const showPreview = p?.kind === "coding";
 
   // Live updates: subscribe to the project's change stream so the file tree,
   // open file, and Preview auto-refresh when the agent writes code (Lovable-style).
@@ -131,7 +133,14 @@ function ProjectView({ slug, onBack }: { slug: string; onBack: () => void }) {
             </div>} />
 
           <div className="flex flex-wrap gap-1 mb-4">
-            {([["files", "Files", FolderTree], ["chat", "Chat", MessageSquare], ["preview", "Preview", Monitor]] as const).map(([id, label, Icon]) => (
+            {([
+              ["files", "Files", FolderTree],
+              ["chat", "Chat", MessageSquare],
+              // Preview only makes sense for projects that produce a runnable UI/app.
+              // Research / writing / data / media have nothing to "run" — the Files
+              // tab already renders their docs/media — so we don't show it.
+              ...(showPreview ? [["preview", "Preview", Monitor] as const] : []),
+            ] as const).map(([id, label, Icon]) => (
               <button key={id} onClick={() => setTab(id)}
                 className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${tab === id ? "bg-[#00d9ff]/10 text-[#00d9ff] border border-[#00d9ff]/30" : "text-gray-400 hover:text-gray-200 border border-transparent"}`}>
                 <Icon className="w-4 h-4" />{label}
@@ -140,7 +149,7 @@ function ProjectView({ slug, onBack }: { slug: string; onBack: () => void }) {
           </div>
 
           {tab === "files" ? <FileExplorer slug={slug} rev={rev} />
-            : tab === "preview" ? (
+            : tab === "preview" && showPreview ? (
               <iframe title={`${p.name} preview`} src={`/_preview/${encodeURIComponent(slug)}/?v=${previewRev}`}
                 className="w-full h-[72vh] rounded-xl border border-slate-800/60 bg-white"
                 sandbox="allow-scripts allow-same-origin allow-forms allow-popups" />
