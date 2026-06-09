@@ -40,18 +40,21 @@ function safeShellEnv(): NodeJS.ProcessEnv {
 function macSandboxProfile(allowRoots: readonly string[], denyRoots: readonly string[]): string {
   const rw = allowRoots.map((r) => `(subpath ${JSON.stringify(r)})`).join(" ");
   const deny = denyRoots.map((r) => `(subpath ${JSON.stringify(r)})`).join(" ");
-  // "Allow by default" so binaries (bash, node, …) load + run normally, then
-  // DENY the sensitive trees (the user's home / repo / sibling tenants live
-  // under /Users on macOS), then RE-ALLOW the tenant's own workspace (which is
-  // itself under a denied tree). Later rules win in seatbelt, so the order is:
-  // allow-all → deny-sensitive → allow-own-workspace. The kernel enforces this,
-  // so `ls ../../../../crew`, `cat /Users/...`, reads of other tenants are
-  // blocked regardless of how the shell command is written.
+  // Allow-by-default so binaries (bash, node, next, …) load + run. Then deny
+  // file CONTENT reads + writes under the sensitive trees (home / repo / sibling
+  // tenants, all under /Users on macOS), then re-allow the tenant's own dir.
+  //
+  // Crucially we DON'T deny file-read-metadata: Node's module resolution stats
+  // (traverses) the parent path components up to the tenant dir, and blocking
+  // that `stat` is what produced the realpath EPERM the agent had to hack around.
+  // Allowing metadata lets apps run; denying file-read-data still blocks reading
+  // or LISTING file/dir contents (getdirentries needs read-data), so
+  // `cat /Users/...`, `ls ../../../../crew`, reads of other tenants are all blocked.
   return [
     "(version 1)",
     "(allow default)",
-    `(deny file-read* file-write* file-write-create ${deny})`,
-    `(allow file-read* file-write* file-write-create ${rw})`,
+    `(deny file-read-data file-write* file-write-create ${deny})`,
+    `(allow file-read-data file-write* file-write-create ${rw})`,
   ].join("\n");
 }
 
