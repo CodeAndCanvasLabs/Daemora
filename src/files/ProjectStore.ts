@@ -48,6 +48,17 @@ export interface TreeNode {
 const TREE_MAX_DEPTH = 8;
 const TREE_MAX_ENTRIES = 4000;
 
+// Build/dependency/cache dirs + junk files that would bury the real source in
+// the explorer (and blow the entry budget). Same spirit as a .gitignore.
+const TREE_SKIP = new Set([
+  ".project.json", ".git", ".hg", ".svn", ".DS_Store",
+  "node_modules", ".pnpm-store", ".yarn",
+  ".next", ".nuxt", ".svelte-kit", ".turbo", ".parcel-cache", ".vite", ".cache", ".vercel", ".netlify",
+  ".npm", ".npm-cache", ".tmp", "Library",
+  "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".venv", "venv", ".tox",
+  ".gradle", ".idea",
+]);
+
 function kindFor(type: string, name: string): AssetKind {
   if (type === "images") return "image";
   if (type === "videos") return "video";
@@ -101,7 +112,7 @@ export class ProjectStore {
     const nodes: TreeNode[] = [];
     for (const e of entries) {
       if (counter.n >= TREE_MAX_ENTRIES) break;
-      if (e.name === ".project.json" || e.name === "node_modules" || e.name === ".git") continue;
+      if (TREE_SKIP.has(e.name)) continue;
       counter.n++;
       const abs = join(dir, e.name);
       const rel = abs.slice(projectRoot.length + 1);

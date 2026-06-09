@@ -30,7 +30,7 @@ import type { ServerDeps } from "../index.js";
 
 const log = createLogger("preview");
 
-const CANDIDATE_SUBDIRS = ["code/dist", "code/build", "code", "dist", "build", ""] as const;
+const CANDIDATE_SUBDIRS = ["code/dist", "code/build", "code/out", "code", "dist", "build", "out", ""] as const;
 
 /** Guard the slug against path traversal; returns the resolved project root or null. */
 function projectRootFor(dataDir: string, slug: string): string | null {

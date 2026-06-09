@@ -145,8 +145,14 @@ export function makeExecuteCommandTool(guard: FilesystemGuard): ToolDef<typeof i
         log.warn({ platform: process.platform }, "sandbox mode without an OS sandbox — shell is confined by denylist only; run tenants in a container for a real boundary");
       }
 
-      // Sandbox mode → scrub the shell env so no secret leaks via `env`.
-      const childEnv = desc.mode === "sandbox" ? safeShellEnv() : process.env;
+      // Sandbox mode → scrub the shell env so no secret leaks via `env`, and
+      // point HOME at the tenant dir so tool caches (~/.npm, ~/.cache, …) land
+      // INSIDE the workspace (writable + hidden from the file tree) instead of
+      // failing against the real ~ (blocked) and getting dumped into the project.
+      const sandboxHome = desc.dataDir ?? allowRoots[0];
+      const childEnv = desc.mode === "sandbox"
+        ? { ...safeShellEnv(), ...(sandboxHome ? { HOME: sandboxHome } : {}) }
+        : process.env;
 
       return await new Promise<ExecResult>((resolvePromise, rejectPromise) => {
         const child = osSandbox
