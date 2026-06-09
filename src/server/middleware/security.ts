@@ -81,6 +81,18 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
 
 export function createSecurityHeaders(opts: SecurityHeadersOpts = {}) {
   return (req: Request, res: Response, next: NextFunction) => {
+    // The project Live Preview is meant to be embedded in the same-origin UI
+    // iframe, so /_preview/* must be framable — and the previewed app brings its
+    // own scripts/styles (e.g. a Vite/Next build), so the strict app CSP would
+    // break it. Relax to "same-origin framing only" and don't impose the app CSP.
+    // The iframe's own `sandbox` attribute is the real containment here.
+    if (req.url?.startsWith("/_preview/")) {
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("X-Frame-Options", "SAMEORIGIN");
+      res.setHeader("Content-Security-Policy", "frame-ancestors 'self'");
+      next();
+      return;
+    }
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "DENY");
     res.setHeader("Referrer-Policy", "no-referrer");
