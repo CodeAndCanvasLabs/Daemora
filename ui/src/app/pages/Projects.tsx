@@ -21,7 +21,7 @@ import {
 
 import { api } from "../lib/api-client";
 import { fileUrl } from "../lib/useChatThread";
-import { apiFetch } from "../api";
+import { apiFetch, apiStreamUrl } from "../api";
 import { PageHeader, Card, Loading, EmptyState, Pill, Btn } from "../components/kit";
 import { ChatThread } from "./chat/ChatThread";
 
@@ -102,6 +102,21 @@ function ProjectView({ slug, onBack }: { slug: string; onBack: () => void }) {
   const [confirmDel, setConfirmDel] = useState(false);
   const meta = p ? (KIND_META[p.kind] ?? KIND_META.general) : KIND_META.general;
 
+  // Live updates: subscribe to the project's change stream so the file tree,
+  // open file, and Preview auto-refresh when the agent writes code (Lovable-style).
+  const [rev, setRev] = useState(0);
+  const [previewRev, setPreviewRev] = useState(0);
+  useEffect(() => {
+    const es = new EventSource(apiStreamUrl(`/api/projects/${encodeURIComponent(slug)}/watch`));
+    es.addEventListener("change", (e) => {
+      setRev((r) => r + 1);
+      let isBuild = true;
+      try { const d = JSON.parse((e as MessageEvent).data) as { file?: string }; isBuild = !d.file || /(^|\/)(dist|build|out)(\/|$)/.test(d.file); } catch { /* default reload */ }
+      if (isBuild) setPreviewRev((r) => r + 1);
+    });
+    return () => es.close();
+  }, [slug]);
+
   return (
     <div>
       <button onClick={onBack} className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-[#00d9ff] mb-4"><ArrowLeft className="w-4 h-4" /> Projects</button>
@@ -124,9 +139,9 @@ function ProjectView({ slug, onBack }: { slug: string; onBack: () => void }) {
             ))}
           </div>
 
-          {tab === "files" ? <FileExplorer slug={slug} />
+          {tab === "files" ? <FileExplorer slug={slug} rev={rev} />
             : tab === "preview" ? (
-              <iframe title={`${p.name} preview`} src={`/_preview/${encodeURIComponent(slug)}/`}
+              <iframe title={`${p.name} preview`} src={`/_preview/${encodeURIComponent(slug)}/?v=${previewRev}`}
                 className="w-full h-[72vh] rounded-xl border border-slate-800/60 bg-white"
                 sandbox="allow-scripts allow-same-origin allow-forms allow-popups" />
             ) : (
@@ -255,10 +270,12 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
-function FileExplorer({ slug }: { slug: string }) {
+function FileExplorer({ slug, rev = 0 }: { slug: string; rev?: number }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["project-tree", slug], queryFn: () => api.get<{ tree: TreeNode[] }>(`/api/projects/${encodeURIComponent(slug)}/tree`).then((d) => d.tree ?? []) });
   const tree = q.data ?? [];
+  // Auto-refresh the tree when the project changes on disk (watch stream).
+  useEffect(() => { if (rev > 0) void qc.invalidateQueries({ queryKey: ["project-tree", slug] }); }, [rev, slug, qc]);
   const [selected, setSelected] = useState<TreeNode | null>(null);
   const [creating, setCreating] = useState<null | "file" | "folder">(null);
   const [newName, setNewName] = useState("");
@@ -359,7 +376,7 @@ function FileExplorer({ slug }: { slug: string }) {
               <span className="text-xs text-gray-300 font-mono truncate">{selected.rel}</span>
               <a href={fileUrl(selected.path)} download={selected.name} className="text-gray-500 hover:text-[#00d9ff]" title="Download"><Download className="w-3.5 h-3.5" /></a>
             </div>
-            <div className="flex-1 overflow-auto p-4"><FileBody kind={selected.kind ?? "file"} filename={selected.name} path={selected.path} /></div>
+            <div className="flex-1 overflow-auto p-4"><FileBody kind={selected.kind ?? "file"} filename={selected.name} path={selected.path} rev={rev} /></div>
           </div>
         ) : <div className="h-full flex items-center justify-center text-sm text-gray-600">Select a file to view it.</div>}
       </div>
@@ -443,7 +460,7 @@ function TreeRow({ node, depth, selected, onSelect, onMove, onUploadTo, onDelete
 
 // ─────────────────────────── file body renderer ───────────────────────────
 
-function FileBody({ kind, filename, path }: { kind: string; filename: string; path: string }) {
+function FileBody({ kind, filename, path, rev = 0 }: { kind: string; filename: string; path: string; rev?: number }) {
   const url = fileUrl(path);
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
   const isMd = ext === "md";
@@ -456,13 +473,15 @@ function FileBody({ kind, filename, path }: { kind: string; filename: string; pa
   useEffect(() => {
     if (!isText || isPdf) { setText(null); return; }
     setLoading(true);
-    apiFetch(url).then((r) => r.text()).then(setText).catch(() => setText("(couldn't load file)")).finally(() => setLoading(false));
-  }, [url, isText, isPdf]);
+    // cache-bust so the watch-triggered refresh fetches the new content
+    apiFetch(`${url}${url.includes("?") ? "&" : "?"}_r=${rev}`).then((r) => r.text()).then(setText).catch(() => setText("(couldn't load file)")).finally(() => setLoading(false));
+  }, [url, isText, isPdf, rev]);
 
-  if (kind === "image") return <div className="flex items-center justify-center"><img src={url} alt={filename} className="max-w-full max-h-[68vh] object-contain rounded" /></div>;
-  if (kind === "video") return <div className="flex items-center justify-center"><video src={url} controls className="max-w-full max-h-[68vh] rounded" /></div>;
-  if (kind === "audio") return <audio src={url} controls className="w-full" />;
-  if (isPdf) return <iframe src={url} title={filename} className="w-full h-[68vh] bg-white rounded" />;
+  const media = `${url}${url.includes("?") ? "&" : "?"}_r=${rev}`;   // refresh on change
+  if (kind === "image") return <div className="flex items-center justify-center"><img src={media} alt={filename} className="max-w-full max-h-[68vh] object-contain rounded" /></div>;
+  if (kind === "video") return <div className="flex items-center justify-center"><video src={media} controls className="max-w-full max-h-[68vh] rounded" /></div>;
+  if (kind === "audio") return <audio src={media} controls className="w-full" />;
+  if (isPdf) return <iframe src={media} title={filename} className="w-full h-[68vh] bg-white rounded" />;
   if (loading) return <Loader2 className="w-5 h-5 animate-spin text-[#00d9ff]" />;
   if (isMd) return <div className="prose prose-invert prose-sm max-w-none break-words"><ReactMarkdown remarkPlugins={[remarkGfm]}>{text ?? ""}</ReactMarkdown></div>;
   if (isText) return <pre className="text-xs text-gray-300 whitespace-pre-wrap break-words font-mono leading-relaxed">{text}</pre>;
