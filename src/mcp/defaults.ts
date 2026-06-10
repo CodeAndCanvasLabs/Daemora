@@ -120,10 +120,12 @@ export const MCP_DEFAULTS: Readonly<Record<string, MCPDefault>> = {
     },
     requiredEnv: ["SLACK_BOT_TOKEN", "SLACK_TEAM_ID"],
   },
-  puppeteer: {
-    description: "Browser automation, screenshots, web interaction.",
-    config: { command: "npx", args: ["-y", "@modelcontextprotocol/server-puppeteer"], enabled: false },
-  },
+  // DISABLED FOR NOW — browser MCP. Runs a browser on the host device the user
+  // can't see, and the agent can loop. Re-enable by uncommenting.
+  // puppeteer: {
+  //   description: "Browser automation, screenshots, web interaction.",
+  //   config: { command: "npx", args: ["-y", "@modelcontextprotocol/server-puppeteer"], enabled: false },
+  // },
   sentry: {
     description: "Sentry error tracking — query issues, generate patches.",
     config: {
@@ -259,40 +261,34 @@ export const MCP_DEFAULTS: Readonly<Record<string, MCPDefault>> = {
     },
     requiredEnv: ["UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"],
   },
-  "computer-use": {
-    description:
-      "Desktop control — mouse, keyboard, screenshot, window/app management, accessibility tree. Native macOS + Windows (Rust NAPI, no Python). Disabled by default; enable from MCP settings when you want OS-level automation available to the main agent.",
-    docsUrl: "https://github.com/zavora-ai/computer-use-mcp",
-    config: {
-      command: "npx",
-      args: ["-y", "@zavora-ai/computer-use-mcp"],
-      enabled: false,
-    },
-  },
-  playwright: {
-    description: "Browser control — Microsoft Playwright MCP. Disabled by default; enable from MCP settings when you want browser tools available to the main agent and the browser-pilot crew. Persistent profile shared with `daemora browser` CLI logins.",
-    config: {
-      command: "npx",
-      args: [
-        "-y",
-        "@playwright/mcp@latest",
-        "--browser", "chromium",
-        "--caps", "vision,storage,network",
-        // No --viewport-size: let Playwright use its default (1280x720)
-        // so the page canvas fills the actual browser window instead of
-        // rendering inside a smaller fixed box. --user-data-dir is
-        // injected at seed time by getBuiltinMcpServers() so the
-        // profile path lives under the user's dataDir.
-      ],
-      // Off by default. The main agent shouldn't reach for browser tools
-      // unprompted — the intent is `use_crew("browser-pilot", ...)` for
-      // browser work, and the crew sees these tools only after the user
-      // explicitly enables this MCP server from the Settings UI. Once
-      // enabled, both the main agent and browser-pilot share it.
-      enabled: false,
-    },
-    docsUrl: "https://github.com/microsoft/playwright-mcp",
-  },
+  // DISABLED FOR NOW — heavy / runs on the host device the user can't see, and the agent can loop. Re-enable by uncommenting (and re-enable in plans.ts features.voice).
+  // "computer-use": {
+  //   description:
+  //     "Desktop control — mouse, keyboard, screenshot, window/app management, accessibility tree. Native macOS + Windows (Rust NAPI, no Python). Disabled by default; enable from MCP settings when you want OS-level automation available to the main agent.",
+  //   docsUrl: "https://github.com/zavora-ai/computer-use-mcp",
+  //   config: {
+  //     command: "npx",
+  //     args: ["-y", "@zavora-ai/computer-use-mcp"],
+  //     enabled: false,
+  //   },
+  // },
+  // DISABLED FOR NOW — browser control MCP (Playwright). Runs a real browser on
+  // the host device the user can't see + the agent can get stuck in loops.
+  // Re-enable by uncommenting (and re-enable in plans.ts features.playwright).
+  // playwright: {
+  //   description: "Browser control — Microsoft Playwright MCP. Disabled by default; enable from MCP settings when you want browser tools available to the main agent and the browser-pilot crew. Persistent profile shared with `daemora browser` CLI logins.",
+  //   config: {
+  //     command: "npx",
+  //     args: [
+  //       "-y",
+  //       "@playwright/mcp@latest",
+  //       "--browser", "chromium",
+  //       "--caps", "vision,storage,network",
+  //     ],
+  //     enabled: false,
+  //   },
+  //   docsUrl: "https://github.com/microsoft/playwright-mcp",
+  // },
 };
 
 /** Backwards-compat export — the plain config map used by MCPStore seeding. */

@@ -192,10 +192,11 @@ export function ChatThread({ sessionId }: { sessionId: string }) {
               placeholder="Ask anything — paste or drop files"
               className="flex-1 resize-none bg-transparent outline-none text-sm text-gray-100 placeholder:text-gray-500 py-1.5 max-h-44"
             />
+            {/* Voice call DISABLED FOR NOW — uncomment to restore the mic button.
             <button onClick={toggleVoice}
               className={`p-2 rounded-xl shrink-0 transition-all active:scale-95 ${voiceOn ? "bg-red-500/20 text-red-400" : "text-gray-400 hover:text-[#00d9ff]"}`} aria-label="Voice call" title={voiceOn ? "End voice" : "Start voice call"}>
               {voiceOn ? <PhoneOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-            </button>
+            </button> */}
             <button onClick={() => void doSend()} disabled={!input.trim() && pending.length === 0}
               className="p-2 rounded-xl bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] text-[#0a0f1a] shrink-0 disabled:opacity-30 hover:opacity-90 active:scale-95 transition-all" aria-label="Send">
               <ArrowUp className="w-5 h-5" />

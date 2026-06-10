@@ -19,7 +19,8 @@ type Tab = "general" | "models" | "voice" | "keys" | "agent" | "memory";
 const TABS: { id: Tab; label: string; icon: typeof Cpu }[] = [
   { id: "general", label: "General", icon: SettingsIcon },
   { id: "models", label: "Models", icon: Cpu },
-  { id: "voice", label: "Voice", icon: Mic },
+  // Voice DISABLED FOR NOW — uncomment to restore the Voice settings tab.
+  // { id: "voice", label: "Voice", icon: Mic },
   { id: "keys", label: "API Keys", icon: KeyRound },
   { id: "agent", label: "Agent", icon: Bot },
   { id: "memory", label: "Memory", icon: Brain },

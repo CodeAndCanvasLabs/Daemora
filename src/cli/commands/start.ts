@@ -263,11 +263,18 @@ export async function startCommand(): Promise<void> {
   // Phase 1: build the AgentLoop with its core tool set. Crew tools are
   // installed in phase 2, once we have an AgentLoop reference for the
   // CrewAgentRunner to share the ToolRegistry.
-  // Start local LiveKit server for voice (auto-detects if already running)
+  // Voice is DISABLED FOR NOW (heavy — LiveKit + worker). We keep the object so
+  // downstream wiring stays intact, but don't start the server. Re-enable by
+  // flipping VOICE_ENABLED (and features.voice in plans.ts).
+  const VOICE_ENABLED = false;
   const livekitServer = new LiveKitServer();
-  await livekitServer.ensureRunning().catch((e) => {
-    log.warn({ err: (e as Error).message }, "livekit-server not available — voice disabled");
-  });
+  if (VOICE_ENABLED) {
+    await livekitServer.ensureRunning().catch((e) => {
+      log.warn({ err: (e as Error).message }, "livekit-server not available — voice disabled");
+    });
+  } else {
+    log.info("voice disabled (LiveKit not started)");
+  }
 
   const hookRunner = new HookRunner(cfg.env.dataDir);
   hookRunner.load();
@@ -343,6 +350,10 @@ export async function startCommand(): Promise<void> {
       ? disabledCrewsRaw.filter((x): x is string => typeof x === "string")
       : [],
   );
+  // DISABLED FOR NOW — the browser agent (runs a browser on the host the user
+  // can't see; agent can loop) and the smart-home / device-control crew.
+  // Remove these to re-enable.
+  for (const c of ["browser-pilot", "smart-home"]) disabledCrews.add(c);
   const enabledCrews = loadedCrews.filter((c) => !disabledCrews.has(c.manifest.id));
   if (disabledCrews.size > 0) {
     log.info({ disabled: Array.from(disabledCrews) }, "skipping disabled crews");

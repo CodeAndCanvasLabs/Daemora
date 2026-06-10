@@ -42,7 +42,8 @@ export const PLANS: Readonly<Record<Plan, PlanPreset>> = Object.freeze({
     maxCostPerTask: 0.20,
     machine: { cpus: 2, memoryMb: 2048 },
     volumeGb: 5,
-    features: { voice: true, playwright: true, video: false },
+    // voice + browser disabled for now (heavy / run on the host device); video stays on
+    features: { voice: false, playwright: false, video: true },
     allowedTools: null,
   },
   lite: {
@@ -53,7 +54,8 @@ export const PLANS: Readonly<Record<Plan, PlanPreset>> = Object.freeze({
     maxCostPerTask: 0.10,
     machine: { cpus: 1, memoryMb: 1024 },
     volumeGb: 5,
-    features: { voice: false, playwright: false, video: false },
+    // voice + browser disabled for now (heavy / run on the host device); video stays on
+    features: { voice: false, playwright: false, video: true },
     allowedTools: null,
   },
   pro: {
@@ -64,7 +66,8 @@ export const PLANS: Readonly<Record<Plan, PlanPreset>> = Object.freeze({
     maxCostPerTask: 1.0,
     machine: { cpus: 2, memoryMb: 4096 },
     volumeGb: 20,
-    features: { voice: true, playwright: true, video: true },
+    // voice + browser disabled for now (heavy / run on the host device); video stays on
+    features: { voice: false, playwright: false, video: true },
     allowedTools: null,
   },
 });

@@ -178,7 +178,7 @@ export function Setup() {
           if (!data.vaultUnlocked) {
             setStep("vault");
           } else if (data.hasProvider || data.hasAnyLlmKey) {
-            setStep("voice");
+            setStep("profile");   // voice/wake steps disabled — skip to profile
           } else {
             setStep("provider");
           }
@@ -270,7 +270,7 @@ export function Setup() {
         const d = await res.json().catch(() => ({}));
         throw new Error(d?.message || d?.error || "Failed to save");
       }
-      setStep("voice");
+      setStep("profile");   // voice/wake steps disabled — skip to profile
     } catch (e: any) {
       setError(e.message || String(e));
     }
@@ -469,7 +469,8 @@ export function Setup() {
     return Array.from(keys);
   }
 
-  const steps: Step[] = ["vault", "provider", "voice", "wake", "profile", "connect", "complete"];
+  // Voice + wake-word steps DISABLED FOR NOW — restore "voice", "wake" to re-enable.
+  const steps: Step[] = ["vault", "provider", "profile", "connect", "complete"];
   const stepIndex = steps.indexOf(step);
 
   if (loading) {
