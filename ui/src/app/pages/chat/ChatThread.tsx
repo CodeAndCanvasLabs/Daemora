@@ -118,8 +118,10 @@ export function ChatThread({ sessionId }: { sessionId: string }) {
                       : <span className="whitespace-pre-wrap break-words">{m.content}</span>}
                     {m.attachments && m.attachments.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-2">
-                        {m.attachments.map((a, j) => a.kind === "image"
-                          ? <img key={j} src={a.url} alt={a.filename} className="max-h-40 rounded-lg border border-slate-700/50" />
+                        {m.attachments.map((a, j) =>
+                          a.kind === "image" ? <img key={j} src={a.url} alt={a.filename} className="max-h-60 rounded-lg border border-slate-700/50" />
+                          : a.kind === "video" ? <video key={j} src={a.url} controls playsInline className="max-h-72 w-full max-w-md rounded-lg border border-slate-700/50 bg-black" />
+                          : a.kind === "audio" ? <audio key={j} src={a.url} controls className="w-full max-w-md" />
                           : <a key={j} href={a.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-xs text-[#00d9ff] underline"><FileIcon className="w-3.5 h-3.5" />{a.filename}</a>)}
                       </div>
                     )}
