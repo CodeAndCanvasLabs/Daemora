@@ -185,7 +185,12 @@ export async function startCommand(): Promise<void> {
   // `extraction` is wired into TaskRunner below (runner.extraction = …) and
   // `decay` is run on a daily maintenance timer below — both formerly dormant.
   const mcpStore = new MCPStore(cfg.env.dataDir);
-  const mcpManager = new MCPManager(mcpStore, cfg.vault);
+  // In managed (tenant) mode, sandbox stdio MCP servers — manage_mcp lets the
+  // agent register an arbitrary spawn command, so it must run confined.
+  const mcpSandbox = process.env["INTERNAL_SIGNING_SECRET"]
+    ? { dataDir: cfg.env.dataDir, allowRoots: [cfg.env.dataDir] }
+    : undefined;
+  const mcpManager = new MCPManager(mcpStore, cfg.vault, undefined, mcpSandbox);
   // Sync the playwright MCP entry's --user-data-dir against the
   // DAEMORA_BROWSER_PROFILE setting before connect. The setting is the
   // canonical source of truth for the active browser profile; mcp.json

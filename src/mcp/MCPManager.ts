@@ -10,10 +10,11 @@
  *   3. Server added/removed/toggled via API → connect/disconnect
  */
 
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 
 import { createLogger } from "../util/logger.js";
+import { sandboxedSpawn, type SandboxSpec } from "../safety/shellSandbox.js";
 import type { SecretVault } from "../config/SecretVault.js";
 import { argFieldsFor, descriptionFor, requiredEnvFor } from "./defaults.js";
 import type { MCPStore, MCPServerEntry } from "./MCPStore.js";
@@ -80,6 +81,10 @@ export class MCPManager extends EventEmitter {
     private readonly store: MCPStore,
     private readonly vault?: SecretVault,
     private integrationToken?: (integration: string) => string | undefined,
+    /** When set (managed/tenant mode), stdio MCP servers are spawned inside the
+     *  OS sandbox + with a scrubbed env — so `manage_mcp(add, command:…)` can't
+     *  be used to run arbitrary code outside the tenant or read its secrets. */
+    private readonly sandbox?: SandboxSpec,
   ) {
     super();
   }
@@ -113,10 +118,14 @@ export class MCPManager extends EventEmitter {
       const resolvedHeaders = this.resolveEnv(config.headers);
 
       if (config.command) {
-        // Stdio transport — spawn subprocess.
-        const child = spawn(config.command, config.args ?? [], {
+        // Stdio transport — spawn subprocess. In managed mode this runs inside
+        // the OS sandbox with a scrubbed env (the command is agent/user-supplied
+        // via manage_mcp, so it's untrusted); the server's own configured env
+        // (resolvedEnv, from the vault) is still passed through.
+        const child = sandboxedSpawn([config.command, ...(config.args ?? [])], {
+          ...(this.sandbox ? { spec: this.sandbox } : {}),
           stdio: ["pipe", "pipe", "pipe"],
-          env: { ...process.env, ...resolvedEnv },
+          extraEnv: resolvedEnv as Record<string, string>,
         });
         entry.process = child;
 

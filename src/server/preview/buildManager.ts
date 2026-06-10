@@ -11,12 +11,11 @@
  * tail for the "Building…"/"Failed" pages.
  */
 
-import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 import type { FilesystemGuard } from "../../safety/FilesystemGuard.js";
-import { macSandboxProfile, safeShellEnv, SANDBOX_EXEC } from "../../tools/core/executeCommand.js";
+import { sandboxedSpawn, type SandboxSpec } from "../../safety/shellSandbox.js";
 import { createLogger } from "../../util/logger.js";
 
 const log = createLogger("preview.build");
@@ -76,16 +75,10 @@ function startBuild(slug: string, codeDir: string, guard: FilesystemGuard): void
   const command = "{ [ -d node_modules ] || npm install --no-audit --no-fund --silent; } && npm run build";
 
   const desc = guard.describe();
-  const allowRoots = Array.from(new Set([...(desc.allow ?? []), ...(desc.dataDir ? [desc.dataDir] : [])]));
-  const denyRoots = Array.from(new Set(["/Users", process.env["HOME"] ?? ""].filter(Boolean)));
-  const sandbox = desc.mode === "sandbox" && process.platform === "darwin" && existsSync(SANDBOX_EXEC) && allowRoots.length > 0;
-  const env = desc.mode === "sandbox"
-    ? { ...safeShellEnv(), ...(desc.dataDir ? { HOME: desc.dataDir } : {}) }
-    : process.env;
-
-  const child = sandbox
-    ? spawn(SANDBOX_EXEC, ["-p", macSandboxProfile(allowRoots, denyRoots), "/bin/bash", "-c", command], { cwd: codeDir, env, stdio: ["ignore", "pipe", "pipe"] })
-    : spawn(command, { cwd: codeDir, env, shell: "/bin/bash", stdio: ["ignore", "pipe", "pipe"] });
+  const spec: SandboxSpec | undefined = desc.mode === "sandbox"
+    ? { ...(desc.dataDir ? { dataDir: desc.dataDir } : {}), allowRoots: desc.allow ?? [] }
+    : undefined;
+  const child = sandboxedSpawn(["/bin/bash", "-c", command], { ...(spec ? { spec } : {}), cwd: codeDir, stdio: ["ignore", "pipe", "pipe"] });
 
   const cap = (s: string) => { state.log = (state.log + s).slice(-4000); };
   child.stdout?.on("data", (c: Buffer) => cap(c.toString()));

@@ -3,60 +3,12 @@ import { existsSync, statSync } from "node:fs";
 import { z } from "zod";
 
 import type { FilesystemGuard } from "../../safety/FilesystemGuard.js";
+import { SANDBOX_EXEC, safeShellEnv, macSandboxProfile } from "../../safety/shellSandbox.js";
 import { createLogger } from "../../util/logger.js";
 import { TimeoutError, ValidationError } from "../../util/errors.js";
 import type { ToolDef } from "../types.js";
 
 const log = createLogger("execute_command");
-
-export const SANDBOX_EXEC = "/usr/bin/sandbox-exec";
-
-// In sandbox (multitenant) mode the shell gets ONLY these harmless OS vars —
-// never the process env, which may carry the signing secret, vault passphrase,
-// injected API keys, DATABASE_URL, MASTER_KEK, etc. So `env`, `printenv`,
-// `echo $INTERNAL_SIGNING_SECRET` reveal nothing. (In single-user/off mode the
-// full env is kept so a self-hoster's own commands work normally.)
-const SHELL_ENV_WHITELIST = [
-  "PATH", "HOME", "TMPDIR", "TMP", "TEMP", "LANG", "LC_ALL", "LC_CTYPE",
-  "LC_MESSAGES", "TERM", "USER", "LOGNAME", "SHELL", "TZ", "PWD", "HOSTNAME",
-  "COLUMNS", "LINES", "SSL_CERT_FILE", "SSL_CERT_DIR",
-] as const;
-
-export function safeShellEnv(): NodeJS.ProcessEnv {
-  const out: NodeJS.ProcessEnv = {};
-  for (const k of SHELL_ENV_WHITELIST) { const v = process.env[k]; if (v !== undefined) out[k] = v; }
-  return out;
-}
-
-/**
- * macOS seatbelt profile that confines a shell to the tenant's allow-list.
- * `(deny default)` then re-allows only the system paths a binary needs to run
- * plus read/write on the tenant's own roots — so `ls ../../../../crew`,
- * `cat /Users/...`, reads of sibling tenants, etc. are denied by the KERNEL,
- * not by a bypassable string denylist. This is the actual filesystem boundary
- * for local dev; in cloud each tenant is a separate Fly Machine (only /data
- * mounted), so there is no host filesystem to reach in the first place.
- */
-export function macSandboxProfile(allowRoots: readonly string[], denyRoots: readonly string[]): string {
-  const rw = allowRoots.map((r) => `(subpath ${JSON.stringify(r)})`).join(" ");
-  const deny = denyRoots.map((r) => `(subpath ${JSON.stringify(r)})`).join(" ");
-  // Allow-by-default so binaries (bash, node, next, …) load + run. Then deny
-  // file CONTENT reads + writes under the sensitive trees (home / repo / sibling
-  // tenants, all under /Users on macOS), then re-allow the tenant's own dir.
-  //
-  // Crucially we DON'T deny file-read-metadata: Node's module resolution stats
-  // (traverses) the parent path components up to the tenant dir, and blocking
-  // that `stat` is what produced the realpath EPERM the agent had to hack around.
-  // Allowing metadata lets apps run; denying file-read-data still blocks reading
-  // or LISTING file/dir contents (getdirentries needs read-data), so
-  // `cat /Users/...`, `ls ../../../../crew`, reads of other tenants are all blocked.
-  return [
-    "(version 1)",
-    "(allow default)",
-    `(deny file-read-data file-write* file-write-create ${deny})`,
-    `(allow file-read-data file-write* file-write-create ${rw})`,
-  ].join("\n");
-}
 
 const inputSchema = z.object({
   command: z.string().min(1).describe("The shell command to run."),
