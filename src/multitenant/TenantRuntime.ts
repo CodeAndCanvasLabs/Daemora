@@ -18,6 +18,7 @@ import {
   type Machine,
 } from "./FlyMachinesClient.js";
 import type { Tenant } from "./types.js";
+import { PLANS } from "./plans.js";
 
 const log = createLogger("multitenant.runtime");
 
@@ -176,7 +177,11 @@ export class FlyMachinesRuntime implements TenantRuntime {
     if (existing) return { upstreamUrl: existing.upstreamUrl, id: existing.machineId };
 
     log.info({ slug: tenant.slug }, "ensuring volume + creating machine (Fly)");
-    const volume = await this.opts.client.ensureTenantVolume(tenant.slug);
+    // Size the tenant's machine + volume per its PLAN — this is what makes a
+    // pro tenant get a bigger dedicated VM than a lite one. Each tenant is its
+    // own Fly Machine (isolated microVM), so "plan" == "machine size".
+    const preset = PLANS[tenant.plan];
+    const volume = await this.opts.client.ensureTenantVolume(tenant.slug, preset.volumeGb);
 
     // Fly's create endpoint requires env values as strings; coerce.
     const stringEnv: Record<string, string> = {};
@@ -186,6 +191,8 @@ export class FlyMachinesRuntime implements TenantRuntime {
       slug: tenant.slug,
       env: stringEnv,
       volumeId: volume.id,
+      cpus: preset.machine.cpus,
+      memoryMb: preset.machine.memoryMb,
     });
 
     // If machine was found existing in non-started state, kick it.
