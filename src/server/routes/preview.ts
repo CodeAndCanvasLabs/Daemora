@@ -26,6 +26,7 @@ import { join, resolve, sep } from "node:path";
 import type { Express, Request, Response } from "express";
 
 import { createLogger } from "../../util/logger.js";
+import { ensureBuild, buildLog } from "../preview/buildManager.js";
 import type { ServerDeps } from "../index.js";
 
 const log = createLogger("preview");
@@ -75,6 +76,28 @@ export function resolveDevUrl(dataDir: string, slug: string): string | null {
   return origin;
 }
 
+const SHELL = (body: string) =>
+  `<body style="font:14px ui-monospace,monospace;background:#0a0f1a;color:#94a3b8;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;text-align:center">${body}</body>`;
+
+/** Auto-refreshing "compiling…" page shown while the project builds. */
+function buildingPage(slug: string): string {
+  return `<!doctype html><html><head><meta http-equiv="refresh" content="3"></head>${SHELL(
+    `<div><div style="width:28px;height:28px;border:3px solid #1e293b;border-top-color:#00d9ff;border-radius:50%;margin:0 auto 16px;animation:s 0.8s linear infinite"></div>` +
+    `Building <b style="color:#e2e8f0">${slug}</b>…<br><br><span style="font-size:12px;color:#64748b">compiling the app — this updates automatically when it's ready</span>` +
+    `<style>@keyframes s{to{transform:rotate(360deg)}}</style></div>`,
+  )}</html>`;
+}
+
+/** Build-failed page with the log tail (so the user/agent can see why). */
+function failedPage(slug: string, logTail: string): string {
+  const esc = logTail.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] ?? c));
+  return `<!doctype html>${SHELL(
+    `<div style="max-width:760px"><div style="color:#f87171;font-size:15px;margin-bottom:10px">Build failed for ${slug}</div>` +
+    `<pre style="text-align:left;background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:12px;color:#cbd5e1;font-size:11px;max-height:60vh;overflow:auto;white-space:pre-wrap">${esc || "(no output)"}</pre>` +
+    `<div style="font-size:12px;color:#64748b;margin-top:10px">Ask the agent to fix the build, then reopen Preview.</div></div>`,
+  )}</html>`;
+}
+
 export function mountPreviewRoutes(app: Express, deps: ServerDeps): void {
   // Handle ALL methods so a live dev server (which may serve POST/api routes)
   // works; static mode only answers GET. group 1 = slug, group 2 = "/sub/path".
@@ -92,9 +115,18 @@ export function mountPreviewRoutes(app: Express, deps: ServerDeps): void {
 
     const base = previewBase(deps.cfg.env.dataDir, slug);
     if (!base) {
+      // No built output yet — auto-build on demand (coding projects with source).
+      // Only kick off on the index request; assets 404 until the build lands.
+      const projectRoot = projectRootFor(deps.cfg.env.dataDir, slug);
+      const isIndex = sub === "/" || sub === "";
+      if (projectRoot && isIndex) {
+        const status = ensureBuild(slug, projectRoot, deps.guard);
+        if (status === "building") { res.status(200).type("html").send(buildingPage(slug)); return; }
+        if (status === "failed") { res.status(200).type("html").send(failedPage(slug, buildLog(slug))); return; }
+      }
       res.status(404).type("html").send(
         `<body style="font:14px system-ui;background:#0a0f1a;color:#94a3b8;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center">` +
-        `<div>No preview yet.<br><br>The agent builds a runnable app under <code>projects/${slug}/code/</code> (an <code>index.html</code>, or a dev server + <code>.preview.json</code>), then it shows here.</div></body>`,
+        `<div>No preview yet.<br><br>The agent builds a runnable app under <code>projects/${slug}/code/</code> (compiled to <code>dist/</code>), then it shows here.</div></body>`,
       );
       return;
     }

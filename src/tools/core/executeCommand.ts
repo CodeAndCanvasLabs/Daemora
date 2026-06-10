@@ -9,7 +9,7 @@ import type { ToolDef } from "../types.js";
 
 const log = createLogger("execute_command");
 
-const SANDBOX_EXEC = "/usr/bin/sandbox-exec";
+export const SANDBOX_EXEC = "/usr/bin/sandbox-exec";
 
 // In sandbox (multitenant) mode the shell gets ONLY these harmless OS vars —
 // never the process env, which may carry the signing secret, vault passphrase,
@@ -22,7 +22,7 @@ const SHELL_ENV_WHITELIST = [
   "COLUMNS", "LINES", "SSL_CERT_FILE", "SSL_CERT_DIR",
 ] as const;
 
-function safeShellEnv(): NodeJS.ProcessEnv {
+export function safeShellEnv(): NodeJS.ProcessEnv {
   const out: NodeJS.ProcessEnv = {};
   for (const k of SHELL_ENV_WHITELIST) { const v = process.env[k]; if (v !== undefined) out[k] = v; }
   return out;
@@ -37,7 +37,7 @@ function safeShellEnv(): NodeJS.ProcessEnv {
  * for local dev; in cloud each tenant is a separate Fly Machine (only /data
  * mounted), so there is no host filesystem to reach in the first place.
  */
-function macSandboxProfile(allowRoots: readonly string[], denyRoots: readonly string[]): string {
+export function macSandboxProfile(allowRoots: readonly string[], denyRoots: readonly string[]): string {
   const rw = allowRoots.map((r) => `(subpath ${JSON.stringify(r)})`).join(" ");
   const deny = denyRoots.map((r) => `(subpath ${JSON.stringify(r)})`).join(" ");
   // Allow-by-default so binaries (bash, node, next, …) load + run. Then deny
