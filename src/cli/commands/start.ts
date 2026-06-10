@@ -558,7 +558,13 @@ export async function startCommand(): Promise<void> {
   // hard-fails just because something else is on 8081. The actual bound
   // port is then threaded through tunnel/banner/autoOpen so the URL
   // printed to the user matches reality.
-  const server = await listenWithFallback(app, cfg.env.port, log);
+  // SECURITY: behind the gateway (managed/multi-tenant), bind LOOPBACK ONLY —
+  // only the same-host gateway proxies to this tenant, so it must NOT listen on
+  // the LAN where other machines (or, with a shared network, other tenants)
+  // could reach its port. Standalone single-user installs keep the default bind
+  // (overridable via HOST) so the owner can reach it from their LAN/phone.
+  const bindHost = process.env["INTERNAL_SIGNING_SECRET"] ? "127.0.0.1" : process.env["HOST"];
+  const server = await listenWithFallback(app, cfg.env.port, log, bindHost);
   // Live-preview HMR: proxy /_preview/<slug>/ websocket upgrades to a project's
   // dev server (when it declares one in .preview.json). Registered before the
   // voice socket so non-preview upgrades fall through to it untouched.
@@ -679,9 +685,9 @@ function box(lines: readonly string[]): string {
  * caller reads `server.address().port` to discover the actual port.
  * Any other listen error (EACCES, etc.) is propagated as-is.
  */
-function listenWithFallback(app: Express, port: number, log: { warn: (o: object, m: string) => void }): Promise<Server> {
+function listenWithFallback(app: Express, port: number, log: { warn: (o: object, m: string) => void }, host?: string): Promise<Server> {
   return new Promise<Server>((resolve, reject) => {
-    const server = app.listen(port);
+    const server = host ? app.listen(port, host) : app.listen(port);
     server.once("listening", () => resolve(server));
     server.once("error", (err: NodeJS.ErrnoException) => {
       if (err.code !== "EADDRINUSE") {
@@ -689,7 +695,7 @@ function listenWithFallback(app: Express, port: number, log: { warn: (o: object,
         return;
       }
       log.warn({ port, err: err.message }, "port in use — retrying on a random port");
-      const fallback = app.listen(0);
+      const fallback = host ? app.listen(0, host) : app.listen(0);
       fallback.once("listening", () => resolve(fallback));
       fallback.once("error", reject);
     });
