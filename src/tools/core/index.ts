@@ -20,7 +20,7 @@ import type { ToolDef } from "../types.js";
 
 import { makeApplyPatchTool } from "./applyPatch.js";
 import { makeBroadcastTool } from "./broadcast.js";
-import { clipboardTool } from "./clipboard.js";
+// computer-use disabled for now (host clipboard — useless for cloud): import { clipboardTool } from "./clipboard.js";
 import { makeCreateDocumentTool } from "./createDocument.js";
 import { makeCronTool } from "./cronTool.js";
 import { makeEditFileTool } from "./editFile.js";
@@ -45,7 +45,7 @@ import { makeReadFileTool } from "./readFile.js";
 import { makeReadPDFTool } from "./readPDF.js";
 import { makeReloadTool } from "./reloadTool.js";
 import { replyToUserTool } from "./replyToUser.js";
-import { screenCaptureTool } from "./screenCapture.js";
+// computer-use disabled for now (host screen — useless for cloud): import { screenCaptureTool } from "./screenCapture.js";
 // Resend-backed email tool disabled — Gmail integration is the preferred
 // outbound path. Left in place so it can be re-enabled without
 // reinstating the file.
@@ -140,8 +140,11 @@ export function buildCoreTools(deps: CoreToolDeps): readonly ToolDef[] {
     makeImageOpsTool(deps.guard) as unknown as ToolDef,
 
     // System
-    clipboardTool as unknown as ToolDef,
-    screenCaptureTool as unknown as ToolDef,
+    // Computer-use DISABLED FOR NOW — clipboard + screen capture act on the HOST
+    // device, which is meaningless (and not reachable) for a cloud-run tenant.
+    // Uncomment to restore.
+    // clipboardTool as unknown as ToolDef,
+    // screenCaptureTool as unknown as ToolDef,
     replyToUserTool as unknown as ToolDef,
 
     // Communication
