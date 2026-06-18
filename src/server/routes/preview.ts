@@ -103,27 +103,33 @@ export function mountPreviewRoutes(app: Express, deps: ServerDeps): void {
   // works; static mode only answers GET. group 1 = slug, group 2 = "/sub/path".
   app.all(/^\/_preview\/([^/?]+)(\/[^?]*)?$/, (req: Request, res: Response) => {
     const slug = decodeURIComponent((req.params as unknown as string[])[0] ?? "");
-
-    // ── v2: live dev-server proxy ──
-    const devUrl = resolveDevUrl(deps.cfg.env.dataDir, slug);
-    if (devUrl) { proxyToDevServer(devUrl, req, res); return; }
-
-    // ── v1: static built output (GET only) ──
-    if (req.method !== "GET") { res.status(405).send("method not allowed (no live dev server for this project)"); return; }
+    const dataDir = deps.cfg.env.dataDir;
     const rawSub = (req.params as unknown as string[])[1];
     const sub = rawSub ? decodeURIComponent(rawSub) : "/";
+    const isIndex = sub === "/" || sub === "";
 
-    const base = previewBase(deps.cfg.env.dataDir, slug);
-    if (!base) {
-      // No built output yet — auto-build on demand (coding projects with source).
-      // Only kick off on the index request; assets 404 until the build lands.
-      const projectRoot = projectRootFor(deps.cfg.env.dataDir, slug);
-      const isIndex = sub === "/" || sub === "";
-      if (projectRoot && isIndex) {
+    // PREFERENCE ORDER (static-first — the reliable path):
+    //  1) a built static bundle (code/dist|out|build) → serve it
+    //  2) no build yet but the project is buildable → auto-build (Building page)
+    //  3) not buildable but it declares a live dev server → proxy to it
+    //  4) nothing → "no preview yet"
+    let base = previewBase(dataDir, slug);
+
+    if (!base && isIndex && req.method === "GET") {
+      const projectRoot = projectRootFor(dataDir, slug);
+      if (projectRoot) {
         const status = ensureBuild(slug, projectRoot, deps.guard);
         if (status === "building") { res.status(200).type("html").send(buildingPage(slug)); return; }
         if (status === "failed") { res.status(200).type("html").send(failedPage(slug, buildLog(slug))); return; }
+        if (status === "ready") base = previewBase(dataDir, slug); // just built — re-resolve
+        // "not-buildable" → fall through to the dev-server proxy
       }
+    }
+
+    if (!base) {
+      // Last resort: a live dev server the project explicitly declared.
+      const devUrl = resolveDevUrl(dataDir, slug);
+      if (devUrl) { proxyToDevServer(devUrl, req, res); return; }
       res.status(404).type("html").send(
         `<body style="font:14px system-ui;background:#0a0f1a;color:#94a3b8;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center">` +
         `<div>No preview yet.<br><br>The agent builds a runnable app under <code>projects/${slug}/code/</code> (compiled to <code>dist/</code>), then it shows here.</div></body>`,
@@ -131,6 +137,8 @@ export function mountPreviewRoutes(app: Express, deps: ServerDeps): void {
       return;
     }
 
+    // ── serve static built output (GET only) ──
+    if (req.method !== "GET") { res.status(405).send("method not allowed for a static preview"); return; }
     const rel = sub === "/" || sub === "" ? "/index.html" : sub;
     let target = resolve(base, "." + rel);
     if (target !== base && !target.startsWith(base + sep)) { res.status(403).send("forbidden"); return; }
