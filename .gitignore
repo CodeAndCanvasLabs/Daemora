@@ -5,7 +5,8 @@ node_modules/
 # ── Environment - NEVER commit secrets ───────────────────────────────────────
 .env
 .env.*
-!.env.example        # keep the template
+!.env.example          # keep the template at any depth
+!**/.env.example
 
 # ── Runtime data - generated at runtime, user-specific ───────────────────────
 data/

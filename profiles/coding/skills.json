@@ -1,0 +1,21 @@
+{
+  "include": [
+    "api-development",
+    "web-development",
+    "frontend-design",
+    "debugging",
+    "system-admin",
+    "devops",
+    "browser",
+    "webapp-testing",
+    "github",
+    "mcp-builder",
+    "changelog-generator",
+    "skill-creator",
+    "task-decomposition",
+    "planning",
+    "model-usage",
+    "tmux",
+    "summarize"
+  ]
+}

@@ -1,9 +1,11 @@
 import { createElement } from "react";
 import { createBrowserRouter } from "react-router";
 import { AuthGate } from "./components/AuthGate";
-import { Layout } from "./components/Layout";
+import { AppShell } from "./components/AppShell";
 import { Dashboard } from "./pages/Dashboard";
-import { Chat } from "./pages/Chat";
+import { Chat } from "./pages/chat/ChatPage";
+import { Projects } from "./pages/Projects";
+import { Agents } from "./pages/Agents";
 import { Logs } from "./pages/Logs";
 import { TaskDetail } from "./pages/TaskDetail";
 import { Channels } from "./pages/Channels";
@@ -14,11 +16,8 @@ import { Security } from "./pages/Security";
 import { Costs } from "./pages/Costs";
 import { Settings } from "./pages/Settings";
 import { Cron } from "./pages/Cron";
-import { Goals } from "./pages/Goals";
 import { Watchers } from "./pages/Watchers";
-import { Crew } from "./pages/Crew";
 import { Files } from "./pages/Files";
-import { Teams } from "./pages/Teams";
 import { Setup } from "./pages/Setup";
 
 export const router = createBrowserRouter([
@@ -28,13 +27,17 @@ export const router = createBrowserRouter([
   },
   {
     path: "/",
-    Component: () => createElement(AuthGate, null, createElement(Layout)),
+    Component: () => createElement(AuthGate, null, createElement(AppShell)),
     children: [
-      { index: true, Component: Dashboard },
+      // Chat is the landing (generic chat).
+      { index: true, Component: Chat },
+      { path: "projects", Component: Projects },
+      { path: "agents", Component: Agents },
+      { path: "dashboard", Component: Dashboard },
+      // Chat alias kept for any existing links.
       { path: "chat", Component: Chat },
       { path: "logs", Component: Logs },
       { path: "logs/:id", Component: TaskDetail },
-      // Keep old /tasks routes for backwards compat
       { path: "tasks", Component: Logs },
       { path: "tasks/:id", Component: TaskDetail },
       { path: "config", Component: Settings },
@@ -44,12 +47,9 @@ export const router = createBrowserRouter([
       { path: "mcp", Component: MCP },
       { path: "skills", Component: Skills },
       { path: "cron", Component: Cron },
-      { path: "goals", Component: Goals },
       { path: "watchers", Component: Watchers },
       { path: "security", Component: Security },
       { path: "costs", Component: Costs },
-      { path: "crew", Component: Crew },
-      { path: "teams", Component: Teams },
       { path: "settings", Component: Settings },
     ],
   },

@@ -1,0 +1,15 @@
+{
+  "include": [
+    "remotion",
+    "video-script-writer",
+    "video-downloader",
+    "video-frames",
+    "image-gen",
+    "image-enhancer",
+    "gif-search",
+    "slack-gif-creator",
+    "documents",
+    "summarize",
+    "planning"
+  ]
+}

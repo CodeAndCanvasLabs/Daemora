@@ -1,0 +1,17 @@
+{
+  "include": [
+    "devops",
+    "system-admin",
+    "debugging",
+    "github",
+    "tmux",
+    "api-development",
+    "web-development",
+    "browser",
+    "webapp-testing",
+    "research",
+    "summarize",
+    "planning",
+    "documents"
+  ]
+}

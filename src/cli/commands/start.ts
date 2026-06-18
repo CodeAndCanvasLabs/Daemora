@@ -7,6 +7,7 @@
 
 import { exec } from "node:child_process";
 import type { Server } from "node:http";
+import { join } from "node:path";
 
 import type { Express } from "express";
 
@@ -18,8 +19,6 @@ import { CompactionManager } from "../../core/Compaction.js";
 import { InboundDebouncer } from "../../core/InboundDebouncer.js";
 import { LoopDetector } from "../../core/LoopDetector.js";
 import { TaskRunner } from "../../core/TaskRunner.js";
-import { FileProjectStore } from "../../files/FileProjectStore.js";
-import { ScanQueue } from "../../files/scanQueue.js";
 import { AttachmentProcessor } from "../../core/AttachmentProcessor.js";
 import { BackgroundReviewer } from "../../learning/BackgroundReviewer.js";
 import { EventBus } from "../../events/eventBus.js";
@@ -33,7 +32,6 @@ import { IntegrationStore } from "../../integrations/IntegrationStore.js";
 import { registerIntegrationTools } from "../../integrations/tools.js";
 import { makeCronTool } from "../../tools/core/cronTool.js";
 import { makeReplyToUserTool } from "../../tools/core/replyToUser.js";
-import { makeGoalTool } from "../../tools/core/goalTool.js";
 import { makeWatcherTool } from "../../tools/core/watcherTool.js";
 import { makePollTool } from "../../tools/core/pollTool.js";
 import { makeManageMCPTool } from "../../tools/core/manageMCP.js";
@@ -43,7 +41,6 @@ import type { ToolDef } from "../../tools/types.js";
 import { CronScheduler } from "../../cron/CronScheduler.js";
 import { CronStore } from "../../cron/CronStore.js";
 import { makeCronExecutor } from "../../scheduler/CronExecutor.js";
-import { GoalPulse } from "../../scheduler/GoalPulse.js";
 import { Heartbeat } from "../../scheduler/Heartbeat.js";
 import { ensureMorningPulse } from "../../scheduler/MorningPulse.js";
 import { DailyLog } from "../../scheduler/DailyLog.js";
@@ -63,6 +60,7 @@ import { GoalStore } from "../../goals/GoalStore.js";
 import { LiveKitServer } from "../../voice/LiveKitServer.js";
 import { ExtractionPipeline } from "../../learning/ExtractionPipeline.js";
 import { MemoryDecay } from "../../learning/MemoryDecay.js";
+import { SkillCurator } from "../../learning/SkillCurator.js";
 import { SmartRecall } from "../../learning/SmartRecall.js";
 import { MCPIntegrationBridge } from "../../mcp/MCPIntegrationBridge.js";
 import { MCPManager } from "../../mcp/MCPManager.js";
@@ -70,15 +68,15 @@ import { MCPStore } from "../../mcp/MCPStore.js";
 import { AuditLog } from "../../safety/AuditLog.js";
 import { FilesystemGuard, type FsGuardMode } from "../../safety/FilesystemGuard.js";
 import { TaskStore } from "../../tasks/TaskStore.js";
-import { TeamStore } from "../../teams/TeamStore.js";
 import { WatcherStore } from "../../watchers/WatcherStore.js";
 import { WatcherRunner } from "../../watchers/WatcherRunner.js";
 import { SkillLoader } from "../../skills/SkillLoader.js";
 import { SkillRegistry } from "../../skills/SkillRegistry.js";
 import { createApp } from "../../server/index.js";
+import { attachPreviewUpgrade } from "../../server/routes/preview.js";
 // Voice now runs via LiveKit agent worker (see src/voice/VoiceAgent.ts
 // spawned from /api/voice/sidecar/start), not a custom WebSocket.
-import { signalTree } from "../../util/killTree.js";
+import { signalOrphaned, signalTree } from "../../util/killTree.js";
 import { createLogger } from "../../util/logger.js";
 
 const log = createLogger("cli.start");
@@ -100,6 +98,25 @@ export async function startCommand(): Promise<void> {
   const cfg = ConfigManager.open();
   log.info({ dataDir: cfg.env.dataDir, port: cfg.env.port }, "config opened");
 
+  // Central config delivery: when the gateway spawns this tenant it passes the
+  // user's config (from Postgres — the source of truth) as DAEMORA_BOOT_CONFIG.
+  // We re-seed the local SQLite settings from it on every boot, so machine
+  // settings can't silently drift/revert. Secrets never travel this channel.
+  const bootConfigRaw = process.env["DAEMORA_BOOT_CONFIG"];
+  if (bootConfigRaw) {
+    try {
+      const obj = JSON.parse(bootConfigRaw) as Record<string, unknown>;
+      let seeded = 0;
+      for (const [key, value] of Object.entries(obj)) {
+        cfg.settings.setGeneric(key, value);
+        seeded++;
+      }
+      log.info({ keys: seeded }, "central config seeded from gateway (Postgres source of truth)");
+    } catch (err) {
+      log.warn({ err: (err as Error).message }, "DAEMORA_BOOT_CONFIG parse failed — using local config");
+    }
+  }
+
   const skillsDir = process.env["SKILLS_DIR"] ?? new URL("../../../skills", import.meta.url).pathname;
   const skillSnapshotPath = `${cfg.env.dataDir}/.skills-snapshot.json`;
   // User-created skills live outside the bundled skills tree so they
@@ -112,6 +129,23 @@ export async function startCommand(): Promise<void> {
   }
   const skills = new SkillRegistry(loadedSkills);
   log.info({ skills: skills.size }, "skills loaded");
+
+  // Profiles — the specialist-agent abstraction. Loaded after skills so
+  // the registry exists before AgentLoop / channel manager constructions
+  // wire in. Filters into SkillRegistry / CrewRegistry / PermissionGuard
+  // come online in later steps; for now the registry just resolves the
+  // active id (default: "daemora", mirrors the legacy SOUL.md).
+  const { ProfileLoader } = await import("../../profiles/ProfileLoader.js");
+  const { ProfileRegistry } = await import("../../profiles/ProfileRegistry.js");
+  const profileLoader = new ProfileLoader(cfg.env.dataDir);
+  const profiles = new ProfileRegistry(profileLoader.loadAll(), cfg);
+  log.info(
+    {
+      profiles: profiles.list().map((p) => p.manifest.id),
+      active: profiles.getActiveId(),
+    },
+    "profiles loaded",
+  );
 
   // Embeddings — semantic skill matching + memory recall, opt-in per
   // provider availability. If no API key is in the vault and Ollama
@@ -144,15 +178,19 @@ export async function startCommand(): Promise<void> {
   const watchers = new WatcherStore(cfg.database);
   const goals = new GoalStore(cfg.database);
   const taskStore = new TaskStore(cfg.database);
-  const teamStore = new TeamStore(cfg.database);
   const smartRecall = new SmartRecall(cfg.database, memory);
   const extraction = new ExtractionPipeline(memory);
   const decay = new MemoryDecay(cfg.database, memory);
-  void smartRecall; // available for AgentLoop to use in future
-  void extraction;  // wired into task completion in future
-  void decay;       // run via cron job in future
+  void smartRecall; // recall_stats table is maintained; recall re-ranking wiring is pending the memory-tool consolidation.
+  // `extraction` is wired into TaskRunner below (runner.extraction = …) and
+  // `decay` is run on a daily maintenance timer below — both formerly dormant.
   const mcpStore = new MCPStore(cfg.env.dataDir);
-  const mcpManager = new MCPManager(mcpStore, cfg.vault);
+  // In managed (tenant) mode, sandbox stdio MCP servers — manage_mcp lets the
+  // agent register an arbitrary spawn command, so it must run confined.
+  const mcpSandbox = process.env["INTERNAL_SIGNING_SECRET"]
+    ? { dataDir: cfg.env.dataDir, allowRoots: [cfg.env.dataDir] }
+    : undefined;
+  const mcpManager = new MCPManager(mcpStore, cfg.vault, undefined, mcpSandbox);
   // Sync the playwright MCP entry's --user-data-dir against the
   // DAEMORA_BROWSER_PROFILE setting before connect. The setting is the
   // canonical source of truth for the active browser profile; mcp.json
@@ -176,25 +214,67 @@ export async function startCommand(): Promise<void> {
   const fsModeFromSettings = cfg.settings.getGeneric("DAEMORA_FS_GUARD");
   const fsAllowFromSettings = cfg.settings.getGeneric("DAEMORA_FS_ALLOW");
   const fsDenyFromSettings = cfg.settings.getGeneric("DAEMORA_FS_DENY");
-  const fsGuardMode = ((fsModeFromSettings ?? process.env["DAEMORA_FS_GUARD"]) as FsGuardMode) || "moderate";
-  const fsAllow = parseFsList(fsAllowFromSettings, process.env["DAEMORA_FS_ALLOW"]);
-  const fsDeny = parseFsList(fsDenyFromSettings, process.env["DAEMORA_FS_DENY"]);
+  // SECURITY — tenant isolation. When running behind the gateway (a managed,
+  // multi-tenant instance — signalled by INTERNAL_SIGNING_SECRET), the sandbox
+  // belongs to the PLATFORM, not the tenant: it is HARD-LOCKED to sandbox mode
+  // confined to the tenant's own data dir, and user settings are IGNORED. A
+  // tenant must NEVER be able to loosen its sandbox (e.g. via Security → FS
+  // guard) and read the host, the source tree, or other tenants' data/vaults.
+  // Only standalone (on-your-own-machine) daemora honours the user's settings.
+  const managed = !!process.env["INTERNAL_SIGNING_SECRET"];
+  let fsGuardMode: FsGuardMode;
+  let fsAllow: readonly string[];
+  let fsDeny: readonly string[];
+  if (managed) {
+    fsGuardMode = "sandbox";
+    fsAllow = [cfg.env.dataDir]; // absolute (set by the orchestrator)
+    // The agent is confined to its workspace, but a few files INSIDE the data
+    // dir are operational/secret and must stay invisible even to reads:
+    //  - auth-signing-key / auth-token : the tenant's own session secrets
+    //  - daemora.db* : the machine vault (API keys), chats, memory
+    //  - mcp.json / .skills-snapshot.json : internal config snapshots
+    //  - logs/ : operational telemetry that contains absolute host paths
+    // Without these denies the agent could read its own vault or leak the host
+    // layout by tailing its log file.
+    fsDeny = [
+      join(cfg.env.dataDir, "auth-signing-key"),
+      join(cfg.env.dataDir, "auth-token"),
+      join(cfg.env.dataDir, "daemora.db"),
+      join(cfg.env.dataDir, "daemora.db-wal"),
+      join(cfg.env.dataDir, "daemora.db-shm"),
+      join(cfg.env.dataDir, "mcp.json"),
+      join(cfg.env.dataDir, ".skills-snapshot.json"),
+      join(cfg.env.dataDir, "logs"),
+    ];
+  } else {
+    fsGuardMode = ((fsModeFromSettings ?? process.env["DAEMORA_FS_GUARD"]) as FsGuardMode) || "moderate";
+    fsAllow = parseFsList(fsAllowFromSettings, process.env["DAEMORA_FS_ALLOW"]);
+    fsDeny = parseFsList(fsDenyFromSettings, process.env["DAEMORA_FS_DENY"]);
+  }
   const guard = new FilesystemGuard({
     mode: fsGuardMode,
     dataDir: cfg.env.dataDir,
     extraAllow: fsAllow,
     extraDeny: fsDeny,
+    ...(managed ? { workspaceRoot: cfg.env.dataDir } : {}),
   });
-  log.info({ mode: fsGuardMode, allow: fsAllow, deny: fsDeny, dataDir: cfg.env.dataDir }, "filesystem guard armed");
+  log.info({ mode: fsGuardMode, managed, allow: fsAllow, deny: fsDeny, dataDir: cfg.env.dataDir }, "filesystem guard armed");
 
   // Phase 1: build the AgentLoop with its core tool set. Crew tools are
   // installed in phase 2, once we have an AgentLoop reference for the
   // CrewAgentRunner to share the ToolRegistry.
-  // Start local LiveKit server for voice (auto-detects if already running)
+  // Voice is DISABLED FOR NOW (heavy — LiveKit + worker). We keep the object so
+  // downstream wiring stays intact, but don't start the server. Re-enable by
+  // flipping VOICE_ENABLED (and features.voice in plans.ts).
+  const VOICE_ENABLED = false;
   const livekitServer = new LiveKitServer();
-  await livekitServer.ensureRunning().catch((e) => {
-    log.warn({ err: (e as Error).message }, "livekit-server not available — voice disabled");
-  });
+  if (VOICE_ENABLED) {
+    await livekitServer.ensureRunning().catch((e) => {
+      log.warn({ err: (e as Error).message }, "livekit-server not available — voice disabled");
+    });
+  } else {
+    log.info("voice disabled (LiveKit not started)");
+  }
 
   const hookRunner = new HookRunner(cfg.env.dataDir);
   hookRunner.load();
@@ -237,19 +317,14 @@ export async function startCommand(): Promise<void> {
       }),
     );
   }
-  // FileProjectStore is built here (before AgentLoop) so the
-  // list_gallery_projects tool gets registered in the agent's tool
-  // catalog at boot. ScanQueue construction is deferred below where
-  // it can pick up the same store reference.
-  const fileProjectStore = new FileProjectStore(cfg.env.dataDir, wikiLog);
   const agent = new AgentLoop({
     cfg, models, skills, guard, memory,
     mcp: mcpManager, hooks: hookRunner,
     skillLoader, skillsRoot: skillsDir,
     declarativeMemory, sessions,
     bus, loopDetector,
-    fileProjects: fileProjectStore,
     getEnabledIntegrations: () => integrations.getEnabled(),
+    profiles,
   });
 
   // Register integration tools BEFORE the crew loader runs so crew
@@ -275,12 +350,16 @@ export async function startCommand(): Promise<void> {
       ? disabledCrewsRaw.filter((x): x is string => typeof x === "string")
       : [],
   );
+  // DISABLED FOR NOW — the browser agent (runs a browser on the host the user
+  // can't see; agent can loop) and the smart-home / device-control crew.
+  // Remove these to re-enable.
+  for (const c of ["browser-pilot", "smart-home"]) disabledCrews.add(c);
   const enabledCrews = loadedCrews.filter((c) => !disabledCrews.has(c.manifest.id));
   if (disabledCrews.size > 0) {
     log.info({ disabled: Array.from(disabledCrews) }, "skipping disabled crews");
   }
   const crews = new CrewRegistry(enabledCrews);
-  const crewRunner = new CrewAgentRunner(crews, agent.tools, models, sessions, skills, fileProjectStore);
+  const crewRunner = new CrewAgentRunner(crews, agent.tools, models, sessions, skills);
   agent.installCrews(crews, crewRunner);
   // Wire integration crews: filesystem-loaded manifests live in
   // crew/twitter|youtube|facebook|instagram/plugin.json. This sync
@@ -299,12 +378,14 @@ export async function startCommand(): Promise<void> {
   const compaction = new CompactionManager(sessions, models, bus);
   const reviewer = new BackgroundReviewer({ agent, sessions, bus });
   const attachmentProcessor = new AttachmentProcessor({ cfg, dataDir: cfg.env.dataDir });
-  const fileProjectScanQueue = new ScanQueue(fileProjectStore, cfg);
-  fileProjectScanQueue.recoverPending();
   const runner = new TaskRunner(
     agent, sessions, taskStore, bus, hookRunner, compaction, reviewer, cfg.env.dataDir,
     loopDetector, attachmentProcessor, cfg, costs,
   );
+  // Self-learning: completed turns feed the extraction pipeline (debounced,
+  // deduped, error-swallowing). Set as a post-construction hook so the
+  // TaskRunner constructor stays positional-stable.
+  runner.extraction = extraction;
   const debouncer = new InboundDebouncer({
     windowMs: Number(process.env["DEBOUNCE_MS"] ?? 1500),
   });
@@ -333,7 +414,6 @@ export async function startCommand(): Promise<void> {
   // Same `as unknown as ToolDef` cast pattern that buildCoreTools uses
   // — TS gets confused by zod schema variance on this generic.
   agent.tools.register(makeCronTool(cronStore, cronScheduler) as unknown as ToolDef);
-  agent.tools.register(makeGoalTool(goals) as unknown as ToolDef);
   agent.tools.register(makeWatcherTool(watchers) as unknown as ToolDef);
   agent.tools.register(makeManageMCPTool(mcpStore, mcpManager) as unknown as ToolDef);
   agent.tools.register(makeManageAgentsTool({ sessions, crews }) as unknown as ToolDef);
@@ -356,8 +436,33 @@ export async function startCommand(): Promise<void> {
   );
   const dailyLog = new DailyLog({ bus, dataDir: cfg.env.dataDir });
   dailyLog.start();
-  const goalPulse = new GoalPulse(goals, runner);
-  goalPulse.start();
+  // Self-learning maintenance: prune stale / never-recalled long-term memory
+  // once a day. runDecay() is synchronous and fully guarded; the timer is
+  // unref'd so it never keeps the process alive on its own.
+  const DECAY_INTERVAL_MS = 24 * 60 * 60 * 1000;
+  const decayTimer = setInterval(() => {
+    try {
+      const result = decay.runDecay();
+      log.info({ ...result }, "memory decay pass complete");
+    } catch (err) {
+      log.warn({ err: err instanceof Error ? err.message : String(err) }, "memory decay pass failed");
+    }
+  }, DECAY_INTERVAL_MS);
+  decayTimer.unref();
+  // Self-learning safety net: snapshot the auto-learned custom-skills tree
+  // weekly and flag stale skills (report-only; rollback available). Guarded +
+  // unref'd. Operates ONLY on custom-skills, never the bundled repo skills.
+  const skillCurator = new SkillCurator({
+    skillsDir: customSkillsDir,
+    snapshotsDir: `${cfg.env.dataDir}/.skill-snapshots`,
+  });
+  const CURATOR_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+  const curatorTimer = setInterval(() => {
+    skillCurator.run().catch((err) => {
+      log.warn({ err: err instanceof Error ? err.message : String(err) }, "skill curator pass failed");
+    });
+  }, CURATOR_INTERVAL_MS);
+  curatorTimer.unref();
   // Heartbeat — gated by HEARTBEAT_ENABLED + HEARTBEAT_INTERVAL_MINUTES
   // settings. 0 minutes also disables. When the user toggles this off
   // from Settings the existing instance keeps ticking until next
@@ -449,15 +554,14 @@ export async function startCommand(): Promise<void> {
     crews, crewLoader, models,
     costs, audit, cron: cronStore, cronScheduler,
     watchers, watcherRunner, goals, tasks: taskStore, skills, mcp: mcpManager,
-    mcpStore, channels, channelManager, teamStore,
+    mcpStore, channels, channelManager,
     auth, authEnabled, webhookTokens, getPublicUrl: () => publicUrl, tunnel,
     deliveryPresets: deliveryPresetStore,
     integrations,
     guard,
     skillLoader,
     customSkillsDir,
-    fileProjectStore,
-    fileProjectScanQueue,
+    profiles,
   });
 
   // Bind the HTTP server. If the configured port is already in use,
@@ -465,7 +569,17 @@ export async function startCommand(): Promise<void> {
   // hard-fails just because something else is on 8081. The actual bound
   // port is then threaded through tunnel/banner/autoOpen so the URL
   // printed to the user matches reality.
-  const server = await listenWithFallback(app, cfg.env.port, log);
+  // SECURITY: behind the gateway (managed/multi-tenant), bind LOOPBACK ONLY —
+  // only the same-host gateway proxies to this tenant, so it must NOT listen on
+  // the LAN where other machines (or, with a shared network, other tenants)
+  // could reach its port. Standalone single-user installs keep the default bind
+  // (overridable via HOST) so the owner can reach it from their LAN/phone.
+  const bindHost = process.env["INTERNAL_SIGNING_SECRET"] ? "127.0.0.1" : process.env["HOST"];
+  const server = await listenWithFallback(app, cfg.env.port, log, bindHost);
+  // Live-preview HMR: proxy /_preview/<slug>/ websocket upgrades to a project's
+  // dev server (when it declares one in .preview.json). Registered before the
+  // voice socket so non-preview upgrades fall through to it untouched.
+  attachPreviewUpgrade(server, cfg.env.dataDir);
   const addr = server.address();
   const boundPort = typeof addr === "object" && addr ? addr.port : cfg.env.port;
   if (boundPort !== cfg.env.port) {
@@ -504,7 +618,6 @@ export async function startCommand(): Promise<void> {
     // see it and skip respawning during teardown.
     process.exitCode = 0;
     cronScheduler.stop();
-    goalPulse.stop();
     heartbeat.stop();
     watcherRunner.stop();
     tunnel.stop();
@@ -522,6 +635,15 @@ export async function startCommand(): Promise<void> {
     const sigtermed = signalTree(process.pid, "SIGTERM");
     if (sigtermed > 0) log.info({ count: sigtermed }, "SIGTERM sent to descendants");
 
+    // Belt-and-suspenders: catch orphans whose parent died early and
+    // got reparented to init (LiveKit IPC children are the recurring
+    // case). pgrep -P misses them because the chain back to us is
+    // broken; ps-by-pattern scoped to our install root + data dir
+    // doesn't care about the PPID chain.
+    const installRoot = new URL("../../../", import.meta.url).pathname;
+    const orphSigtermed = signalOrphaned(installRoot, cfg.env.dataDir, "SIGTERM");
+    if (orphSigtermed > 0) log.info({ count: orphSigtermed }, "SIGTERM sent to reparented orphans");
+
     server.close(() => {
       cfg.close();
       process.exit(0);
@@ -533,6 +655,8 @@ export async function startCommand(): Promise<void> {
     setTimeout(() => {
       const survivors = signalTree(process.pid, "SIGKILL");
       if (survivors > 0) log.warn({ count: survivors }, "SIGKILL sent to surviving descendants");
+      const orphSurvivors = signalOrphaned(installRoot, cfg.env.dataDir, "SIGKILL");
+      if (orphSurvivors > 0) log.warn({ count: orphSurvivors }, "SIGKILL sent to surviving orphans");
       process.exit(0);
     }, 3_000).unref();
   };
@@ -572,9 +696,9 @@ function box(lines: readonly string[]): string {
  * caller reads `server.address().port` to discover the actual port.
  * Any other listen error (EACCES, etc.) is propagated as-is.
  */
-function listenWithFallback(app: Express, port: number, log: { warn: (o: object, m: string) => void }): Promise<Server> {
+function listenWithFallback(app: Express, port: number, log: { warn: (o: object, m: string) => void }, host?: string): Promise<Server> {
   return new Promise<Server>((resolve, reject) => {
-    const server = app.listen(port);
+    const server = host ? app.listen(port, host) : app.listen(port);
     server.once("listening", () => resolve(server));
     server.once("error", (err: NodeJS.ErrnoException) => {
       if (err.code !== "EADDRINUSE") {
@@ -582,7 +706,7 @@ function listenWithFallback(app: Express, port: number, log: { warn: (o: object,
         return;
       }
       log.warn({ port, err: err.message }, "port in use — retrying on a random port");
-      const fallback = app.listen(0);
+      const fallback = host ? app.listen(0, host) : app.listen(0);
       fallback.once("listening", () => resolve(fallback));
       fallback.once("error", reject);
     });

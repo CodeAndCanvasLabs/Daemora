@@ -139,11 +139,12 @@ export const PROVIDER_CATALOG: readonly ProviderDef[] = [
     name: "Google AI",
     secretKey: "GOOGLE_AI_API_KEY",
     capabilities: ["llm", "embeddings", "image", "video"],
-    defaultModel: "gemini-2.5-flash",
+    defaultModel: "gemini-3.5-flash",
     defaultImageModel: "gemini-2.5-flash-image",
     defaultVideoModel: "veo-3.1-fast-generate-001",
     dynamicModelDiscovery: true,
     models: [
+      { id: "gemini-3.5-flash", name: "Gemini 3.5 Flash", tier: "fast", contextWindow: 1_000_000 },
       { id: "gemini-3.1-pro-preview", name: "Gemini 3.1 Pro", tier: "frontier", contextWindow: 2_000_000 },
       { id: "gemini-3.1-flash-lite-preview", name: "Gemini 3.1 Flash Lite", tier: "fast", contextWindow: 1_000_000 },
       { id: "gemini-3-pro-preview", name: "Gemini 3 Pro", tier: "frontier", contextWindow: 2_000_000 },
@@ -185,11 +186,12 @@ export const PROVIDER_CATALOG: readonly ProviderDef[] = [
     // — may 401 in some regions; tool falls through to GOOGLE_AI_API_KEY
     // (Gemini Developer API) if the Vertex call fails.
     capabilities: ["llm", "image", "video"],
-    defaultModel: "gemini-3.1-pro-preview",
+    defaultModel: "gemini-3.5-flash",
     defaultImageModel: "gemini-2.5-flash-image",
     defaultVideoModel: "veo-3.1-fast-generate-001",
     dynamicModelDiscovery: true,
     models: [
+      { id: "gemini-3.5-flash", name: "Gemini 3.5 Flash", tier: "fast", contextWindow: 1_000_000 },
       // Preview models pinned to the `global` endpoint — accessible to
       // any project with Vertex AI enabled (PUBLIC_PREVIEW launchStage).
       // Daemora routes Gemini-on-Vertex through SA + global to reach

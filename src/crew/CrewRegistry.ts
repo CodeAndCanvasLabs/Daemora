@@ -59,8 +59,32 @@ export class CrewRegistry extends EventEmitter {
     return Array.from(this.byId.values());
   }
 
-  /** Compact one-liner list the main agent's system prompt can render. */
-  summaryLines(): readonly string[] {
-    return this.list().map((c) => `- ${c.manifest.id}: ${c.manifest.description}`);
+  /**
+   * Crews the active profile permits the main agent to see. Hidden
+   * crews still exist in `byId` — `use_crew("hidden-id", ...)` would
+   * still work — they're just not in the surface the agent picks from.
+   * Omit / empty include → all visible (legacy behaviour).
+   */
+  listForProfile(filter?: { include?: readonly string[]; exclude?: readonly string[] } | undefined): readonly LoadedCrew[] {
+    const all = this.list();
+    if (!filter) return all;
+    const include = filter.include && filter.include.length > 0 ? new Set(filter.include) : null;
+    const exclude = filter.exclude && filter.exclude.length > 0 ? new Set(filter.exclude) : null;
+    if (!include && !exclude) return all;
+    return all.filter((c) => {
+      if (include && !include.has(c.manifest.id)) return false;
+      if (exclude && exclude.has(c.manifest.id)) return false;
+      return true;
+    });
+  }
+
+  /**
+   * Compact one-liner list the main agent's system prompt can render.
+   * If `filter` is provided, only profile-permitted crews appear in
+   * the prompt — the rest are reachable by id but invisible to the
+   * model's default decision surface.
+   */
+  summaryLines(filter?: { include?: readonly string[]; exclude?: readonly string[] } | undefined): readonly string[] {
+    return this.listForProfile(filter).map((c) => `- ${c.manifest.id}: ${c.manifest.description}`);
   }
 }

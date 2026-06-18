@@ -1,0 +1,39 @@
+# fly.toml app configuration file generated for daemora-control-plane on 2026-05-22T17:17:34Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'daemora-control-plane'
+primary_region = 'iad'
+
+[build]
+  dockerfile = 'Dockerfile.controlplane'
+
+[deploy]
+  strategy = 'rolling'
+
+[env]
+  CONTROL_PLANE_HOST_SUFFIX = '.daemora.app'
+  CONTROL_PLANE_PORT = '8080'
+  DAEMORA_RUNTIME = 'fly'
+  NODE_ENV = 'production'
+
+[http_service]
+  internal_port = 8080
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+  [[http_service.checks]]
+    interval = '30s'
+    timeout = '10s'
+    grace_period = '30s'
+    method = 'GET'
+    path = '/health'
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 512

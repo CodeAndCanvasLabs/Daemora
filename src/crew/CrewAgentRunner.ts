@@ -44,7 +44,6 @@ import { toAiTool, type ToolContext } from "../tools/types.js";
 import { NotFoundError, toDaemoraError } from "../util/errors.js";
 import { createLogger } from "../util/logger.js";
 import { estimateMessageTokens } from "../util/tokenEstimate.js";
-import { formatGalleryProject } from "../files/projectContext.js";
 import type { CrewRegistry } from "./CrewRegistry.js";
 import type { LoadedCrew } from "./types.js";
 
@@ -71,7 +70,7 @@ const ALWAYS_CREW_TOOLS: ReadonlySet<string> = new Set([
 ]);
 
 export interface CrewReference {
-  readonly kind: "file" | "url" | "note" | "gallery";
+  readonly kind: "file" | "url" | "note";
   readonly value: string;
   readonly why?: string | undefined;
 }
@@ -118,7 +117,6 @@ export class CrewAgentRunner {
     private readonly models: ModelRouter,
     private readonly sessions: SessionStore,
     private readonly skills?: SkillRegistry,
-    private readonly fileProjects?: import("../files/FileProjectStore.js").FileProjectStore,
   ) {}
 
   /** Abort all in-flight runs for a given crewId. Returns the count aborted. */
@@ -187,16 +185,8 @@ export class CrewAgentRunner {
     const history = this.sessions.getHistory(session.id, { limit: 40 });
 
     // Persist the delegating task up front so a mid-stream disconnect
-    // still leaves the user-visible delegation recorded. Any
-    // `kind: "gallery"` reference is expanded to the project's full
-    // manifest (paths + image filers) so the crew has the brand /
-    // asset context the parent agent had — without spending a tool
-    // call on list_gallery_projects.
-    const galleryContext = this.expandGalleryReferences(input.references);
-    const userMsgContent = galleryContext
-      ? `${galleryContext}\n\n---\n\n${formatDelegationMessage(input)}`
-      : formatDelegationMessage(input);
-    const userMsg: ModelMessage = { role: "user", content: userMsgContent };
+    // still leaves the user-visible delegation recorded.
+    const userMsg: ModelMessage = { role: "user", content: formatDelegationMessage(input) };
     this.sessions.appendMessage(session.id, userMsg, estimateMessageTokens(userMsg));
 
     // Local abort controller for this run, registered so the main agent
@@ -395,33 +385,6 @@ export class CrewAgentRunner {
     }
   }
 
-  /**
-   * Expand any `kind: "gallery"` references into a manifest block the
-   * crew agent sees as part of its first user message. Other reference
-   * kinds pass through formatDelegationMessage unchanged. Silent no-op
-   * when no FileProjectStore is wired or no gallery refs are present.
-   */
-  private expandGalleryReferences(references: readonly CrewReference[] | undefined): string | null {
-    if (!this.fileProjects || !references) return null;
-    const slugs = references
-      .filter((r) => r.kind === "gallery")
-      .map((r) => r.value.trim().toLowerCase())
-      .filter((s) => /^[a-z0-9][a-z0-9-]*$/.test(s));
-    if (slugs.length === 0) return null;
-    const blocks: string[] = [];
-    for (const slug of slugs) {
-      const block = formatGalleryProject(this.fileProjects, slug);
-      if (block) blocks.push(block);
-    }
-    if (blocks.length === 0) return null;
-    return [
-      "## Gallery context",
-      "The parent agent referenced the following gallery project(s) for this task. Treat these files as authoritative reference material; use `read_file` / `read_pdf` to load contents on demand.",
-      "",
-      ...blocks,
-    ].join("\n");
-  }
-
   private buildCrewTools(crew: LoadedCrew, input: CrewRunInput): Record<string, ReturnType<typeof toAiTool>> {
     const ctxFactory = (signal: AbortSignal): ToolContext => ({
       abortSignal: signal,
@@ -460,7 +423,7 @@ function buildCrewSystemPrompt(crew: LoadedCrew, skillsIndex: string): string {
     crew.manifest.profile.systemPrompt,
     "",
     "— You are being called as a specialist by the main Daemora agent.",
-    "— Save every generated/downloaded/temp file under `data/` (e.g. `data/outputs/`, `data/file-projects/<slug>/`, `data/temp/`). Never write outside `data/`.",
+    "— Your workspace root is the data dir (`DAEMORA_DATA_DIR`); paths are relative to it — NEVER prefix with `data/`. Project work goes under `projects/<slug>/` (typed subfolders: images/ videos/ docs/ research/ code/); one-off outputs go under `outputs/`; scratch under a project's `.tmp/`. Never write outside the workspace root.",
     "— Your last message MUST be a plain-text summary for the main agent: what you did, what worked, what failed, what's left, and the deliverable (path/URL/exact text). Never end on a tool call. Never reply empty.",
     "— You DO NOT have access to delegate further. Complete the task with the tools you have.",
     "— If you lack a tool required for the task, say so explicitly and return what partial result you can.",

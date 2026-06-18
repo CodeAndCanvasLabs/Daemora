@@ -1,0 +1,48 @@
+# fly.toml app configuration file generated for deamora-specialized-saas on 2026-05-22T05:21:30Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'deamora-specialized-saas'
+primary_region = 'iad'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[deploy]
+  strategy = 'rolling'
+
+[env]
+  CONTROL_PLANE_INTERNAL_URL = 'http://daemora-control-plane.flycast:8080'
+  LOG_LEVEL = 'info'
+  NODE_ENV = 'production'
+  PORT = '8090'
+  PUBLIC_API_URL = 'https://deamora-specialized-saas.fly.dev'
+  PUBLIC_APP_URL = 'https://daemora.com'
+  RESEND_FROM_EMAIL = 'no-reply@daemora.com'
+  TENANT_HOST_SUFFIX = '.daemora.app'
+
+[http_service]
+  internal_port = 8090
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  # Keep one machine warm so cold-starts don't time out health checks
+  # and signup latency stays under 200ms. ~$3/mo for one always-on shared-1x.
+  min_machines_running = 1
+  processes = ['app']
+
+  [[http_service.checks]]
+    interval = '30s'
+    # Cold-started machines need ~5-10s for the Node + tsx + Better Auth
+    # boot path. 5s was too tight; 15s gives margin without masking real outages.
+    timeout = '15s'
+    grace_period = '60s'
+    method = 'GET'
+    path = '/health'
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 512

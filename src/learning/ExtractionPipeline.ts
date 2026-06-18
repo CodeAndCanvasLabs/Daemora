@@ -133,8 +133,15 @@ export class ExtractionPipeline {
 
     const timer = setTimeout(() => {
       this.pending.delete(taskId);
-      this.runExtraction(taskId, taskOutput);
+      // Fire-and-forget on a timer: a throw here would be an uncaught
+      // exception that could take down the process. Swallow + log.
+      try {
+        this.runExtraction(taskId, taskOutput);
+      } catch (err) {
+        log.warn({ taskId, err: err instanceof Error ? err.message : String(err) }, "background extraction failed");
+      }
     }, this.debounceMs);
+    timer.unref?.();
 
     this.pending.set(taskId, timer);
     log.debug({ taskId }, "extraction scheduled");

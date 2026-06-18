@@ -16,6 +16,16 @@ export interface ToolFilter {
   readonly enabledIntegrations: ReadonlySet<string>;
   /** Tool names the agent can additionally see this turn (from skill matching). */
   readonly skillMatchedTools?: ReadonlySet<string>;
+  /**
+   * Optional active-profile allowlist. When non-empty, only tools whose
+   * name appears here (or whose category is in `profileAllowedCategories`)
+   * survive the filter. Empty / omitted → no profile gate.
+   * Always-on tools whose name isn't in the list ARE hidden — profile
+   * filtering takes precedence over `alwaysOn` so a specialist agent
+   * doesn't see generalist defaults.
+   */
+  readonly profileAllowedTools?: ReadonlySet<string>;
+  readonly profileAllowedCategories?: ReadonlySet<string>;
 }
 
 export class ToolRegistry {
@@ -85,9 +95,20 @@ export class ToolRegistry {
    */
   selectFor(filter: ToolFilter): readonly ToolDef[] {
     const matched = filter.skillMatchedTools ?? new Set<string>();
-    return this.available(filter.enabledIntegrations).filter(
-      (d) => d.alwaysOn === true || matched.has(d.name),
-    );
+    const allowedTools = filter.profileAllowedTools;
+    const allowedCats = filter.profileAllowedCategories;
+    const profileGated = (allowedTools && allowedTools.size > 0) || (allowedCats && allowedCats.size > 0);
+    return this.available(filter.enabledIntegrations).filter((d) => {
+      // Profile gate. When set, the tool MUST be on the allowlist
+      // (by name or by category) — even alwaysOn tools fall away if
+      // they're not part of the specialist's surface.
+      if (profileGated) {
+        const byName = allowedTools && allowedTools.size > 0 ? allowedTools.has(d.name) : false;
+        const byCat = allowedCats && allowedCats.size > 0 ? allowedCats.has(d.category) : false;
+        if (!byName && !byCat) return false;
+      }
+      return d.alwaysOn === true || matched.has(d.name);
+    });
   }
 }
 

@@ -1,0 +1,23 @@
+{
+  "include": [
+    "email",
+    "google-workspace",
+    "apple-notes",
+    "apple-reminders",
+    "things-mac",
+    "trello",
+    "notion",
+    "obsidian",
+    "weather",
+    "meeting-attendance",
+    "meeting-insights-analyzer",
+    "summarize",
+    "planning",
+    "file-organizer",
+    "invoice-organizer",
+    "documents",
+    "research",
+    "macos-automation",
+    "link-understanding"
+  ]
+}

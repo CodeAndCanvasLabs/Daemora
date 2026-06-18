@@ -444,15 +444,22 @@ export class ChannelManager {
     return env && env.length > 0 ? env : undefined;
   }
 
+  /** The user's active chat — inbound channel messages route here. Falls back to the shared channels session. */
+  private activeSessionId(): string {
+    const active = this.cfg.settings.getGeneric("ACTIVE_SESSION_ID");
+    return typeof active === "string" && active.trim() ? active : CHANNELS_SESSION_ID;
+  }
+
   private handleIncoming(channelId: string, msg: IncomingMessage): void {
     if (this.disposed) return;
     const channel = this.running.get(channelId);
     if (!channel) return;
 
-    // Single shared session across ALL channel traffic so the agent keeps
-    // one continuous conversation regardless of which channel / user
-    // sent the message. Per-user isolation is not used here.
-    const sessionId = CHANNELS_SESSION_ID;
+    // Inbound channel traffic lands in the user's ACTIVE chat — so whatever the
+    // user has in focus (its active agent + active project) handles Discord /
+    // Slack / WhatsApp / … messages too. Falls back to the shared channels
+    // session when nothing is active.
+    const sessionId = this.activeSessionId();
 
     // Record destination early so even bundled-into-previous-batch sends
     // land correctly.

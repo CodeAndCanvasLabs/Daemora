@@ -1,0 +1,13 @@
+{
+  "allowedCategories": [
+    "filesystem",
+    "shell",
+    "search",
+    "network",
+    "system",
+    "agent"
+  ],
+  "allowedTools": [
+    "reply_to_user"
+  ]
+}

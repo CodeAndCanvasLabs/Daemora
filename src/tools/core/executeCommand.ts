@@ -3,8 +3,12 @@ import { existsSync, statSync } from "node:fs";
 import { z } from "zod";
 
 import type { FilesystemGuard } from "../../safety/FilesystemGuard.js";
+import { SANDBOX_EXEC, safeShellEnv, macSandboxProfile } from "../../safety/shellSandbox.js";
+import { createLogger } from "../../util/logger.js";
 import { TimeoutError, ValidationError } from "../../util/errors.js";
 import type { ToolDef } from "../types.js";
+
+const log = createLogger("execute_command");
 
 const inputSchema = z.object({
   command: z.string().min(1).describe("The shell command to run."),
@@ -42,13 +46,14 @@ export function makeExecuteCommandTool(guard: FilesystemGuard): ToolDef<typeof i
       guard.ensureCommandAllowed(command);
       if (cwd) guard.ensureAllowed(cwd, "read");
 
+      const desc = guard.describe();
+
       // In sandbox/strict mode, when no cwd was given, force the spawn
       // cwd to a safe directory inside the allow-list so the command
       // doesn't inherit the daemon's own cwd (typically the install dir,
       // which the agent shouldn't have free reign over).
       const effectiveCwd = (() => {
         if (cwd) return cwd;
-        const desc = guard.describe();
         if (desc.mode === "sandbox" || desc.mode === "strict") {
           // Prefer dataDir; if not in the allow-list, fall back to the
           // first allow entry. If neither exists, we have no safe cwd —
@@ -75,14 +80,47 @@ export function makeExecuteCommandTool(guard: FilesystemGuard): ToolDef<typeof i
 
       const started = Date.now();
       const useShell = shell ?? (process.platform === "win32" ? true : "/bin/bash");
+      const shellPath = typeof useShell === "string" ? useShell : "/bin/bash";
+
+      // OS-level sandbox: in sandbox (multitenant) mode on macOS, run the shell
+      // under sandbox-exec so the KERNEL confines its filesystem to the tenant's
+      // allow-list. This closes the `ls ../../../../crew` / `cat /Users/...`
+      // class that a string denylist cannot. Cloud runs each tenant in its own
+      // Fly Machine, so there's no host FS to reach there.
+      const allowRoots = Array.from(new Set([...(desc.allow ?? []), ...(desc.dataDir ? [desc.dataDir] : [])]));
+      // Deny the trees that hold the host, the repo, and sibling tenants. On
+      // macOS everything user-owned lives under /Users, so denying it (then
+      // re-allowing the tenant's own dir) is a tight, reliable boundary.
+      const denyRoots = Array.from(new Set(["/Users", process.env["HOME"] ?? ""].filter(Boolean)));
+      const osSandbox = desc.mode === "sandbox" && process.platform === "darwin" && existsSync(SANDBOX_EXEC) && allowRoots.length > 0;
+      if (desc.mode === "sandbox" && !osSandbox && process.platform !== "win32") {
+        log.warn({ platform: process.platform }, "sandbox mode without an OS sandbox — shell is confined by denylist only; run tenants in a container for a real boundary");
+      }
+
+      // Sandbox mode → scrub the shell env so no secret leaks via `env`, and
+      // point HOME at the tenant dir so tool caches (~/.npm, ~/.cache, …) land
+      // INSIDE the workspace (writable + hidden from the file tree) instead of
+      // failing against the real ~ (blocked) and getting dumped into the project.
+      const sandboxHome = desc.dataDir ?? allowRoots[0];
+      const childEnv = desc.mode === "sandbox"
+        ? { ...safeShellEnv(), ...(sandboxHome ? { HOME: sandboxHome } : {}) }
+        : process.env;
 
       return await new Promise<ExecResult>((resolvePromise, rejectPromise) => {
-        const child = spawn(command, {
-          ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
-          shell: useShell,
-          stdio: ["ignore", "pipe", "pipe"],
-          signal: abortSignal,
-        });
+        const child = osSandbox
+          ? spawn(SANDBOX_EXEC, ["-p", macSandboxProfile(allowRoots, denyRoots), shellPath, "-c", command], {
+              ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
+              env: childEnv,
+              stdio: ["ignore", "pipe", "pipe"],
+              signal: abortSignal,
+            })
+          : spawn(command, {
+              ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
+              env: childEnv,
+              shell: useShell,
+              stdio: ["ignore", "pipe", "pipe"],
+              signal: abortSignal,
+            });
 
         let stdout = "";
         let stderr = "";

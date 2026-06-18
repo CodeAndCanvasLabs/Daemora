@@ -1,0 +1,51 @@
+# Per-Dockerfile ignore (BuildKit override of root .dockerignore).
+# Tenant runtime needs ui/ — daemora serves its own UI per tenant.
+#
+# Mirrors root .dockerignore minus the `ui` exclusion.
+
+node_modules
+**/node_modules
+.pnpm-store
+
+dist
+build
+*.log
+
+data
+apps/api/logs
+
+# Secrets — defense in depth
+**/.env
+**/.env.local
+**/.env.*.local
+*.key
+*.pem
+
+# Sibling apps the tenant runtime doesn't need
+agents
+wiki
+desktop
+installer
+crew
+apps              # apps/api is its own image; tenant doesn't ship it
+
+# Tests + dev artefacts
+test-results
+playwright-report
+coverage
+.cache
+.tmp
+tmp
+
+# Editor + git
+.git
+.gitignore
+.claude
+.cursor
+.vscode
+.idea
+.DS_Store
+
+# Old lockfiles we don't use
+pnpm-lock.yaml
+yarn.lock

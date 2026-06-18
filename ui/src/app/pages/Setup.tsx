@@ -26,7 +26,7 @@ const TTS_OPTIONS = [
   { value: "cartesia",   label: "Cartesia Sonic",  detail: "Low latency",            keyEnv: "CARTESIA_API_KEY" },
 ];
 
-type Step = "vault" | "provider" | "voice" | "wake" | "profile" | "connect" | "complete";
+type Step = "vault" | "agent" | "provider" | "voice" | "wake" | "profile" | "connect" | "complete";
 
 const COMM_STYLES = [
   { value: "concise",  label: "Concise",  detail: "Short, direct answers" },
@@ -55,6 +55,13 @@ export function Setup() {
   const [confirmPass, setConfirmPass] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [vaultLoading, setVaultLoading] = useState(false);
+
+  // Agent profile (specialist agent: daemora default, or one of the
+  // built-in specialists like research / coding / customer / ...)
+  type AgentProfile = { id: string; name: string; nickname: string | null; description: string };
+  const [agentProfiles, setAgentProfiles] = useState<AgentProfile[]>([]);
+  const [selectedAgentProfile, setSelectedAgentProfile] = useState<string>("daemora");
+  const [agentSaving, setAgentSaving] = useState(false);
 
   // Provider
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
@@ -98,7 +105,35 @@ export function Setup() {
 
   useEffect(() => {
     checkSetup();
+    // Profiles list doesn't change at runtime — fetch once at mount so
+    // the agent picker step renders instantly when the user lands on it.
+    apiFetch("/api/profiles")
+      .then((r) => r.json())
+      .then((data: { active: string; profiles: AgentProfile[] }) => {
+        setAgentProfiles(data.profiles ?? []);
+        if (data.active) setSelectedAgentProfile(data.active);
+      })
+      .catch(() => { /* non-fatal — profile picker just shows nothing if it fails */ });
   }, []);
+
+  async function handleAgentProfile() {
+    setError(null);
+    setAgentSaving(true);
+    try {
+      const res = await apiFetchAutoUnlock("/api/profiles/active", {
+        method: "POST",
+        body: JSON.stringify({ id: selectedAgentProfile }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Failed to save profile");
+      }
+      setStep("provider");
+    } catch (e: any) {
+      setError(e.message || String(e));
+    }
+    setAgentSaving(false);
+  }
 
   /**
    * Wrap an API call with auto re-unlock. During setup the user's
@@ -143,7 +178,7 @@ export function Setup() {
           if (!data.vaultUnlocked) {
             setStep("vault");
           } else if (data.hasProvider || data.hasAnyLlmKey) {
-            setStep("voice");
+            setStep("profile");   // voice/wake steps disabled — skip to profile
           } else {
             setStep("provider");
           }
@@ -171,7 +206,7 @@ export function Setup() {
           throw new Error(d.error || "Wrong passphrase");
         }
         sessionStorage.setItem("daemora_vault_pass", passphrase);
-        setStep("provider");
+        setStep("agent");
       } catch (e: any) {
         setError(e.message || String(e));
       }
@@ -201,7 +236,7 @@ export function Setup() {
           throw new Error(d.error || "Vault created but login failed");
         }
         sessionStorage.setItem("daemora_vault_pass", passphrase);
-        setStep("provider");
+        setStep("agent");
       } catch (e: any) {
         setError(e.message || String(e));
       }
@@ -210,7 +245,7 @@ export function Setup() {
   }
 
   function skipVault() {
-    setStep("provider");
+    setStep("agent");
   }
 
   async function handleProvider() {
@@ -235,7 +270,7 @@ export function Setup() {
         const d = await res.json().catch(() => ({}));
         throw new Error(d?.message || d?.error || "Failed to save");
       }
-      setStep("voice");
+      setStep("profile");   // voice/wake steps disabled — skip to profile
     } catch (e: any) {
       setError(e.message || String(e));
     }
@@ -434,7 +469,8 @@ export function Setup() {
     return Array.from(keys);
   }
 
-  const steps: Step[] = ["vault", "provider", "voice", "wake", "profile", "connect", "complete"];
+  // Voice + wake-word steps DISABLED FOR NOW — restore "voice", "wake" to re-enable.
+  const steps: Step[] = ["vault", "provider", "profile", "connect", "complete"];
   const stepIndex = steps.indexOf(step);
 
   if (loading) {
@@ -529,6 +565,57 @@ export function Setup() {
                 {vaultLoading ? "Starting..." : vaultExists ? "Unlock" : "Create & Continue"}
               </button>
 
+            </div>
+          )}
+
+          {/* AGENT PROFILE STEP — pick the specialist persona, or keep Daemora (default). */}
+          {step === "agent" && (
+            <div className="flex flex-col gap-4">
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-[#131b2e] border border-[#1e2d45] mb-3">
+                  <span className="text-[#00d9ff] text-xl">●</span>
+                </div>
+                <h2 className="text-2xl font-bold tracking-tight mb-1">Pick Your Agent</h2>
+                <p className="text-sm text-gray-400">Choose <strong>Daemora</strong> for a generalist, or a specialist for focused work. You can change this later in Settings.</p>
+              </div>
+
+              <div className="flex flex-col gap-2 max-h-[420px] overflow-y-auto">
+                {agentProfiles.length === 0 ? (
+                  <div className="text-center text-xs text-gray-500 py-6">Loading profiles…</div>
+                ) : (
+                  agentProfiles.map((p) => {
+                    const isSelected = selectedAgentProfile === p.id;
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => setSelectedAgentProfile(p.id)}
+                        className={`text-left p-4 rounded-lg border transition-all ${isSelected ? "border-[#00d9ff] bg-[#00d9ff]/5" : "border-[#1e2d45] bg-[#131b2e]/40 hover:border-[#2a3b56]"}`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-baseline gap-2">
+                            <span className="font-semibold text-white">{p.name}</span>
+                            {p.nickname && (
+                              <span className="text-[10px] uppercase tracking-wider text-[#00d9ff]/80 font-mono">{p.nickname}</span>
+                            )}
+                          </div>
+                          {isSelected && <span className="text-[#00d9ff] text-sm">✓</span>}
+                        </div>
+                        <p className="text-xs text-gray-400 leading-snug">{p.description}</p>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+
+              {error && <p className="text-xs text-red-400">{error}</p>}
+
+              <button
+                onClick={handleAgentProfile}
+                disabled={agentSaving || agentProfiles.length === 0}
+                className="w-full py-3 bg-gradient-to-r from-[#00d9ff] to-[#4ECDC4] text-[#0a0f1a] font-bold rounded-lg text-sm tracking-wide hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-40"
+              >
+                {agentSaving ? "Saving..." : "Continue"}
+              </button>
             </div>
           )}
 

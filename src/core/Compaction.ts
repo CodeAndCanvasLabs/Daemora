@@ -173,6 +173,9 @@ export class CompactionManager {
       ...(session.source ? { source: session.source } : {}),
       ...(session.userId ? { userId: session.userId } : {}),
       ...(session.systemPrompt ? { systemPrompt: session.systemPrompt } : {}),
+      // Keep the agent itself across compaction — inherit the parent's profile
+      // so a multi-agent session doesn't silently switch to the active profile.
+      ...(session.profileId ? { profileId: session.profileId } : {}),
     });
 
     for (const m of head) {

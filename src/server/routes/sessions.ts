@@ -91,6 +91,25 @@ export function mountSessionRoutes(app: Express, deps: ServerDeps): void {
     }
   });
 
+  // Active chat — the one inbound channel messages route to (its agent +
+  // project handle them). Declared BEFORE /:id so "active" isn't read as an id.
+  app.get("/api/sessions/active", (_req: Request, res: Response) => {
+    const raw = deps.cfg.settings.getGeneric("ACTIVE_SESSION_ID");
+    const id = typeof raw === "string" && raw.trim() ? raw : null;
+    const session = id ? deps.sessions.getSession(id) : null;
+    res.json({ sessionId: session ? id : null, session: session ?? null });
+  });
+
+  app.put("/api/sessions/active", (req: Request, res: Response) => {
+    const body = z.object({ sessionId: z.string().min(1).max(200) }).safeParse(req.body);
+    if (!body.success) throw new ValidationError(body.error.message);
+    const sid = body.data.sessionId;
+    // Point at a real chat — create-or-get so "active" is never dangling.
+    const session = deps.sessions.getSession(sid) ?? deps.sessions.createSessionWithId(sid, { title: "Chat" });
+    deps.cfg.settings.setGeneric("ACTIVE_SESSION_ID", sid);
+    res.json({ sessionId: sid, session });
+  });
+
   app.get("/api/sessions/:id", (req: Request, res: Response) => {
     const id = readId(req);
     const session = deps.sessions.getSession(id);
@@ -145,6 +164,7 @@ export function mountSessionRoutes(app: Express, deps: ServerDeps): void {
     const dataRoots = [
       pathResolve(dataDir, "inbox"),
       pathResolve(dataDir, "outputs"),
+      pathResolve(dataDir, "projects"),       // project files (the spine)
     ];
     const tmpRoot = pathResolve(tmpdir());
     const underData = dataRoots.some((root) => abs === root || abs.startsWith(root + pathSep));

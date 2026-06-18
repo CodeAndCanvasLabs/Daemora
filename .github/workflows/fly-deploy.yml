@@ -1,0 +1,67 @@
+# Deploy to Fly.io — MANUAL ONLY, pick what to deploy via the target input.
+#
+# Three targets in one workflow:
+#   - apps-api      → deamora-specialized-saas  (fly.toml + Dockerfile)
+#   - controlplane  → daemora-control-plane     (fly.controlplane.toml + Dockerfile.controlplane)
+#   - tenant-image  → daemora-tenants registry  (Dockerfile.tenant, build-only + push)
+#
+# Run from GitHub UI: Actions → fly-deploy → Run workflow → choose target
+# Or CLI:             gh workflow run fly-deploy.yml --ref main -f target=apps-api
+#
+# Required GitHub secret: FLY_API_TOKEN (from `flyctl auth token`).
+# Per-app prerequisites (one-time): see apps/CLOUD_DEPLOY.md.
+
+name: fly-deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "What to deploy"
+        required: true
+        default: "apps-api"
+        type: choice
+        options:
+          - apps-api
+          - controlplane
+          - tenant-image
+
+concurrency:
+  group: fly-deploy-${{ github.event.inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy ${{ github.event.inputs.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: apps-api → deamora-specialized-saas
+        if: ${{ github.event.inputs.target == 'apps-api' }}
+        run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: controlplane → daemora-control-plane
+        if: ${{ github.event.inputs.target == 'controlplane' }}
+        run: |
+          flyctl deploy \
+            --config fly.controlplane.toml \
+            --dockerfile Dockerfile.controlplane \
+            --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: tenant-image → registry.fly.io/daemora-tenants:tenant
+        if: ${{ github.event.inputs.target == 'tenant-image' }}
+        run: |
+          flyctl deploy \
+            --app daemora-tenants \
+            --dockerfile Dockerfile.tenant \
+            --image-label tenant \
+            --build-only --push --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

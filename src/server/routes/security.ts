@@ -86,6 +86,13 @@ export function mountSecurityRoutes(app: Express, deps: ServerDeps): void {
    * via `update()` so all FS-touching tools immediately see the new policy.
    */
   app.put("/api/security/fs", (req: Request, res: Response) => {
+    // SECURITY — tenant isolation. On a managed (gateway-fronted) instance the
+    // sandbox is platform-enforced and NOT user-editable; a tenant must never be
+    // able to loosen it and read the host or other tenants' data. FS-guard
+    // controls are only honoured for standalone on-your-own-machine daemora.
+    if (process.env["INTERNAL_SIGNING_SECRET"]) {
+      return res.status(403).json({ error: "filesystem_guard_locked", message: "The sandbox is managed by the platform and cannot be changed." });
+    }
     const parsed = fsBody.safeParse(req.body ?? {});
     if (!parsed.success) throw new ValidationError(parsed.error.message);
 

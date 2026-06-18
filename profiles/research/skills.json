@@ -1,0 +1,17 @@
+{
+  "include": [
+    "research",
+    "content-research-writer",
+    "lead-research-assistant",
+    "link-understanding",
+    "data-analysis",
+    "summarize",
+    "pdf",
+    "documents",
+    "rich-document-creator",
+    "document-xlsx",
+    "browser",
+    "webapp-testing",
+    "planning"
+  ]
+}

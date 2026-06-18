@@ -683,26 +683,4 @@ export function mountCompatRoutes(app: Express, deps: ServerDeps): void {
     const ok = await deps.channelManager.stop(id);
     res.json({ ok, running: deps.channelManager.runningSet().has(id) });
   });
-
-  // ── Teams (real) ───────────────────────────────────────────────
-  app.get("/api/teams", (_req: Request, res: Response) => {
-    res.json({ teams: deps.teamStore.listTeams() });
-  });
-
-  app.get("/api/teams/templates", async (_req: Request, res: Response) => {
-    const { teamTemplates } = await import("../../teams/templates.js");
-    res.json({ templates: teamTemplates });
-  });
-
-  app.get("/api/teams/:id", (req: Request, res: Response) => {
-    const team = deps.teamStore.getTeam(req.params.id ?? "");
-    if (!team) return res.status(404).json({ error: "Team not found" });
-    const workers = deps.teamStore.getWorkers(team.id);
-    res.json({ team, workers });
-  });
-
-  app.post("/api/teams/:id/disband", (req: Request, res: Response) => {
-    const ok = deps.teamStore.deleteTeam(req.params.id ?? "");
-    res.json({ ok });
-  });
 }

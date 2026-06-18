@@ -1,0 +1,14 @@
+{
+  "allowedCategories": [
+    "filesystem",
+    "search",
+    "network",
+    "channel",
+    "ai",
+    "system",
+    "agent"
+  ],
+  "allowedTools": [
+    "reply_to_user"
+  ]
+}

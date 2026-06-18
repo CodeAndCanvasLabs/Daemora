@@ -1,0 +1,52 @@
+# Pre-merge sanity for apps/api.
+#
+# Catches the three classes of breakage that have bitten us:
+#   1. Test suite regressions (run vitest)
+#   2. Dockerfile breakage that only surfaces during Fly deploy (build it here)
+#   3. Stale lockfile that doesn't match package.json (npm ci is strict by default)
+#
+# Runs on every push + PR. Required before merging to main.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci --legacy-peer-deps --ignore-scripts
+      - run: npx vitest run apps/api/tests/
+
+  docker-build:
+    name: docker build (catches Fly-deploy breakage early)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build apps/api image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: daemora-api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

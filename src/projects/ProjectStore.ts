@@ -1,8 +1,7 @@
 /**
  * ProjectStore — multi-step project / task planning persistence.
  *
- * Unlike TaskStore (agent turn records) or TeamStore (multi-worker
- * orchestration), ProjectStore is the agent's own "write plan, check
+ * Unlike TaskStore (agent turn records), ProjectStore is the agent's own "write plan, check
  * off tasks" notebook. It survives restarts so the agent can resume
  * long-running work after a crash or new session.
  *
