@@ -331,6 +331,42 @@ daemora mcp remove github     # Remove permanently
 | Brave Search | `npx -y @anthropic-ai/brave-search-mcp-server` |
 | Puppeteer | `npx -y @modelcontextprotocol/server-puppeteer` |
 
+### Optional web research with Parallel
+
+[Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp) adds
+web search and page fetching without an account or API key. Anonymous search uses
+Fast mode and is free for exploration and light use, with service rate limits.
+
+In chat, ask Daemora to call `manage_mcp` with these arguments to add the server:
+
+```json
+{
+  "action": "add",
+  "name": "parallel-search",
+  "url": "https://search.parallel.ai/mcp",
+  "transport": "http",
+  "headers": {
+    "Accept": "application/json, text/event-stream",
+    "User-Agent": "Daemora/1.0 (https://github.com/CodeAndCanvasLabs/Daemora)"
+  },
+  "enabled": true
+}
+```
+
+Then ask it to call `manage_mcp` with
+`{"action":"tools","name":"parallel-search"}`. A connected server lists
+`web_search` and `web_fetch`. Try a research request such as:
+
+> Use `use_mcp` on the `parallel-search` server to find the latest Node.js 22
+> release notes with `web_search`. Fetch the official release page with
+> `web_fetch` to check the exact changes, then summarize them with source links.
+
+To turn it off, ask Daemora to call `manage_mcp` with
+`{"action":"disable","name":"parallel-search"}`. Use `"action":"enable"` with
+the same name to reconnect later. If the server is already registered, enable it
+instead of adding it again. This setup leaves existing search tools and MCP
+settings in place.
+
 ---
 
 ## Browser Automation
